@@ -114,6 +114,34 @@ def main():
         g = g.simplify(0.05, preserve_topology=True) if False else g
         feats.append({'type': 'Feature', 'properties': {'seat': r['seat']}, 'geometry': mapping(g)})
         if r['approx']: rep.append(f'seat {r["seat"]}: approx units ' + ', '.join(f'{a["name"]}->{a["parent"]}' for a in r['approx']))
+    # remove thin internal slivers (gaps between merged units) so seats have no internal lines;
+    # keep genuine enclaves that belong to other seats
+    from shapely.geometry import Polygon, MultiPolygon
+    HOLE_MAX = 3.0   # projected units^2 (~0.2 deg^2)
+    all_g = [(lambda x: x if x.is_valid else shapely.make_valid(x))(shape(f['geometry'])) for f in feats]
+    tree0 = STRtree(all_g); removed = kept = 0
+    for k, f in enumerate(feats):
+        g = all_g[k]
+        polys = [x for x in (list(g.geoms) if g.geom_type in ('MultiPolygon', 'GeometryCollection') else [g]) if x.geom_type in ('Polygon', 'MultiPolygon')]
+        polys = [q for x in polys for q in (list(x.geoms) if x.geom_type == 'MultiPolygon' else [x])]
+        new_polys = []
+        for pg in polys:
+            if pg.geom_type != 'Polygon': new_polys.append(pg); continue
+            keep = []
+            for ring in pg.interiors:
+                hole = Polygon(ring)
+                if hole.area >= HOLE_MAX: keep.append(ring); continue
+                other = 0.0
+                for j in tree0.query(hole):
+                    if j != k:
+                        try: other += hole.intersection(all_g[j]).area
+                        except Exception: other += hole.area  # be safe: treat as enclave
+                if other > 0.3 * hole.area: keep.append(ring); kept += 1
+                else: removed += 1
+            new_polys.append(Polygon(pg.exterior, keep))
+        ng = new_polys[0] if len(new_polys) == 1 else MultiPolygon(new_polys)
+        f['geometry'] = mapping(ng)
+    rep.append(f'internal slivers removed {removed}, enclaves kept {kept}')
     # unit-level duplicate ownership
     dup = {k: v for k, v in owner.items() if len(v) > 1}
     for k, v in sorted(dup.items()): rep.append(f'DUPLICATE unit {k} in seats {sorted(v)}')
