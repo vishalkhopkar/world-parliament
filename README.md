@@ -15,3 +15,6 @@ Needs data not stored here:
 - Python (shapely, pyshp, numpy) and Node (`npm i mapshaper` in `build/`)
 
 Renaming a seat does not need a rebuild: edit `short_name_B` in the CSV (or use the `name-change` skill) and refresh the page.
+
+## Live site
+Deployed from `site/` by `.github/workflows/pages.yml` to https://vishalkhopkar.github.io/world-parliament/ on every push to `main` that changes `site/`.
