@@ -13,3 +13,16 @@ build/tmp_*/
 build/*.bak
 *.bak.csv
 __pycache__/
+
+# scratch / backups
+*.bak*.csv
+build/rebuild.log
+build/seats.names.backup.json
+build/seats.json.bak
+build/india_svg/*.png
+build/india_svg/*.pkl
+build/india_svg/*.html
+build/india_svg/s88.json
+build/india_svg/extra_new.geojson
+build/india_svg/extra_before_aksai.geojson
+data/chn_prefec/

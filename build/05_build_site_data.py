@@ -15,13 +15,16 @@ for r in sh.iterRecords():
         if d.get(k) and v2 and v2 != '-99': a3to2.setdefault(d[k], v2.lower())
 a3to2.update({'XKX': 'xk', '129': 'ps', '118': 'ps', 'FRA': 'fr', 'NOR': 'no', 'MMR': 'mm', '117': 'fk', 'SWZ': 'sz', 'TWN': 'tw', 'PSE': 'ps', 'GUF': 'gf'})
 NAME2 = {'Bonaire, Sint Eustatius and Saba': 'bq', 'Saint Helena, Ascension and Tristan da Cunha': 'sh', 'Palestine': 'ps', 'Kosovo': 'xk'}
+TAGS = {n: "claimed territory of Ladakh (India's official boundary)" for n in ('Aksai Chin', 'Shaksgam Valley')}
 out = []
 for sid, s in sorted(parsed.items()):
     r = resolved[sid]; a3 = {c['name']: c['a3'] for c in r['countries']}
     cs = []
     for c in s['countries']:
         iso2 = NAME2.get(c['name']) or a3to2.get(a3.get(c['name'], ''), '')
-        cs.append({'name': c['name'], 'iso2': iso2, 'whole': c['whole'], 'adm1': c['adm1']})
+        e = {'name': c['name'], 'iso2': iso2, 'whole': c['whole'], 'adm1': c['adm1']}
+        if c['name'] in TAGS: e['iso2'] = 'in'; e['tag'] = TAGS[c['name']]
+        cs.append(e)
     out.append({'id': sid, 'name': s['name'], 'constituency': s['constituency'], 'continent': s['continent'], 'pop': s['pop'],
                 'desc': s['description'], 'countries': cs, 'approx': [a['name'] for a in r['approx']]})
 # graph colouring (DSATUR) on adjacency of seat geometries
@@ -39,6 +42,11 @@ while len(color) < len(ids):
     used = {color[n] for n in adj[nxt] if n in color}
     color[nxt] = next((c for c in range(NCOL) if c not in used), min(range(NCOL), key=lambda c: sum(1 for n in adj[nxt] if color.get(n) == c)))
 for s in out: s['color'] = color.get(s['id'], 0)
+# site/data/seats.json is the source of truth for seat NAMES: keep any name already stored there.
+_sj = os.path.join(ROOT, 'site', 'data', 'seats.json')
+if os.path.exists(_sj):
+    _old = {s['id']: s['name'] for s in json.load(open(_sj, encoding='utf-8'))}
+    for s in out: s['name'] = _old.get(s['id'], s['name'])
 json.dump(out, open(os.path.join(ROOT, 'site', 'data', 'seats.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
 bad = [i for i in ids if any(color[n] == color[i] for n in adj[i])]
 print('seats', len(out), 'coloured', len(color), 'conflicts', len(bad), 'missing iso2', sorted({c['name'] for s in out for c in s['countries'] if not c['iso2']}))

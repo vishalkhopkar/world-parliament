@@ -94,7 +94,8 @@
     for (const c of s.countries) {
       const flag = c.iso2 ? '<img src="https://flagcdn.com/w40/' + c.iso2 + '.png" alt="" onerror="this.remove()">' : '';
       h += '<li class="c">' + esc(c.name) + ' ' + flag;
-      if (c.whole) h += ' <span class="whole">(entire country)</span>';
+      if (c.tag) h += ' <span class="whole">(' + esc(c.tag) + ')</span>';
+      else if (c.whole) h += ' <span class="whole">(entire country)</span>';
       else {
         h += '<ul>';
         for (const a of c.adm1) {

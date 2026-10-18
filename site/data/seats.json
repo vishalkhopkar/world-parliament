@@ -27,11 +27,11 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 2,
-    "name": "East Delhi–Noida",
+    "name": "Delhi East",
     "constituency": "East Delhi–Noida",
     "continent": "Asia",
     "pop": 15130000,
@@ -64,7 +64,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 2
   },
   {
     "id": 3,
@@ -94,7 +94,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 4,
@@ -123,7 +123,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 5,
@@ -153,7 +153,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 6,
@@ -182,7 +182,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 7,
@@ -213,7 +213,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 2
   },
   {
     "id": 8,
@@ -274,7 +274,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 4
   },
   {
     "id": 10,
@@ -302,7 +302,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 3
   },
   {
     "id": 11,
@@ -361,7 +361,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 13,
@@ -391,7 +391,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 14,
@@ -422,7 +422,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 15,
@@ -480,7 +480,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 17,
@@ -509,7 +509,7 @@
       }
     ],
     "approx": [],
-    "color": 4
+    "color": 1
   },
   {
     "id": 18,
@@ -540,7 +540,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 19,
@@ -600,7 +600,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 4
   },
   {
     "id": 21,
@@ -629,7 +629,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 22,
@@ -658,7 +658,7 @@
       }
     ],
     "approx": [],
-    "color": 4
+    "color": 0
   },
   {
     "id": 23,
@@ -714,7 +714,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 25,
@@ -770,7 +770,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 27,
@@ -797,7 +797,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 28,
@@ -828,15 +828,15 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 1
   },
   {
     "id": 29,
-    "name": "Konkan–Goa",
+    "name": "Konkan",
     "constituency": "Konkan–Goa–Kolhapur–Sangli",
     "continent": "Asia",
-    "pop": 14820000,
-    "desc": "South Konkan (Raigad, Ratnagiri, Sindhudurg) with all of Goa, plus Kolhapur and Sangli districts on the Sahyadri uplands",
+    "pop": 16490000,
+    "desc": "South Konkan (Raigad, Ratnagiri, Sindhudurg) with all of Goa, Kolhapur and Sangli districts and Uttara Kannada (Karwar, Kumta, Sirsi, Bhatkal etc.)",
     "countries": [
       {
         "name": "India",
@@ -858,19 +858,26 @@
             "name": "Goa",
             "whole": true,
             "adm2": []
+          },
+          {
+            "name": "Karnataka",
+            "whole": false,
+            "adm2": [
+              "Uttara Kannada"
+            ]
           }
         ]
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 30,
     "name": "Pune",
     "constituency": "Pune–Satara",
     "continent": "Asia",
-    "pop": 16710000,
+    "pop": 16700000,
     "desc": "Pune and Satara districts (Pune-Pimpri-Chinchwad and the Krishna headwaters)",
     "countries": [
       {
@@ -890,11 +897,11 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 31,
-    "name": "Solapur",
+    "name": "Ahmadnagar",
     "constituency": "Solapur–Ahmednagar–Beed–Osmanabad",
     "continent": "Asia",
     "pop": 14980000,
@@ -919,7 +926,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 2
   },
   {
     "id": 32,
@@ -948,7 +955,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 33,
@@ -979,15 +986,15 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 34,
     "name": "Vidarbha",
     "constituency": "Vidarbha–Nagpur–Balaghat–Chhindwara",
     "continent": "Asia",
-    "pop": 17950000,
-    "desc": "East Vidarbha (Nagpur, Bhandara, Gondiya, Gadchiroli, Chandrapur) plus the adjoining Satpura/Gondwana districts of Madhya Pradesh: Balaghat, Seoni, Chhindwara",
+    "pop": 15290000,
+    "desc": "Vidarbha districts of Maharashtra plus Balaghat and Seoni of Madhya Pradesh",
     "countries": [
       {
         "name": "India",
@@ -1010,15 +1017,14 @@
             "whole": false,
             "adm2": [
               "Balaghat",
-              "Seoni",
-              "Chhindwara"
+              "Seoni"
             ]
           }
         ]
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 35,
@@ -1051,7 +1057,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 36,
@@ -1078,7 +1084,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 37,
@@ -1219,7 +1225,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 41,
@@ -1254,15 +1260,15 @@
       }
     ],
     "approx": [],
-    "color": 4
+    "color": 0
   },
   {
     "id": 42,
     "name": "Malwa",
     "constituency": "Indore–Malwa",
     "continent": "Asia",
-    "pop": 15530000,
-    "desc": "Indore, Dewas, Ujjain, Shajapur, Agar (Agar Malwa), Rajgarh and Dhar districts of the Malwa plateau",
+    "pop": 19610000,
+    "desc": "Indore, Dewas, Ujjain, Shajapur, Agar, Rajgarh, Dhar, Ratlam, Jhabua and Alirajpur districts",
     "countries": [
       {
         "name": "India",
@@ -1279,22 +1285,25 @@
               "Shajapur",
               "Agar",
               "Rajgarh",
-              "Dhar"
+              "Dhar",
+              "Ratlam",
+              "Jhabua",
+              "Alirajpur"
             ]
           }
         ]
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 43,
     "name": "Nimar",
     "constituency": "Nimar–Ratlam–Narmadapuram",
     "continent": "Asia",
-    "pop": 15150000,
-    "desc": "Nimar and the Narmada valley: Khargone, Barwani, Khandwa, Burhanpur, Harda, Hoshangabad (Narmadapuram), Betul, plus Bhil districts Jhabua, Alirajpur and Ratlam",
+    "pop": 13730000,
+    "desc": "Nimar and the Satpura belt: Barwani, Khargone, Burhanpur, Khandwa, Harda, Hoshangabad (Narmadapuram), Betul and Chhindwara",
     "countries": [
       {
         "name": "India",
@@ -1305,23 +1314,21 @@
             "name": "Madhya Pradesh",
             "whole": false,
             "adm2": [
-              "Ratlam",
-              "Jhabua",
-              "Alirajpur",
               "Barwani",
               "Khargone",
-              "Khandwa",
               "Burhanpur",
+              "Khandwa",
               "Harda",
               "Hoshangabad",
-              "Betul"
+              "Betul",
+              "Chhindwara"
             ]
           }
         ]
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 44,
@@ -1355,7 +1362,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 45,
@@ -1391,7 +1398,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 2
   },
   {
     "id": 46,
@@ -1420,7 +1427,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 2
   },
   {
     "id": 47,
@@ -1459,7 +1466,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 48,
@@ -1525,7 +1532,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 50,
@@ -1587,7 +1594,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 52,
@@ -1617,7 +1624,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 2
   },
   {
     "id": 53,
@@ -1655,7 +1662,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 54,
@@ -1686,7 +1693,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 55,
@@ -1725,7 +1732,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 2
   },
   {
     "id": 56,
@@ -1757,7 +1764,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 57,
@@ -1821,7 +1828,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 59,
@@ -1864,8 +1871,8 @@
     "name": "Malnad",
     "constituency": "Belagavi–Dharwad–Malnad–Coast",
     "continent": "Asia",
-    "pop": 18380000,
-    "desc": "Belagavi, Dharwad, Gadag, Haveri, Uttara Kannada, Shivamogga, Udupi and Dakshina Kannada districts of Karnataka",
+    "pop": 16700000,
+    "desc": "Belagavi, Dharwad, Gadag, Haveri, Shivamogga, Udupi and Dakshina Kannada districts of Karnataka",
     "countries": [
       {
         "name": "India",
@@ -1880,7 +1887,6 @@
               "Dharwad",
               "Gadag",
               "Haveri",
-              "Uttara Kannada",
               "Shivamogga",
               "Udupi",
               "Dakshina Kannada"
@@ -1922,7 +1928,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 62,
@@ -1991,7 +1997,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 4
   },
   {
     "id": 64,
@@ -2027,7 +2033,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 65,
@@ -2068,11 +2074,11 @@
       "Kakinada",
       "Dr. B.R. Ambedkar Konaseema"
     ],
-    "color": 1
+    "color": 2
   },
   {
     "id": 66,
-    "name": "Krishna–Guntur–Nellore",
+    "name": "Amaravathi",
     "constituency": "Vijayawada–Guntur–Prakasam–Nellore",
     "continent": "Asia",
     "pop": 18900000,
@@ -2106,7 +2112,7 @@
       "Palnadu",
       "Bapatla"
     ],
-    "color": 0
+    "color": 1
   },
   {
     "id": 67,
@@ -2144,7 +2150,7 @@
       "Sri Sathya Sai",
       "Nandyal"
     ],
-    "color": 2
+    "color": 0
   },
   {
     "id": 68,
@@ -2182,7 +2188,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 2
   },
   {
     "id": 69,
@@ -2227,7 +2233,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 70,
@@ -2299,7 +2305,7 @@
       }
     ],
     "approx": [],
-    "color": 4
+    "color": 1
   },
   {
     "id": 72,
@@ -2410,7 +2416,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 75,
@@ -2446,7 +2452,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 76,
@@ -2481,7 +2487,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 77,
@@ -2567,7 +2573,7 @@
   },
   {
     "id": 79,
-    "name": "Majha-Doaba-Tricity",
+    "name": "Amritsar",
     "constituency": "Majha–Doaba–Chandigarh Tricity",
     "continent": "Asia",
     "pop": 17050000,
@@ -2610,11 +2616,11 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 80,
-    "name": "Punjab Malwa",
+    "name": "Ludhiana",
     "constituency": "Malwa–Patiala",
     "continent": "Asia",
     "pop": 17470000,
@@ -2650,7 +2656,7 @@
     "approx": [
       "Malerkotla"
     ],
-    "color": 3
+    "color": 2
   },
   {
     "id": 81,
@@ -2688,7 +2694,7 @@
     "approx": [
       "Charkhi Dadri"
     ],
-    "color": 2
+    "color": 1
   },
   {
     "id": 82,
@@ -2723,7 +2729,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 83,
@@ -2763,7 +2769,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 84,
@@ -2801,11 +2807,11 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 85,
-    "name": "West Delhi",
+    "name": "Delhi West",
     "constituency": "West Delhi",
     "continent": "Asia",
     "pop": 17910000,
@@ -2833,15 +2839,15 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 86,
     "name": "Jammu-Kashmir",
     "constituency": "Kashmir Valley–Jammu–Ladakh",
     "continent": "Asia",
-    "pop": 14350000,
-    "desc": "India — Jammu and Kashmir (Indian-administered extent, as in old sheet), excluding Ladakh",
+    "pop": 18750000,
+    "desc": "India — Jammu and Kashmir (UT) plus Pakistan-administered Azad Kashmir, i.e. J&K as in India's official map (Gilgit-Baltistan, Aksai Chin and Shaksgam are in seat 88)",
     "countries": [
       {
         "name": "India",
@@ -2850,6 +2856,18 @@
         "adm1": [
           {
             "name": "Jammu and Kashmir",
+            "whole": true,
+            "adm2": []
+          }
+        ]
+      },
+      {
+        "name": "Pakistan",
+        "iso2": "pk",
+        "whole": false,
+        "adm1": [
+          {
+            "name": "Azad Kashmir",
             "whole": true,
             "adm2": []
           }
@@ -2881,15 +2899,15 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 2
   },
   {
     "id": 88,
     "name": "Himachal–Ladakh",
     "constituency": "Himachal–Ladakh",
     "continent": "Asia",
-    "pop": 8150000,
-    "desc": "India — Himachal Pradesh plus Ladakh (Leh and Kargil)",
+    "pop": 10150000,
+    "desc": "India — Himachal Pradesh plus Ladakh drawn to India's official boundary (Survey-of-India-style claim line from India_district_map_(de-facto).svg): Gilgit-Baltistan, Aksai Chin/Siachen/Demchok and the Shaksgam Valley",
     "countries": [
       {
         "name": "India",
@@ -2907,10 +2925,36 @@
             "adm2": []
           }
         ]
+      },
+      {
+        "name": "Pakistan",
+        "iso2": "pk",
+        "whole": false,
+        "adm1": [
+          {
+            "name": "Gilgit-Baltistan",
+            "whole": true,
+            "adm2": []
+          }
+        ]
+      },
+      {
+        "name": "Aksai Chin",
+        "iso2": "in",
+        "whole": true,
+        "adm1": [],
+        "tag": "claimed territory of Ladakh (India's official boundary)"
+      },
+      {
+        "name": "Shaksgam Valley",
+        "iso2": "in",
+        "whole": true,
+        "adm1": [],
+        "tag": "claimed territory of Ladakh (India's official boundary)"
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 89,
@@ -2954,7 +2998,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 90,
@@ -2980,7 +3024,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 91,
@@ -3035,11 +3079,11 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 4
   },
   {
     "id": 93,
-    "name": "Northeast Guangdong (Hakka)",
+    "name": "Hakka",
     "constituency": "Qingyuan-Shaoguan-Heyuan-Meizhou",
     "continent": "Asia",
     "pop": 13590000,
@@ -3064,7 +3108,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 94,
@@ -3091,7 +3135,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 95,
@@ -3118,7 +3162,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 96,
@@ -3147,7 +3191,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 97,
@@ -3178,7 +3222,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 98,
@@ -3206,7 +3250,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 99,
@@ -3233,7 +3277,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 100,
@@ -3290,7 +3334,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 102,
@@ -3317,7 +3361,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 103,
@@ -3344,7 +3388,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 104,
@@ -3372,7 +3416,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 105,
@@ -3401,7 +3445,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 106,
@@ -3429,7 +3473,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 107,
@@ -3458,7 +3502,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 108,
@@ -3485,7 +3529,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 109,
@@ -3512,7 +3556,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 110,
@@ -3540,7 +3584,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 111,
@@ -3573,7 +3617,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 112,
@@ -3601,7 +3645,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 4
   },
   {
     "id": 113,
@@ -3629,7 +3673,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 114,
@@ -3657,7 +3701,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 115,
@@ -3683,7 +3727,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 116,
@@ -3713,7 +3757,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 117,
@@ -3743,7 +3787,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 118,
@@ -3771,7 +3815,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 119,
@@ -3801,7 +3845,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 120,
@@ -3828,7 +3872,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 121,
@@ -3857,7 +3901,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 122,
@@ -3911,7 +3955,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 124,
@@ -3939,7 +3983,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 4
   },
   {
     "id": 125,
@@ -3968,7 +4012,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 126,
@@ -3996,7 +4040,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 127,
@@ -4052,7 +4096,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 129,
@@ -4080,7 +4124,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 130,
@@ -4135,7 +4179,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 132,
@@ -4162,7 +4206,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 133,
@@ -4191,7 +4235,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 134,
@@ -4223,7 +4267,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 135,
@@ -4251,7 +4295,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 136,
@@ -4280,7 +4324,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 137,
@@ -4343,7 +4387,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 139,
@@ -4373,7 +4417,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 140,
@@ -4402,7 +4446,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 141,
@@ -4495,7 +4539,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 144,
@@ -4523,7 +4567,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 145,
@@ -4552,7 +4596,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 146,
@@ -4647,7 +4691,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 149,
@@ -4679,7 +4723,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 150,
@@ -4709,7 +4753,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 151,
@@ -4737,7 +4781,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 152,
@@ -4765,7 +4809,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 153,
@@ -4797,7 +4841,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 154,
@@ -4827,7 +4871,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 155,
@@ -4856,7 +4900,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 156,
@@ -4887,7 +4931,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 157,
@@ -4917,11 +4961,11 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 3
   },
   {
     "id": 158,
-    "name": "Chongqing Central",
+    "name": "Chongqing West",
     "constituency": "Chongqing Urban Core & Western Districts",
     "continent": "Asia",
     "pop": 16400000,
@@ -4958,7 +5002,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 159,
@@ -5005,7 +5049,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 160,
@@ -5033,7 +5077,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 161,
@@ -5068,11 +5112,11 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 162,
-    "name": "Ili Valley",
+    "name": "Xinjiang North",
     "constituency": "Northern Xinjiang–Ili",
     "continent": "Asia",
     "pop": 13070000,
@@ -5109,11 +5153,11 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 163,
-    "name": "Tarim Basin",
+    "name": "Xinjiang South",
     "constituency": "Southern Xinjiang–Tarim",
     "continent": "Asia",
     "pop": 13230000,
@@ -5178,11 +5222,11 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 3
   },
   {
     "id": 165,
-    "name": "Mongolian Plateau",
+    "name": "Mongolia",
     "constituency": "Mongolia–Central & Western Inner Mongolia",
     "continent": "Asia",
     "pop": 17030000,
@@ -5217,7 +5261,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 166,
@@ -5261,7 +5305,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 167,
@@ -5293,7 +5337,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 168,
@@ -5317,7 +5361,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 169,
@@ -5341,7 +5385,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 170,
@@ -5372,7 +5416,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 3
   },
   {
     "id": 171,
@@ -5450,7 +5494,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 173,
@@ -5489,7 +5533,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 174,
@@ -5533,7 +5577,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 176,
@@ -5569,7 +5613,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 177,
@@ -5604,7 +5648,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 0
   },
   {
     "id": 178,
@@ -5630,7 +5674,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 179,
@@ -5659,7 +5703,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 180,
@@ -5687,7 +5731,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 181,
@@ -5716,15 +5760,15 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 182,
     "name": "Potohar",
     "constituency": "Rawalpindi–Islamabad–Potohar–Azad Kashmir",
     "continent": "Asia",
-    "pop": 18930000,
-    "desc": "Rawalpindi, Attock, Chakwal, Jhelum (Potohar plateau), Islamabad Capital Territory and Azad Kashmir",
+    "pop": 14530000,
+    "desc": "Rawalpindi, Attock, Chakwal, Jhelum (Potohar plateau), Islamabad Capital Territory",
     "countries": [
       {
         "name": "Pakistan",
@@ -5743,11 +5787,6 @@
           },
           {
             "name": "Islamabad Capital Territory",
-            "whole": true,
-            "adm2": []
-          },
-          {
-            "name": "Azad Kashmir",
             "whole": true,
             "adm2": []
           }
@@ -5785,7 +5824,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 0
   },
   {
     "id": 184,
@@ -5813,7 +5852,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 185,
@@ -5844,7 +5883,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 0
   },
   {
     "id": 186,
@@ -5904,15 +5943,15 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 0
   },
   {
     "id": 188,
     "name": "Hazara",
     "constituency": "Hazara–Malakand–Gilgit-Baltistan",
     "continent": "Asia",
-    "pop": 16350000,
-    "desc": "Hazara and Malakand divisions of Khyber Pakhtunkhwa (excl. Buner and Bajaur) plus all of Gilgit-Baltistan",
+    "pop": 14350000,
+    "desc": "Hazara and Malakand divisions of Khyber Pakhtunkhwa (excl. Buner and Bajaur)",
     "countries": [
       {
         "name": "Pakistan",
@@ -5935,17 +5974,12 @@
               "Malakand",
               "Chitral"
             ]
-          },
-          {
-            "name": "Gilgit-Baltistan",
-            "whole": true,
-            "adm2": []
           }
         ]
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 189,
@@ -5984,7 +6018,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 3
   },
   {
     "id": 190,
@@ -6008,11 +6042,11 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 191,
-    "name": "Dhaka",
+    "name": "Dhaka City",
     "constituency": "Dhaka City District",
     "continent": "Asia",
     "pop": 15770000,
@@ -6038,7 +6072,7 @@
   },
   {
     "id": 192,
-    "name": "Dhaka South",
+    "name": "Dhaka Outer",
     "constituency": "Narayanganj–Faridpur–Padma Basin",
     "continent": "Asia",
     "pop": 15620000,
@@ -6074,7 +6108,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 193,
@@ -6203,7 +6237,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 197,
@@ -6263,7 +6297,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 199,
@@ -6301,7 +6335,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 200,
@@ -6370,11 +6404,11 @@
   },
   {
     "id": 202,
-    "name": "Kathmandu Valley",
+    "name": "Nepal East",
     "constituency": "Kathmandu–Bagmati–Koshi–Eastern Madhesh",
     "continent": "Asia",
-    "pop": 15700000,
-    "desc": "Koshi province + Bagmati province (incl. Kathmandu Valley) + eastern Madhesh districts (Saptari, Siraha, Dhanusha, Mahottari, Sarlahi)",
+    "pop": 14980000,
+    "desc": "Eastern and central Nepal: Koshi Province, Bagmati Province except Chitwan, and the eastern Madhesh districts (Saptari to Sarlahi)",
     "countries": [
       {
         "name": "Nepal",
@@ -6388,8 +6422,21 @@
           },
           {
             "name": "Bagmati",
-            "whole": true,
-            "adm2": []
+            "whole": false,
+            "adm2": [
+              "Sindhuli",
+              "Ramechhap",
+              "Dolakha",
+              "Sindhupalchok",
+              "Kavrepalanchok",
+              "Lalitpur",
+              "Bhaktapur",
+              "Kathmandu",
+              "Nuwakot",
+              "Rasuwa",
+              "Dhading",
+              "Makwanpur"
+            ]
           },
           {
             "name": "Madhesh",
@@ -6406,15 +6453,15 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 203,
-    "name": "Western Nepal",
+    "name": "Nepal West",
     "constituency": "Terai–Pokhara–Western Hills",
     "continent": "Asia",
-    "pop": 14900000,
-    "desc": "Gandaki, Lumbini, Karnali and Sudurpashchim provinces + western Madhesh districts (Parsa, Bara, Rautahat)",
+    "pop": 15630000,
+    "desc": "Western Nepal: Gandaki, Lumbini, Karnali and Sudurpashchim provinces, Chitwan (Bagmati Province) and the central Terai districts Parsa, Bara and Rautahat",
     "countries": [
       {
         "name": "Nepal",
@@ -6442,6 +6489,13 @@
             "adm2": []
           },
           {
+            "name": "Bagmati",
+            "whole": false,
+            "adm2": [
+              "Chitwan"
+            ]
+          },
+          {
             "name": "Madhesh",
             "whole": false,
             "adm2": [
@@ -6454,7 +6508,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 204,
@@ -6528,7 +6582,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 1
   },
   {
     "id": 205,
@@ -6607,7 +6661,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 206,
@@ -6681,7 +6735,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 3
   },
   {
     "id": 207,
@@ -6834,7 +6888,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 211,
@@ -6901,7 +6955,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 213,
@@ -6945,7 +6999,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 214,
@@ -7040,7 +7094,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 216,
@@ -7078,7 +7132,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 217,
@@ -7178,7 +7232,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 219,
@@ -7223,7 +7277,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 220,
@@ -7262,7 +7316,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 221,
@@ -7297,7 +7351,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 222,
@@ -7341,7 +7395,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 223,
@@ -7821,7 +7875,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 234,
@@ -7969,7 +8023,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 236,
@@ -8058,7 +8112,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 237,
@@ -8102,7 +8156,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 238,
@@ -8186,7 +8240,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 239,
@@ -8265,7 +8319,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 240,
@@ -8389,7 +8443,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 241,
@@ -8488,7 +8542,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 242,
@@ -8597,7 +8651,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 243,
@@ -8672,7 +8726,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 244,
@@ -8716,15 +8770,15 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 245,
     "name": "Mandalay",
     "constituency": "Mandalay-Magway-Ayeyarwady-Naypyitaw",
     "continent": "Asia",
-    "pop": 18700000,
-    "desc": "Mandalay, Magway, Nay Pyi Taw and Ayeyarwady",
+    "pop": 18600000,
+    "desc": "Mandalay, Magway, Nay Pyi Taw, Shan and Kayah (central dry zone plus the Shan plateau)",
     "countries": [
       {
         "name": "Myanmar",
@@ -8747,7 +8801,12 @@
             "adm2": []
           },
           {
-            "name": "Ayeyarwady",
+            "name": "Shan",
+            "whole": true,
+            "adm2": []
+          },
+          {
+            "name": "Kayah",
             "whole": true,
             "adm2": []
           }
@@ -8755,15 +8814,15 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 246,
-    "name": "Upper Myanmar",
+    "name": "Irrawaddy–Arakan",
     "constituency": "Shan-Sagaing-Kachin-Rakhine",
     "continent": "Asia",
-    "pop": 18000000,
-    "desc": "Shan, Kachin, Sagaing, Chin, Kayah and Rakhine",
+    "pop": 18100000,
+    "desc": "Sagaing, Kachin, Chin, Rakhine and Ayeyarwady",
     "countries": [
       {
         "name": "Myanmar",
@@ -8786,17 +8845,12 @@
             "adm2": []
           },
           {
-            "name": "Shan",
-            "whole": true,
-            "adm2": []
-          },
-          {
-            "name": "Kayah",
-            "whole": true,
-            "adm2": []
-          },
-          {
             "name": "Rakhine",
+            "whole": true,
+            "adm2": []
+          },
+          {
+            "name": "Ayeyarwady",
             "whole": true,
             "adm2": []
           }
@@ -8804,7 +8858,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 247,
@@ -8822,7 +8876,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 248,
@@ -8876,7 +8930,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 249,
@@ -8931,7 +8985,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 250,
@@ -8971,7 +9025,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 251,
@@ -9234,7 +9288,7 @@
   },
   {
     "id": 257,
-    "name": "Hyogo–Chugoku–Shikoku",
+    "name": "Chugoku–Shikoku",
     "constituency": "Hyogo–Chugoku–Shikoku",
     "continent": "Asia",
     "pop": 15760000,
@@ -9404,11 +9458,11 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 260,
-    "name": "Central Korea",
+    "name": "Sejong",
     "constituency": "Gyeonggi South–Gangwon–Chungcheong",
     "continent": "Asia",
     "pop": 16170000,
@@ -9478,7 +9532,7 @@
   },
   {
     "id": 261,
-    "name": "Busan",
+    "name": "Busan-Jeju",
     "constituency": "Yeongnam–Honam–Jeju",
     "continent": "Asia",
     "pop": 18220000,
@@ -9582,7 +9636,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 263,
@@ -9641,7 +9695,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 264,
@@ -9721,7 +9775,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 265,
@@ -9817,7 +9871,7 @@
     "approx": [
       "Adalar"
     ],
-    "color": 3
+    "color": 1
   },
   {
     "id": 266,
@@ -10326,7 +10380,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 1
   },
   {
     "id": 272,
@@ -10595,7 +10649,7 @@
   },
   {
     "id": 277,
-    "name": "Saudi West",
+    "name": "Makkah-Madinah",
     "constituency": "Hejaz–Mecca–Medina–Asir–Red Sea",
     "continent": "Asia",
     "pop": 15690000,
@@ -10644,7 +10698,7 @@
   },
   {
     "id": 278,
-    "name": "Saudi Najd",
+    "name": "Najd",
     "constituency": "Riyadh–Najd–Northern Arabia",
     "continent": "Asia",
     "pop": 13560000,
@@ -11063,7 +11117,7 @@
   },
   {
     "id": 287,
-    "name": "Kazakhstan–Turkmenistan",
+    "name": "Ashgabat",
     "constituency": "Western Kazakhstan–Turkmenistan",
     "continent": "Asia",
     "pop": 14960000,
@@ -11119,7 +11173,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 288,
@@ -11311,7 +11365,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 4
   },
   {
     "id": 291,
@@ -11335,7 +11389,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 292,
@@ -11490,11 +11544,11 @@
   },
   {
     "id": 297,
-    "name": "Benue–Taraba–Nasarawa",
-    "constituency": "Makurdi–Jalingo–Lafia",
+    "name": "Benue–Plateau–Taraba–Nasarawa",
+    "constituency": "Benue–Plateau–Taraba–Nasarawa",
     "continent": "Africa",
-    "pop": 14430000,
-    "desc": "Nigeria — Benue, Taraba, Nasarawa",
+    "pop": 20400000,
+    "desc": "Benue, Plateau, Taraba, Nasarawa (entire states)",
     "countries": [
       {
         "name": "Nigeria",
@@ -11503,6 +11557,11 @@
         "adm1": [
           {
             "name": "Benue",
+            "whole": true,
+            "adm2": []
+          },
+          {
+            "name": "Plateau",
             "whole": true,
             "adm2": []
           },
@@ -11583,7 +11642,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 4
   },
   {
     "id": 300,
@@ -11617,7 +11676,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 301,
@@ -11651,15 +11710,15 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 3
   },
   {
     "id": 302,
-    "name": "Plateau–Bauchi",
-    "constituency": "Jos–Bauchi",
+    "name": "Bauchi–Gombe–Jigawa",
+    "constituency": "Bauchi–Gombe–Jigawa",
     "continent": "Africa",
-    "pop": 13700000,
-    "desc": "Nigeria — Plateau, Bauchi",
+    "pop": 20000000,
+    "desc": "Bauchi, Gombe, Jigawa (entire states)",
     "countries": [
       {
         "name": "Nigeria",
@@ -11667,12 +11726,17 @@
         "whole": false,
         "adm1": [
           {
-            "name": "Plateau",
+            "name": "Bauchi",
             "whole": true,
             "adm2": []
           },
           {
-            "name": "Bauchi",
+            "name": "Gombe",
+            "whole": true,
+            "adm2": []
+          },
+          {
+            "name": "Jigawa",
             "whole": true,
             "adm2": []
           }
@@ -11684,11 +11748,11 @@
   },
   {
     "id": 303,
-    "name": "Adamawa–Borno",
-    "constituency": "Yola–Maiduguri",
+    "name": "Borno–Yobe–Adamawa",
+    "constituency": "Borno–Yobe–Adamawa",
     "continent": "Africa",
-    "pop": 13100000,
-    "desc": "Nigeria — Adamawa, Borno",
+    "pop": 17000000,
+    "desc": "Borno, Yobe, Adamawa (entire states)",
     "countries": [
       {
         "name": "Nigeria",
@@ -11696,12 +11760,17 @@
         "whole": false,
         "adm1": [
           {
-            "name": "Adamawa",
+            "name": "Borno",
             "whole": true,
             "adm2": []
           },
           {
-            "name": "Borno",
+            "name": "Yobe",
+            "whole": true,
+            "adm2": []
+          },
+          {
+            "name": "Adamawa",
             "whole": true,
             "adm2": []
           }
@@ -11738,7 +11807,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 3
   },
   {
     "id": 305,
@@ -11791,7 +11860,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 307,
@@ -11820,41 +11889,42 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 3
   },
   {
     "id": 308,
-    "name": "Jigawa–Yobe–Gombe",
-    "constituency": "Dutse–Damaturu–Gombe",
-    "continent": "Africa",
-    "pop": 16200000,
-    "desc": "Nigeria — Jigawa, Yobe, Gombe",
+    "name": "Ontario",
+    "constituency": "Ontario",
+    "continent": "North America",
+    "pop": 14500000,
+    "desc": "Ontario excluding the Ottawa economic region (which is in the Quebec–Atlantic seat)",
     "countries": [
       {
-        "name": "Nigeria",
-        "iso2": "ng",
+        "name": "Canada",
+        "iso2": "ca",
         "whole": false,
         "adm1": [
           {
-            "name": "Jigawa",
-            "whole": true,
-            "adm2": []
-          },
-          {
-            "name": "Yobe",
-            "whole": true,
-            "adm2": []
-          },
-          {
-            "name": "Gombe",
-            "whole": true,
-            "adm2": []
+            "name": "Ontario",
+            "whole": false,
+            "adm2": [
+              "Kingston--Pembroke",
+              "Muskoka--Kawarthas",
+              "Toronto",
+              "Kitchener--Waterloo--Barrie",
+              "Hamilton--Niagara Peninsula",
+              "London",
+              "Windsor--Sarnia",
+              "Stratford--Bruce Peninsula",
+              "Northeast Ontario",
+              "Northwest Ontario"
+            ]
           }
         ]
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 1
   },
   {
     "id": 309,
@@ -11926,7 +11996,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 311,
@@ -12040,7 +12110,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 314,
@@ -12110,7 +12180,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 316,
@@ -12151,7 +12221,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 317,
@@ -12475,7 +12545,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 326,
@@ -12509,7 +12579,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 327,
@@ -12646,7 +12716,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 330,
@@ -12675,7 +12745,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 331,
@@ -12714,7 +12784,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 332,
@@ -12783,7 +12853,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 333,
@@ -12832,7 +12902,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 334,
@@ -12891,7 +12961,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 335,
@@ -13004,7 +13074,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 337,
@@ -13182,7 +13252,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 339,
@@ -13251,7 +13321,7 @@
       }
     ],
     "approx": [],
-    "color": 4
+    "color": 2
   },
   {
     "id": 340,
@@ -13280,7 +13350,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 341,
@@ -13316,7 +13386,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 342,
@@ -13356,7 +13426,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 343,
@@ -13402,7 +13472,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 344,
@@ -13475,7 +13545,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 0
   },
   {
     "id": 346,
@@ -13615,7 +13685,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 349,
@@ -13740,7 +13810,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 351,
@@ -13814,7 +13884,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 352,
@@ -13928,7 +13998,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 353,
@@ -14037,7 +14107,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 1
   },
   {
     "id": 354,
@@ -14131,7 +14201,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 1
   },
   {
     "id": 356,
@@ -14229,7 +14299,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 358,
@@ -14282,7 +14352,7 @@
   },
   {
     "id": 359,
-    "name": "Maputo",
+    "name": "Mozambique South",
     "constituency": "Maputo–Beira–Southern & Central Mozambique",
     "continent": "Africa",
     "pop": 16700000,
@@ -14332,11 +14402,11 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 360,
-    "name": "Northern Mozambique",
+    "name": "Mozambique North",
     "constituency": "Zambezia–Nampula–Cabo Delgado–Niassa",
     "continent": "Africa",
     "pop": 19900000,
@@ -14371,7 +14441,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 361,
@@ -14441,7 +14511,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 362,
@@ -14505,11 +14575,11 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 363,
-    "name": "Antananarivo",
+    "name": "Madagascar Inner",
     "constituency": "Antananarivo–Central & Eastern Madagascar",
     "continent": "Africa",
     "pop": 17760000,
@@ -14840,7 +14910,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 368,
@@ -14932,7 +15002,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 1
   },
   {
     "id": 370,
@@ -14973,7 +15043,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 371,
@@ -15012,7 +15082,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 372,
@@ -15062,7 +15132,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 373,
@@ -15131,11 +15201,11 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 374,
-    "name": "Lake Chad",
+    "name": "Chad",
     "constituency": "N’Djamena–Lake Chad–Sahel",
     "continent": "Africa",
     "pop": 21560000,
@@ -15149,7 +15219,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 375,
@@ -15167,11 +15237,11 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 376,
-    "name": "Senegambia–Cape Verde",
+    "name": "Senegambia–Cabo Verde",
     "constituency": "Senegal–Gambia–Cabo Verde",
     "continent": "Africa",
     "pop": 19840000,
@@ -15253,11 +15323,11 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 0
   },
   {
     "id": 377,
-    "name": "Zambia",
+    "name": "Lusaka",
     "constituency": "Zambia (excl. Southern Province)",
     "continent": "Africa",
     "pop": 20020000,
@@ -15317,7 +15387,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 378,
@@ -15335,11 +15405,11 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 379,
-    "name": "Zimbabwe–Southern Zambia",
+    "name": "Victoria Falls",
     "constituency": "Harare–Bulawayo–Zimbabwe Plateau–Southern Zambia",
     "continent": "Africa",
     "pop": 19680000,
@@ -15411,7 +15481,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 381,
@@ -15469,7 +15539,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 383,
@@ -15505,7 +15575,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 385,
@@ -15537,7 +15607,7 @@
     "constituency": "Sierra Leone–Liberian Coast",
     "continent": "Africa",
     "pop": 14510000,
-    "desc": "Sierra Leone and Liberia (entire); Saint Helena, Ascension and Tristan da Cunha attached",
+    "desc": "Sierra Leone and Liberia (entire)",
     "countries": [
       {
         "name": "Sierra Leone",
@@ -15553,7 +15623,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 387,
@@ -15595,7 +15665,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 388,
@@ -15664,7 +15734,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 390,
@@ -15748,7 +15818,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 391,
@@ -16009,11 +16079,11 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 395,
-    "name": "Western Siberia",
+    "name": "Siberia West",
     "constituency": "West Siberia-Tyumen-Novosibirsk-Omsk",
     "continent": "Europe",
     "pop": 14360000,
@@ -16077,7 +16147,7 @@
   },
   {
     "id": 396,
-    "name": "Central Russia",
+    "name": "Moscow Outer",
     "constituency": "Central Russia-Moscow Oblast ring",
     "continent": "Europe",
     "pop": 15730000,
@@ -16132,11 +16202,11 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 397,
-    "name": "Vladivostok",
+    "name": "Siberia East",
     "constituency": "East Siberia and Russian Far East-Vladivostok-Sakha",
     "continent": "Europe",
     "pop": 13830000,
@@ -16226,7 +16296,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 398,
@@ -16314,7 +16384,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 400,
@@ -16426,7 +16496,7 @@
       "Enzkreis",
       "Freudenstadt"
     ],
-    "color": 0
+    "color": 1
   },
   {
     "id": 402,
@@ -16493,7 +16563,7 @@
       "Ravensburg",
       "Sigmaringen"
     ],
-    "color": 1
+    "color": 0
   },
   {
     "id": 403,
@@ -16945,7 +17015,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 410,
@@ -16996,11 +17066,11 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 411,
-    "name": "Northwest Italy",
+    "name": "Milano",
     "constituency": "Lombardy–Piedmont–Liguria–Aosta Valley",
     "continent": "Europe",
     "pop": 15950000,
@@ -17090,11 +17160,11 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 413,
-    "name": "Central Italy",
+    "name": "Roma",
     "constituency": "Tuscany–Umbria–Rome–Campania–Vatican",
     "continent": "Europe",
     "pop": 15800000,
@@ -17135,11 +17205,11 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 414,
-    "name": "Southern Italy–Islands",
+    "name": "Bari-Sicily",
     "constituency": "Puglia–Calabria–Sicily–Sardinia–Molise–Basilicata–Malta",
     "continent": "Europe",
     "pop": 13370000,
@@ -17194,7 +17264,7 @@
   },
   {
     "id": 415,
-    "name": "Atlantic Iberia",
+    "name": "Lisboa",
     "constituency": "Portugal–Galicia–Cantabrian Spain–Castile and León–Extremadura",
     "continent": "Europe",
     "pop": 20240000,
@@ -17245,11 +17315,11 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 416,
-    "name": "Madrid–Catalonia–Aragon",
+    "name": "Catalonia–Aragon",
     "constituency": "Madrid–Castilla-La Mancha–Aragon–Navarre–La Rioja–Catalonia–Andorra",
     "continent": "Europe",
     "pop": 19270000,
@@ -17304,7 +17374,7 @@
   },
   {
     "id": 417,
-    "name": "Southern & Mediterranean Spain",
+    "name": "Valencia",
     "constituency": "Andalusia–Valencia–Murcia–Balearics–Canaries–Ceuta–Melilla–Gibraltar",
     "continent": "Europe",
     "pop": 18850000,
@@ -17360,11 +17430,11 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 418,
-    "name": "Warsaw",
+    "name": "Poland East",
     "constituency": "Warsaw–Eastern Poland–Pomerania",
     "continent": "Europe",
     "pop": 18090000,
@@ -17419,11 +17489,11 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 419,
-    "name": "Krakow",
+    "name": "Poland West",
     "constituency": "Kraków–Silesia–Western Poland",
     "continent": "Europe",
     "pop": 19710000,
@@ -17478,7 +17548,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 420,
@@ -17552,7 +17622,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 421,
@@ -17626,7 +17696,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 422,
@@ -17860,7 +17930,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 424,
@@ -17884,7 +17954,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 425,
@@ -17945,8 +18015,8 @@
     "name": "Nordic Atlantic",
     "constituency": "Denmark–Sweden–Iceland–Faroe",
     "continent": "Europe",
-    "pop": 17140000,
-    "desc": "Denmark, Sweden, Iceland and the Faroe Islands (entire); Denmark proper excludes Greenland (other group)",
+    "pop": 16750000,
+    "desc": "Denmark, Sweden and the Faroe Islands (entire); Denmark proper excludes Greenland",
     "countries": [
       {
         "name": "Denmark",
@@ -17961,12 +18031,6 @@
         "adm1": []
       },
       {
-        "name": "Iceland",
-        "iso2": "is",
-        "whole": true,
-        "adm1": []
-      },
-      {
         "name": "Faroe Islands",
         "iso2": "fo",
         "whole": true,
@@ -17974,7 +18038,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 428,
@@ -18046,7 +18110,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 430,
@@ -18151,7 +18215,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 431,
@@ -18273,7 +18337,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 434,
@@ -18374,7 +18438,7 @@
   },
   {
     "id": 436,
-    "name": "Upstate NY–Lake Erie",
+    "name": "Upstate New York",
     "constituency": "Upstate New York–Western and Northern Pennsylvania–Northeast Ohio",
     "continent": "North America",
     "pop": 16330000,
@@ -18656,7 +18720,7 @@
   },
   {
     "id": 440,
-    "name": "Georgia–North Florida",
+    "name": "Atlanta",
     "constituency": "Georgia–Jacksonville–North Florida",
     "continent": "North America",
     "pop": 15510000,
@@ -18995,7 +19059,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 445,
@@ -19526,7 +19590,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 1
   },
   {
     "id": 451,
@@ -19580,7 +19644,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 452,
@@ -19656,7 +19720,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 453,
@@ -19911,7 +19975,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 457,
@@ -19945,7 +20009,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 458,
@@ -20033,7 +20097,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 460,
@@ -20165,15 +20229,15 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 463,
-    "name": "Eastern Canada",
-    "constituency": "Eastern Ontario–Quebec–Atlantic Canada–Saint Pierre and Miquelon",
+    "name": "Quebec–Atlantic–North Atlantic",
+    "constituency": "Quebec–Atlantic–North Atlantic",
     "continent": "North America",
-    "pop": 20550000,
-    "desc": "Quebec, Atlantic provinces (NL, PEI, NS, NB), eastern/northeastern/Greater Toronto-east Ontario (23 census divisions) and Saint Pierre and Miquelon",
+    "pop": 13800000,
+    "desc": "Quebec, the Atlantic provinces, Ontario's Ottawa economic region (Ottawa–Gatineau), Saint Pierre and Miquelon, Greenland and Iceland",
     "countries": [
       {
         "name": "Canada",
@@ -20209,30 +20273,7 @@
             "name": "Ontario",
             "whole": false,
             "adm2": [
-              "Stormont",
-              "Dundas and Glengarry",
-              "Prescott and Russell",
-              "Ottawa",
-              "Leeds and Grenville",
-              "Lanark",
-              "Frontenac",
-              "Lennox and Addington",
-              "Hastings",
-              "Prince Edward",
-              "Northumberland",
-              "Peterborough",
-              "Kawartha Lakes",
-              "Durham",
-              "York",
-              "Toronto",
-              "Simcoe",
-              "Muskoka",
-              "Haliburton",
-              "Renfrew",
-              "Nipissing",
-              "Parry Sound",
-              "Timiskaming",
-              "Cochrane"
+              "Ottawa"
             ]
           }
         ]
@@ -20242,46 +20283,31 @@
         "iso2": "pm",
         "whole": true,
         "adm1": []
-      }
-    ],
-    "approx": [
-      "Stormont",
-      "Dundas and Glengarry",
-      "Prescott and Russell",
-      "Leeds and Grenville",
-      "Lanark",
-      "Frontenac",
-      "Lennox and Addington",
-      "Hastings",
-      "Northumberland",
-      "Peterborough",
-      "Kawartha Lakes",
-      "Durham",
-      "York",
-      "Simcoe",
-      "Haliburton",
-      "Renfrew",
-      "Nipissing",
-      "Parry Sound",
-      "Timiskaming",
-      "Cochrane"
-    ],
-    "color": 3
-  },
-  {
-    "id": 464,
-    "name": "Western Canada–Greenland",
-    "constituency": "Western Ontario–Prairies–British Columbia–Arctic–Greenland",
-    "continent": "North America",
-    "pop": 20990000,
-    "desc": "British Columbia, Alberta, Saskatchewan, Manitoba, Yukon, Northwest Territories, Nunavut, western/south-western and Lake Superior-north Ontario (26 census divisions, incl. Peel/Mississauga) and Greenland",
-    "countries": [
+      },
       {
         "name": "Greenland",
         "iso2": "gl",
         "whole": true,
         "adm1": []
       },
+      {
+        "name": "Iceland",
+        "iso2": "is",
+        "whole": true,
+        "adm1": []
+      }
+    ],
+    "approx": [],
+    "color": 3
+  },
+  {
+    "id": 464,
+    "name": "Western Canada",
+    "constituency": "Western Canada",
+    "continent": "North America",
+    "pop": 13600000,
+    "desc": "British Columbia, Alberta, Saskatchewan, Manitoba, Yukon, Northwest Territories and Nunavut (entire)",
+    "countries": [
       {
         "name": "Canada",
         "iso2": "ca",
@@ -20321,70 +20347,12 @@
             "name": "Nunavut",
             "whole": true,
             "adm2": []
-          },
-          {
-            "name": "Ontario",
-            "whole": false,
-            "adm2": [
-              "Peel",
-              "Dufferin",
-              "Wellington",
-              "Halton",
-              "Hamilton",
-              "Niagara",
-              "Haldimand-Norfolk",
-              "Brant",
-              "Waterloo",
-              "Perth",
-              "Oxford",
-              "Elgin",
-              "Chatham-Kent",
-              "Essex",
-              "Lambton",
-              "Middlesex",
-              "Huron",
-              "Bruce",
-              "Grey",
-              "Manitoulin",
-              "Sudbury",
-              "Greater Sudbury",
-              "Algoma",
-              "Thunder Bay",
-              "Rainy River",
-              "Kenora"
-            ]
           }
         ]
       }
     ],
-    "approx": [
-      "Peel",
-      "Dufferin",
-      "Wellington",
-      "Halton",
-      "Niagara",
-      "Haldimand-Norfolk",
-      "Brant",
-      "Waterloo",
-      "Perth",
-      "Oxford",
-      "Elgin",
-      "Chatham-Kent",
-      "Essex",
-      "Lambton",
-      "Middlesex",
-      "Huron",
-      "Bruce",
-      "Grey",
-      "Manitoulin",
-      "Sudbury",
-      "Greater Sudbury",
-      "Algoma",
-      "Thunder Bay",
-      "Rainy River",
-      "Kenora"
-    ],
-    "color": 1
+    "approx": [],
+    "color": 2
   },
   {
     "id": 465,
@@ -23078,11 +23046,11 @@
   },
   {
     "id": 490,
-    "name": "Argentine Interior",
+    "name": "Patagonia–Antarctica",
     "constituency": "Córdoba–Cuyo–Northwest–Patagonia",
     "continent": "South America",
     "pop": 15750000,
-    "desc": "Argentina: Córdoba, Cuyo, Northwest and Patagonia provinces (incl. Tierra del Fuego), plus Falkland Islands and South Georgia/South Sandwich (disputed, no sovereignty determination implied)",
+    "desc": "Argentina: Córdoba, Cuyo, Northwest and Patagonia provinces (incl. Tierra del Fuego), plus Falkland Islands and South Georgia/South Sandwich (disputed, no sovereignty determination implied), plus Antarctica (uninhabited; Patagonia-gateway territory)",
     "countries": [
       {
         "name": "Argentina",
@@ -23175,6 +23143,12 @@
       {
         "name": "South Georgia and the South Sandwich Islands",
         "iso2": "gs",
+        "whole": true,
+        "adm1": []
+      },
+      {
+        "name": "Antarctica",
+        "iso2": "aq",
         "whole": true,
         "adm1": []
       }
@@ -23564,7 +23538,7 @@
   },
   {
     "id": 498,
-    "name": "Australia South-West",
+    "name": "Australia West",
     "constituency": "Australian South and West",
     "continent": "Oceania",
     "pop": 12820000,
@@ -23620,7 +23594,7 @@
   },
   {
     "id": 499,
-    "name": "Australia East-New Zealand",
+    "name": "Australia East",
     "constituency": "Eastern Australia-Aotearoa New Zealand",
     "continent": "Oceania",
     "pop": 20020000,

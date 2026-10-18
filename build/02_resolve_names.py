@@ -99,6 +99,15 @@ def main():
                 cn0 = idx_ne.get(norm(p0.split(':', 1)[1])) if p0.startswith('ne:') else None
                 a3 = cn0[0]['iso'] if cn0 else ''
             out['countries'].append({'name': cname, 'a3': a3})
+            if src == 'geo':
+                _, gfile, gname = target.split(':', 2)
+                out['units'].append({'src': 'geo', 'file': gfile, 'name': gname, 'label': cname}); continue
+            if src == 'clip':
+                _, ciso, cname2, bb = target.split(':')
+                cand = idx2[ciso].get(norm(cname2))
+                if not cand: rec_unmatched(s, 0, ciso, cname, 'clip base ' + cname2, []); continue
+                out['units'].append({'src': 'clip', 'lvl': 2, 'i': cand[0]['i'], 'bbox': [float(v) for v in bb.split(',')], 'label': cname})
+                continue
             if src in ('ne', 'pt'):
                 for part in target.split('+'):
                     if part.startswith('pt:'):
@@ -116,6 +125,20 @@ def main():
                     else: rec_unmatched(s, 0, iso, cname, '', [])
                 continue
             iso = isos[0]
+            if iso == 'CHN':
+                import chn_match
+                if not hasattr(main, '_chn'): main._chn = chn_match.load()
+                _fc, _provs, _pk = main._chn
+                for a in c['adm1']:
+                    pc = chn_match.find_prov(a['name'], _pk)
+                    if pc is None: rec_unmatched(s, 1, iso, a['name'], cname, []); continue
+                    if a['whole']:
+                        out['units'].append({'src': 'chn', 'prov': pc, 'label': a['name']}); continue
+                    for d in a['adm2']:
+                        u = chn_match.find_unit(d, _provs[pc])
+                        if not u: rec_unmatched(s, 2, iso, d, a['name'], [f['properties']['py'] for f in _provs[pc]][:6]); continue
+                        out['units'].append({'src': 'chn', 'adcodes': [f['properties']['adcode'] for f in u], 'label': d})
+                continue
             for a in c['adm1']:
                 cand = lookup(idx1, iso, a['name'], 'adm1')
                 if not cand:

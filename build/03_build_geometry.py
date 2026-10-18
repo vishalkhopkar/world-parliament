@@ -36,6 +36,38 @@ def get_geom(src, lvl, i):
     cache[key] = g
     return g
 
+
+CHN_NEIGH = ['IND','BTN','NPL','PAK','MMR','LAO','VNM','MNG','RUS','KAZ','KGZ','TJK','AFG','PRK','KOR']
+_chn = {}
+def _chn_load():
+    if _chn: return
+    fc = json.load(open(os.path.join(ROOT, 'data', 'chn_prefec.geojson'), encoding='utf-8'))['features']
+    _chn['f'] = [f for f in fc if f['properties']['prov'] not in (810000, 820000)]
+    from geo_common import attrs, reader
+    a0 = {x['iso']: x['i'] for x in attrs(0)}
+    cut = [get_geom('cgaz', 0, a0[i]) for i in CHN_NEIGH if i in a0]
+    ex = os.path.join(ROOT, 'data', 'ladakh_claim_extra.geojson')
+    if os.path.exists(ex): cut += [shape(f['geometry']) for f in json.load(open(ex, encoding='utf-8'))['features']]
+    cut += [get_geom('cgaz', 1, x['i']) for x in attrs(1) if x['iso'] in CHN_NEIGH]
+    r1 = reader(1)
+    cut += [get_geom('cgaz', 1, x['i']) for x in attrs(1) if x['iso'] == 'PAK' and x['name'] in ('Gilgit-Baltistan', 'Azad Kashmir')]
+    _chn['cut'] = unary_union(cut).buffer(0.01)
+def chn_geom(u):
+    _chn_load()
+    if 'prov' in u: sel = [f for f in _chn['f'] if f['properties']['prov'] == u['prov']]
+    else: sel = [f for f in _chn['f'] if f['properties']['adcode'] in u['adcodes']]
+    parts = []
+    for f in sel:
+        sg = shape(f['geometry'])
+        if not sg.is_valid: sg = shapely.make_valid(sg)
+        parts.append(sg.buffer(0).simplify(TOL, preserve_topology=True).buffer(0))
+    try: g = unary_union(parts)
+    except Exception: g = unary_union([p.buffer(0.0003) for p in parts]).buffer(-0.0003)
+    if not g.is_valid: g = shapely.make_valid(g)
+    try: g = g.difference(_chn['cut'])
+    except Exception: g = shapely.make_valid(g).difference(shapely.make_valid(_chn['cut']))
+    return g
+
 def main():
     resolved = json.load(open(os.path.join(ROOT, 'build', 'resolved.json'), encoding='utf-8'))
     seats_meta = {s['seat']: s for s in json.load(open(os.path.join(ROOT, 'build', 'seats_parsed.json'), encoding='utf-8'))}
@@ -46,6 +78,15 @@ def main():
         for u in r['units']:
             if u['src'] == 'pt':
                 geoms.append(Point(u['lon'], u['lat']).buffer(u['r'], 8)); stats['pt'] += 1; continue
+            if u['src'] == 'chn':
+                geoms.append(chn_geom(u)); owner[('chn', u.get('prov') or tuple(u['adcodes']))].add(r['seat']); stats['chn'] += 1; continue
+            if u['src'] == 'geo':
+                gj = json.load(open(os.path.join(ROOT, u['file']), encoding='utf-8'))
+                gg = [shape(f['geometry']) for f in gj['features'] if f['properties']['name'] == u['name']]
+                geoms.append(unary_union(gg).simplify(TOL, preserve_topology=True)); stats['geo'] += 1; continue
+            if u['src'] == 'clip':
+                from shapely.geometry import box
+                geoms.append(get_geom('cgaz', u['lvl'], u['i']).intersection(box(*u['bbox']))); stats['clip'] += 1; continue
             if u['src'] == 'ne':
                 geoms.append(get_geom('ne', 0, u['i'])); owner[('ne', 0, u['i'])].add(r['seat']); stats['ne'] += 1; continue
             lvl = u['lvl']; ids = u['i'] if isinstance(u['i'], list) else [u['i']]
@@ -67,7 +108,8 @@ def main():
                 geoms.append(get_geom('cgaz', lvl, j)); owner[('cgaz', lvl, j)].add(r['seat']); stats[f'lvl{lvl}'] += 1
         if not geoms:
             rep.append(f'seat {r["seat"]}: EMPTY geometry'); continue
-        g = unary_union(geoms)
+        try: g = unary_union(geoms)
+        except Exception: g = unary_union([shapely.make_valid(x).buffer(0.0003) for x in geoms]).buffer(-0.0003)
         g = shp_transform(g, eq_earth, include_z=False)
         g = g.simplify(0.05, preserve_topology=True) if False else g
         feats.append({'type': 'Feature', 'properties': {'seat': r['seat']}, 'geometry': mapping(g)})

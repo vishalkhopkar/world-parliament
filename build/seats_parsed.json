@@ -779,9 +779,9 @@
 "name": "Konkan–Goa",
 "constituency": "Konkan–Goa–Kolhapur–Sangli",
 "continent": "Asia",
-"pop": 14820000,
+"pop": 16490000,
 "group": "IN2",
-"description": "South Konkan (Raigad, Ratnagiri, Sindhudurg) with all of Goa, plus Kolhapur and Sangli districts on the Sahyadri uplands",
+"description": "South Konkan (Raigad, Ratnagiri, Sindhudurg) with all of Goa, Kolhapur and Sangli districts and Uttara Kannada (Karwar, Kumta, Sirsi, Bhatkal etc.)",
 "countries": [
 {
 "name": "India",
@@ -802,6 +802,13 @@
 "name": "Goa",
 "whole": true,
 "adm2": []
+},
+{
+"name": "Karnataka",
+"whole": false,
+"adm2": [
+"Uttara Kannada"
+]
 }
 ]
 }
@@ -812,7 +819,7 @@
 "name": "Pune",
 "constituency": "Pune–Satara",
 "continent": "Asia",
-"pop": 16710000,
+"pop": 16700000,
 "group": "IN2",
 "description": "Pune and Satara districts (Pune-Pimpri-Chinchwad and the Krishna headwaters)",
 "countries": [
@@ -920,9 +927,9 @@
 "name": "Vidarbha",
 "constituency": "Vidarbha–Nagpur–Balaghat–Chhindwara",
 "continent": "Asia",
-"pop": 17950000,
+"pop": 15290000,
 "group": "IN2",
-"description": "East Vidarbha (Nagpur, Bhandara, Gondiya, Gadchiroli, Chandrapur) plus the adjoining Satpura/Gondwana districts of Madhya Pradesh: Balaghat, Seoni, Chhindwara",
+"description": "Vidarbha districts of Maharashtra plus Balaghat and Seoni of Madhya Pradesh",
 "countries": [
 {
 "name": "India",
@@ -944,8 +951,7 @@
 "whole": false,
 "adm2": [
 "Balaghat",
-"Seoni",
-"Chhindwara"
+"Seoni"
 ]
 }
 ]
@@ -1178,9 +1184,9 @@
 "name": "Malwa",
 "constituency": "Indore–Malwa",
 "continent": "Asia",
-"pop": 15530000,
+"pop": 19610000,
 "group": "IN2",
-"description": "Indore, Dewas, Ujjain, Shajapur, Agar (Agar Malwa), Rajgarh and Dhar districts of the Malwa plateau",
+"description": "Indore, Dewas, Ujjain, Shajapur, Agar, Rajgarh, Dhar, Ratlam, Jhabua and Alirajpur districts",
 "countries": [
 {
 "name": "India",
@@ -1196,7 +1202,10 @@
 "Shajapur",
 "Agar",
 "Rajgarh",
-"Dhar"
+"Dhar",
+"Ratlam",
+"Jhabua",
+"Alirajpur"
 ]
 }
 ]
@@ -1208,9 +1217,9 @@
 "name": "Nimar",
 "constituency": "Nimar–Ratlam–Narmadapuram",
 "continent": "Asia",
-"pop": 15150000,
+"pop": 13730000,
 "group": "IN2",
-"description": "Nimar and the Narmada valley: Khargone, Barwani, Khandwa, Burhanpur, Harda, Hoshangabad (Narmadapuram), Betul, plus Bhil districts Jhabua, Alirajpur and Ratlam",
+"description": "Nimar and the Satpura belt: Barwani, Khargone, Burhanpur, Khandwa, Harda, Hoshangabad (Narmadapuram), Betul and Chhindwara",
 "countries": [
 {
 "name": "India",
@@ -1220,16 +1229,14 @@
 "name": "Madhya Pradesh",
 "whole": false,
 "adm2": [
-"Ratlam",
-"Jhabua",
-"Alirajpur",
 "Barwani",
 "Khargone",
-"Khandwa",
 "Burhanpur",
+"Khandwa",
 "Harda",
 "Hoshangabad",
-"Betul"
+"Betul",
+"Chhindwara"
 ]
 }
 ]
@@ -1740,12 +1747,12 @@
 },
 {
 "seat": 60,
-"name": "Belagavi–Malnad Coast",
+"name": "Malnad",
 "constituency": "Belagavi–Dharwad–Malnad–Coast",
 "continent": "Asia",
-"pop": 18380000,
+"pop": 16700000,
 "group": "IN3",
-"description": "Belagavi, Dharwad, Gadag, Haveri, Uttara Kannada, Shivamogga, Udupi and Dakshina Kannada districts of Karnataka",
+"description": "Belagavi, Dharwad, Gadag, Haveri, Shivamogga, Udupi and Dakshina Kannada districts of Karnataka",
 "countries": [
 {
 "name": "India",
@@ -1759,7 +1766,6 @@
 "Dharwad",
 "Gadag",
 "Haveri",
-"Uttara Kannada",
 "Shivamogga",
 "Udupi",
 "Dakshina Kannada"
@@ -2473,7 +2479,7 @@
 },
 {
 "seat": 81,
-"name": "Gurugram",
+"name": "Haryana South",
 "constituency": "Gurugram–Faridabad–Rohtak",
 "continent": "Asia",
 "pop": 15810000,
@@ -2507,7 +2513,7 @@
 },
 {
 "seat": 82,
-"name": "Haryana North-West",
+"name": "Haryana North",
 "constituency": "Hisar–Karnal–Ambala",
 "continent": "Asia",
 "pop": 15870000,
@@ -2540,7 +2546,7 @@
 },
 {
 "seat": 83,
-"name": "Raipur",
+"name": "Chhattisgarh South",
 "constituency": "Raipur–Durg–Bastar",
 "continent": "Asia",
 "pop": 15300000,
@@ -2578,7 +2584,7 @@
 },
 {
 "seat": 84,
-"name": "Bilaspur–Surguja",
+"name": "Chhattisgarh North",
 "constituency": "Bilaspur–Surguja",
 "continent": "Asia",
 "pop": 16200000,
@@ -2647,9 +2653,9 @@
 "name": "Jammu-Kashmir",
 "constituency": "Kashmir Valley–Jammu–Ladakh",
 "continent": "Asia",
-"pop": 14350000,
+"pop": 18750000,
 "group": "IN1",
-"description": "India — Jammu and Kashmir (Indian-administered extent, as in old sheet), excluding Ladakh",
+"description": "India — Jammu and Kashmir (UT) plus Pakistan-administered Azad Kashmir, i.e. J&K as in India's official map (Gilgit-Baltistan, Aksai Chin and Shaksgam are in seat 88)",
 "countries": [
 {
 "name": "India",
@@ -2657,6 +2663,17 @@
 "adm1": [
 {
 "name": "Jammu and Kashmir",
+"whole": true,
+"adm2": []
+}
+]
+},
+{
+"name": "Pakistan",
+"whole": false,
+"adm1": [
+{
+"name": "Azad Kashmir",
 "whole": true,
 "adm2": []
 }
@@ -2691,9 +2708,9 @@
 "name": "Himachal–Ladakh",
 "constituency": "Himachal–Ladakh",
 "continent": "Asia",
-"pop": 8150000,
+"pop": 10150000,
 "group": "IN1",
-"description": "India — Himachal Pradesh plus Ladakh (Leh and Kargil)",
+"description": "India — Himachal Pradesh plus Ladakh drawn to India's official boundary (Survey-of-India-style claim line from India_district_map_(de-facto).svg): Gilgit-Baltistan, Aksai Chin/Siachen/Demchok and the Shaksgam Valley",
 "countries": [
 {
 "name": "India",
@@ -2710,6 +2727,27 @@
 "adm2": []
 }
 ]
+},
+{
+"name": "Pakistan",
+"whole": false,
+"adm1": [
+{
+"name": "Gilgit-Baltistan",
+"whole": true,
+"adm2": []
+}
+]
+},
+{
+"name": "Aksai Chin",
+"whole": true,
+"adm1": []
+},
+{
+"name": "Shaksgam Valley",
+"whole": true,
+"adm1": []
 }
 ]
 },
@@ -5335,9 +5373,9 @@
 "name": "Potohar",
 "constituency": "Rawalpindi–Islamabad–Potohar–Azad Kashmir",
 "continent": "Asia",
-"pop": 18930000,
+"pop": 14530000,
 "group": "SA1",
-"description": "Rawalpindi, Attock, Chakwal, Jhelum (Potohar plateau), Islamabad Capital Territory and Azad Kashmir",
+"description": "Rawalpindi, Attock, Chakwal, Jhelum (Potohar plateau), Islamabad Capital Territory",
 "countries": [
 {
 "name": "Pakistan",
@@ -5355,11 +5393,6 @@
 },
 {
 "name": "Islamabad Capital Territory",
-"whole": true,
-"adm2": []
-},
-{
-"name": "Azad Kashmir",
 "whole": true,
 "adm2": []
 }
@@ -5511,9 +5544,9 @@
 "name": "Hazara",
 "constituency": "Hazara–Malakand–Gilgit-Baltistan",
 "continent": "Asia",
-"pop": 16350000,
+"pop": 14350000,
 "group": "SA1",
-"description": "Hazara and Malakand divisions of Khyber Pakhtunkhwa (excl. Buner and Bajaur) plus all of Gilgit-Baltistan",
+"description": "Hazara and Malakand divisions of Khyber Pakhtunkhwa (excl. Buner and Bajaur)",
 "countries": [
 {
 "name": "Pakistan",
@@ -5535,11 +5568,6 @@
 "Malakand",
 "Chitral"
 ]
-},
-{
-"name": "Gilgit-Baltistan",
-"whole": true,
-"adm2": []
 }
 ]
 }
@@ -5945,9 +5973,9 @@
 "name": "Kathmandu Valley",
 "constituency": "Kathmandu–Bagmati–Koshi–Eastern Madhesh",
 "continent": "Asia",
-"pop": 15700000,
+"pop": 14980000,
 "group": "SA2",
-"description": "Koshi province + Bagmati province (incl. Kathmandu Valley) + eastern Madhesh districts (Saptari, Siraha, Dhanusha, Mahottari, Sarlahi)",
+"description": "Eastern and central Nepal: Koshi Province, Bagmati Province except Chitwan, and the eastern Madhesh districts (Saptari to Sarlahi)",
 "countries": [
 {
 "name": "Nepal",
@@ -5960,8 +5988,21 @@
 },
 {
 "name": "Bagmati",
-"whole": true,
-"adm2": []
+"whole": false,
+"adm2": [
+"Sindhuli",
+"Ramechhap",
+"Dolakha",
+"Sindhupalchok",
+"Kavrepalanchok",
+"Lalitpur",
+"Bhaktapur",
+"Kathmandu",
+"Nuwakot",
+"Rasuwa",
+"Dhading",
+"Makwanpur"
+]
 },
 {
 "name": "Madhesh",
@@ -5983,9 +6024,9 @@
 "name": "Western Nepal",
 "constituency": "Terai–Pokhara–Western Hills",
 "continent": "Asia",
-"pop": 14900000,
+"pop": 15630000,
 "group": "SA2",
-"description": "Gandaki, Lumbini, Karnali and Sudurpashchim provinces + western Madhesh districts (Parsa, Bara, Rautahat)",
+"description": "Western Nepal: Gandaki, Lumbini, Karnali and Sudurpashchim provinces, Chitwan (Bagmati Province) and the central Terai districts Parsa, Bara and Rautahat",
 "countries": [
 {
 "name": "Nepal",
@@ -6010,6 +6051,13 @@
 "name": "Sudurpashchim",
 "whole": true,
 "adm2": []
+},
+{
+"name": "Bagmati",
+"whole": false,
+"adm2": [
+"Chitwan"
+]
 },
 {
 "name": "Madhesh",
@@ -8206,9 +8254,9 @@
 "name": "Mandalay",
 "constituency": "Mandalay-Magway-Ayeyarwady-Naypyitaw",
 "continent": "Asia",
-"pop": 18700000,
+"pop": 18600000,
 "group": "SEA",
-"description": "Mandalay, Magway, Nay Pyi Taw and Ayeyarwady",
+"description": "Mandalay, Magway, Nay Pyi Taw, Shan and Kayah (central dry zone plus the Shan plateau)",
 "countries": [
 {
 "name": "Myanmar",
@@ -8230,7 +8278,12 @@
 "adm2": []
 },
 {
-"name": "Ayeyarwady",
+"name": "Shan",
+"whole": true,
+"adm2": []
+},
+{
+"name": "Kayah",
 "whole": true,
 "adm2": []
 }
@@ -8243,9 +8296,9 @@
 "name": "Upper Myanmar",
 "constituency": "Shan-Sagaing-Kachin-Rakhine",
 "continent": "Asia",
-"pop": 18000000,
+"pop": 18100000,
 "group": "SEA",
-"description": "Shan, Kachin, Sagaing, Chin, Kayah and Rakhine",
+"description": "Sagaing, Kachin, Chin, Rakhine and Ayeyarwady",
 "countries": [
 {
 "name": "Myanmar",
@@ -8267,17 +8320,12 @@
 "adm2": []
 },
 {
-"name": "Shan",
-"whole": true,
-"adm2": []
-},
-{
-"name": "Kayah",
-"whole": true,
-"adm2": []
-},
-{
 "name": "Rakhine",
+"whole": true,
+"adm2": []
+},
+{
+"name": "Ayeyarwady",
 "whole": true,
 "adm2": []
 }
@@ -10855,12 +10903,12 @@
 },
 {
 "seat": 297,
-"name": "Benue–Taraba–Nasarawa",
-"constituency": "Makurdi–Jalingo–Lafia",
+"name": "Benue–Plateau–Taraba–Nasarawa",
+"constituency": "Benue–Plateau–Taraba–Nasarawa",
 "continent": "Africa",
-"pop": 14430000,
+"pop": 20400000,
 "group": "F1",
-"description": "Nigeria — Benue, Taraba, Nasarawa",
+"description": "Benue, Plateau, Taraba, Nasarawa (entire states)",
 "countries": [
 {
 "name": "Nigeria",
@@ -10868,6 +10916,11 @@
 "adm1": [
 {
 "name": "Benue",
+"whole": true,
+"adm2": []
+},
+{
+"name": "Plateau",
 "whole": true,
 "adm2": []
 },
@@ -11010,24 +11063,29 @@
 },
 {
 "seat": 302,
-"name": "Plateau–Bauchi",
-"constituency": "Jos–Bauchi",
+"name": "Bauchi–Gombe–Jigawa",
+"constituency": "Bauchi–Gombe–Jigawa",
 "continent": "Africa",
-"pop": 13700000,
+"pop": 20000000,
 "group": "F1",
-"description": "Nigeria — Plateau, Bauchi",
+"description": "Bauchi, Gombe, Jigawa (entire states)",
 "countries": [
 {
 "name": "Nigeria",
 "whole": false,
 "adm1": [
 {
-"name": "Plateau",
+"name": "Bauchi",
 "whole": true,
 "adm2": []
 },
 {
-"name": "Bauchi",
+"name": "Gombe",
+"whole": true,
+"adm2": []
+},
+{
+"name": "Jigawa",
 "whole": true,
 "adm2": []
 }
@@ -11037,24 +11095,29 @@
 },
 {
 "seat": 303,
-"name": "Adamawa–Borno",
-"constituency": "Yola–Maiduguri",
+"name": "Borno–Yobe–Adamawa",
+"constituency": "Borno–Yobe–Adamawa",
 "continent": "Africa",
-"pop": 13100000,
+"pop": 17000000,
 "group": "F1",
-"description": "Nigeria — Adamawa, Borno",
+"description": "Borno, Yobe, Adamawa (entire states)",
 "countries": [
 {
 "name": "Nigeria",
 "whole": false,
 "adm1": [
 {
-"name": "Adamawa",
+"name": "Borno",
 "whole": true,
 "adm2": []
 },
 {
-"name": "Borno",
+"name": "Yobe",
+"whole": true,
+"adm2": []
+},
+{
+"name": "Adamawa",
 "whole": true,
 "adm2": []
 }
@@ -11167,31 +11230,32 @@
 },
 {
 "seat": 308,
-"name": "Jigawa–Yobe–Gombe",
-"constituency": "Dutse–Damaturu–Gombe",
-"continent": "Africa",
-"pop": 16200000,
-"group": "F1",
-"description": "Nigeria — Jigawa, Yobe, Gombe",
+"name": "Ontario",
+"constituency": "Ontario",
+"continent": "North America",
+"pop": 14500000,
+"group": "N2",
+"description": "Ontario excluding the Ottawa economic region (which is in the Quebec–Atlantic seat)",
 "countries": [
 {
-"name": "Nigeria",
+"name": "Canada",
 "whole": false,
 "adm1": [
 {
-"name": "Jigawa",
-"whole": true,
-"adm2": []
-},
-{
-"name": "Yobe",
-"whole": true,
-"adm2": []
-},
-{
-"name": "Gombe",
-"whole": true,
-"adm2": []
+"name": "Ontario",
+"whole": false,
+"adm2": [
+"Kingston--Pembroke",
+"Muskoka--Kawarthas",
+"Toronto",
+"Kitchener--Waterloo--Barrie",
+"Hamilton--Niagara Peninsula",
+"London",
+"Windsor--Sarnia",
+"Stratford--Bruce Peninsula",
+"Northeast Ontario",
+"Northwest Ontario"
+]
 }
 ]
 }
@@ -14704,7 +14768,7 @@
 "continent": "Africa",
 "pop": 14510000,
 "group": "F7",
-"description": "Sierra Leone and Liberia (entire); Saint Helena, Ascension and Tristan da Cunha attached",
+"description": "Sierra Leone and Liberia (entire)",
 "countries": [
 {
 "name": "Sierra Leone",
@@ -16096,7 +16160,7 @@
 },
 {
 "seat": 412,
-"name": "Northeast & Adriatic Italy",
+"name": "Venice",
 "constituency": "Veneto–Emilia-Romagna–Trentino–Friuli–Marche–Abruzzo–San Marino",
 "continent": "Europe",
 "pop": 14390000,
@@ -16961,9 +17025,9 @@
 "name": "Nordic Atlantic",
 "constituency": "Denmark–Sweden–Iceland–Faroe",
 "continent": "Europe",
-"pop": 17140000,
+"pop": 16750000,
 "group": "E3b",
-"description": "Denmark, Sweden, Iceland and the Faroe Islands (entire); Denmark proper excludes Greenland (other group)",
+"description": "Denmark, Sweden and the Faroe Islands (entire); Denmark proper excludes Greenland",
 "countries": [
 {
 "name": "Denmark",
@@ -16972,11 +17036,6 @@
 },
 {
 "name": "Sweden",
-"whole": true,
-"adm1": []
-},
-{
-"name": "Iceland",
 "whole": true,
 "adm1": []
 },
@@ -18481,7 +18540,7 @@
 },
 {
 "seat": 451,
-"name": "American Southwest",
+"name": "Grand Canyon",
 "constituency": "Arizona–Nevada–New Mexico–San Bernardino County–El Paso/Trans-Pecos Texas",
 "continent": "North America",
 "pop": 16270000,
@@ -19096,12 +19155,12 @@
 },
 {
 "seat": 463,
-"name": "Eastern Canada",
-"constituency": "Eastern Ontario–Quebec–Atlantic Canada–Saint Pierre and Miquelon",
+"name": "Quebec–Atlantic–North Atlantic",
+"constituency": "Quebec–Atlantic–North Atlantic",
 "continent": "North America",
-"pop": 20550000,
+"pop": 13800000,
 "group": "N2",
-"description": "Quebec, Atlantic provinces (NL, PEI, NS, NB), eastern/northeastern/Greater Toronto-east Ontario (23 census divisions) and Saint Pierre and Miquelon",
+"description": "Quebec, the Atlantic provinces, Ontario's Ottawa economic region (Ottawa–Gatineau), Saint Pierre and Miquelon, Greenland and Iceland",
 "countries": [
 {
 "name": "Canada",
@@ -19136,30 +19195,7 @@
 "name": "Ontario",
 "whole": false,
 "adm2": [
-"Stormont",
-"Dundas and Glengarry",
-"Prescott and Russell",
-"Ottawa",
-"Leeds and Grenville",
-"Lanark",
-"Frontenac",
-"Lennox and Addington",
-"Hastings",
-"Prince Edward",
-"Northumberland",
-"Peterborough",
-"Kawartha Lakes",
-"Durham",
-"York",
-"Toronto",
-"Simcoe",
-"Muskoka",
-"Haliburton",
-"Renfrew",
-"Nipissing",
-"Parry Sound",
-"Timiskaming",
-"Cochrane"
+"Ottawa"
 ]
 }
 ]
@@ -19168,23 +19204,28 @@
 "name": "Saint Pierre and Miquelon",
 "whole": true,
 "adm1": []
-}
-]
 },
-{
-"seat": 464,
-"name": "Western Canada–Greenland",
-"constituency": "Western Ontario–Prairies–British Columbia–Arctic–Greenland",
-"continent": "North America",
-"pop": 20990000,
-"group": "N2",
-"description": "British Columbia, Alberta, Saskatchewan, Manitoba, Yukon, Northwest Territories, Nunavut, western/south-western and Lake Superior-north Ontario (26 census divisions, incl. Peel/Mississauga) and Greenland",
-"countries": [
 {
 "name": "Greenland",
 "whole": true,
 "adm1": []
 },
+{
+"name": "Iceland",
+"whole": true,
+"adm1": []
+}
+]
+},
+{
+"seat": 464,
+"name": "Western Canada",
+"constituency": "Western Canada",
+"continent": "North America",
+"pop": 13600000,
+"group": "N2",
+"description": "British Columbia, Alberta, Saskatchewan, Manitoba, Yukon, Northwest Territories and Nunavut (entire)",
+"countries": [
 {
 "name": "Canada",
 "whole": false,
@@ -19223,38 +19264,6 @@
 "name": "Nunavut",
 "whole": true,
 "adm2": []
-},
-{
-"name": "Ontario",
-"whole": false,
-"adm2": [
-"Peel",
-"Dufferin",
-"Wellington",
-"Halton",
-"Hamilton",
-"Niagara",
-"Haldimand-Norfolk",
-"Brant",
-"Waterloo",
-"Perth",
-"Oxford",
-"Elgin",
-"Chatham-Kent",
-"Essex",
-"Lambton",
-"Middlesex",
-"Huron",
-"Bruce",
-"Grey",
-"Manitoulin",
-"Sudbury",
-"Greater Sudbury",
-"Algoma",
-"Thunder Bay",
-"Rainy River",
-"Kenora"
-]
 }
 ]
 }
@@ -21872,7 +21881,7 @@
 "continent": "South America",
 "pop": 15750000,
 "group": "S2",
-"description": "Argentina: Córdoba, Cuyo, Northwest and Patagonia provinces (incl. Tierra del Fuego), plus Falkland Islands and South Georgia/South Sandwich (disputed, no sovereignty determination implied)",
+"description": "Argentina: Córdoba, Cuyo, Northwest and Patagonia provinces (incl. Tierra del Fuego), plus Falkland Islands and South Georgia/South Sandwich (disputed, no sovereignty determination implied), plus Antarctica (uninhabited; Patagonia-gateway territory)",
 "countries": [
 {
 "name": "Argentina",
@@ -21962,6 +21971,11 @@
 },
 {
 "name": "South Georgia and the South Sandwich Islands",
+"whole": true,
+"adm1": []
+},
+{
+"name": "Antarctica",
 "whole": true,
 "adm1": []
 }

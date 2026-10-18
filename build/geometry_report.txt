@@ -9,20 +9,8 @@ seat 401: approx units Böblingen->Stuttgart, Esslingen->Stuttgart, Göppingen->
 seat 402: approx units Breisgau-Hochschwarzwald->Freiburg, Emmendingen->Freiburg, Ortenaukreis->Freiburg, Rottweil->Freiburg, Schwarzwald-Baar-Kreis->Freiburg, Tuttlingen->Freiburg, Konstanz->Freiburg, Lörrach->Freiburg, Waldshut->Freiburg, Reutlingen->Tübingen, Zollernalbkreis->Tübingen, Alb-Donau-Kreis->Tübingen, Ulm->Tübingen, Biberach->Tübingen, Bodenseekreis->Tübingen, Ravensburg->Tübingen, Sigmaringen->Tübingen
 seat 405: approx units North Northamptonshire->Northamptonshire
 seat 406: approx units Cumberland->Cumbria, Westmorland and Furness->Cumbria
-seat 463: approx units Stormont->Ottawa, Dundas and Glengarry->Ottawa, Prescott and Russell->Ottawa, Leeds and Grenville->Ottawa, Lanark->Ottawa, Frontenac->Kingston--Pembroke, Lennox and Addington->Kingston--Pembroke, Hastings->Kingston--Pembroke, Northumberland->Muskoka--Kawarthas, Peterborough->Muskoka--Kawarthas, Kawartha Lakes->Muskoka--Kawarthas, Durham->Toronto, York->Toronto, Simcoe->Kitchener--Waterloo--Barrie, Haliburton->Muskoka--Kawarthas, Renfrew->Kingston--Pembroke, Nipissing->Northeast / Nord-est, Parry Sound->Northeast / Nord-est, Timiskaming->Northeast / Nord-est, Cochrane->Northeast / Nord-est
-seat 464: approx units Peel->Toronto, Dufferin->Kitchener--Waterloo--Barrie, Wellington->Kitchener--Waterloo--Barrie, Halton->Toronto, Niagara->Hamilton--Niagara Peninsula, Haldimand-Norfolk->Hamilton--Niagara Peninsula, Brant->Hamilton--Niagara Peninsula, Waterloo->Kitchener--Waterloo--Barrie, Perth->Stratford--Bruce Peninsula, Oxford->London, Elgin->London, Chatham-Kent->Windsor--Sarnia, Essex->Windsor--Sarnia, Lambton->Windsor--Sarnia, Middlesex->London, Huron->Stratford--Bruce Peninsula, Bruce->Stratford--Bruce Peninsula, Grey->Stratford--Bruce Peninsula, Manitoulin->Northeast / Nord-est, Sudbury->Northeast / Nord-est, Greater Sudbury->Northeast / Nord-est, Algoma->Northeast / Nord-est, Thunder Bay->Northwest / Nord-ouest, Rainy River->Northwest / Nord-ouest, Kenora->Northwest / Nord-ouest
 seat 488: ambiguous ADM2 General San Martín - picked first of 3
-DUPLICATE unit ('cgaz', 2, 14626) in seats [463, 464]
-DUPLICATE unit ('cgaz', 2, 14627) in seats [463, 464]
-DUPLICATE unit ('cgaz', 2, 14632) in seats [463, 464]
-DUPLICATE unit ('cgaz', 2, 16784) in seats [111, 133]
-DUPLICATE unit ('cgaz', 2, 17174) in seats [138, 159]
-DUPLICATE unit ('cgaz', 2, 17618) in seats [145, 150]
 DUPLICATE unit ('cgaz', 2, 33109) in seats [226, 227, 230]
-OVERLAP seats 138 & 159 area=2.0
-OVERLAP seats 145 & 150 area=1.1
-OVERLAP seats 162 & 288 area=1.2
-OVERLAP seats 165 & 172 area=3.4
 OVERLAP seats 272 & 287 area=1.5
 OVERLAP seats 287 & 290 area=1.5
 OVERLAP seats 328 & 387 area=1.8
@@ -31,5 +19,4 @@ OVERLAP seats 345 & 384 area=12.6
 OVERLAP seats 353 & 385 area=1.3
 OVERLAP seats 390 & 428 area=1.6
 OVERLAP seats 408 & 424 area=1.2
-OVERLAP seats 463 & 464 area=305.8
-stats {'lvl2': 4369, 'adm2_disamb': 614, 'lvl1': 1462, 'lvl0': 136, 'ne': 41, 'pt': 5}; seats written 500; overlaps 13; time 391s
+stats {'lvl2': 3932, 'adm2_disamb': 527, 'lvl1': 1454, 'lvl0': 137, 'geo': 2, 'chn': 371, 'ne': 41, 'pt': 5}; seats written 500; overlaps 8; time 218s

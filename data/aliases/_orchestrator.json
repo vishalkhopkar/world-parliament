@@ -26,6 +26,15 @@
   },
   "ITA": {
    "Tuscany": "Toscana"
+  },
+  "CAN": {
+   "Northeast Ontario": "Northeast / Nord-est",
+   "Northwest Ontario": "Northwest / Nord-ouest"
+  },
+  "NPL": {
+   "Chitwan": "Chitawan",
+   "Kavrepalanchok": "Kabherepalanchok",
+   "Makwanpur": "Makawanpur"
   }
  },
  "expand": {
@@ -58,5 +67,9 @@
     ]
    }
   }
+ },
+ "country": {
+  "Aksai Chin": "geo:data/ladakh_claim_extra.geojson:Aksai Chin",
+  "Shaksgam Valley": "geo:data/ladakh_claim_extra.geojson:Shaksgam Valley"
  }
 }
