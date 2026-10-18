@@ -1,0 +1,116 @@
+{
+ "adm1": {
+  "DEU": {
+   "Saxony": "Sachsen",
+   "Saxony-Anhalt": "Sachsen-Anhalt",
+   "Thuringia": "Thüringen",
+   "Lower Saxony": "Niedersachsen",
+   "North Rhine-Westphalia": "Nordrhein-Westfalen",
+   "Rhineland-Palatinate": "Rheinland-Pfalz",
+   "Bavaria": "Bayern"
+  },
+  "FRA": {
+   "Normandy": "Normandie",
+   "Brittany": "Bretagne",
+   "Corsica": "Corse"
+  },
+  "ITA": {
+   "Lombardy": "Nord-Ovest",
+   "Piedmont": "Nord-Ovest",
+   "Aosta Valley": "Nord-Ovest",
+   "Liguria": "Nord-Ovest",
+   "Veneto": "Nord-Est",
+   "Friuli-Venezia Giulia": "Nord-Est",
+   "Trentino-Alto Adige": "Nord-Est",
+   "Emilia-Romagna": "Nord-Est",
+   "Sicily": "Isole",
+   "Sardinia": "Isole"
+  },
+  "ESP": {
+   "Asturias": "Principado de Asturias",
+   "Castile and León": "Castilla y León",
+   "Basque Country": "País Vasco/Euskadi",
+   "Community of Madrid": "Comunidad de Madrid",
+   "Navarre": "Comunidad Foral de Navarra",
+   "Catalonia": "Cataluña/Catalunya",
+   "Valencian Community": "Comunitat Valenciana",
+   "Region of Murcia": "Región de Murcia",
+   "Balearic Islands": "Illes Balears",
+   "Canary Islands": "Canarias",
+   "Ceuta": "Ciudad Autónoma de Ceuta",
+   "Melilla": "Ciudad Autónoma de Melilla"
+  },
+  "POL": {
+   "Mazowieckie": "Masovian Voivodeship",
+   "Łódzkie": "?ód? Voivodeship",
+   "Lubelskie": "Lublin Voivodeship",
+   "Podkarpackie": "Subcarpathian Voivodeship",
+   "Świętokrzyskie": "?wi?tokrzyskie Voivodeship",
+   "Warmińsko-Mazurskie": "Warmian-Masurian Voivodeship",
+   "Pomorskie": "Pomeranian Voivodeship",
+   "Śląskie": "Silesian Voivodeship",
+   "Wielkopolskie": "Greater Poland Voivodeship",
+   "Małopolskie": "Lesser Poland Voivodeship",
+   "Dolnośląskie": "Lower Silesian Voivodeship",
+   "Kujawsko-Pomorskie": "Kuyavian-Pomeranian Voivodeship",
+   "Zachodniopomorskie": "West Pomeranian Voivodeship",
+   "Lubuskie": "Lubusz Voivodeship",
+   "Opolskie": "Opole Voivodeship"
+  },
+  "ROU": {
+   "Bucharest": "BUCURESTI"
+  },
+  "NLD": {
+   "Friesland": "Fryslân"
+  }
+ },
+ "adm2": {},
+ "approx": {
+  "DEU": {
+   "Böblingen": "Stuttgart",
+   "Esslingen": "Stuttgart",
+   "Göppingen": "Stuttgart",
+   "Ludwigsburg": "Stuttgart",
+   "Rems-Murr-Kreis": "Stuttgart",
+   "Heilbronn City": "Stuttgart",
+   "Heilbronn District": "Stuttgart",
+   "Hohenlohekreis": "Stuttgart",
+   "Schwäbisch Hall": "Stuttgart",
+   "Main-Tauber-Kreis": "Stuttgart",
+   "Heidenheim": "Stuttgart",
+   "Ostalbkreis": "Stuttgart",
+   "Baden-Baden": "Karlsruhe",
+   "Rastatt": "Karlsruhe",
+   "Heidelberg": "Karlsruhe",
+   "Mannheim": "Karlsruhe",
+   "Neckar-Odenwald-Kreis": "Karlsruhe",
+   "Rhein-Neckar-Kreis": "Karlsruhe",
+   "Pforzheim": "Karlsruhe",
+   "Calw": "Karlsruhe",
+   "Enzkreis": "Karlsruhe",
+   "Freudenstadt": "Karlsruhe",
+   "Breisgau-Hochschwarzwald": "Freiburg",
+   "Emmendingen": "Freiburg",
+   "Ortenaukreis": "Freiburg",
+   "Rottweil": "Freiburg",
+   "Schwarzwald-Baar-Kreis": "Freiburg",
+   "Tuttlingen": "Freiburg",
+   "Konstanz": "Freiburg",
+   "Lörrach": "Freiburg",
+   "Waldshut": "Freiburg",
+   "Reutlingen": "Tübingen",
+   "Zollernalbkreis": "Tübingen",
+   "Alb-Donau-Kreis": "Tübingen",
+   "Ulm": "Tübingen",
+   "Biberach": "Tübingen",
+   "Bodenseekreis": "Tübingen",
+   "Ravensburg": "Tübingen",
+   "Sigmaringen": "Tübingen"
+  },
+  "GBR": {
+   "North Northamptonshire": "Northamptonshire",
+   "Cumberland": "Cumbria",
+   "Westmorland and Furness": "Cumbria"
+  }
+ }
+}

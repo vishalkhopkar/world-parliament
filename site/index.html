@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>World Parliament – 500 Seats</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<svg id="map" role="img" aria-label="World map divided into 500 parliament seats"></svg>
+<div id="tip" hidden></div>
+<aside id="panel" hidden>
+  <button id="close" aria-label="Close panel">&times;</button>
+  <div id="panel-body"></div>
+</aside>
+<div id="toolbar">
+  <input id="search" list="seat-list" placeholder="Search seat or country…" autocomplete="off">
+  <datalist id="seat-list"></datalist>
+  <button id="zin" title="Zoom in">+</button>
+  <button id="zout" title="Zoom out">&minus;</button>
+  <button id="zreset" title="Reset view">&#8962;</button>
+</div>
+<div id="loading">Loading map…</div>
+<script src="lib/d3.min.js"></script>
+<script src="lib/topojson-client.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

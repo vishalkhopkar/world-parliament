@@ -1,0 +1,15 @@
+# large third-party boundary data (download separately, see README)
+GEO/
+ne_10m_*/
+ne_10m_*.zip
+data/ne0/
+data/gadm/
+# build artefacts / tooling
+build/node_modules/
+build/package*.json
+build/seats.geojson
+build/world_simple.geojson
+build/tmp_*/
+build/*.bak
+*.bak.csv
+__pycache__/

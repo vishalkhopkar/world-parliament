@@ -1,0 +1,190 @@
+{
+ "adm1": {
+  "VNM": {
+   "Bac Kan": "bckn",
+   "Hai Duong": "hidng",
+   "Nam Dinh": "namnh",
+   "Quang Ninh": "qungninh",
+   "Lang Son": "lngsn",
+   "Quang Binh": "qungbinh",
+   "Quang Tri": "qungtr",
+   "Dien Bien": "inbien",
+   "Da Nang": "anng",
+   "Quang Nam": "qungnam",
+   "Quang Ngai": "qungngai",
+   "Binh Dinh": "binhnh",
+   "Dak Lak": "klk",
+   "Dak Nong": "knong",
+   "Lam Dong": "lamng",
+   "Binh Phuoc": "binhphc",
+   "Binh Duong": "binhdng",
+   "Dong Nai": "ngnai",
+   "Dong Thap": "ngthap",
+   "Can Tho": "cnth",
+   "Hau Giang": "hugiang"
+  },
+  "TUR": {
+   "Usak": "uak",
+   "Sanliurfa": "anlurfa",
+   "Sirnak": "rnak",
+   "Agri": "ar",
+   "Cankiri": "cankr",
+   "Elazig": "elaz",
+   "Igdir": "idr",
+   "Kirikkale": "krkkale",
+   "Kirsehir": "krehir",
+   "Mus": "mu"
+  },
+  "IDN": {
+   "South Papua": "Papua",
+   "Central Papua": "Papua",
+   "Highland Papua": "Papua",
+   "Southwest Papua": "West Papua"
+  },
+  "IRN": {
+   "Khorasan-e Razavi Province": "Razavi Khorasan"
+  },
+  "IRQ": {
+   "Anbar": "Al-Anbar",
+   "Babylon": "Babil",
+   "Basra": "Al-Basrah",
+   "Qadisiyyah": "Al-Qadisiyah",
+   "Najaf": "An-Najaf",
+   "Nineveh": "Ninawa",
+   "Duhok": "Dohuk",
+   "Sulaymaniyah": "Al-Sulaimaniyah",
+   "Halabja": "Al-Sulaimaniyah",
+   "Saladin": "Salah al-Din"
+  },
+  "SAU": {
+   "Madinah": "Al Madinah Region",
+   "Hail": "Hayel Region"
+  },
+  "YEM": {
+   "Amanat Al Asimah": "San?a?",
+   "Sana'a": "San?a?",
+   "Taiz": "Ta'izz Governorate",
+   "Aden": "?Adan Governorate"
+  },
+  "SYR": {
+   "Idlib": "Idleb",
+   "Raqqa": "Ar-Raqqa",
+   "Rif Dimashq": "Rural Damascus",
+   "As-Suwayda": "As-Sweida"
+  },
+  "KAZ": {
+   "Turkistan Region": "South Kazakhstan Region",
+   "Shymkent City": "South Kazakhstan Region",
+   "Zhetysu Region": "Almaty Region",
+   "Ulytau Region": "Karaganda Region",
+   "Abai Region": "East Kazakhstan Region"
+  },
+  "UZB": {
+   "Syrdarya Region": "Sirdaryo Region",
+   "Kashkadarya Region": "Qashqadaryo Region",
+   "Surkhandarya Region": "Surxondaryo Region",
+   "Khorezm Region": "Xorazm Region"
+  },
+  "EGY": {
+   "Sharqia": "Al Sharqia Governorate",
+   "Gharbia": "Gharbiyya Governorate"
+  },
+  "COD": {
+   "North Ubangi": "Nord-Ubangi",
+   "South Ubangi": "Sud-Ubangi",
+   "Bas-Uele": "Lower Uele",
+   "Haut-Uele": "Upper Uele",
+   "Kasai-Central": "Central Kasai"
+  },
+  "MDG": {
+   "Haute Matsiatra": "Matsiatra Ambony"
+  },
+  "CMR": {
+   "Adamawa": "Adamaoua"
+  }
+ },
+ "adm2": {
+  "IDN": {
+   "South Tangerang City": "Kota Tangerang Selatan",
+   "West Bandung Regency": "Bandung Barat",
+   "Central Tapanuli Regency": "Tapanuli Tengah",
+   "North Labuhanbatu Regency": "Labuhan Batu Utara",
+   "South Labuhanbatu Regency": "Labuhan Batu Selatan",
+   "North Nias Regency": "Nias Utara",
+   "South Nias Regency": "Nias Selatan",
+   "West Nias Regency": "Nias Barat",
+   "North Tapanuli Regency": "Tapanuli Utara",
+   "South Tapanuli Regency": "Tapanuli Selatan",
+   "Toba Regency": "Toba Samosir",
+   "North Padang Lawas Regency": "Padang Lawas Utara",
+   "Padang Sidempuan City": "Kota Padangsidimpuan",
+   "Tangerang City": "Kota Tangerang",
+   "Bogor City": "Kota Bogor",
+   "Depok City": "Kota Depok",
+   "Sukabumi City": "Kota Sukabumi",
+   "Bandung City": "Kota Bandung",
+   "Banjar City": "Kota Banjar",
+   "Cimahi City": "Kota Cimahi",
+   "Tasikmalaya City": "Kota Tasikmalaya",
+   "Bekasi City": "Kota Bekasi",
+   "Cirebon City": "Kota Cirebon",
+   "Tegal City": "Kota Tegal",
+   "Magelang City": "Kota Magelang",
+   "Pekalongan City": "Kota Pekalongan",
+   "Salatiga City": "Kota Salatiga",
+   "Semarang City": "Kota Semarang",
+   "Surakarta City": "Kota Surakarta",
+   "Kediri City": "Kota Kediri",
+   "Madiun City": "Kota Madiun",
+   "Mojokerto City": "Kota Mojokerto",
+   "Surabaya City": "Kota Surabaya",
+   "Batu City": "Kota Batu",
+   "Blitar City": "Kota Blitar",
+   "Malang City": "Kota Malang",
+   "Pasuruan City": "Kota Pasuruan",
+   "Probolinggo City": "Kota Probolinggo",
+   "Binjai City": "Kota Binjai",
+   "Gunungsitoli City": "Kota Gunungsitoli",
+   "Medan City": "Kota Medan",
+   "Sibolga City": "Kota Sibolga",
+   "Tebing Tinggi City": "Kota Tebing Tinggi",
+   "Cilegon City": "Kota Cilegon",
+   "Serang City": "Kota Serang",
+   "Pematangsiantar City": "Kota Pematang Siantar",
+   "Tanjungbalai City": "Kota Tanjung Balai",
+   "Bandung Regency": "Bandung",
+   "Bekasi Regency": "Bekasi",
+   "Blitar Regency": "Blitar",
+   "Bogor Regency": "Bogor",
+   "Cirebon Regency": "Cirebon",
+   "Kediri Regency": "Kediri",
+   "Madiun Regency": "Madiun",
+   "Magelang Regency": "Magelang",
+   "Malang Regency": "Malang",
+   "Mojokerto Regency": "Mojokerto",
+   "Pasuruan Regency": "Pasuruan",
+   "Pekalongan Regency": "Pekalongan",
+   "Probolinggo Regency": "Probolinggo",
+   "Semarang Regency": "Semarang",
+   "Serang Regency": "Serang",
+   "Sukabumi Regency": "Sukabumi",
+   "Tangerang Regency": "Tangerang",
+   "Tasikmalaya Regency": "Tasikmalaya",
+   "Tegal Regency": "Tegal",
+   "Banjar Regency": "Banjar",
+   "Labuhanbatu Regency": "Labuhan Batu"
+  },
+  "TUR": {
+   "Bagcilar": "baclar",
+   "Besiktas": "beikta",
+   "Kagithane": "kathane",
+   "Sisli": "ili",
+   "Sile": "ile"
+  }
+ },
+ "approx": {
+  "TUR": {
+   "Adalar": "Kadkoy"
+  }
+ }
+}

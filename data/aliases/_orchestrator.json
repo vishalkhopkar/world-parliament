@@ -1,0 +1,62 @@
+{
+ "adm1": {
+  "ITA": {
+   "Tuscany": "Toscana"
+  }
+ },
+ "adm2": {
+  "PHL": {
+   "Manila": "NCR, City of Manila, First District",
+   "Caloocan": "NCR, Third District",
+   "Valenzuela": "NCR, Third District",
+   "Malabon": "NCR, Third District",
+   "Navotas": "NCR, Third District",
+   "Makati": "NCR, Fourth District",
+   "Paranaque": "NCR, Fourth District",
+   "Las Pinas": "NCR, Fourth District",
+   "Muntinlupa": "NCR, Fourth District",
+   "Pasay": "NCR, Fourth District",
+   "Pateros": "NCR, Fourth District",
+   "Taguig": "NCR, Fourth District",
+   "Pasig": "NCR, Second District",
+   "Mandaluyong": "NCR, Second District",
+   "Marikina": "NCR, Second District",
+   "San Juan": "NCR, Second District",
+   "Quezon City": "NCR, Second District"
+  },
+  "ITA": {
+   "Tuscany": "Toscana"
+  }
+ },
+ "expand": {
+  "ARG": {
+   "Entre Rios": {
+    "bbox": [
+     -60.8,
+     -34.1,
+     -57.8,
+     -30.0
+    ],
+    "adm2": [
+     "Colon",
+     "Concordia",
+     "Diamante",
+     "Federacion",
+     "Federal",
+     "Feliciano",
+     "Gualeguay",
+     "Gualeguaychu",
+     "Islas del Ibicuy",
+     "La Paz",
+     "Nogoya",
+     "Parana",
+     "San Salvador",
+     "Tala",
+     "Uruguay",
+     "Victoria",
+     "Villaguay"
+    ]
+   }
+  }
+ }
+}

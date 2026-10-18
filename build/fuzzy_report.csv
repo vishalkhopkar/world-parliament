@@ -1,0 +1,528 @@
+﻿iso,level,csv_name,matched_to,how
+ARG,adm1,La Rioja,La Roja,difflib
+BGD,adm2,Bogura,Bogra,difflib
+BGD,adm2,Brahmanbaria,Brahamanbaria,difflib
+BRA,adm1,Rio Grande do Norte,Rio Granda do Norte,difflib
+BRA,adm1,Rio de Janeiro,Rio de Jeneiro,difflib
+BRA,adm2,Barão do Monte Alto,Barão,prefix
+CAN,adm2,Hamilton,Hamilton--Niagara Peninsula,prefix
+CAN,adm2,Muskoka,Muskoka--Kawarthas,prefix
+CHN,adm1,Guangxi,Guangxi Zhuang Autonomous Region,prefix
+CHN,adm1,Inner Mongolia,Inner Mongolia Autonomous Region,affix
+CHN,adm1,Xinjiang,Xinjiang Uyghur Autonomous Region,prefix
+CHN,adm2,Ankang,Ankangshi,affix
+CHN,adm2,Anqing,Anqingshi,affix
+CHN,adm2,Anshan,Anshanshi,affix
+CHN,adm2,Anshun,Anshunxian,affix
+CHN,adm2,Anyang,Anyangxian,affix
+CHN,adm2,Baicheng,Baichengshi,affix
+CHN,adm2,Baise,Baiseshi,affix
+CHN,adm2,Baiyin,Baiyinshi,affix
+CHN,adm2,Baoding,Baodingshi,affix
+CHN,adm2,Baoji,Baojixian,affix
+CHN,adm2,Baoshan,Baoshanshi,affix
+CHN,adm2,Baotou,Baotoushi,affix
+CHN,adm2,Bazhong,Bazhongshi,affix
+CHN,adm2,Beihai,Beihaishi,affix
+CHN,adm2,Benxi,Benxishi,affix
+CHN,adm2,Bijie,Bijieshi,affix
+CHN,adm2,Binzhou,Binzhoushi,affix
+CHN,adm2,Bishan,Bishanxian,affix
+CHN,adm2,Bozhou,Bozhoushi,affix
+CHN,adm2,Cangzhou,Changzhoushi,difflib
+CHN,adm2,Changchun,Changchunshi,affix
+CHN,adm2,Changde,Changdeshi,affix
+CHN,adm2,Changsha,Changshaxian,affix
+CHN,adm2,Changshou,Changshouxian,affix
+CHN,adm2,Changzhi,Changzhishi,affix
+CHN,adm2,Changzhou,Changzhoushi,affix
+CHN,adm2,Chaoyang,Chaoyangxian,affix
+CHN,adm2,Chaozhou,Chaozhoushi,affix
+CHN,adm2,Chengde,Chengdexian,affix
+CHN,adm2,Chengdu,Chengdushi,affix
+CHN,adm2,Chengkou,Chengkouxian,affix
+CHN,adm2,Chenzhou,Chengzhoushi,difflib
+CHN,adm2,Chifeng,Cifengshi,difflib
+CHN,adm2,Chongzuo,Chongzuoxian,affix
+CHN,adm2,Chuxiong,Chuxiongshi,affix
+CHN,adm2,Chuzhou,Chuzhoushi,affix
+CHN,adm2,Dali,Dalixian,affix
+CHN,adm2,Dalian,Dalianshi,affix
+CHN,adm2,Dandong,Dandongshi,affix
+CHN,adm2,Daqing,Daqingshi,affix
+CHN,adm2,Datong,Datongshi,affix
+CHN,adm2,Deyang,Deyangshi,affix
+CHN,adm2,Dezhou,Dezhoushi,affix
+CHN,adm2,Dianjiang,Dianjiangxian,affix
+CHN,adm2,Dingxi,Dingxixian,affix
+CHN,adm2,Dongguan,Dongguanshi,affix
+CHN,adm2,Dongying,Dongyingshi,affix
+CHN,adm2,Enshi,Enshishi,affix
+CHN,adm2,Ezhou,Ezhoushi,affix
+CHN,adm2,Fangchenggang,Fangchenggangshi,affix
+CHN,adm2,Fengdu,Fengduxian,affix
+CHN,adm2,Fengjie,Fengjiexian,affix
+CHN,adm2,Foshan,Foshanshi,affix
+CHN,adm2,Fuling,Fulingshi,affix
+CHN,adm2,Fushun,Fushunxian,affix
+CHN,adm2,Fuxin,Fuxinshi,affix
+CHN,adm2,Fuyang,Fuyangshi,affix
+CHN,adm2,Fuzhou,Fuzhoushi,affix
+CHN,adm2,Ganzhou,Ganzhoushi,affix
+CHN,adm2,Guang'an,Guanganxian,affix
+CHN,adm2,Guangyuan,Guanyuanshi,difflib
+CHN,adm2,Guangzhou,Guangzhoushi,affix
+CHN,adm2,Guigang,Guigangshi,affix
+CHN,adm2,Guilin,Guilinshi,affix
+CHN,adm2,Guiyang,Guiyangshi,affix
+CHN,adm2,Hami,Hamishi,affix
+CHN,adm2,Handan,Handanxian,affix
+CHN,adm2,Hangzhou,Hangzhoushi,affix
+CHN,adm2,Hanzhong,Hanzhongshi,affix
+CHN,adm2,Harbin,Haerbinshi,difflib
+CHN,adm2,Hebi,Hebishi,affix
+CHN,adm2,Hechi,Hechishi,affix
+CHN,adm2,Hechuan,Hechuanshi,affix
+CHN,adm2,Hefei,Hefeishi,affix
+CHN,adm2,Hegang,Hegangshi,affix
+CHN,adm2,Heihe,Heiheshi,affix
+CHN,adm2,Hengshui,Hengshuishi,affix
+CHN,adm2,Hengyang,Hengyangxian,affix
+CHN,adm2,Heyuan,Heyuanshi,affix
+CHN,adm2,Hezhou,Hezhoushi,affix
+CHN,adm2,Huai'an,Huaianxian,affix
+CHN,adm2,Huaibei,Huaibeishi,affix
+CHN,adm2,Huaihua,Huaihuashi,affix
+CHN,adm2,Huainan,Huainanshi,affix
+CHN,adm2,Huangshan,Huangshanshi,affix
+CHN,adm2,Huizhou,Huizhoushi,affix
+CHN,adm2,Huludao,Huludaoishi,prefix
+CHN,adm2,Huzhou,Huzhoushi,affix
+CHN,adm2,Ji'an,Jianshi,affix
+CHN,adm2,Jiamusi,Jiamusishi,prefix
+CHN,adm2,Jiangjin,Jiangjinshi,affix
+CHN,adm2,Jiangmen,Jiangmenshi,affix
+CHN,adm2,Jiaozuo,Jiaozuoshi,affix
+CHN,adm2,Jiaxing,Jiaxingshi,affix
+CHN,adm2,Jieyang,Jieyangshi,affix
+CHN,adm2,Jilin City,Jilinshi,affix
+CHN,adm2,Jinan,Jinanshi,affix
+CHN,adm2,Jinchang,Jinchangshi,affix
+CHN,adm2,Jincheng,Jinchengshi,affix
+CHN,adm2,Jingdezhen,Jingdezheshi,difflib
+CHN,adm2,Jingmen,Jingmenshi,affix
+CHN,adm2,Jinhua,Jinhuashi,affix
+CHN,adm2,Jining,Jiningshi,affix
+CHN,adm2,Jinzhou,Jinzhoushi,affix
+CHN,adm2,Jiujiang,Jiujiangxian,affix
+CHN,adm2,Jiuquan,Jiuquanshi,affix
+CHN,adm2,Jixi,Jixishi,affix
+CHN,adm2,Jiyuan,Jiyuanshi,affix
+CHN,adm2,Kaifeng,Kaifengxian,affix
+CHN,adm2,Kunming,Kunmingshi,affix
+CHN,adm2,Laibin,Laibinxian,affix
+CHN,adm2,Langfang,Langfangshi,affix
+CHN,adm2,Lanzhou,Lanzhoushi,affix
+CHN,adm2,Leshan,Leshanshi,affix
+CHN,adm2,Liangping,Liangpingxian,affix
+CHN,adm2,Lianyungang,Lianyungangshi,affix
+CHN,adm2,Liaocheng,Liaochengshi,affix
+CHN,adm2,Liaoyang,Liaoyangxian,affix
+CHN,adm2,Liaoyuan,Liaoyuanshi,affix
+CHN,adm2,Lijiang,Lijiangnaxizuzizhixian,prefix
+CHN,adm2,Lincang,Linchangxian,difflib
+CHN,adm2,Linfen,Linfenshi,affix
+CHN,adm2,Linyi,Linyixian,affix
+CHN,adm2,Lishui,Lishuixian,affix
+CHN,adm2,Liupanshui,Liupanshuishi,affix
+CHN,adm2,Liuzhou,Liuzhoushi,affix
+CHN,adm2,Longyan,Longyanshi,affix
+CHN,adm2,Loudi,Loudishi,affix
+CHN,adm2,Luohe,Luoheshi,affix
+CHN,adm2,Luoyang,Luoyangshi,affix
+CHN,adm2,Luzhou,Luzhoushi,affix
+CHN,adm2,Ma'anshan,Maanshanshi,affix
+CHN,adm2,Maoming,Maomingshi,affix
+CHN,adm2,Meishan,Meishanxian,affix
+CHN,adm2,Meizhou,Meizhoushi,affix
+CHN,adm2,Mianyang,Mianyangshi,affix
+CHN,adm2,Mudanjiang,Mudanjiangshi,affix
+CHN,adm2,Nanchang,Nanchangxian,affix
+CHN,adm2,Nanchong,Nanchongshi,affix
+CHN,adm2,Nanchuan,Nanchuanxian,affix
+CHN,adm2,Nanjing,Nanjingshi,affix
+CHN,adm2,Nanning,Nanningshi,affix
+CHN,adm2,Nanping,Nanpingxian,affix
+CHN,adm2,Nantong,Nantongshi,affix
+CHN,adm2,Nanyang,Nanyangshi,affix
+CHN,adm2,Neijiang,Neijiangshi,affix
+CHN,adm2,Ningbo,Ningboshi,affix
+CHN,adm2,Ningde,Ningdeshi,affix
+CHN,adm2,Panjin,Panjinshi,affix
+CHN,adm2,Panzhihua,Panzhihuashi,affix
+CHN,adm2,Pengshui,Pengshuimiaozutujiazuzizhixian,prefix
+CHN,adm2,Pingdingshan,Pingdingshanshi,affix
+CHN,adm2,Pingliang,Pingliangshi,affix
+CHN,adm2,Pingxiang,Pingxiangxian,affix
+CHN,adm2,Putian,Putianxian,affix
+CHN,adm2,Puyang,Puyangshi,affix
+CHN,adm2,Qianjiang,Qianjiangshi,affix
+CHN,adm2,Qingdao,Qingdaoshi,affix
+CHN,adm2,Qingyang,Qingyangxian,affix
+CHN,adm2,Qingyuan,Qingyuanxian,affix
+CHN,adm2,Qinhuangdao,Qinhuangdaoshi,affix
+CHN,adm2,Qinzhou,Qinzhoushi,affix
+CHN,adm2,Qiqihar,Qiqihaershi,difflib
+CHN,adm2,Qitaihe,Qitaiheshi,affix
+CHN,adm2,Quanzhou,Quanzhouxian,affix
+CHN,adm2,Qujing,Qujingshi,affix
+CHN,adm2,Rizhao,Rizhaoshi,affix
+CHN,adm2,Rongchang,Rongchangxian,affix
+CHN,adm2,Sanmenxia,Sanmenxiashi,affix
+CHN,adm2,Sanming,Sanmingshi,affix
+CHN,adm2,Shangqiu,Shangqiushi,affix
+CHN,adm2,Shangrao,Shangraoxian,affix
+CHN,adm2,Shantou,Shantoushi,affix
+CHN,adm2,Shaoguan,Shaoguanshi,affix
+CHN,adm2,Shaoxing,Shaoxingxian,affix
+CHN,adm2,Shaoyang,Shaoyangshi,affix
+CHN,adm2,Shennongjia,Shennongjialinqu,prefix
+CHN,adm2,Shenyang,Shenyangshi,affix
+CHN,adm2,Shenzhen,Shenzhenxian,affix
+CHN,adm2,Shihezi,Shihezhishi,difflib
+CHN,adm2,Shijiazhuang,Shijiazhuanshi,prefix
+CHN,adm2,Shiyan,Shiyanshi,affix
+CHN,adm2,Shuangyashan,Suangyashanshi,difflib
+CHN,adm2,Siping,Sipingshi,affix
+CHN,adm2,Suihua,Suihuashi,affix
+CHN,adm2,Suining,Suiningshi,affix
+CHN,adm2,Suqian,Suqianxian,affix
+CHN,adm2,Suzhou,Suzhoushi,affix
+CHN,adm2,Tacheng,Tachengshi,affix
+CHN,adm2,Tai'an,Taianxian,affix
+CHN,adm2,Taiyuan,Taiyuanshi,affix
+CHN,adm2,Taizhou,Taizhoushi,affix
+CHN,adm2,Tangshan,Tangshanshi,affix
+CHN,adm2,Tianmen,Tianmenshi,affix
+CHN,adm2,Tianshui,Tianshuishi,affix
+CHN,adm2,Tieling,Tielingxian,affix
+CHN,adm2,Tongchuan,Tongchuanshi,affix
+CHN,adm2,Tonghua,Tonghuashi,affix
+CHN,adm2,Tongliang,Tongliangxian,affix
+CHN,adm2,Tongliao,Tongliaoshi,affix
+CHN,adm2,Tongling,Tonglingxian,affix
+CHN,adm2,Tongnan,Tongnanxian,affix
+CHN,adm2,Tongren,Tongrenxian,affix
+CHN,adm2,Weifang,Weifangshi,affix
+CHN,adm2,Weihai,Weihaishi,affix
+CHN,adm2,Weinan,Weinanshi,affix
+CHN,adm2,Wenshan,Wenshanxian,affix
+CHN,adm2,Wenzhou,Wenzhoushi,affix
+CHN,adm2,Wuhai,Wuhaishi,affix
+CHN,adm2,Wuhan,Wuhanshi,affix
+CHN,adm2,Wuhu,Wuhushi,affix
+CHN,adm2,Wulong,Wulongxian,affix
+CHN,adm2,Wushan,Wushanxian,affix
+CHN,adm2,Wuwei,Wuweishi,affix
+CHN,adm2,Wuxi,Wuxixian,affix
+CHN,adm2,Wuzhou,Wuzhoushi,affix
+CHN,adm2,Xi'an,Xianxian,affix
+CHN,adm2,Xiamen,Xiamenshi,affix
+CHN,adm2,Xiangtan,Xiangtanxian,affix
+CHN,adm2,Xiangyang,Xiangyangxian,affix
+CHN,adm2,Xianning,Xianningshi,affix
+CHN,adm2,Xiantao,Xiantaoshi,affix
+CHN,adm2,Xianyang,Xianyangshi,affix
+CHN,adm2,Xiaogan,Xiaoganshi,affix
+CHN,adm2,Xingtai,Xingtaixian,affix
+CHN,adm2,Xinxiang,Xinxiangshi,affix
+CHN,adm2,Xinyang,Xinyangshi,affix
+CHN,adm2,Xinyu,Xinyushi,affix
+CHN,adm2,Xiushan,Xiushantujiazumiaozuzizhixian,prefix
+CHN,adm2,Xuchang,Xuchangxian,affix
+CHN,adm2,Xuzhou,Xuzhoushi,affix
+CHN,adm2,Ya'an,Yaanshi,affix
+CHN,adm2,Yan'an,Yananshi,affix
+CHN,adm2,Yancheng,Yanchengshi,affix
+CHN,adm2,Yangquan,Yangquanshi,affix
+CHN,adm2,Yangzhou,Yangzhoushi,affix
+CHN,adm2,Yantai,Yantaishi,affix
+CHN,adm2,Yibin,Yibinxian,affix
+CHN,adm2,Yichang,Yichangxian,affix
+CHN,adm2,Yichun,Yichunshi,affix
+CHN,adm2,Yingkou,Yingkoushi,affix
+CHN,adm2,Yingtan,Yingtanshi,affix
+CHN,adm2,Yiyang,Yiyangxian,affix
+CHN,adm2,Yongchuan,Yongchuanshi,affix
+CHN,adm2,Yongzhou,Yongzhoushi,affix
+CHN,adm2,Yueyang,Yueyangshi,affix
+CHN,adm2,Yulin,Yulinshi,affix
+CHN,adm2,Yuncheng,Yunchengxian,affix
+CHN,adm2,Yunyang,Yunyangxian,affix
+CHN,adm2,Yuxi,Yuxishi,affix
+CHN,adm2,Zaozhuang,Zhaozhuangshi,difflib
+CHN,adm2,Zhangjiakou,Zhangjiakoushi,affix
+CHN,adm2,Zhangye,Zhangyeshi,affix
+CHN,adm2,Zhangzhou,Zhangzhoushi,affix
+CHN,adm2,Zhanjiang,Zhanjianghsi,prefix
+CHN,adm2,Zhaoqing,Zhaoqingshi,affix
+CHN,adm2,Zhaotong,Zhaotongshi,affix
+CHN,adm2,Zhengzhou,Zhengzhoushi,affix
+CHN,adm2,Zhenjiang,Zhenjiangshi,affix
+CHN,adm2,Zhong,Zhongxian,affix
+CHN,adm2,Zhongshan,Zhongshanxian,affix
+CHN,adm2,Zhoukou,Zhoukoushi,affix
+CHN,adm2,Zhoushan,Zhoushanshi,affix
+CHN,adm2,Zhuhai,Zhuhaishi,affix
+CHN,adm2,Zhumadian,Zhumadianshi,affix
+CHN,adm2,Zhuzhou,Zhuzhoushi,affix
+CHN,adm2,Zibo,Ziboshi,affix
+CHN,adm2,Zigong,Zigongshi,affix
+CHN,adm2,Ziyang,Ziyangshi,affix
+CHN,adm2,Zunyi,Zhunyixian,difflib
+DEU,adm1,Hesse,Hessen,prefix
+DEU,adm2,Freiburg im Breisgau,Freiburg,prefix
+EGY,adm1,Luxor,Luxor Governate,prefix
+EGY,adm1,Minya,Minya Governate,prefix
+ESP,adm1,Andalusia,Andalucía,difflib
+ETH,adm2,Oromia Zone,Oromia,prefix
+GBR,adm2,Bristol,"Bristol, City of",affix
+GBR,adm2,Herefordshire,"Herefordshire, County of",affix
+GBR,adm2,Kingston upon Hull,"Kingston upon Hull, City of",affix
+GBR,adm2,West Northamptonshire,Northamptonshire,difflib
+IDN,adm1,Jakarta,Jakarta Special Capital Region,prefix
+IDN,adm1,Yogyakarta,Special Region of Yogyakarta,affix
+IDN,adm2,Asahan Regency,Asahan,affix
+IDN,adm2,Bangkalan Regency,Bangkalan,affix
+IDN,adm2,Banjarnegara Regency,Banjarnegara,affix
+IDN,adm2,Banyumas Regency,Banyumas,affix
+IDN,adm2,Banyuwangi Regency,Banyuwangi,affix
+IDN,adm2,Batang Regency,Batang,affix
+IDN,adm2,Batu Bara Regency,Batu Bara,affix
+IDN,adm2,Blora Regency,Blora,affix
+IDN,adm2,Bojonegoro Regency,Bojonegoro,affix
+IDN,adm2,Bondowoso Regency,Bondowoso,affix
+IDN,adm2,Boyolali Regency,Boyolali,affix
+IDN,adm2,Brebes Regency,Brebes,affix
+IDN,adm2,Ciamis Regency,Ciamis,affix
+IDN,adm2,Cianjur Regency,Cianjur,affix
+IDN,adm2,Cilacap Regency,Cilacap,affix
+IDN,adm2,Dairi Regency,Dairi,affix
+IDN,adm2,Deli Serdang Regency,Deli Serdang,affix
+IDN,adm2,Demak Regency,Demak,affix
+IDN,adm2,Garut Regency,Garut,affix
+IDN,adm2,Gresik Regency,Gresik,affix
+IDN,adm2,Grobogan Regency,Grobogan,affix
+IDN,adm2,Humbang Hasundutan Regency,Humbang Hasundutan,affix
+IDN,adm2,Indramayu Regency,Indramayu,affix
+IDN,adm2,Jember Regency,Jember,affix
+IDN,adm2,Jepara Regency,Jepara,affix
+IDN,adm2,Jombang Regency,Jombang,affix
+IDN,adm2,Karanganyar Regency,Karanganyar,affix
+IDN,adm2,Karawang Regency,Karawang,affix
+IDN,adm2,Karo Regency,Karo,affix
+IDN,adm2,Kebumen Regency,Kebumen,affix
+IDN,adm2,Kendal Regency,Kendal,affix
+IDN,adm2,Klaten Regency,Klaten,affix
+IDN,adm2,Kudus Regency,Kudus,affix
+IDN,adm2,Kuningan Regency,Kuningan,affix
+IDN,adm2,Lamongan Regency,Lamongan,affix
+IDN,adm2,Langkat Regency,Langkat,affix
+IDN,adm2,Lebak Regency,Lebak,affix
+IDN,adm2,Lumajang Regency,Lumajang,affix
+IDN,adm2,Magetan Regency,Magetan,affix
+IDN,adm2,Majalengka Regency,Majalengka,affix
+IDN,adm2,Mandailing Natal Regency,Mandailing Natal,affix
+IDN,adm2,Nganjuk Regency,Nganjuk,affix
+IDN,adm2,Ngawi Regency,Ngawi,affix
+IDN,adm2,Nias Regency,Nias,affix
+IDN,adm2,Pacitan Regency,Pacitan,affix
+IDN,adm2,Padang Lawas Regency,Padang Lawas,affix
+IDN,adm2,Pakpak Bharat Regency,Pakpak Bharat,affix
+IDN,adm2,Pamekasan Regency,Pamekasan,affix
+IDN,adm2,Pandeglang Regency,Pandeglang,affix
+IDN,adm2,Pangandaran Regency,Pangandaran,affix
+IDN,adm2,Pati Regency,Pati,affix
+IDN,adm2,Pemalang Regency,Pemalang,affix
+IDN,adm2,Ponorogo Regency,Ponorogo,affix
+IDN,adm2,Purbalingga Regency,Purbalingga,affix
+IDN,adm2,Purwakarta Regency,Purwakarta,affix
+IDN,adm2,Purworejo Regency,Purworejo,affix
+IDN,adm2,Rembang Regency,Rembang,affix
+IDN,adm2,Samosir Regency,Samosir,affix
+IDN,adm2,Sampang Regency,Sampang,affix
+IDN,adm2,Serdang Bedagai Regency,Serdang Bedagai,affix
+IDN,adm2,Sidoarjo Regency,Sidoarjo,affix
+IDN,adm2,Simalungun Regency,Simalungun,affix
+IDN,adm2,Situbondo Regency,Situbondo,affix
+IDN,adm2,Sragen Regency,Sragen,affix
+IDN,adm2,Subang Regency,Subang,affix
+IDN,adm2,Sukoharjo Regency,Sukoharjo,affix
+IDN,adm2,Sumedang Regency,Sumedang,affix
+IDN,adm2,Sumenep Regency,Sumenep,affix
+IDN,adm2,Temanggung Regency,Temanggung,affix
+IDN,adm2,Trenggalek Regency,Trenggalek,affix
+IDN,adm2,Tuban Regency,Tuban,affix
+IDN,adm2,Tulungagung Regency,Tulungagung,affix
+IDN,adm2,Wonogiri Regency,Wonogiri,affix
+IDN,adm2,Wonosobo Regency,Wonosobo,affix
+IND,adm1,Arunachal Pradesh,Arun?chal Pradesh,difflib
+IND,adm1,Bihar,Bih?r,difflib
+IND,adm1,Chandigarh,Chand?garh,difflib
+IND,adm1,Chhattisgarh,Chhatt?sgarh,difflib
+IND,adm1,Dadra and Nagar Haveli and Daman and Diu,D?dra and Nagar Haveli and Dam?n and Diu,difflib
+IND,adm1,Delhi NCT,Delhi,prefix
+IND,adm1,Gujarat,Gujar?t,difflib
+IND,adm1,Haryana,Hary?na,difflib
+IND,adm1,Himachal Pradesh,Him?chal Pradesh,difflib
+IND,adm1,Jammu and Kashmir,Jammu and Kashm?r,difflib
+IND,adm1,Jharkhand,Jh?rkhand,difflib
+IND,adm1,Karnataka,Karn?taka,difflib
+IND,adm1,Ladakh,Lad?kh,difflib
+IND,adm1,Maharashtra,Mah?r?shtra,difflib
+IND,adm1,Meghalaya,Megh?laya,difflib
+IND,adm1,Tamil Nadu,Tamil N?du,difflib
+IND,adm1,Telangana,Telang?na,difflib
+IND,adm1,Uttarakhand,Uttar?khand,difflib
+IND,adm2,Anantapuramu,Anantapur,prefix
+IND,adm2,Angul,Anugul,difflib
+IND,adm2,Bhadradri Kothagudem,Bhadradri,prefix
+IND,adm2,Chengalpattu,Chengalputtu,difflib
+IND,adm2,Chikkamagaluru,Chikmagalur,difflib
+IND,adm2,Hyderabad,Hydrabad,difflib
+IND,adm2,Jagatsinghpur,Jagatsinghapur,difflib
+IND,adm2,Jajpur,Jajapur,difflib
+IND,adm2,Jayashankar Bhupalpally,Jayashankar,prefix
+IND,adm2,Jogulamba Gadwal,Jogulamba,prefix
+IND,adm2,Kaimur,Kaimur (Bhabua),prefix
+IND,adm2,Kanyakumari,Kanniyakumari,difflib
+IND,adm2,Khandwa,Khandwa (East Nimar),prefix
+IND,adm2,Khargone,Khargone (West Nimar),prefix
+IND,adm2,Komaram Bheem Asifabad,Komaram Bheem,prefix
+IND,adm2,Maharajganj,Mahrajganj,difflib
+IND,adm2,Malda,Maldah,prefix
+IND,adm2,Medchal-Malkajgiri,Medchal,prefix
+IND,adm2,Nabarangpur,Nabarangapur,difflib
+IND,adm2,Paschim Bardhaman,Paschim Barddhaman,difflib
+IND,adm2,Purulia,Puruliya,difflib
+IND,adm2,Seraikela-Kharsawan,Saraikela-Kharsawan,difflib
+IND,adm2,Shamli,Samli,difflib
+IND,adm2,Shravasti,Shrawasti,difflib
+IND,adm2,Thoothukudi,Thoothukkudi,difflib
+IND,adm2,Tiruvallur,Thiruvallur,difflib
+IND,adm2,Tiruvarur,Thiruvarur,difflib
+IRQ,adm1,Muthanna,Al-Muthanna,difflib
+JPN,adm1,Tokyo Metropolis,Tokyo,affix
+KOR,adm1,Busan Metropolitan City,Busan,affix
+KOR,adm1,Daegu Metropolitan City,Daegu,affix
+KOR,adm1,Daejeon Metropolitan City,Daejeon,affix
+KOR,adm1,Gwangju Metropolitan City,Gwangju,affix
+KOR,adm1,Incheon Metropolitan City,Incheon,affix
+KOR,adm1,Sejong Special Self-Governing City,Sejong,prefix
+KOR,adm1,Seoul Special City,Seoul,affix
+KOR,adm1,Ulsan Metropolitan City,Ulsan,affix
+KOR,adm2,Ansan,Ansan-si,affix
+KOR,adm2,Anseong,Anseong-si,affix
+KOR,adm2,Anyang,Anyang-si,affix
+KOR,adm2,Bucheon,Bucheon-si,affix
+KOR,adm2,Dongducheon,Dongducheon-si,affix
+KOR,adm2,Gapyeong,Gapyeong-gun,affix
+KOR,adm2,Gimpo,Gimpo-si,affix
+KOR,adm2,Goyang,Goyang-si,affix
+KOR,adm2,Gunpo,Gunpo-si,affix
+KOR,adm2,Guri,Guri-si,affix
+KOR,adm2,Gwacheon,Gwacheon-si,affix
+KOR,adm2,Gwangju,Gwangju-si,affix
+KOR,adm2,Gwangmyeong,Gwangmyeong-si,affix
+KOR,adm2,Hanam,Hanam-si,affix
+KOR,adm2,Hwaseong,Hwaseong-si,affix
+KOR,adm2,Icheon,Icheon-si,affix
+KOR,adm2,Namyangju,Namyangju-si,affix
+KOR,adm2,Osan,Osan-si,affix
+KOR,adm2,Paju,Paju-si,affix
+KOR,adm2,Pocheon,Pocheon-si,affix
+KOR,adm2,Pyeongtaek,Pyeongtaek-si,affix
+KOR,adm2,Seongnam,Seongnam-si,affix
+KOR,adm2,Siheung,Siheung-si,affix
+KOR,adm2,Suwon,Suwon-si,affix
+KOR,adm2,Uijeongbu,Uijeongbu-si,affix
+KOR,adm2,Uiwang,Uiwang-si,affix
+KOR,adm2,Yangju,Yangju-si,affix
+KOR,adm2,Yangpyeong,Yangpyeong-gun,affix
+KOR,adm2,Yeoncheon,Yeoncheon-gun,affix
+KOR,adm2,Yongin,Yongin-si,affix
+MAR,adm1,Fès-Meknès,Fez-Meknes,difflib
+MAR,adm1,Tanger-Tétouan-Al Hoceïma,Tangier-Tetouan-Al Hoceima,difflib
+MEX,adm1,Coahuila,Coahuila de Zaragoza,prefix
+MEX,adm1,Michoacán,Michoacan de Ocampo,prefix
+MEX,adm1,Querétaro,Queretaro de Arteaga,prefix
+MEX,adm1,Veracruz,Veracruz de Ignacio de la Llave,prefix
+MMR,adm1,Tanintharyi,Tanitharyi,difflib
+MYS,adm1,Kuala Lumpur Federal Territory,Kuala Lumpur,prefix
+MYS,adm1,Labuan Federal Territory,Labuan,prefix
+MYS,adm1,Putrajaya Federal Territory,Putrajaya,prefix
+NGA,adm1,Federal Capital Territory,Abuja Federal Capital Territory,difflib
+POL,adm1,Podlaskie,Podlaskie Voivodeship,prefix
+PRK,adm1,Nampo Special City,Nampo,affix
+PRK,adm1,Pyongyang Capital City,Pyongyang,prefix
+RUS,adm1,Chukotka,Chukotka Autonomous Okrug,prefix
+RUS,adm1,Kaliningrad Oblast,Kaliningrad,affix
+RUS,adm1,Karelia,Republic of Karelia,affix
+RUS,adm1,Komi,Komi Republic,affix
+RUS,adm1,Mordovia,Republic of Mordovia,affix
+RUS,adm1,Sakha (Yakutia),Sakha Republic,prefix
+SYR,adm1,Al-Hasakah,Al-Hasakeh,difflib
+SYR,adm1,Daraa,Dar'a,difflib
+SYR,adm1,Latakia,Lattakia,difflib
+SYR,adm1,Tartus,Tartous,difflib
+TUR,adm1,Adiyaman,Ad?yaman,difflib
+TUR,adm1,Aydin,Ayd?n,difflib
+TUR,adm1,Balikesir,Bal?kesir,difflib
+TUR,adm1,Bartin,Bart?n,difflib
+TUR,adm1,Diyarbakir,Diyarbak?r,difflib
+TUR,adm1,Eskisehir,Eski?ehir,difflib
+TUR,adm1,Gumushane,Gümü?hane,difflib
+TUR,adm1,Istanbul,?stanbul,difflib
+TUR,adm1,Izmir,?zmir,difflib
+TUR,adm1,Kahramanmaras,Kahramanmara?,prefix
+TUR,adm1,Kirklareli,K?rklareli,difflib
+TUR,adm1,Mugla,Mu?la,difflib
+TUR,adm1,Nevsehir,Nev?ehir,difflib
+TUR,adm1,Nigde,Ni?de,difflib
+TUR,adm1,Tekirdag,Tekirda?,prefix
+TUR,adm2,Atasehir,Ata?ehir,difflib
+TUR,adm2,Avcilar,Avc?lar,difflib
+TUR,adm2,Bakirkoy,Bak?rköy,difflib
+TUR,adm2,Basaksehir,Ba?ak?ehir,difflib
+TUR,adm2,Bayrampasa,Bayrampa?a,difflib
+TUR,adm2,Beyoglu,Beyo?lu,difflib
+TUR,adm2,Gaziosmanpasa,Gaziosmanpa?a,difflib
+TUR,adm2,Kadikoy,Kad?köy,difflib
+TUR,adm2,Sariyer,Sar?yer,difflib
+UKR,adm1,Odesa Oblast,Odessa Oblast,difflib
+UKR,adm1,Zaporizhzhia Oblast,Zaporizhia Oblast,difflib
+UZB,adm1,Karakalpakstan (Republic),Republic of Karakalpakstan,affix
+UZB,adm1,Navoi Region,Navoiy Region,prefix
+UZB,adm1,Samarkand Region,Samarqand Region,difflib
+VNM,adm1,Ba Ria-Vung Tau,Bà R?a?V?ng Tàu,difflib
+VNM,adm1,Bac Giang,B?c Giang,difflib
+VNM,adm1,Bac Lieu,B?c Liêu,difflib
+VNM,adm1,Bac Ninh,B?c Ninh,difflib
+VNM,adm1,Ben Tre,B?n Tre,difflib
+VNM,adm1,Binh Thuan,Bình Thu?n,difflib
+VNM,adm1,Cao Bang,Cao B?ng,difflib
+VNM,adm1,Ha Tinh,Hà T?nh,difflib
+VNM,adm1,Hai Phong,H?i Phòng,difflib
+VNM,adm1,Hanoi,Hà N?i	,difflib
+VNM,adm1,Hung Yen,H?ng Yên,difflib
+VNM,adm1,Nghe An,Ngh? An,difflib
+VNM,adm1,Ninh Thuan,Ninh Thu?n,difflib
+VNM,adm1,Phu Tho,Phú Th?,prefix
+VNM,adm1,Soc Trang,Sóc Tr?ng,difflib
+VNM,adm1,Son La,S?n La,difflib
+VNM,adm1,Thua Thien Hue,Th?a Thiên Hu?,difflib
+VNM,adm1,Tien Giang,Ti?n Giang,difflib
+VNM,adm1,Vinh Long,V?nh Long,difflib
+VNM,adm1,Vinh Phuc,V?nh Phúc,difflib
+YEM,adm1,Hadramaut,Hadhramaut,difflib
+ZAF,adm1,Northern Cape,Nothern Cape,difflib

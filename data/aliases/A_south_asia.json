@@ -1,0 +1,103 @@
+{
+ "adm1": {
+  "IND": {
+   "Rajasthan": "R?jasth?n",
+   "Nagaland": "N?g?land"
+  },
+  "NPL": {
+   "Koshi": "Province 1",
+   "Madhesh": "Province 2",
+   "Sudurpashchim": "Sudurpaschim"
+  },
+  "BGD": {
+   "Rajshahi": "Rajshani"
+  },
+  "AFG": {
+   "Ghazni": "Ghanzi"
+  }
+ },
+ "adm2": {
+  "IND": {
+   "East Delhi": "East",
+   "North East Delhi": "North East",
+   "North West Delhi": "North West",
+   "West Delhi": "West",
+   "South West Delhi": "South West",
+   "South East Delhi": "South East",
+   "North Delhi": "North",
+   "South Delhi": "South",
+   "Central Delhi": "Central",
+   "Hathras": "Mahamaya Nagar",
+   "Kasganj": "Kanshiram Nagar",
+   "Amroha": "Jyotiba Phule Nagar",
+   "Ayodhya": "Faizabad",
+   "Prayagraj": "Allahabad",
+   "Bhadohi": "Sant Ravidas Nagar (Bhadohi)",
+   "Lakhimpur Kheri": "Kheri",
+   "West Champaran": "Pashchim Champaran",
+   "East Champaran": "Purba Champaran",
+   "Howrah": "Haora",
+   "Hooghly": "Hugli",
+   "Purba Bardhaman": "Barddhaman",
+   "Darjeeling": "Darjiling",
+   "Cooch Behar": "Koch Bihar",
+   "North 24 Parganas": "North Twenty Four Parganas",
+   "South 24 Parganas": "South Twenty Four Parganas",
+   "Bengaluru Urban": "Bangalore",
+   "Bengaluru Rural": "Bangalore Rural",
+   "Mysuru": "Mysore",
+   "Tumakuru": "Tumkur",
+   "Vijayapura": "Bijapur",
+   "Kalaburagi": "Gulbarga",
+   "Ballari": "Bellary",
+   "Belagavi": "Belgaum",
+   "Shivamogga": "Shimoga",
+   "YSR Kadapa": "Kadapa(YSR)",
+   "Yadadri Bhuvanagiri": "Yadadri Bhongiri",
+   "Warangal": "Warangal (R)",
+   "Hanamkonda": "Warangal (U)",
+   "Balasore": "Baleshwar",
+   "Keonjhar": "Kendujhar",
+   "Deogarh": "Debagarh",
+   "Boudh": "Baudh",
+   "East Singhbhum": "Purbi Singhbhum",
+   "West Singhbhum": "Pashchimi Singhbhum",
+   "Koderma": "Kodarma",
+   "Karbi Anglong": "Karbi Anglong East",
+   "West Karbi Anglong": "Karbi Anglong West",
+   "Sri Muktsar Sahib": "Muktsar",
+   "Gurugram": "Gurgaon",
+   "Nuh": "Mewat",
+   "Nilgiris": "The Nilgiris"
+  },
+  "BGD": {
+   "Jashore": "Jessore",
+   "Cumilla": "Comilla",
+   "Chapai Nawabganj": "Nawabganj"
+  },
+  "NPL": {
+   "Siraha": "Saptari",
+   "Parsa": "Bara"
+  }
+ },
+ "approx": {
+  "IND": {
+   "Vijayanagara": "Bellary",
+   "Parvathipuram Manyam": "Vizianagaram",
+   "Anakapalli": "Visakhapatnam",
+   "Alluri Sitharama Raju": "Visakhapatnam",
+   "Kakinada": "East Godavari",
+   "Dr. B.R. Ambedkar Konaseema": "East Godavari",
+   "Eluru": "Krishna",
+   "NTR": "Krishna",
+   "Palnadu": "Guntur",
+   "Bapatla": "Guntur",
+   "Tirupati": "Chittoor",
+   "Annamayya": "Kadapa(YSR)",
+   "Sri Sathya Sai": "Anantapur",
+   "Nandyal": "Kurnool",
+   "Malerkotla": "Sangrur",
+   "Charkhi Dadri": "Bhiwani"
+  }
+ }
+}

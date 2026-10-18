@@ -1,0 +1,74 @@
+{
+ "adm1": {
+  "MEX": {
+   "Ciudad de Mexico": "Distrito Federal",
+   "Estado de Mexico": "Mexico"
+  },
+  "COL": {
+   "Bogota D.C.": "Bogota Capital District",
+   "San Andres y Providencia": "Archipielago de San Andres, Providencia y Santa Catalina"
+  },
+  "PER": {
+   "Callao": "El Callao"
+  }
+ },
+ "adm2": {
+  "CAN": {
+   "Prince Edward": "Kingston--Pembroke"
+  },
+  "ARG": {
+   "Coronel Rosales": "Coronel de Marina L. Rosales",
+   "Nueve de Julio": "9 de Julio",
+   "Veinticinco de Mayo": "25 de Mayo"
+  }
+ },
+ "approx": {
+  "CAN": {
+   "Stormont": "Ottawa",
+   "Dundas and Glengarry": "Ottawa",
+   "Prescott and Russell": "Ottawa",
+   "Leeds and Grenville": "Ottawa",
+   "Lanark": "Ottawa",
+   "Frontenac": "Kingston--Pembroke",
+   "Lennox and Addington": "Kingston--Pembroke",
+   "Hastings": "Kingston--Pembroke",
+   "Renfrew": "Kingston--Pembroke",
+   "Northumberland": "Muskoka--Kawarthas",
+   "Peterborough": "Muskoka--Kawarthas",
+   "Kawartha Lakes": "Muskoka--Kawarthas",
+   "Haliburton": "Muskoka--Kawarthas",
+   "Durham": "Toronto",
+   "York": "Toronto",
+   "Peel": "Toronto",
+   "Halton": "Toronto",
+   "Simcoe": "Kitchener--Waterloo--Barrie",
+   "Dufferin": "Kitchener--Waterloo--Barrie",
+   "Wellington": "Kitchener--Waterloo--Barrie",
+   "Waterloo": "Kitchener--Waterloo--Barrie",
+   "Niagara": "Hamilton--Niagara Peninsula",
+   "Haldimand-Norfolk": "Hamilton--Niagara Peninsula",
+   "Brant": "Hamilton--Niagara Peninsula",
+   "Perth": "Stratford--Bruce Peninsula",
+   "Huron": "Stratford--Bruce Peninsula",
+   "Bruce": "Stratford--Bruce Peninsula",
+   "Grey": "Stratford--Bruce Peninsula",
+   "Oxford": "London",
+   "Elgin": "London",
+   "Middlesex": "London",
+   "Chatham-Kent": "Windsor--Sarnia",
+   "Essex": "Windsor--Sarnia",
+   "Lambton": "Windsor--Sarnia",
+   "Nipissing": "Northeast / Nord-est",
+   "Parry Sound": "Northeast / Nord-est",
+   "Timiskaming": "Northeast / Nord-est",
+   "Cochrane": "Northeast / Nord-est",
+   "Manitoulin": "Northeast / Nord-est",
+   "Sudbury": "Northeast / Nord-est",
+   "Greater Sudbury": "Northeast / Nord-est",
+   "Algoma": "Northeast / Nord-est",
+   "Thunder Bay": "Northwest / Nord-ouest",
+   "Rainy River": "Northwest / Nord-ouest",
+   "Kenora": "Northwest / Nord-ouest"
+  }
+ }
+}
