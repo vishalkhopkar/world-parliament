@@ -23046,11 +23046,11 @@
   },
   {
     "id": 490,
-    "name": "Patagonia–Antarctica",
+    "name": "Córdoba–Patagonia",
     "constituency": "Córdoba–Cuyo–Northwest–Patagonia",
     "continent": "South America",
     "pop": 15750000,
-    "desc": "Argentina: Córdoba, Cuyo, Northwest and Patagonia provinces (incl. Tierra del Fuego), plus Falkland Islands and South Georgia/South Sandwich (disputed, no sovereignty determination implied), plus Antarctica (uninhabited; Patagonia-gateway territory)",
+    "desc": "Argentina: Córdoba, Cuyo, Northwest and Patagonia provinces (incl. Tierra del Fuego), plus Falkland Islands and South Georgia/South Sandwich (disputed, no sovereignty determination implied)",
     "countries": [
       {
         "name": "Argentina",
@@ -23143,12 +23143,6 @@
       {
         "name": "South Georgia and the South Sandwich Islands",
         "iso2": "gs",
-        "whole": true,
-        "adm1": []
-      },
-      {
-        "name": "Antarctica",
-        "iso2": "aq",
         "whole": true,
         "adm1": []
       }
@@ -23484,15 +23478,21 @@
   },
   {
     "id": 495,
-    "name": "Chile",
+    "name": "Chile–Antarctica",
     "constituency": "Chile–Atacama–Santiago–Patagonia",
     "continent": "South America",
     "pop": 19900000,
-    "desc": "Entire Chile incl. Easter Island (Isla de Pascua) and Juan Fernández",
+    "desc": "Entire Chile incl. Easter Island (Isla de Pascua) and Juan Fernández plus Antarctica (uninhabited; Punta Arenas is the main gateway)",
     "countries": [
       {
         "name": "Chile",
         "iso2": "cl",
+        "whole": true,
+        "adm1": []
+      },
+      {
+        "name": "Antarctica",
+        "iso2": "aq",
         "whole": true,
         "adm1": []
       }

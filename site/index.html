@@ -3,10 +3,40 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>World Parliament – 500 Seats</title>
-<link rel="stylesheet" href="style.css">
+<title>The world divided into 500 Parliament seats</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&display=swap">
+<link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
+<header id="site-header">
+  <svg class="emblem" width="52" height="52" viewBox="-50 -50 100 100" aria-hidden="true" focusable="false">
+    <g fill="none" stroke="#d9b24c" stroke-linecap="round">
+      <circle r="46" stroke-width="5"/>
+      <circle r="9" stroke-width="3"/>
+      <g stroke-width="2.4">
+        <line x1="0" y1="-44" x2="0" y2="44"/>
+        <line x1="0" y1="-44" x2="0" y2="44" transform="rotate(15)"/>
+        <line x1="0" y1="-44" x2="0" y2="44" transform="rotate(30)"/>
+        <line x1="0" y1="-44" x2="0" y2="44" transform="rotate(45)"/>
+        <line x1="0" y1="-44" x2="0" y2="44" transform="rotate(60)"/>
+        <line x1="0" y1="-44" x2="0" y2="44" transform="rotate(75)"/>
+        <line x1="0" y1="-44" x2="0" y2="44" transform="rotate(90)"/>
+        <line x1="0" y1="-44" x2="0" y2="44" transform="rotate(105)"/>
+        <line x1="0" y1="-44" x2="0" y2="44" transform="rotate(120)"/>
+        <line x1="0" y1="-44" x2="0" y2="44" transform="rotate(135)"/>
+        <line x1="0" y1="-44" x2="0" y2="44" transform="rotate(150)"/>
+        <line x1="0" y1="-44" x2="0" y2="44" transform="rotate(165)"/>
+      </g>
+    </g>
+    <circle r="4" fill="#d9b24c"/>
+  </svg>
+  <div class="titles">
+    <h1 id="title">The world divided into 500 Parliament seats</h1>
+    <p id="subtitle">Delimitation done to approximate 1.66 crore population per seat</p>
+  </div>
+</header>
 <svg id="map" role="img" aria-label="World map divided into 500 parliament seats"></svg>
 <div id="tip" hidden></div>
 <aside id="panel" hidden>
@@ -23,6 +53,6 @@
 <div id="loading">Loading map…</div>
 <script src="lib/d3.min.js"></script>
 <script src="lib/topojson-client.min.js"></script>
-<script src="app.js"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>

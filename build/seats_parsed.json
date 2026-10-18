@@ -21881,7 +21881,7 @@
 "continent": "South America",
 "pop": 15750000,
 "group": "S2",
-"description": "Argentina: Córdoba, Cuyo, Northwest and Patagonia provinces (incl. Tierra del Fuego), plus Falkland Islands and South Georgia/South Sandwich (disputed, no sovereignty determination implied), plus Antarctica (uninhabited; Patagonia-gateway territory)",
+"description": "Argentina: Córdoba, Cuyo, Northwest and Patagonia provinces (incl. Tierra del Fuego), plus Falkland Islands and South Georgia/South Sandwich (disputed, no sovereignty determination implied)",
 "countries": [
 {
 "name": "Argentina",
@@ -21971,11 +21971,6 @@
 },
 {
 "name": "South Georgia and the South Sandwich Islands",
-"whole": true,
-"adm1": []
-},
-{
-"name": "Antarctica",
 "whole": true,
 "adm1": []
 }
@@ -22306,10 +22301,15 @@
 "continent": "South America",
 "pop": 19900000,
 "group": "S2",
-"description": "Entire Chile incl. Easter Island (Isla de Pascua) and Juan Fernández",
+"description": "Entire Chile incl. Easter Island (Isla de Pascua) and Juan Fernández plus Antarctica (uninhabited; Punta Arenas is the main gateway)",
 "countries": [
 {
 "name": "Chile",
+"whole": true,
+"adm1": []
+},
+{
+"name": "Antarctica",
 "whole": true,
 "adm1": []
 }

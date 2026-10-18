@@ -1,6 +1,7 @@
 (async function () {
-  const PALETTE = ['#4e79a7', '#f28e2b', '#59a14f', '#b07aa1', '#e15759', '#76b7b2', '#edc948', '#9c755f'];
   const DETAIL_K = 4;
+  let selected = null;
+  let dragStart = null;
   const svg = d3.select('#map');
   const gZoom = svg.append('g');
   const gSeats = gZoom.append('g');
@@ -12,8 +13,8 @@
   const panelBody = document.getElementById('panel-body');
 
   const [meta, coarse] = await Promise.all([
-    fetch('data/seats.json').then(r => r.json()),
-    fetch('data/world.topo.json').then(r => r.json())
+    fetch('data/seats.json', { cache: 'no-cache' }).then(r => r.json()),
+    fetch('data/world.topo.json', { cache: 'no-cache' }).then(r => r.json())
   ]);
   const byId = new Map(meta.map(s => [s.id, s]));
   let detail = null, detailLoading = false;
@@ -25,11 +26,10 @@
   function draw() {
     featById.clear(); features.forEach(f => featById.set(f.properties.seat, f));
     gSeats.selectAll('path.seat').data(features, d => d.properties.seat).join(
-      enter => enter.append('path').attr('class', 'seat')
-        .attr('fill', d => PALETTE[(byId.get(d.properties.seat) || {}).color || 0])
+      enter => enter.append('path').attr('class', 'seat').attr('fill', '#d3d0c6').attr('stroke', '#8a8676')
         .on('mouseenter', onEnter).on('mousemove', onMove).on('mouseleave', onLeave).on('click', onClick),
       update => update, exit => exit.remove()
-    ).attr('d', path);
+    ).attr('d', path).classed('selected', d => d.properties.seat === selected);
   }
   draw();
 
@@ -37,7 +37,7 @@
   let W, H, baseT, kNow = 1;
   const zoom = d3.zoom().on('zoom', zoomed);
   function fit() {
-    W = innerWidth; H = innerHeight;
+    W = svg.node().clientWidth || innerWidth; H = svg.node().clientHeight || innerHeight;
     const k = 0.96 * Math.min(W / (bounds[1][0] - bounds[0][0]), H / (bounds[1][1] - bounds[0][1]));
     const tx = (W - k * (bounds[0][0] + bounds[1][0])) / 2, ty = (H - k * (bounds[0][1] + bounds[1][1])) / 2;
     baseT = d3.zoomIdentity.translate(tx, ty).scale(k);
@@ -45,7 +45,21 @@
   }
   fit(); svg.call(zoom).call(zoom.transform, baseT);
   svg.on('dblclick.zoom', null);
-  addEventListener('resize', fit);
+  addEventListener('resize', () => {
+    const wasBase = Math.abs(kNow - baseT.k) < 1e-9;
+    fit();
+    if (wasBase) svg.call(zoom.transform, baseT);
+  });
+
+  // grabbing cursor only while the mouse is really dragging the map
+  const endDrag = () => { dragStart = null; svg.classed('dragging', false); };
+  zoom.on('start.drag', e => {
+    const se = e.sourceEvent;
+    dragStart = se && (se.type === 'mousedown' || se.type === 'pointerdown') ? [se.clientX, se.clientY] : null;
+  });
+  zoom.on('end.drag', endDrag);
+  addEventListener('mouseup', endDrag);
+  addEventListener('blur', endDrag);
 
   // tiny seats (islands, microstates) get an enlarged invisible hit target
   function buildHits() {
@@ -54,7 +68,7 @@
       const b = path.bounds(f), w = (b[1][0] - b[0][0]) * baseT.k, h = (b[1][1] - b[0][1]) * baseT.k;
       if (Math.max(w, h) < 9) small.push({ id: f.properties.seat, cx: (b[0][0] + b[1][0]) / 2, cy: (b[0][1] + b[1][1]) / 2 });
     });
-    gHits.selectAll('circle').data(small, d => d.id).join('circle').attr('class', 'hit').attr('cx', d => d.cx).attr('cy', d => d.cy)
+    gHits.selectAll('circle').data(small, d => d.id).join('circle').attr('class', 'hit').attr('fill', 'transparent').attr('stroke', 'none').attr('cx', d => d.cx).attr('cy', d => d.cy)
       .attr('r', 7 / kNow)
       .on('mouseenter', (e, d) => onEnter(e, featById.get(d.id))).on('mousemove', onMove).on('mouseleave', onLeave)
       .on('click', (e, d) => onClick(e, featById.get(d.id)));
@@ -62,21 +76,23 @@
   function zoomed(e) {
     const t = e.transform; kNow = t.k;
     gZoom.attr('transform', t);
+    const se = e.sourceEvent;
+    if (dragStart && se && (se.type === 'mousemove' || se.type === 'pointermove') &&
+        Math.hypot(se.clientX - dragStart[0], se.clientY - dragStart[1]) > 3) svg.classed('dragging', true);
     gHits.selectAll('circle').attr('r', 7 / t.k);
     if (t.k / baseT.k > DETAIL_K && !detail && !detailLoading) loadDetail();
   }
   async function loadDetail() {
     detailLoading = true;
     try {
-      detail = await fetch('data/detail.topo.json').then(r => r.json());
+      detail = await fetch('data/detail.topo.json', { cache: 'no-cache' }).then(r => r.json());
       features = toFeatures(detail); draw(); buildHits();
-      if (selected) sel.attr('d', path(featById.get(selected)));
+      if (selected && featById.get(selected)) sel.attr('d', path(featById.get(selected)));
     } catch (err) { console.warn('detail layer unavailable', err); }
     detailLoading = false;
   }
   buildHits();
 
-  let selected = null;
   function nameOf(f) { const s = byId.get(f.properties.seat); return s ? s.name : 'Seat ' + f.properties.seat; }
   function onEnter(e, f) { hl.attr('d', path(f)).attr('hidden', null); tip.textContent = nameOf(f); tip.hidden = false; onMove(e); }
   function onMove(e) { tip.style.left = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8) + 'px'; tip.style.top = (e.clientY + 16) + 'px'; }
@@ -88,13 +104,14 @@
     const s = byId.get(id); if (!s) return;
     selected = id; history.replaceState(null, '', '#seat=' + id);
     const f = featById.get(id); if (f) sel.attr('d', path(f)).attr('hidden', null);
+    gSeats.selectAll('path.seat').classed('selected', d => d.properties.seat === id);
     const approxSet = new Set(s.approx || []);
     let h = '<h2>' + esc(s.name) + '</h2><div class="sub">Seat ' + s.id + ' · ' + esc(s.continent) + ' · pop. ' + (s.pop / 1e6).toFixed(2) + ' M</div>';
     h += '<h3>Includes</h3><ul>';
     for (const c of s.countries) {
       const flag = c.iso2 ? '<img src="https://flagcdn.com/w40/' + c.iso2 + '.png" alt="" onerror="this.remove()">' : '';
       h += '<li class="c">' + esc(c.name) + ' ' + flag;
-      if (c.tag) h += ' <span class="whole">(' + esc(c.tag) + ')</span>';
+      if (c.tag) h += ' <span class="whole">— ' + esc(c.tag) + '</span>';
       else if (c.whole) h += ' <span class="whole">(entire country)</span>';
       else {
         h += '<ul>';
@@ -119,11 +136,11 @@
     if (zoomTo && f) {
       const b = path.bounds(f), dx = b[1][0] - b[0][0], dy = b[1][1] - b[0][1];
       const k = Math.min(zoom.scaleExtent()[1], 0.6 / Math.max(dx / W, dy / H));
-      const t = d3.zoomIdentity.translate(W / 2 + 80 - k * (b[0][0] + b[1][0]) / 2, H / 2 - k * (b[0][1] + b[1][1]) / 2).scale(k);
+      const t = d3.zoomIdentity.translate(W / 2 + (W > 900 ? 170 : 0) - k * (b[0][0] + b[1][0]) / 2, H / 2 - k * (b[0][1] + b[1][1]) / 2).scale(k);
       svg.transition().duration(900).call(zoom.transform, t);
     }
   }
-  document.getElementById('close').onclick = () => { panel.hidden = true; sel.attr('hidden', true); selected = null; history.replaceState(null, '', location.pathname); };
+  document.getElementById('close').onclick = () => { panel.hidden = true; sel.attr('hidden', true); selected = null; gSeats.selectAll('path.seat').classed('selected', false); history.replaceState(null, '', location.pathname); };
   addEventListener('keydown', e => { if (e.key === 'Escape') document.getElementById('close').click(); });
 
   document.getElementById('zin').onclick = () => svg.transition().duration(250).call(zoom.scaleBy, 1.8);
