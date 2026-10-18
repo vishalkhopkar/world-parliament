@@ -15649,9 +15649,9 @@
 "name": "Celtic Isles",
 "constituency": "Ireland–Northern Ireland–Wales–South West England–Western Scotland",
 "continent": "Europe",
-"pop": 19380000,
+"pop": 16240000,
 "group": "E2",
-"description": "Republic of Ireland, Isle of Man, Northern Ireland, Wales, South West England (Cornwall to Gloucestershire) and western Scotland (Highland, Western Isles, Argyll, Clyde and Ayrshire, Dumfries and Galloway, Lanarkshire)",
+"description": "The Celtic nations: the island of Ireland (Republic of Ireland + Northern Ireland), all of Scotland, Wales and the Isle of Man",
 "countries": [
 {
 "name": "Ireland",
@@ -15673,51 +15673,14 @@
 "adm2": []
 },
 {
-"name": "Wales",
+"name": "Scotland",
 "whole": true,
 "adm2": []
 },
 {
-"name": "England",
-"whole": false,
-"adm2": [
-"Cornwall",
-"Isles of Scilly",
-"Devon",
-"Plymouth",
-"Torbay",
-"Dorset",
-"Bournemouth Christchurch and Poole",
-"Somerset",
-"Bristol",
-"North Somerset",
-"South Gloucestershire",
-"Bath and North East Somerset",
-"Gloucestershire",
-"Swindon",
-"Wiltshire"
-]
-},
-{
-"name": "Scotland",
-"whole": false,
-"adm2": [
-"Argyll and Bute",
-"Dumfries and Galloway",
-"East Ayrshire",
-"East Dunbartonshire",
-"East Renfrewshire",
-"Glasgow City",
-"Highland",
-"Inverclyde",
-"Na h-Eileanan Siar",
-"North Ayrshire",
-"North Lanarkshire",
-"Renfrewshire",
-"South Ayrshire",
-"South Lanarkshire",
-"West Dunbartonshire"
-]
+"name": "Wales",
+"whole": true,
+"adm2": []
 }
 ]
 }
@@ -15728,9 +15691,9 @@
 "name": "London",
 "constituency": "Greater London–South East England–Channel Islands",
 "continent": "Europe",
-"pop": 19180000,
+"pop": 19900000,
 "group": "E2",
-"description": "Greater London (33 boroughs), South East England (19 upper-tier authorities) and the Crown Dependencies of Jersey and Guernsey (incl. Alderney, Sark)",
+"description": "London, the South East of England and Bedfordshire/Luton, plus Jersey and Guernsey",
 "countries": [
 {
 "name": "Jersey",
@@ -15801,7 +15764,10 @@
 "Brighton and Hove",
 "West Sussex",
 "Kent",
-"Medway"
+"Medway",
+"Bedford",
+"Central Bedfordshire",
+"Luton"
 ]
 }
 ]
@@ -15813,9 +15779,9 @@
 "name": "English Midlands",
 "constituency": "Midlands–Eastern England",
 "continent": "Europe",
-"pop": 17900000,
+"pop": 19700000,
 "group": "E2",
-"description": "East of England, East Midlands and West Midlands regions of England (35 upper-tier authorities)",
+"description": "South West England, the West Midlands, the East of England (without Bedfordshire/Luton), Northamptonshire and Lincolnshire",
 "countries": [
 {
 "name": "United Kingdom",
@@ -15825,9 +15791,21 @@
 "name": "England",
 "whole": false,
 "adm2": [
-"Bedford",
-"Central Bedfordshire",
-"Luton",
+"Cornwall",
+"Isles of Scilly",
+"Devon",
+"Plymouth",
+"Torbay",
+"Dorset",
+"Bournemouth Christchurch and Poole",
+"Somerset",
+"Bristol",
+"North Somerset",
+"South Gloucestershire",
+"Bath and North East Somerset",
+"Gloucestershire",
+"Swindon",
+"Wiltshire",
 "Cambridgeshire",
 "Peterborough",
 "Essex",
@@ -15836,13 +15814,6 @@
 "Hertfordshire",
 "Norfolk",
 "Suffolk",
-"Derbyshire",
-"Derby",
-"Nottinghamshire",
-"Nottingham",
-"Leicestershire",
-"Leicester",
-"Rutland",
 "Lincolnshire",
 "North Northamptonshire",
 "West Northamptonshire",
@@ -15871,9 +15842,9 @@
 "name": "Northern Britain",
 "constituency": "Northern England–Eastern Scotland",
 "continent": "Europe",
-"pop": 18970000,
+"pop": 19600000,
 "group": "E2",
-"description": "North East, North West and Yorkshire & the Humber regions of England plus eastern/northern Scotland (17 council areas incl. Edinburgh, Fife, Aberdeen, Dundee, Borders, Orkney, Shetland)",
+"description": "North East, North West and Yorkshire & Humber of England plus the East Midlands counties Derbyshire, Nottinghamshire, Leicestershire and Rutland",
 "countries": [
 {
 "name": "United Kingdom",
@@ -15933,30 +15904,14 @@
 "Calderdale",
 "Kirklees",
 "Leeds",
-"Wakefield"
-]
-},
-{
-"name": "Scotland",
-"whole": false,
-"adm2": [
-"Aberdeen City",
-"Aberdeenshire",
-"Angus",
-"Clackmannanshire",
-"Dundee City",
-"East Lothian",
-"City of Edinburgh",
-"Falkirk",
-"Fife",
-"Midlothian",
-"Moray",
-"Orkney Islands",
-"Perth and Kinross",
-"Scottish Borders",
-"Shetland Islands",
-"Stirling",
-"West Lothian"
+"Wakefield",
+"Derbyshire",
+"Derby",
+"Nottinghamshire",
+"Nottingham",
+"Leicestershire",
+"Leicester",
+"Rutland"
 ]
 }
 ]

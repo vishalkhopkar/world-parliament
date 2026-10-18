@@ -6,8 +6,11 @@
   const gZoom = svg.append('g');
   const gSeats = gZoom.append('g');
   const gHits = gZoom.append('g');
-  const hl = gZoom.append('path').attr('id', 'hl').attr('hidden', true);
-  const sel = gZoom.append('path').attr('id', 'sel').attr('hidden', true);
+  const hl = gZoom.append('path').attr('id', 'hl').style('display', 'none');
+  const sel = gZoom.append('path').attr('id', 'sel').style('display', 'none');
+  // SVG elements ignore the HTML `hidden` attribute, so toggle display explicitly
+  const showPath = (p, d) => p.attr('d', d).style('display', null);
+  const hidePath = p => p.attr('d', null).style('display', 'none');
   const tip = document.getElementById('tip');
   const panel = document.getElementById('panel');
   const panelBody = document.getElementById('panel-body');
@@ -45,6 +48,8 @@
   }
   fit(); svg.call(zoom).call(zoom.transform, baseT);
   svg.on('dblclick.zoom', null);
+  svg.on('mouseleave.hl', onLeave);
+  svg.on('mouseover.hl', e => { if (e.target === svg.node()) onLeave(); });
   addEventListener('resize', () => {
     const wasBase = Math.abs(kNow - baseT.k) < 1e-9;
     fit();
@@ -94,16 +99,16 @@
   buildHits();
 
   function nameOf(f) { const s = byId.get(f.properties.seat); return s ? s.name : 'Seat ' + f.properties.seat; }
-  function onEnter(e, f) { hl.attr('d', path(f)).attr('hidden', null); tip.textContent = nameOf(f); tip.hidden = false; onMove(e); }
+  function onEnter(e, f) { showPath(hl, path(f)); tip.textContent = nameOf(f); tip.hidden = false; onMove(e); }
   function onMove(e) { tip.style.left = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8) + 'px'; tip.style.top = (e.clientY + 16) + 'px'; }
-  function onLeave() { hl.attr('hidden', true); tip.hidden = true; }
+  function onLeave() { hidePath(hl); tip.hidden = true; }
   function onClick(e, f) { select(f.properties.seat); }
 
   function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
   function select(id, zoomTo) {
     const s = byId.get(id); if (!s) return;
     selected = id; history.replaceState(null, '', '#seat=' + id);
-    const f = featById.get(id); if (f) sel.attr('d', path(f)).attr('hidden', null);
+    const f = featById.get(id); if (f) showPath(sel, path(f));
     gSeats.selectAll('path.seat').classed('selected', d => d.properties.seat === id);
     const approxSet = new Set(s.approx || []);
     let h = '<h2>' + esc(s.name) + '</h2><div class="sub">Seat ' + s.id + ' · ' + esc(s.continent) + ' · pop. ' + (s.pop / 1e6).toFixed(2) + ' M</div>';
@@ -140,7 +145,7 @@
       svg.transition().duration(900).call(zoom.transform, t);
     }
   }
-  document.getElementById('close').onclick = () => { panel.hidden = true; sel.attr('hidden', true); selected = null; gSeats.selectAll('path.seat').classed('selected', false); history.replaceState(null, '', location.pathname); };
+  document.getElementById('close').onclick = () => { panel.hidden = true; hidePath(sel); selected = null; gSeats.selectAll('path.seat').classed('selected', false); history.replaceState(null, '', location.pathname); };
   addEventListener('keydown', e => { if (e.key === 'Escape') document.getElementById('close').click(); });
 
   document.getElementById('zin').onclick = () => svg.transition().duration(250).call(zoom.scaleBy, 1.8);

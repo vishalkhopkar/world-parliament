@@ -10384,7 +10384,7 @@
   },
   {
     "id": 272,
-    "name": "Khorasan-Caspian East",
+    "name": "Khorasan",
     "constituency": "Khorasan-Semnan-Qom-Mazandaran-Golestan",
     "continent": "Asia",
     "pop": 17550000,
@@ -13390,7 +13390,7 @@
   },
   {
     "id": 342,
-    "name": "Cape Provinces–Free State",
+    "name": "Cape Of Good Hope",
     "constituency": "Western Cape–Eastern Cape–Free State",
     "continent": "Africa",
     "pop": 18190000,
@@ -16570,8 +16570,8 @@
     "name": "Celtic Isles",
     "constituency": "Ireland–Northern Ireland–Wales–South West England–Western Scotland",
     "continent": "Europe",
-    "pop": 19380000,
-    "desc": "Republic of Ireland, Isle of Man, Northern Ireland, Wales, South West England (Cornwall to Gloucestershire) and western Scotland (Highland, Western Isles, Argyll, Clyde and Ayrshire, Dumfries and Galloway, Lanarkshire)",
+    "pop": 16240000,
+    "desc": "The Celtic nations: the island of Ireland (Republic of Ireland + Northern Ireland), all of Scotland, Wales and the Isle of Man",
     "countries": [
       {
         "name": "Ireland",
@@ -16596,65 +16596,28 @@
             "adm2": []
           },
           {
-            "name": "Wales",
+            "name": "Scotland",
             "whole": true,
             "adm2": []
           },
           {
-            "name": "England",
-            "whole": false,
-            "adm2": [
-              "Cornwall",
-              "Isles of Scilly",
-              "Devon",
-              "Plymouth",
-              "Torbay",
-              "Dorset",
-              "Bournemouth Christchurch and Poole",
-              "Somerset",
-              "Bristol",
-              "North Somerset",
-              "South Gloucestershire",
-              "Bath and North East Somerset",
-              "Gloucestershire",
-              "Swindon",
-              "Wiltshire"
-            ]
-          },
-          {
-            "name": "Scotland",
-            "whole": false,
-            "adm2": [
-              "Argyll and Bute",
-              "Dumfries and Galloway",
-              "East Ayrshire",
-              "East Dunbartonshire",
-              "East Renfrewshire",
-              "Glasgow City",
-              "Highland",
-              "Inverclyde",
-              "Na h-Eileanan Siar",
-              "North Ayrshire",
-              "North Lanarkshire",
-              "Renfrewshire",
-              "South Ayrshire",
-              "South Lanarkshire",
-              "West Dunbartonshire"
-            ]
+            "name": "Wales",
+            "whole": true,
+            "adm2": []
           }
         ]
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 404,
     "name": "London",
     "constituency": "Greater London–South East England–Channel Islands",
     "continent": "Europe",
-    "pop": 19180000,
-    "desc": "Greater London (33 boroughs), South East England (19 upper-tier authorities) and the Crown Dependencies of Jersey and Guernsey (incl. Alderney, Sark)",
+    "pop": 19900000,
+    "desc": "London, the South East of England and Bedfordshire/Luton, plus Jersey and Guernsey",
     "countries": [
       {
         "name": "Jersey",
@@ -16728,7 +16691,10 @@
               "Brighton and Hove",
               "West Sussex",
               "Kent",
-              "Medway"
+              "Medway",
+              "Bedford",
+              "Central Bedfordshire",
+              "Luton"
             ]
           }
         ]
@@ -16742,8 +16708,8 @@
     "name": "English Midlands",
     "constituency": "Midlands–Eastern England",
     "continent": "Europe",
-    "pop": 17900000,
-    "desc": "East of England, East Midlands and West Midlands regions of England (35 upper-tier authorities)",
+    "pop": 19700000,
+    "desc": "South West England, the West Midlands, the East of England (without Bedfordshire/Luton), Northamptonshire and Lincolnshire",
     "countries": [
       {
         "name": "United Kingdom",
@@ -16754,9 +16720,21 @@
             "name": "England",
             "whole": false,
             "adm2": [
-              "Bedford",
-              "Central Bedfordshire",
-              "Luton",
+              "Cornwall",
+              "Isles of Scilly",
+              "Devon",
+              "Plymouth",
+              "Torbay",
+              "Dorset",
+              "Bournemouth Christchurch and Poole",
+              "Somerset",
+              "Bristol",
+              "North Somerset",
+              "South Gloucestershire",
+              "Bath and North East Somerset",
+              "Gloucestershire",
+              "Swindon",
+              "Wiltshire",
               "Cambridgeshire",
               "Peterborough",
               "Essex",
@@ -16765,13 +16743,6 @@
               "Hertfordshire",
               "Norfolk",
               "Suffolk",
-              "Derbyshire",
-              "Derby",
-              "Nottinghamshire",
-              "Nottingham",
-              "Leicestershire",
-              "Leicester",
-              "Rutland",
               "Lincolnshire",
               "North Northamptonshire",
               "West Northamptonshire",
@@ -16797,15 +16768,15 @@
     "approx": [
       "North Northamptonshire"
     ],
-    "color": 2
+    "color": 1
   },
   {
     "id": 406,
-    "name": "Northern Britain",
+    "name": "Manchester",
     "constituency": "Northern England–Eastern Scotland",
     "continent": "Europe",
-    "pop": 18970000,
-    "desc": "North East, North West and Yorkshire & the Humber regions of England plus eastern/northern Scotland (17 council areas incl. Edinburgh, Fife, Aberdeen, Dundee, Borders, Orkney, Shetland)",
+    "pop": 19600000,
+    "desc": "North East, North West and Yorkshire & Humber of England plus the East Midlands counties Derbyshire, Nottinghamshire, Leicestershire and Rutland",
     "countries": [
       {
         "name": "United Kingdom",
@@ -16866,30 +16837,14 @@
               "Calderdale",
               "Kirklees",
               "Leeds",
-              "Wakefield"
-            ]
-          },
-          {
-            "name": "Scotland",
-            "whole": false,
-            "adm2": [
-              "Aberdeen City",
-              "Aberdeenshire",
-              "Angus",
-              "Clackmannanshire",
-              "Dundee City",
-              "East Lothian",
-              "City of Edinburgh",
-              "Falkirk",
-              "Fife",
-              "Midlothian",
-              "Moray",
-              "Orkney Islands",
-              "Perth and Kinross",
-              "Scottish Borders",
-              "Shetland Islands",
-              "Stirling",
-              "West Lothian"
+              "Wakefield",
+              "Derbyshire",
+              "Derby",
+              "Nottinghamshire",
+              "Nottingham",
+              "Leicestershire",
+              "Leicester",
+              "Rutland"
             ]
           }
         ]
@@ -16899,7 +16854,7 @@
       "Cumberland",
       "Westmorland and Furness"
     ],
-    "color": 0
+    "color": 2
   },
   {
     "id": 407,
@@ -16971,7 +16926,7 @@
   },
   {
     "id": 409,
-    "name": "Atlantic & Southwest France",
+    "name": "Bordeaux",
     "constituency": "Brittany–Pays de la Loire–Nouvelle-Aquitaine–Midi-Pyrénées",
     "continent": "Europe",
     "pop": 16790000,
@@ -18219,7 +18174,7 @@
   },
   {
     "id": 431,
-    "name": "Belarus",
+    "name": "Minsk",
     "constituency": "Belarus–Polesia–Northern Ukraine",
     "continent": "Europe",
     "pop": 13600000,
@@ -20233,7 +20188,7 @@
   },
   {
     "id": 463,
-    "name": "Quebec–Atlantic–North Atlantic",
+    "name": "Quebec–Greenland",
     "constituency": "Quebec–Atlantic–North Atlantic",
     "continent": "North America",
     "pop": 13800000,
@@ -20404,7 +20359,7 @@
   },
   {
     "id": 467,
-    "name": "Southern Central America",
+    "name": "America Isthmus",
     "constituency": "Nicaragua–Costa Rica–Panama",
     "continent": "North America",
     "pop": 16800000,
@@ -20686,7 +20641,7 @@
   },
   {
     "id": 472,
-    "name": "Greater São Paulo East–Baixada–Vale",
+    "name": "São Paulo Outer",
     "constituency": "Greater São Paulo East (Guarulhos, ABC, Alto Tietê)–Baixada Santista–Vale do Paraíba–Sorocaba",
     "continent": "South America",
     "pop": 15010000,
@@ -22637,7 +22592,7 @@
   },
   {
     "id": 486,
-    "name": "Antioquia–Caribbean",
+    "name": "Colombia Caribbean",
     "constituency": "Medellín–Antioquia–Caribbean Colombia",
     "continent": "South America",
     "pop": 19050000,
@@ -22701,7 +22656,7 @@
   },
   {
     "id": 487,
-    "name": "Southwest–Llanos",
+    "name": "Colombia Ecuatorial",
     "constituency": "Cali–Pacific–Eje Cafetero–South Colombia–Llanos–Amazonia",
     "continent": "South America",
     "pop": 16800000,
@@ -23315,7 +23270,7 @@
   },
   {
     "id": 493,
-    "name": "Caracas",
+    "name": "Venezuela Inner",
     "constituency": "Caracas–Central & Eastern Coastal Venezuela",
     "continent": "South America",
     "pop": 14700000,
@@ -23394,7 +23349,7 @@
   },
   {
     "id": 494,
-    "name": "Western Venezuela",
+    "name": "Venezuela Outer",
     "constituency": "Maracaibo–Andes–Llanos–Guayana Venezuela",
     "continent": "South America",
     "pop": 13800000,
