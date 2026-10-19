@@ -9139,26 +9139,16 @@
 "name": "European Istanbul",
 "constituency": "Istanbul European Shore-Thrace-South Marmara",
 "continent": "Asia",
-"pop": 17710000,
+"pop": 17800000,
 "group": "TR_IR",
-"description": "Istanbul's 25 European-side districts, all of Thrace (Edirne, Kirklareli, Tekirdag) and the south Marmara provinces Canakkale, Balikesir and Bursa (Turkey).",
+"description": "All of Istanbul (European and Anatolian shores) plus Turkish Thrace: Edirne, Kirklareli and Tekirdag",
 "countries": [
 {
 "name": "Turkey",
 "whole": false,
 "adm1": [
 {
-"name": "Balikesir",
-"whole": true,
-"adm2": []
-},
-{
-"name": "Bursa",
-"whole": true,
-"adm2": []
-},
-{
-"name": "Canakkale",
+"name": "Istanbul",
 "whole": true,
 "adm2": []
 },
@@ -9166,37 +9156,6 @@
 "name": "Edirne",
 "whole": true,
 "adm2": []
-},
-{
-"name": "Istanbul",
-"whole": false,
-"adm2": [
-"Arnavutkoy",
-"Avcilar",
-"Bagcilar",
-"Bahcelievler",
-"Bakirkoy",
-"Basaksehir",
-"Bayrampasa",
-"Besiktas",
-"Beylikduzu",
-"Beyoglu",
-"Buyukcekmece",
-"Catalca",
-"Esenler",
-"Esenyurt",
-"Eyupsultan",
-"Fatih",
-"Gaziosmanpasa",
-"Gungoren",
-"Kagithane",
-"Kucukcekmece",
-"Sariyer",
-"Silivri",
-"Sisli",
-"Sultangazi",
-"Zeytinburnu"
-]
 },
 {
 "name": "Kirklareli",
@@ -9217,9 +9176,9 @@
 "name": "Asian Istanbul-Ankara",
 "constituency": "Istanbul Anatolian Shore-East Marmara-Ankara",
 "continent": "Asia",
-"pop": 18420000,
+"pop": 18330000,
 "group": "TR_IR",
-"description": "Istanbul's 14 Anatolian-side districts (incl. Adalar), Kocaeli, Sakarya, Yalova, Bilecik, Duzce, Bolu, Eskisehir, Zonguldak, Bartin, Karabuk and Ankara (Turkey).",
+"description": "Ankara, the south and east Marmara provinces and the west Black Sea coast: Ankara, Eskisehir, Bilecik, Bursa, Balikesir, Canakkale, Yalova, Kocaeli, Sakarya, Duzce, Bolu, Zonguldak, Bartin and Karabuk",
 "countries": [
 {
 "name": "Turkey",
@@ -9256,26 +9215,6 @@
 "adm2": []
 },
 {
-"name": "Istanbul",
-"whole": false,
-"adm2": [
-"Adalar",
-"Atasehir",
-"Beykoz",
-"Cekmekoy",
-"Kadikoy",
-"Kartal",
-"Maltepe",
-"Pendik",
-"Sancaktepe",
-"Sile",
-"Sultanbeyli",
-"Tuzla",
-"Umraniye",
-"Uskudar"
-]
-},
-{
 "name": "Karabuk",
 "whole": true,
 "adm2": []
@@ -9297,6 +9236,21 @@
 },
 {
 "name": "Zonguldak",
+"whole": true,
+"adm2": []
+},
+{
+"name": "Balikesir",
+"whole": true,
+"adm2": []
+},
+{
+"name": "Bursa",
+"whole": true,
+"adm2": []
+},
+{
+"name": "Canakkale",
 "whole": true,
 "adm2": []
 }

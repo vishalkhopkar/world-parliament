@@ -64,7 +64,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 3,
@@ -94,7 +94,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 2
   },
   {
     "id": 4,
@@ -153,7 +153,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 6,
@@ -213,7 +213,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 8,
@@ -246,7 +246,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 9,
@@ -274,7 +274,7 @@
       }
     ],
     "approx": [],
-    "color": 4
+    "color": 0
   },
   {
     "id": 10,
@@ -332,7 +332,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 12,
@@ -361,7 +361,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 13,
@@ -422,7 +422,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 15,
@@ -509,7 +509,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 18,
@@ -540,7 +540,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 19,
@@ -629,7 +629,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 22,
@@ -714,7 +714,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 25,
@@ -797,7 +797,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 28,
@@ -828,7 +828,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 29,
@@ -870,7 +870,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 30,
@@ -955,7 +955,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 33,
@@ -1024,7 +1024,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 2
   },
   {
     "id": 35,
@@ -1057,7 +1057,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 36,
@@ -1084,7 +1084,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 37,
@@ -1225,7 +1225,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 41,
@@ -1260,7 +1260,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 42,
@@ -1295,7 +1295,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 43,
@@ -1328,7 +1328,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 3
   },
   {
     "id": 44,
@@ -1362,7 +1362,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 2
   },
   {
     "id": 45,
@@ -1398,7 +1398,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 46,
@@ -1466,7 +1466,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 48,
@@ -1499,7 +1499,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 49,
@@ -1532,7 +1532,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 50,
@@ -1566,7 +1566,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 51,
@@ -1594,7 +1594,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 2
   },
   {
     "id": 52,
@@ -1624,7 +1624,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 53,
@@ -1732,7 +1732,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 3
   },
   {
     "id": 56,
@@ -1764,7 +1764,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 4
   },
   {
     "id": 57,
@@ -1864,7 +1864,7 @@
     "approx": [
       "Vijayanagara"
     ],
-    "color": 1
+    "color": 0
   },
   {
     "id": 60,
@@ -1997,7 +1997,7 @@
       }
     ],
     "approx": [],
-    "color": 4
+    "color": 2
   },
   {
     "id": 64,
@@ -2112,7 +2112,7 @@
       "Palnadu",
       "Bapatla"
     ],
-    "color": 1
+    "color": 0
   },
   {
     "id": 67,
@@ -2150,7 +2150,7 @@
       "Sri Sathya Sai",
       "Nandyal"
     ],
-    "color": 0
+    "color": 1
   },
   {
     "id": 68,
@@ -2233,7 +2233,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 70,
@@ -2266,7 +2266,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 71,
@@ -2305,7 +2305,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 72,
@@ -2347,7 +2347,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 0
   },
   {
     "id": 73,
@@ -2384,7 +2384,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 74,
@@ -2416,7 +2416,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 75,
@@ -2452,7 +2452,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 76,
@@ -2487,7 +2487,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 77,
@@ -2656,7 +2656,7 @@
     "approx": [
       "Malerkotla"
     ],
-    "color": 2
+    "color": 3
   },
   {
     "id": 81,
@@ -2694,7 +2694,7 @@
     "approx": [
       "Charkhi Dadri"
     ],
-    "color": 1
+    "color": 3
   },
   {
     "id": 82,
@@ -2729,7 +2729,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 2
   },
   {
     "id": 83,
@@ -2769,7 +2769,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 84,
@@ -2807,7 +2807,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 85,
@@ -2839,7 +2839,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 2
   },
   {
     "id": 86,
@@ -2875,7 +2875,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 1
   },
   {
     "id": 87,
@@ -2899,7 +2899,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 88,
@@ -2954,7 +2954,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 89,
@@ -2998,7 +2998,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 90,
@@ -3024,7 +3024,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 91,
@@ -3053,7 +3053,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 92,
@@ -3079,7 +3079,7 @@
       }
     ],
     "approx": [],
-    "color": 4
+    "color": 1
   },
   {
     "id": 93,
@@ -3108,7 +3108,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 94,
@@ -3135,7 +3135,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 95,
@@ -3162,7 +3162,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 4
   },
   {
     "id": 96,
@@ -3191,7 +3191,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 97,
@@ -3222,7 +3222,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 98,
@@ -3250,7 +3250,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 0
   },
   {
     "id": 99,
@@ -3277,7 +3277,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 100,
@@ -3305,7 +3305,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 101,
@@ -3445,7 +3445,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 106,
@@ -3473,7 +3473,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 107,
@@ -3502,7 +3502,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 108,
@@ -3529,7 +3529,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 109,
@@ -3617,7 +3617,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 2
   },
   {
     "id": 112,
@@ -3645,7 +3645,7 @@
       }
     ],
     "approx": [],
-    "color": 4
+    "color": 3
   },
   {
     "id": 113,
@@ -3727,7 +3727,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 1
   },
   {
     "id": 116,
@@ -3757,7 +3757,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 117,
@@ -3815,7 +3815,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 119,
@@ -3845,7 +3845,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 120,
@@ -3983,7 +3983,7 @@
       }
     ],
     "approx": [],
-    "color": 4
+    "color": 2
   },
   {
     "id": 125,
@@ -4012,7 +4012,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 126,
@@ -4040,7 +4040,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 1
   },
   {
     "id": 127,
@@ -4069,7 +4069,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 128,
@@ -4096,7 +4096,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 129,
@@ -4124,7 +4124,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 130,
@@ -4151,7 +4151,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 131,
@@ -4179,7 +4179,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 132,
@@ -4235,7 +4235,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 134,
@@ -4267,7 +4267,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 135,
@@ -4354,7 +4354,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 138,
@@ -4417,7 +4417,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 2
   },
   {
     "id": 140,
@@ -4446,7 +4446,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 141,
@@ -4476,7 +4476,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 142,
@@ -4505,7 +4505,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 143,
@@ -4539,7 +4539,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 144,
@@ -4567,7 +4567,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 145,
@@ -4753,7 +4753,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 151,
@@ -4871,7 +4871,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 155,
@@ -4900,7 +4900,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 1
   },
   {
     "id": 156,
@@ -4961,7 +4961,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 0
   },
   {
     "id": 158,
@@ -5049,7 +5049,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 160,
@@ -5153,7 +5153,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 163,
@@ -5222,7 +5222,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 1
   },
   {
     "id": 165,
@@ -5361,7 +5361,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 169,
@@ -5533,7 +5533,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 174,
@@ -5794,7 +5794,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 183,
@@ -5852,7 +5852,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 2
   },
   {
     "id": 185,
@@ -5912,7 +5912,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 187,
@@ -5943,7 +5943,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 188,
@@ -5979,7 +5979,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 189,
@@ -6018,7 +6018,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 1
   },
   {
     "id": 190,
@@ -6108,7 +6108,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 193,
@@ -6237,7 +6237,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 197,
@@ -6297,7 +6297,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 199,
@@ -6335,7 +6335,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 200,
@@ -6453,7 +6453,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 203,
@@ -6508,7 +6508,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 204,
@@ -6582,7 +6582,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 205,
@@ -6735,7 +6735,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 2
   },
   {
     "id": 207,
@@ -6888,7 +6888,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 211,
@@ -6955,7 +6955,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 213,
@@ -6999,7 +6999,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 214,
@@ -7094,7 +7094,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 216,
@@ -7132,7 +7132,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 217,
@@ -7232,7 +7232,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 219,
@@ -7277,7 +7277,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 220,
@@ -7316,7 +7316,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 221,
@@ -7351,7 +7351,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 222,
@@ -7949,7 +7949,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 235,
@@ -8023,7 +8023,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 2
   },
   {
     "id": 236,
@@ -8112,7 +8112,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 237,
@@ -8156,7 +8156,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 238,
@@ -8240,7 +8240,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 239,
@@ -8319,7 +8319,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 240,
@@ -8443,7 +8443,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 241,
@@ -8542,7 +8542,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 242,
@@ -8651,7 +8651,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 243,
@@ -8726,7 +8726,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 244,
@@ -8770,7 +8770,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 0
   },
   {
     "id": 245,
@@ -8814,7 +8814,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 246,
@@ -8858,7 +8858,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 247,
@@ -8930,7 +8930,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 249,
@@ -8985,7 +8985,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 250,
@@ -9284,7 +9284,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 257,
@@ -9353,7 +9353,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 258,
@@ -9412,7 +9412,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 259,
@@ -9640,7 +9640,7 @@
   },
   {
     "id": 263,
-    "name": "DPRK South-East",
+    "name": "DPRK East",
     "constituency": "Hwanghae–Kangwon–Hamgyong",
     "continent": "Asia",
     "pop": 13800000,
@@ -9699,11 +9699,11 @@
   },
   {
     "id": 264,
-    "name": "European Istanbul",
+    "name": "Istanbul",
     "constituency": "Istanbul European Shore-Thrace-South Marmara",
     "continent": "Asia",
-    "pop": 17710000,
-    "desc": "Istanbul's 25 European-side districts, all of Thrace (Edirne, Kirklareli, Tekirdag) and the south Marmara provinces Canakkale, Balikesir and Bursa (Turkey).",
+    "pop": 17800000,
+    "desc": "All of Istanbul (European and Anatolian shores) plus Turkish Thrace: Edirne, Kirklareli and Tekirdag",
     "countries": [
       {
         "name": "Turkey",
@@ -9711,17 +9711,7 @@
         "whole": false,
         "adm1": [
           {
-            "name": "Balikesir",
-            "whole": true,
-            "adm2": []
-          },
-          {
-            "name": "Bursa",
-            "whole": true,
-            "adm2": []
-          },
-          {
-            "name": "Canakkale",
+            "name": "Istanbul",
             "whole": true,
             "adm2": []
           },
@@ -9729,37 +9719,6 @@
             "name": "Edirne",
             "whole": true,
             "adm2": []
-          },
-          {
-            "name": "Istanbul",
-            "whole": false,
-            "adm2": [
-              "Arnavutkoy",
-              "Avcilar",
-              "Bagcilar",
-              "Bahcelievler",
-              "Bakirkoy",
-              "Basaksehir",
-              "Bayrampasa",
-              "Besiktas",
-              "Beylikduzu",
-              "Beyoglu",
-              "Buyukcekmece",
-              "Catalca",
-              "Esenler",
-              "Esenyurt",
-              "Eyupsultan",
-              "Fatih",
-              "Gaziosmanpasa",
-              "Gungoren",
-              "Kagithane",
-              "Kucukcekmece",
-              "Sariyer",
-              "Silivri",
-              "Sisli",
-              "Sultangazi",
-              "Zeytinburnu"
-            ]
           },
           {
             "name": "Kirklareli",
@@ -9775,15 +9734,15 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 265,
-    "name": "Asian Istanbul-Ankara",
+    "name": "Ankara",
     "constituency": "Istanbul Anatolian Shore-East Marmara-Ankara",
     "continent": "Asia",
-    "pop": 18420000,
-    "desc": "Istanbul's 14 Anatolian-side districts (incl. Adalar), Kocaeli, Sakarya, Yalova, Bilecik, Duzce, Bolu, Eskisehir, Zonguldak, Bartin, Karabuk and Ankara (Turkey).",
+    "pop": 18330000,
+    "desc": "Ankara, the south and east Marmara provinces and the west Black Sea coast: Ankara, Eskisehir, Bilecik, Bursa, Balikesir, Canakkale, Yalova, Kocaeli, Sakarya, Duzce, Bolu, Zonguldak, Bartin and Karabuk",
     "countries": [
       {
         "name": "Turkey",
@@ -9821,26 +9780,6 @@
             "adm2": []
           },
           {
-            "name": "Istanbul",
-            "whole": false,
-            "adm2": [
-              "Adalar",
-              "Atasehir",
-              "Beykoz",
-              "Cekmekoy",
-              "Kadikoy",
-              "Kartal",
-              "Maltepe",
-              "Pendik",
-              "Sancaktepe",
-              "Sile",
-              "Sultanbeyli",
-              "Tuzla",
-              "Umraniye",
-              "Uskudar"
-            ]
-          },
-          {
             "name": "Karabuk",
             "whole": true,
             "adm2": []
@@ -9864,18 +9803,31 @@
             "name": "Zonguldak",
             "whole": true,
             "adm2": []
+          },
+          {
+            "name": "Balikesir",
+            "whole": true,
+            "adm2": []
+          },
+          {
+            "name": "Bursa",
+            "whole": true,
+            "adm2": []
+          },
+          {
+            "name": "Canakkale",
+            "whole": true,
+            "adm2": []
           }
         ]
       }
     ],
-    "approx": [
-      "Adalar"
-    ],
-    "color": 1
+    "approx": [],
+    "color": 2
   },
   {
     "id": 266,
-    "name": "Aegean-Konya",
+    "name": "Antalya–Izmir",
     "constituency": "Aegean-Izmir-Antalya-Konya",
     "continent": "Asia",
     "pop": 17190000,
@@ -9950,11 +9902,11 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 3
   },
   {
     "id": 267,
-    "name": "Southeast Anatolia-Cukurova",
+    "name": "Gaziantep",
     "constituency": "Cukurova-Southeast Anatolia",
     "continent": "Asia",
     "pop": 17640000,
@@ -10044,11 +9996,11 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 268,
-    "name": "Black Sea-Eastern Anatolia",
+    "name": "Eastern Anatolia",
     "constituency": "Black Sea-Cappadocia-Eastern Anatolia",
     "continent": "Asia",
     "pop": 16940000,
@@ -10380,7 +10332,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 272,
@@ -10434,7 +10386,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 273,
@@ -10493,7 +10445,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 274,
@@ -10532,7 +10484,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 275,
@@ -10591,7 +10543,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 276,
@@ -10645,7 +10597,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 277,
@@ -10694,7 +10646,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 278,
@@ -10807,7 +10759,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 280,
@@ -11023,7 +10975,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 284,
@@ -11071,7 +11023,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 286,
@@ -11113,7 +11065,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 287,
@@ -11173,7 +11125,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 288,
@@ -11257,7 +11209,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 0
   },
   {
     "id": 289,
@@ -11365,7 +11317,7 @@
       }
     ],
     "approx": [],
-    "color": 4
+    "color": 0
   },
   {
     "id": 291,
@@ -11389,7 +11341,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 292,
@@ -11419,7 +11371,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 293,
@@ -11443,7 +11395,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 294,
@@ -11477,7 +11429,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 295,
@@ -11540,7 +11492,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 297,
@@ -11613,7 +11565,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 299,
@@ -11642,7 +11594,7 @@
       }
     ],
     "approx": [],
-    "color": 4
+    "color": 0
   },
   {
     "id": 300,
@@ -11676,7 +11628,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 3
   },
   {
     "id": 301,
@@ -11710,7 +11662,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 4
   },
   {
     "id": 302,
@@ -11744,7 +11696,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 303,
@@ -11807,7 +11759,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 1
   },
   {
     "id": 305,
@@ -11831,7 +11783,7 @@
       }
     ],
     "approx": [],
-    "color": 4
+    "color": 2
   },
   {
     "id": 306,
@@ -11860,7 +11812,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 307,
@@ -11889,7 +11841,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 4
   },
   {
     "id": 308,
@@ -11996,7 +11948,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 311,
@@ -12110,7 +12062,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 314,
@@ -12180,7 +12132,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 316,
@@ -12221,7 +12173,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 317,
@@ -12302,7 +12254,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 319,
@@ -12331,7 +12283,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 320,
@@ -12365,7 +12317,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 321,
@@ -12545,7 +12497,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 326,
@@ -12579,7 +12531,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 327,
@@ -12716,7 +12668,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 330,
@@ -12745,7 +12697,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 331,
@@ -12784,7 +12736,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 332,
@@ -12853,7 +12805,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 333,
@@ -12902,7 +12854,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 334,
@@ -12961,7 +12913,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 335,
@@ -13074,7 +13026,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 337,
@@ -13252,7 +13204,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 339,
@@ -13321,7 +13273,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 4
   },
   {
     "id": 340,
@@ -13350,7 +13302,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 341,
@@ -13386,7 +13338,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 342,
@@ -13426,7 +13378,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 343,
@@ -13472,7 +13424,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 344,
@@ -13545,7 +13497,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 3
   },
   {
     "id": 346,
@@ -13685,7 +13637,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 349,
@@ -13810,7 +13762,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 351,
@@ -13998,7 +13950,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 353,
@@ -14107,7 +14059,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 354,
@@ -14201,7 +14153,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 356,
@@ -14299,7 +14251,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 358,
@@ -14402,7 +14354,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 360,
@@ -14441,7 +14393,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 361,
@@ -14511,7 +14463,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 362,
@@ -14575,7 +14527,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 363,
@@ -14861,7 +14813,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 367,
@@ -14910,7 +14862,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 368,
@@ -15002,7 +14954,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 370,
@@ -15043,7 +14995,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 371,
@@ -15082,7 +15034,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 3
   },
   {
     "id": 372,
@@ -15201,7 +15153,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 0
   },
   {
     "id": 374,
@@ -15219,7 +15171,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 375,
@@ -15237,7 +15189,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 376,
@@ -15323,7 +15275,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 377,
@@ -15387,7 +15339,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 378,
@@ -15405,7 +15357,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 379,
@@ -15481,7 +15433,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 381,
@@ -15521,7 +15473,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 382,
@@ -15539,7 +15491,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 2
   },
   {
     "id": 383,
@@ -15575,7 +15527,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 385,
@@ -15623,7 +15575,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 2
   },
   {
     "id": 387,
@@ -15665,7 +15617,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 1
   },
   {
     "id": 388,
@@ -15734,7 +15686,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 390,
@@ -15818,7 +15770,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 391,
@@ -15887,7 +15839,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 2
   },
   {
     "id": 392,
@@ -15956,7 +15908,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 0
   },
   {
     "id": 393,
@@ -16030,7 +15982,7 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 2
   },
   {
     "id": 394,
@@ -16079,7 +16031,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 395,
@@ -16202,7 +16154,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 397,
@@ -16384,7 +16336,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 400,
@@ -16496,7 +16448,7 @@
       "Enzkreis",
       "Freudenstadt"
     ],
-    "color": 1
+    "color": 0
   },
   {
     "id": 402,
@@ -16563,7 +16515,7 @@
       "Ravensburg",
       "Sigmaringen"
     ],
-    "color": 0
+    "color": 1
   },
   {
     "id": 403,
@@ -16970,7 +16922,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 410,
@@ -17021,7 +16973,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 411,
@@ -17115,7 +17067,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 413,
@@ -17160,7 +17112,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 414,
@@ -17270,7 +17222,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 416,
@@ -17385,7 +17337,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 418,
@@ -17444,7 +17396,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 419,
@@ -17503,7 +17455,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 420,
@@ -17577,7 +17529,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 421,
@@ -17651,7 +17603,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 422,
@@ -17885,7 +17837,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 424,
@@ -17909,7 +17861,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 425,
@@ -17937,7 +17889,7 @@
   },
   {
     "id": 426,
-    "name": "Greece–Cyprus–North Macedonia",
+    "name": "Hellas",
     "constituency": "Greece–Cyprus–North Macedonia",
     "continent": "Europe",
     "pop": 13090000,
@@ -17963,11 +17915,11 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 1
   },
   {
     "id": 427,
-    "name": "Nordic Atlantic",
+    "name": "Denmark-Sweden",
     "constituency": "Denmark–Sweden–Iceland–Faroe",
     "continent": "Europe",
     "pop": 16750000,
@@ -17993,7 +17945,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 428,
@@ -18035,7 +17987,7 @@
       }
     ],
     "approx": [],
-    "color": 2
+    "color": 3
   },
   {
     "id": 429,
@@ -18065,7 +18017,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 430,
@@ -18170,7 +18122,7 @@
       }
     ],
     "approx": [],
-    "color": 0
+    "color": 1
   },
   {
     "id": 431,
@@ -18220,11 +18172,11 @@
       }
     ],
     "approx": [],
-    "color": 3
+    "color": 2
   },
   {
     "id": 432,
-    "name": "Western Balkans",
+    "name": "Balkans West",
     "constituency": "Slovenia–Croatia–Bosnia–Montenegro–Albania–Kosovo",
     "continent": "Europe",
     "pop": 14120000,
@@ -18272,7 +18224,7 @@
   },
   {
     "id": 433,
-    "name": "Bulgaria–Serbia",
+    "name": "Balkans East",
     "constituency": "Bulgaria–Serbia",
     "continent": "Europe",
     "pop": 13360000,
@@ -18292,7 +18244,7 @@
       }
     ],
     "approx": [],
-    "color": 1
+    "color": 0
   },
   {
     "id": 434,

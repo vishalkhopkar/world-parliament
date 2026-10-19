@@ -26,3 +26,11 @@ build/india_svg/s88.json
 build/india_svg/extra_new.geojson
 build/india_svg/extra_before_aksai.geojson
 data/chn_prefec/
+
+# gap-cleaning intermediates / QA scratch
+build/seats_raw.geojson
+build/seats_pre03c.geojson
+build/detail_simple.geojson
+build/*.before_clean.json
+build/qa_*.json
+build/*.log

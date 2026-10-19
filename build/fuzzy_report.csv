@@ -215,15 +215,6 @@ TUR,adm1,Mugla,Mu?la,difflib
 TUR,adm1,Nevsehir,Nev?ehir,difflib
 TUR,adm1,Nigde,Ni?de,difflib
 TUR,adm1,Tekirdag,Tekirda?,prefix
-TUR,adm2,Atasehir,Ata?ehir,difflib
-TUR,adm2,Avcilar,Avc?lar,difflib
-TUR,adm2,Bakirkoy,Bak?rköy,difflib
-TUR,adm2,Basaksehir,Ba?ak?ehir,difflib
-TUR,adm2,Bayrampasa,Bayrampa?a,difflib
-TUR,adm2,Beyoglu,Beyo?lu,difflib
-TUR,adm2,Gaziosmanpasa,Gaziosmanpa?a,difflib
-TUR,adm2,Kadikoy,Kad?köy,difflib
-TUR,adm2,Sariyer,Sar?yer,difflib
 UKR,adm1,Odesa Oblast,Odessa Oblast,difflib
 UKR,adm1,Zaporizhzhia Oblast,Zaporizhia Oblast,difflib
 UZB,adm1,Karakalpakstan (Republic),Republic of Karakalpakstan,affix
