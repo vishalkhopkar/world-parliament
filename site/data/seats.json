@@ -2154,7 +2154,7 @@
   },
   {
     "id": 68,
-    "name": "Hyderabad",
+    "name": "Hyderabad Deccan",
     "constituency": "Greater Hyderabad–Nalgonda–Palamuru",
     "continent": "Asia",
     "pop": 20300000,
@@ -5581,7 +5581,7 @@
   },
   {
     "id": 176,
-    "name": "Hyderabad",
+    "name": "Hyderabad Sindh",
     "constituency": "Hyderabad–Lower Sindh",
     "continent": "Asia",
     "pop": 17690000,
@@ -11399,7 +11399,7 @@
   },
   {
     "id": 294,
-    "name": "Ogun–Ondo–Ekiti",
+    "name": "Abeokuta–Akure",
     "constituency": "Abeokuta–Akure–Ado-Ekiti",
     "continent": "Africa",
     "pop": 15080000,
@@ -11462,7 +11462,7 @@
   },
   {
     "id": 296,
-    "name": "Kwara–Niger–Kogi",
+    "name": "Ilorin–Lokoja",
     "constituency": "Ilorin–Minna–Lokoja",
     "continent": "Africa",
     "pop": 16200000,
@@ -11496,7 +11496,7 @@
   },
   {
     "id": 297,
-    "name": "Benue–Plateau–Taraba–Nasarawa",
+    "name": "Jos–Makurdi",
     "constituency": "Benue–Plateau–Taraba–Nasarawa",
     "continent": "Africa",
     "pop": 20400000,
@@ -11598,7 +11598,7 @@
   },
   {
     "id": 300,
-    "name": "Imo–Abia–Cross River",
+    "name": "Owerri–Calabar",
     "constituency": "Owerri–Umuahia–Calabar",
     "continent": "Africa",
     "pop": 15160000,
@@ -11632,7 +11632,7 @@
   },
   {
     "id": 301,
-    "name": "Enugu–Ebonyi–Anambra",
+    "name": "Enugu–Onitsha",
     "constituency": "Enugu–Abakaliki–Onitsha",
     "continent": "Africa",
     "pop": 15100000,
@@ -11666,7 +11666,7 @@
   },
   {
     "id": 302,
-    "name": "Bauchi–Gombe–Jigawa",
+    "name": "Bauchi–Gombe",
     "constituency": "Bauchi–Gombe–Jigawa",
     "continent": "Africa",
     "pop": 20000000,
@@ -11700,7 +11700,7 @@
   },
   {
     "id": 303,
-    "name": "Borno–Yobe–Adamawa",
+    "name": "Maiduguri–Yola",
     "constituency": "Borno–Yobe–Adamawa",
     "continent": "Africa",
     "pop": 17000000,
@@ -14255,7 +14255,7 @@
   },
   {
     "id": 358,
-    "name": "Benguela–Huambo–Huíla",
+    "name": "Huambo–Lubango",
     "constituency": "Benguela–Huambo–Lubango–Southern Angola",
     "continent": "Africa",
     "pop": 13300000,
@@ -22232,7 +22232,7 @@
   },
   {
     "id": 478,
-    "name": "Ceará–Piauí–RN",
+    "name": "Fortaleza–Teresina",
     "constituency": "Ceará–Piauí–Rio Grande do Norte",
     "continent": "South America",
     "pop": 16070000,
@@ -22266,7 +22266,7 @@
   },
   {
     "id": 479,
-    "name": "Pernambuco–Paraíba–Alagoas",
+    "name": "Recife",
     "constituency": "Pernambuco–Recife–Paraíba–Alagoas",
     "continent": "South America",
     "pop": 16890000,
@@ -22300,7 +22300,7 @@
   },
   {
     "id": 480,
-    "name": "Maranhão–Pará–Tocantins",
+    "name": "Belém–São Luís",
     "constituency": "Maranhão–Pará–Tocantins (Eastern Amazon)",
     "continent": "South America",
     "pop": 17280000,
