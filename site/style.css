@@ -62,6 +62,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--ocean);color:var
 /* ---------- panel ---------- */
 #panel{position:fixed;z-index:6;top:calc(var(--header-h) + 12px);left:12px;width:min(340px,calc(100vw - 24px));max-height:calc(100vh - var(--header-h) - 24px);max-height:calc(100dvh - var(--header-h) - 24px);overflow:auto;background:var(--panel);color:var(--ink);border:1px solid var(--gold);border-top:4px solid var(--green);border-radius:8px;padding:14px 16px 16px;box-shadow:0 6px 24px rgba(40,30,0,.35),inset 0 0 0 3px var(--panel),inset 0 0 0 4px rgba(200,162,58,.45)}
 #panel h2{margin:0 26px 2px 0;font-family:var(--serif);font-weight:700;font-size:19px;line-height:1.2;color:var(--green)}
+#panel .dev{margin:0 26px 3px 0;font-family:'Tiro Devanagari Hindi',serif;font-weight:400;font-size:23px;line-height:1.25;color:var(--green)}
 #panel .sub{color:var(--muted);font-size:12.5px;margin-bottom:8px}
 #panel h3{margin:10px 0 4px;padding-bottom:3px;border-bottom:1px solid var(--line);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 #panel ul{list-style:none;margin:0;padding:0}

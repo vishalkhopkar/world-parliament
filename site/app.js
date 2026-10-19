@@ -111,7 +111,7 @@
     const f = featById.get(id); if (f) showPath(sel, path(f));
     gSeats.selectAll('path.seat').classed('selected', d => d.properties.seat === id);
     const approxSet = new Set(s.approx || []);
-    let h = '<h2>' + esc(s.name) + '</h2><div class="sub">Seat ' + s.id + ' · ' + esc(s.continent) + ' · pop. ' + (s.pop / 1e6).toFixed(2) + ' M</div>';
+    let h = '<h2>' + esc(s.name) + '</h2>' + (s.name_dev ? '<div class="dev" lang="hi">' + esc(s.name_dev) + '</div>' : '') + '<div class="sub">Seat ' + s.id + ' · ' + esc(s.continent) + ' · pop. ' + (s.pop / 1e6).toFixed(2) + ' M</div>';
     h += '<h3>Includes</h3><ul>';
     for (const c of s.countries) {
       const flag = c.iso2 ? '<img src="https://flagcdn.com/w40/' + c.iso2 + '.png" alt="" onerror="this.remove()">' : '';

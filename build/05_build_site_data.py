@@ -45,8 +45,10 @@ for s in out: s['color'] = color.get(s['id'], 0)
 # site/data/seats.json is the source of truth for seat NAMES: keep any name already stored there.
 _sj = os.path.join(ROOT, 'site', 'data', 'seats.json')
 if os.path.exists(_sj):
-    _old = {s['id']: s['name'] for s in json.load(open(_sj, encoding='utf-8'))}
-    for s in out: s['name'] = _old.get(s['id'], s['name'])
+    _prev = json.load(open(_sj, encoding='utf-8'))
+    _old = {s['id']: s['name'] for s in _prev}
+    _dev = {s['id']: s.get('name_dev', '') for s in _prev}      # Devanagari name shown under the English one in the panel
+    for s in out: s['name'] = _old.get(s['id'], s['name']); s['name_dev'] = _dev.get(s['id'], '')
 json.dump(out, open(os.path.join(ROOT, 'site', 'data', 'seats.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
 bad = [i for i in ids if any(color[n] == color[i] for n in adj[i])]
 print('seats', len(out), 'coloured', len(color), 'conflicts', len(bad), 'missing iso2', sorted({c['name'] for s in out for c in s['countries'] if not c['iso2']}))

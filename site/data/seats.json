@@ -2,6 +2,7 @@
   {
     "id": 1,
     "name": "Saharanpur–Meerut",
+    "name_dev": "सहारनपुर–मेरठ",
     "constituency": "Saharanpur–Meerut",
     "continent": "Asia",
     "pop": 18540000,
@@ -32,6 +33,7 @@
   {
     "id": 2,
     "name": "Delhi East",
+    "name_dev": "पूर्वी दिल्ली",
     "constituency": "East Delhi–Noida",
     "continent": "Asia",
     "pop": 15130000,
@@ -69,6 +71,7 @@
   {
     "id": 3,
     "name": "Aligarh",
+    "name_dev": "अलीगढ़",
     "constituency": "Aligarh–Bulandshahr–Middle Doab",
     "continent": "Asia",
     "pop": 15020000,
@@ -99,6 +102,7 @@
   {
     "id": 4,
     "name": "Braj",
+    "name_dev": "ब्रज",
     "constituency": "Agra–Braj",
     "continent": "Asia",
     "pop": 14100000,
@@ -128,6 +132,7 @@
   {
     "id": 5,
     "name": "Moradabad",
+    "name_dev": "मुरादाबाद",
     "constituency": "Moradabad–Rampur–Budaun",
     "continent": "Asia",
     "pop": 15880000,
@@ -158,6 +163,7 @@
   {
     "id": 6,
     "name": "Rohilkhand",
+    "name_dev": "रुहेलखंड",
     "constituency": "Bareilly–Rohilkhand–Terai",
     "continent": "Asia",
     "pop": 17010000,
@@ -187,6 +193,7 @@
   {
     "id": 7,
     "name": "Kanpur",
+    "name_dev": "कानपुर",
     "constituency": "Kanpur–Etawah–Central Doab",
     "continent": "Asia",
     "pop": 16210000,
@@ -218,6 +225,7 @@
   {
     "id": 8,
     "name": "Bundelkhand",
+    "name_dev": "बुंदेलखंड",
     "constituency": "Bundelkhand–Jhansi–Fatehpur",
     "continent": "Asia",
     "pop": 15470000,
@@ -251,6 +259,7 @@
   {
     "id": 9,
     "name": "Lucknow",
+    "name_dev": "लखनऊ",
     "constituency": "Lucknow–Unnao–Rae Bareli",
     "continent": "Asia",
     "pop": 13970000,
@@ -279,6 +288,7 @@
   {
     "id": 10,
     "name": "Hardoi",
+    "name_dev": "हरदोई",
     "constituency": "Sitapur–Hardoi–Barabanki",
     "continent": "Asia",
     "pop": 14880000,
@@ -307,6 +317,7 @@
   {
     "id": 11,
     "name": "Ayodhya",
+    "name_dev": "अयोध्या",
     "constituency": "Ayodhya–Central Awadh–Gonda",
     "continent": "Asia",
     "pop": 15210000,
@@ -337,6 +348,7 @@
   {
     "id": 12,
     "name": "Prayagraj",
+    "name_dev": "प्रयागराज",
     "constituency": "Prayagraj–Lower Doab–Pratapgarh",
     "continent": "Asia",
     "pop": 16630000,
@@ -366,6 +378,7 @@
   {
     "id": 13,
     "name": "Kashi",
+    "name_dev": "काशी",
     "constituency": "Varanasi–Kashi–Jaunpur",
     "continent": "Asia",
     "pop": 17030000,
@@ -396,6 +409,7 @@
   {
     "id": 14,
     "name": "Terai-Basti",
+    "name_dev": "तराई–बस्ती",
     "constituency": "Devipatan–Basti Terai",
     "continent": "Asia",
     "pop": 17050000,
@@ -427,6 +441,7 @@
   {
     "id": 15,
     "name": "Gorakhpur",
+    "name_dev": "गोरखपुर",
     "constituency": "Gorakhpur–Purvanchal",
     "continent": "Asia",
     "pop": 17340000,
@@ -456,6 +471,7 @@
   {
     "id": 16,
     "name": "Azamgarh",
+    "name_dev": "आज़मगढ़",
     "constituency": "Azamgarh–Ballia–Eastern Purvanchal",
     "continent": "Asia",
     "pop": 17210000,
@@ -485,6 +501,7 @@
   {
     "id": 17,
     "name": "Patna",
+    "name_dev": "पटना",
     "constituency": "Patna–Nalanda–Central Magadh",
     "continent": "Asia",
     "pop": 13860000,
@@ -514,6 +531,7 @@
   {
     "id": 18,
     "name": "Anga-Kosi",
+    "name_dev": "अंग–कोसी",
     "constituency": "Bhagalpur–Anga–Kosi",
     "continent": "Asia",
     "pop": 15760000,
@@ -545,6 +563,7 @@
   {
     "id": 19,
     "name": "Gaya",
+    "name_dev": "गया",
     "constituency": "Gaya–Nawada–South Magadh",
     "continent": "Asia",
     "pop": 13150000,
@@ -575,6 +594,7 @@
   {
     "id": 20,
     "name": "Bhojpur",
+    "name_dev": "भोजपुर",
     "constituency": "Bhojpur–Shahabad–Buxar",
     "continent": "Asia",
     "pop": 15200000,
@@ -605,6 +625,7 @@
   {
     "id": 21,
     "name": "Vaishali",
+    "name_dev": "वैशाली",
     "constituency": "Saran–Siwan–Vaishali",
     "continent": "Asia",
     "pop": 17530000,
@@ -634,6 +655,7 @@
   {
     "id": 22,
     "name": "Champaran",
+    "name_dev": "चंपारण",
     "constituency": "Champaran–Sitamarhi–North Tirhut",
     "continent": "Asia",
     "pop": 17250000,
@@ -663,6 +685,7 @@
   {
     "id": 23,
     "name": "Muzaffarpur",
+    "name_dev": "मुज़फ़्फ़रपुर",
     "constituency": "Muzaffarpur–Samastipur–Begusarai",
     "continent": "Asia",
     "pop": 15790000,
@@ -691,6 +714,7 @@
   {
     "id": 24,
     "name": "Darbhanga",
+    "name_dev": "दरभंगा",
     "constituency": "Darbhanga–Madhubani–Supaul (Mithila)",
     "continent": "Asia",
     "pop": 13990000,
@@ -719,6 +743,7 @@
   {
     "id": 25,
     "name": "Seemanchal",
+    "name_dev": "सीमांचल",
     "constituency": "Purnia–Seemanchal",
     "continent": "Asia",
     "pop": 14260000,
@@ -748,6 +773,7 @@
   {
     "id": 26,
     "name": "Mumbai",
+    "name_dev": "मुंबई",
     "constituency": "Mumbai City–Mumbai Suburban",
     "continent": "Asia",
     "pop": 13250000,
@@ -775,6 +801,7 @@
   {
     "id": 27,
     "name": "Thane",
+    "name_dev": "ठाणे",
     "constituency": "Thane–Palghar (Mumbai Metropolitan Region north and east)",
     "continent": "Asia",
     "pop": 14510000,
@@ -802,6 +829,7 @@
   {
     "id": 28,
     "name": "Berar",
+    "name_dev": "बेरार",
     "constituency": "Berar–Yavatmal–Wardha",
     "continent": "Asia",
     "pop": 14110000,
@@ -833,6 +861,7 @@
   {
     "id": 29,
     "name": "Konkan",
+    "name_dev": "कोंकण",
     "constituency": "Konkan–Goa–Kolhapur–Sangli",
     "continent": "Asia",
     "pop": 16490000,
@@ -875,6 +904,7 @@
   {
     "id": 30,
     "name": "Pune",
+    "name_dev": "पुणे",
     "constituency": "Pune–Satara",
     "continent": "Asia",
     "pop": 16700000,
@@ -902,6 +932,7 @@
   {
     "id": 31,
     "name": "Ahmadnagar",
+    "name_dev": "अहमदनगर",
     "constituency": "Solapur–Ahmednagar–Beed–Osmanabad",
     "continent": "Asia",
     "pop": 14980000,
@@ -931,6 +962,7 @@
   {
     "id": 32,
     "name": "Khandesh",
+    "name_dev": "खानदेश",
     "constituency": "Nashik–Khandesh",
     "continent": "Asia",
     "pop": 16690000,
@@ -960,6 +992,7 @@
   {
     "id": 33,
     "name": "Marathwada",
+    "name_dev": "मराठवाड़ा",
     "constituency": "Marathwada–Aurangabad",
     "continent": "Asia",
     "pop": 17190000,
@@ -991,6 +1024,7 @@
   {
     "id": 34,
     "name": "Vidarbha",
+    "name_dev": "विदर्भ",
     "constituency": "Vidarbha–Nagpur–Balaghat–Chhindwara",
     "continent": "Asia",
     "pop": 15290000,
@@ -1029,6 +1063,7 @@
   {
     "id": 35,
     "name": "Kolkata",
+    "name_dev": "कोलकाता",
     "constituency": "Kolkata–Howrah–South 24 Parganas",
     "continent": "Asia",
     "pop": 19790000,
@@ -1057,6 +1092,7 @@
   {
     "id": 36,
     "name": "Hooghly",
+    "name_dev": "हुगली",
     "constituency": "Hooghly–Lower Ganges",
     "continent": "Asia",
     "pop": 17550000,
@@ -1084,6 +1120,7 @@
   {
     "id": 37,
     "name": "Rarh",
+    "name_dev": "राढ़",
     "constituency": "Bardhaman–Rarh–Nadia",
     "continent": "Asia",
     "pop": 18520000,
@@ -1113,6 +1150,7 @@
   {
     "id": 38,
     "name": "Medinipur",
+    "name_dev": "मेदिनीपुर",
     "constituency": "Medinipur–Southwest Bengal",
     "continent": "Asia",
     "pop": 19820000,
@@ -1143,6 +1181,7 @@
   {
     "id": 39,
     "name": "Murshidabad–Malda",
+    "name_dev": "मुर्शिदाबाद–मालदा",
     "constituency": "Murshidabad–Malda–Dinajpur",
     "continent": "Asia",
     "pop": 17830000,
@@ -1172,6 +1211,7 @@
   {
     "id": 40,
     "name": "Darjeeling–Bhutan",
+    "name_dev": "दार्जिलिंग–भूटान",
     "constituency": "North Bengal–Darjeeling–Bhutan",
     "continent": "Asia",
     "pop": 17180000,
@@ -1225,6 +1265,7 @@
   {
     "id": 41,
     "name": "Bhopal",
+    "name_dev": "भोपाल",
     "constituency": "Bhopal–Sagar–Bundelkhand",
     "continent": "Asia",
     "pop": 17540000,
@@ -1260,6 +1301,7 @@
   {
     "id": 42,
     "name": "Malwa",
+    "name_dev": "मालवा",
     "constituency": "Indore–Malwa",
     "continent": "Asia",
     "pop": 19610000,
@@ -1295,6 +1337,7 @@
   {
     "id": 43,
     "name": "Nimar",
+    "name_dev": "निमाड़",
     "constituency": "Nimar–Ratlam–Narmadapuram",
     "continent": "Asia",
     "pop": 13730000,
@@ -1328,6 +1371,7 @@
   {
     "id": 44,
     "name": "Chambal",
+    "name_dev": "चंबल",
     "constituency": "Gwalior–Chambal",
     "continent": "Asia",
     "pop": 15680000,
@@ -1362,6 +1406,7 @@
   {
     "id": 45,
     "name": "Vindhya",
+    "name_dev": "विंध्य",
     "constituency": "Jabalpur–Vindhya",
     "continent": "Asia",
     "pop": 18740000,
@@ -1398,6 +1443,7 @@
   {
     "id": 46,
     "name": "Chennai–Andaman",
+    "name_dev": "चेन्नई–अंडमान",
     "constituency": "Chennai–Tiruvallur–Kanchipuram–Andaman",
     "continent": "Asia",
     "pop": 14230000,
@@ -1432,6 +1478,7 @@
   {
     "id": 47,
     "name": "Cauvery Delta",
+    "name_dev": "कावेरी डेल्टा",
     "constituency": "Cuddalore–Cauvery Delta–Tiruchirappalli–Puducherry",
     "continent": "Asia",
     "pop": 17090000,
@@ -1471,6 +1518,7 @@
   {
     "id": 48,
     "name": "Vellore",
+    "name_dev": "वेल्लोर",
     "constituency": "Vellore–North Tamil Nadu",
     "continent": "Asia",
     "pop": 15120000,
@@ -1504,6 +1552,7 @@
   {
     "id": 49,
     "name": "Kongu Nadu",
+    "name_dev": "कोंगु नाडु",
     "constituency": "Salem–Coimbatore Kongu",
     "continent": "Asia",
     "pop": 19800000,
@@ -1537,6 +1586,7 @@
   {
     "id": 50,
     "name": "Madurai",
+    "name_dev": "मदुरै",
     "constituency": "Madurai–Southern Tamil Nadu",
     "continent": "Asia",
     "pop": 17810000,
@@ -1571,6 +1621,7 @@
   {
     "id": 51,
     "name": "Dhundhar",
+    "name_dev": "ढूंढाड़",
     "constituency": "Jaipur–Dhundhar–Ajmer–Sikar",
     "continent": "Asia",
     "pop": 15870000,
@@ -1599,6 +1650,7 @@
   {
     "id": 52,
     "name": "Mewat",
+    "name_dev": "मेवात",
     "constituency": "Alwar–Mewat–Braj",
     "continent": "Asia",
     "pop": 13570000,
@@ -1629,6 +1681,7 @@
   {
     "id": 53,
     "name": "Marwar",
+    "name_dev": "मारवाड़",
     "constituency": "Jodhpur–Marwar–Palanpur",
     "continent": "Asia",
     "pop": 19310000,
@@ -1667,6 +1720,7 @@
   {
     "id": 54,
     "name": "Thar",
+    "name_dev": "थार",
     "constituency": "Bikaner–Thar–Shekhawati–Nagaur",
     "continent": "Asia",
     "pop": 16960000,
@@ -1698,6 +1752,7 @@
   {
     "id": 55,
     "name": "Mewar",
+    "name_dev": "मेवाड़",
     "constituency": "Udaipur–Mewar–Neemuch–Mandsaur",
     "continent": "Asia",
     "pop": 15180000,
@@ -1737,6 +1792,7 @@
   {
     "id": 56,
     "name": "Hadoti",
+    "name_dev": "हाड़ौती",
     "constituency": "Kota–Hadoti–Bhilwara",
     "continent": "Asia",
     "pop": 13810000,
@@ -1769,6 +1825,7 @@
   {
     "id": 57,
     "name": "Bengaluru",
+    "name_dev": "बेंगलुरु",
     "constituency": "Bengaluru Metropolitan",
     "continent": "Asia",
     "pop": 16900000,
@@ -1799,6 +1856,7 @@
   {
     "id": 58,
     "name": "Mysuru",
+    "name_dev": "मैसूरु",
     "constituency": "Mysuru–Old Mysore",
     "continent": "Asia",
     "pop": 18190000,
@@ -1833,6 +1891,7 @@
   {
     "id": 59,
     "name": "Kalyana Karnataka",
+    "name_dev": "कल्याण कर्नाटक",
     "constituency": "Kalaburagi–Kalyana Karnataka–Vijayapura",
     "continent": "Asia",
     "pop": 17830000,
@@ -1869,6 +1928,7 @@
   {
     "id": 60,
     "name": "Malnad",
+    "name_dev": "मलनाड",
     "constituency": "Belagavi–Dharwad–Malnad–Coast",
     "continent": "Asia",
     "pop": 16700000,
@@ -1901,6 +1961,7 @@
   {
     "id": 61,
     "name": "Ahmedabad",
+    "name_dev": "अहमदाबाद",
     "constituency": "Ahmedabad–Gandhinagar–North Gujarat",
     "continent": "Asia",
     "pop": 19720000,
@@ -1933,6 +1994,7 @@
   {
     "id": 62,
     "name": "Surat",
+    "name_dev": "सूरत",
     "constituency": "Surat–South Gujarat",
     "continent": "Asia",
     "pop": 17710000,
@@ -1970,6 +2032,7 @@
   {
     "id": 63,
     "name": "Vadodara",
+    "name_dev": "वडोदरा",
     "constituency": "Vadodara–Central Gujarat",
     "continent": "Asia",
     "pop": 15520000,
@@ -2002,6 +2065,7 @@
   {
     "id": 64,
     "name": "Saurashtra–Kutch",
+    "name_dev": "सौराष्ट्र–कच्छ",
     "constituency": "Saurashtra–Kutch",
     "continent": "Asia",
     "pop": 18850000,
@@ -2038,6 +2102,7 @@
   {
     "id": 65,
     "name": "Visakhapatnam",
+    "name_dev": "विशाखापत्तनम",
     "constituency": "Visakhapatnam–North Coastal Andhra–Godavari",
     "continent": "Asia",
     "pop": 19000000,
@@ -2079,6 +2144,7 @@
   {
     "id": 66,
     "name": "Amaravathi",
+    "name_dev": "अमरावती",
     "constituency": "Vijayawada–Guntur–Prakasam–Nellore",
     "continent": "Asia",
     "pop": 18900000,
@@ -2117,6 +2183,7 @@
   {
     "id": 67,
     "name": "Rayalaseema",
+    "name_dev": "रायलसीमा",
     "constituency": "Rayalaseema–Tirupati",
     "continent": "Asia",
     "pop": 17700000,
@@ -2155,6 +2222,7 @@
   {
     "id": 68,
     "name": "Hyderabad Deccan",
+    "name_dev": "हैदराबाद दक्कन",
     "constituency": "Greater Hyderabad–Nalgonda–Palamuru",
     "continent": "Asia",
     "pop": 20300000,
@@ -2193,6 +2261,7 @@
   {
     "id": 69,
     "name": "Warangal",
+    "name_dev": "वारंगल",
     "constituency": "Northern Telangana–Warangal",
     "continent": "Asia",
     "pop": 19700000,
@@ -2238,6 +2307,7 @@
   {
     "id": 70,
     "name": "Bhubaneswar",
+    "name_dev": "भुवनेश्वर",
     "constituency": "Bhubaneswar–Cuttack–Ganjam Coast",
     "continent": "Asia",
     "pop": 18010000,
@@ -2271,6 +2341,7 @@
   {
     "id": 71,
     "name": "Mayurbhanj",
+    "name_dev": "मयूरभंज",
     "constituency": "Northern Odisha–Singhbhum",
     "continent": "Asia",
     "pop": 18160000,
@@ -2310,6 +2381,7 @@
   {
     "id": 72,
     "name": "Sambalpur",
+    "name_dev": "संबलपुर",
     "constituency": "Western Odisha–Sambalpur",
     "continent": "Asia",
     "pop": 18970000,
@@ -2352,6 +2424,7 @@
   {
     "id": 73,
     "name": "Malabar",
+    "name_dev": "मालाबार",
     "constituency": "Malabar–Thrissur",
     "continent": "Asia",
     "pop": 20090000,
@@ -2389,6 +2462,7 @@
   {
     "id": 74,
     "name": "Travancore",
+    "name_dev": "त्रावणकोर",
     "constituency": "Kochi–Travancore",
     "continent": "Asia",
     "pop": 17590000,
@@ -2421,6 +2495,7 @@
   {
     "id": 75,
     "name": "Ranchi",
+    "name_dev": "रांची",
     "constituency": "Ranchi–South Chotanagpur",
     "continent": "Asia",
     "pop": 17030000,
@@ -2457,6 +2532,7 @@
   {
     "id": 76,
     "name": "Santhal Pargana",
+    "name_dev": "संथाल परगना",
     "constituency": "Dhanbad–Santhal Pargana",
     "continent": "Asia",
     "pop": 19120000,
@@ -2492,6 +2568,7 @@
   {
     "id": 77,
     "name": "Guwahati",
+    "name_dev": "गुवाहाटी",
     "constituency": "Brahmaputra Valley West–Guwahati",
     "continent": "Asia",
     "pop": 17900000,
@@ -2532,6 +2609,7 @@
   {
     "id": 78,
     "name": "Upper Assam",
+    "name_dev": "ऊपरी असम",
     "constituency": "Upper Assam–Barak Valley",
     "continent": "Asia",
     "pop": 17150000,
@@ -2574,6 +2652,7 @@
   {
     "id": 79,
     "name": "Amritsar",
+    "name_dev": "अमृतसर",
     "constituency": "Majha–Doaba–Chandigarh Tricity",
     "continent": "Asia",
     "pop": 17050000,
@@ -2621,6 +2700,7 @@
   {
     "id": 80,
     "name": "Ludhiana",
+    "name_dev": "लुधियाना",
     "constituency": "Malwa–Patiala",
     "continent": "Asia",
     "pop": 17470000,
@@ -2661,6 +2741,7 @@
   {
     "id": 81,
     "name": "Haryana South",
+    "name_dev": "दक्षिण हरियाणा",
     "constituency": "Gurugram–Faridabad–Rohtak",
     "continent": "Asia",
     "pop": 15810000,
@@ -2699,6 +2780,7 @@
   {
     "id": 82,
     "name": "Haryana North",
+    "name_dev": "उत्तर हरियाणा",
     "constituency": "Hisar–Karnal–Ambala",
     "continent": "Asia",
     "pop": 15870000,
@@ -2734,6 +2816,7 @@
   {
     "id": 83,
     "name": "Chhattisgarh South",
+    "name_dev": "दक्षिण छत्तीसगढ़",
     "constituency": "Raipur–Durg–Bastar",
     "continent": "Asia",
     "pop": 15300000,
@@ -2774,6 +2857,7 @@
   {
     "id": 84,
     "name": "Chhattisgarh North",
+    "name_dev": "उत्तर छत्तीसगढ़",
     "constituency": "Bilaspur–Surguja",
     "continent": "Asia",
     "pop": 16200000,
@@ -2812,6 +2896,7 @@
   {
     "id": 85,
     "name": "Delhi West",
+    "name_dev": "पश्चिमी दिल्ली",
     "constituency": "West Delhi",
     "continent": "Asia",
     "pop": 17910000,
@@ -2844,6 +2929,7 @@
   {
     "id": 86,
     "name": "Jammu-Kashmir",
+    "name_dev": "जम्मू–कश्मीर",
     "constituency": "Kashmir Valley–Jammu–Ladakh",
     "continent": "Asia",
     "pop": 18750000,
@@ -2880,6 +2966,7 @@
   {
     "id": 87,
     "name": "Uttarakhand",
+    "name_dev": "उत्तराखंड",
     "constituency": "Garhwal–Kumaon",
     "continent": "Asia",
     "pop": 12400000,
@@ -2904,6 +2991,7 @@
   {
     "id": 88,
     "name": "Himachal–Ladakh",
+    "name_dev": "हिमाचल–लद्दाख",
     "constituency": "Himachal–Ladakh",
     "continent": "Asia",
     "pop": 10150000,
@@ -2959,6 +3047,7 @@
   {
     "id": 89,
     "name": "Northeast India",
+    "name_dev": "पूर्वोत्तर भारत",
     "constituency": "Eastern Himalayan Borderlands",
     "continent": "Asia",
     "pop": 12840000,
@@ -3003,6 +3092,7 @@
   {
     "id": 90,
     "name": "Guangzhou",
+    "name_dev": "ग्वांगझोउ",
     "constituency": "Guangzhou",
     "continent": "Asia",
     "pop": 19150000,
@@ -3029,6 +3119,7 @@
   {
     "id": 91,
     "name": "Western Guangdong",
+    "name_dev": "पश्चिमी ग्वांगदोंग",
     "constituency": "Zhaoqing-Yunfu-Yangjiang-Maoming",
     "continent": "Asia",
     "pop": 15380000,
@@ -3058,6 +3149,7 @@
   {
     "id": 92,
     "name": "Shenzhen",
+    "name_dev": "शेनझेन",
     "constituency": "Shenzhen",
     "continent": "Asia",
     "pop": 18150000,
@@ -3084,6 +3176,7 @@
   {
     "id": 93,
     "name": "Hakka",
+    "name_dev": "हक्का",
     "constituency": "Qingyuan-Shaoguan-Heyuan-Meizhou",
     "continent": "Asia",
     "pop": 13590000,
@@ -3113,6 +3206,7 @@
   {
     "id": 94,
     "name": "Dongguan-Huizhou",
+    "name_dev": "डोंगगुआन–हुइझोउ",
     "constituency": "Dongguan-Huizhou",
     "continent": "Asia",
     "pop": 16700000,
@@ -3140,6 +3234,7 @@
   {
     "id": 95,
     "name": "Foshan-Zhongshan",
+    "name_dev": "फ़ोशान–झोंगशान",
     "constituency": "Foshan-Zhongshan",
     "continent": "Asia",
     "pop": 14290000,
@@ -3167,6 +3262,7 @@
   {
     "id": 96,
     "name": "East Guangdong (Chaoshan)",
+    "name_dev": "पूर्वी ग्वांगदोंग (चाओशान)",
     "constituency": "Shantou-Jieyang-Chaozhou-Shanwei",
     "continent": "Asia",
     "pop": 16520000,
@@ -3196,6 +3292,7 @@
   {
     "id": 97,
     "name": "Hainan-Zhanjiang",
+    "name_dev": "हैनान–झानजियांग",
     "constituency": "Hainan-Leizhou Peninsula (Zhanjiang)",
     "continent": "Asia",
     "pop": 17540000,
@@ -3227,6 +3324,7 @@
   {
     "id": 98,
     "name": "Jinan",
+    "name_dev": "जीनान",
     "constituency": "Jinan–Tai'an–Zibo",
     "continent": "Asia",
     "pop": 19480000,
@@ -3255,6 +3353,7 @@
   {
     "id": 99,
     "name": "Qingdao",
+    "name_dev": "छिंगदाओ",
     "constituency": "Qingdao–Rizhao",
     "continent": "Asia",
     "pop": 13390000,
@@ -3282,6 +3381,7 @@
   {
     "id": 100,
     "name": "Jiaodong",
+    "name_dev": "जियाओदोंग",
     "constituency": "Yantai–Weihai–Weifang",
     "continent": "Asia",
     "pop": 19090000,
@@ -3310,6 +3410,7 @@
   {
     "id": 101,
     "name": "Dezhou",
+    "name_dev": "देझोउ",
     "constituency": "Dezhou–Liaocheng–Binzhou–Dongying",
     "continent": "Asia",
     "pop": 17260000,
@@ -3339,6 +3440,7 @@
   {
     "id": 102,
     "name": "Linyi",
+    "name_dev": "लिनयी",
     "constituency": "Linyi–Zaozhuang",
     "continent": "Asia",
     "pop": 14460000,
@@ -3366,6 +3468,7 @@
   {
     "id": 103,
     "name": "Jining",
+    "name_dev": "जिनिंग",
     "constituency": "Jining–Heze",
     "continent": "Asia",
     "pop": 16620000,
@@ -3393,6 +3496,7 @@
   {
     "id": 104,
     "name": "Zhengzhou",
+    "name_dev": "झेंगझोउ",
     "constituency": "Zhengzhou–Jiaozuo",
     "continent": "Asia",
     "pop": 17270000,
@@ -3421,6 +3525,7 @@
   {
     "id": 105,
     "name": "Luoyang",
+    "name_dev": "लुओयांग",
     "constituency": "Luoyang–Pingdingshan–Sanmenxia",
     "continent": "Asia",
     "pop": 16190000,
@@ -3450,6 +3555,7 @@
   {
     "id": 106,
     "name": "Kaifeng",
+    "name_dev": "कैफ़ेंग",
     "constituency": "Kaifeng–Shangqiu–Xuchang",
     "continent": "Asia",
     "pop": 16570000,
@@ -3478,6 +3584,7 @@
   {
     "id": 107,
     "name": "Anyang",
+    "name_dev": "आनयांग",
     "constituency": "Xinxiang–Anyang–Puyang",
     "continent": "Asia",
     "pop": 16690000,
@@ -3507,6 +3614,7 @@
   {
     "id": 108,
     "name": "Nanyang",
+    "name_dev": "नानयांग",
     "constituency": "Nanyang–Xinyang",
     "continent": "Asia",
     "pop": 15470000,
@@ -3534,6 +3642,7 @@
   {
     "id": 109,
     "name": "Zhoukou",
+    "name_dev": "झोउकोउ",
     "constituency": "Zhoukou–Zhumadian",
     "continent": "Asia",
     "pop": 15310000,
@@ -3561,6 +3670,7 @@
   {
     "id": 110,
     "name": "Nanjing",
+    "name_dev": "नानजिंग",
     "constituency": "Nanjing–Yangzhou–Taizhou",
     "continent": "Asia",
     "pop": 18530000,
@@ -3589,6 +3699,7 @@
   {
     "id": 111,
     "name": "Suzhou",
+    "name_dev": "सूझोउ",
     "constituency": "Suzhou–Huzhou (Taihu)",
     "continent": "Asia",
     "pop": 16870000,
@@ -3622,6 +3733,7 @@
   {
     "id": 112,
     "name": "Wuxi",
+    "name_dev": "वूशी",
     "constituency": "Wuxi–Changzhou–Zhenjiang",
     "continent": "Asia",
     "pop": 16290000,
@@ -3650,6 +3762,7 @@
   {
     "id": 113,
     "name": "Nantong",
+    "name_dev": "नानतोंग",
     "constituency": "Nantong–Yancheng–Lianyungang",
     "continent": "Asia",
     "pop": 18480000,
@@ -3678,6 +3791,7 @@
   {
     "id": 114,
     "name": "Xuzhou",
+    "name_dev": "शुझोउ",
     "constituency": "Xuzhou–Suqian–Huai'an",
     "continent": "Asia",
     "pop": 18300000,
@@ -3706,6 +3820,7 @@
   {
     "id": 115,
     "name": "Chengdu",
+    "name_dev": "छेंगदू",
     "constituency": "Chengdu City",
     "continent": "Asia",
     "pop": 21380000,
@@ -3732,6 +3847,7 @@
   {
     "id": 116,
     "name": "Western Sichuan",
+    "name_dev": "पश्चिमी सिचुआन",
     "constituency": "Leshan–Meishan–Ya'an–Liangshan",
     "continent": "Asia",
     "pop": 13490000,
@@ -3762,6 +3878,7 @@
   {
     "id": 117,
     "name": "Mianyang",
+    "name_dev": "मियानयांग",
     "constituency": "Mianyang–Deyang–Guangyuan",
     "continent": "Asia",
     "pop": 16000000,
@@ -3792,6 +3909,7 @@
   {
     "id": 118,
     "name": "Nanchong",
+    "name_dev": "नानछोंग",
     "constituency": "Nanchong–Dazhou–Guang'an",
     "continent": "Asia",
     "pop": 14100000,
@@ -3820,6 +3938,7 @@
   {
     "id": 119,
     "name": "Yibin",
+    "name_dev": "यिबिन",
     "constituency": "Yibin–Luzhou–Zigong–Neijiang",
     "continent": "Asia",
     "pop": 16620000,
@@ -3850,6 +3969,7 @@
   {
     "id": 120,
     "name": "Shijiazhuang",
+    "name_dev": "शिजियाझुआंग",
     "constituency": "Shijiazhuang–Hengshui",
     "continent": "Asia",
     "pop": 15360000,
@@ -3877,6 +3997,7 @@
   {
     "id": 121,
     "name": "Tangshan",
+    "name_dev": "तांगशान",
     "constituency": "Tangshan–Qinhuangdao–Chengde–Zhangjiakou",
     "continent": "Asia",
     "pop": 18230000,
@@ -3906,6 +4027,7 @@
   {
     "id": 122,
     "name": "Baoding",
+    "name_dev": "बाओदिंग",
     "constituency": "Baoding–Cangzhou",
     "continent": "Asia",
     "pop": 18740000,
@@ -3933,6 +4055,7 @@
   {
     "id": 123,
     "name": "Handan",
+    "name_dev": "हानदान",
     "constituency": "Handan–Xingtai",
     "continent": "Asia",
     "pop": 16440000,
@@ -3960,6 +4083,7 @@
   {
     "id": 124,
     "name": "Changsha",
+    "name_dev": "छांगशा",
     "constituency": "Changsha-Zhuzhou-Xiangtan",
     "continent": "Asia",
     "pop": 17130000,
@@ -3988,6 +4112,7 @@
   {
     "id": 125,
     "name": "Dongting Lake",
+    "name_dev": "दोंगथिंग झील",
     "constituency": "Yueyang-Changde-Yiyang-Loudi",
     "continent": "Asia",
     "pop": 17730000,
@@ -4017,6 +4142,7 @@
   {
     "id": 126,
     "name": "Hengyang",
+    "name_dev": "हेंगयांग",
     "constituency": "Hengyang-Chenzhou-Yongzhou",
     "continent": "Asia",
     "pop": 16140000,
@@ -4045,6 +4171,7 @@
   {
     "id": 127,
     "name": "Western Hunan",
+    "name_dev": "पश्चिमी हुनान",
     "constituency": "Shaoyang-Huaihua-Xiangxi-Zhangjiajie",
     "continent": "Asia",
     "pop": 14790000,
@@ -4074,6 +4201,7 @@
   {
     "id": 128,
     "name": "Hangzhou",
+    "name_dev": "हांगझोउ",
     "constituency": "Hangzhou–Jiaxing",
     "continent": "Asia",
     "pop": 18690000,
@@ -4101,6 +4229,7 @@
   {
     "id": 129,
     "name": "Ningbo",
+    "name_dev": "निंगबो",
     "constituency": "Ningbo–Shaoxing–Zhoushan",
     "continent": "Asia",
     "pop": 16370000,
@@ -4129,6 +4258,7 @@
   {
     "id": 130,
     "name": "Wenzhou",
+    "name_dev": "वेनझोउ",
     "constituency": "Wenzhou–Taizhou",
     "continent": "Asia",
     "pop": 16420000,
@@ -4156,6 +4286,7 @@
   {
     "id": 131,
     "name": "Jinhua",
+    "name_dev": "जिनहुआ",
     "constituency": "Jinhua–Quzhou–Lishui",
     "continent": "Asia",
     "pop": 12240000,
@@ -4184,6 +4315,7 @@
   {
     "id": 132,
     "name": "Hefei",
+    "name_dev": "हेफ़ेई",
     "constituency": "Hefei–Lu'an",
     "continent": "Asia",
     "pop": 14410000,
@@ -4211,6 +4343,7 @@
   {
     "id": 133,
     "name": "Bengbu",
+    "name_dev": "बंगबू",
     "constituency": "Bengbu–Huaibei–Suzhou–Chuzhou",
     "continent": "Asia",
     "pop": 14360000,
@@ -4240,6 +4373,7 @@
   {
     "id": 134,
     "name": "Wuhu",
+    "name_dev": "वूहू",
     "constituency": "Wuhu–Southern Anhui",
     "continent": "Asia",
     "pop": 16420000,
@@ -4272,6 +4406,7 @@
   {
     "id": 135,
     "name": "Fuyang",
+    "name_dev": "फ़ुयांग",
     "constituency": "Fuyang–Bozhou–Huainan",
     "continent": "Asia",
     "pop": 15770000,
@@ -4300,6 +4435,7 @@
   {
     "id": 136,
     "name": "Wuhan",
+    "name_dev": "वुहान",
     "constituency": "Wuhan–Ezhou–Huangshi–Xianning",
     "continent": "Asia",
     "pop": 19900000,
@@ -4329,6 +4465,7 @@
   {
     "id": 137,
     "name": "Xiangyang",
+    "name_dev": "श्यांगयांग",
     "constituency": "Xiangyang–Northern Hubei",
     "continent": "Asia",
     "pop": 19930000,
@@ -4359,6 +4496,7 @@
   {
     "id": 138,
     "name": "Yichang",
+    "name_dev": "यिछांग",
     "constituency": "Yichang–Jingzhou–Enshi",
     "continent": "Asia",
     "pop": 17850000,
@@ -4392,6 +4530,7 @@
   {
     "id": 139,
     "name": "Nanning",
+    "name_dev": "नानिंग",
     "constituency": "Nanning-Southern and Southwestern Guangxi",
     "continent": "Asia",
     "pop": 18910000,
@@ -4422,6 +4561,7 @@
   {
     "id": 140,
     "name": "Guilin",
+    "name_dev": "क्वेइलिन",
     "constituency": "Guilin-Liuzhou-Northern Guangxi",
     "continent": "Asia",
     "pop": 14570000,
@@ -4451,6 +4591,7 @@
   {
     "id": 141,
     "name": "Wuzhou-Yulin",
+    "name_dev": "वूझोउ–यूलिन",
     "constituency": "Wuzhou-Yulin-Guigang-Laibin-Beihai",
     "continent": "Asia",
     "pop": 16870000,
@@ -4481,6 +4622,7 @@
   {
     "id": 142,
     "name": "Kunming",
+    "name_dev": "कुनमिंग",
     "constituency": "Kunming-Yuxi-Chuxiong-Honghe",
     "continent": "Asia",
     "pop": 17620000,
@@ -4510,6 +4652,7 @@
   {
     "id": 143,
     "name": "Dali",
+    "name_dev": "दाली",
     "constituency": "Dali-Western and Southwestern Yunnan",
     "continent": "Asia",
     "pop": 15080000,
@@ -4544,6 +4687,7 @@
   {
     "id": 144,
     "name": "Qujing",
+    "name_dev": "छुजिंग",
     "constituency": "Qujing-Zhaotong-Wenshan",
     "continent": "Asia",
     "pop": 13840000,
@@ -4572,6 +4716,7 @@
   {
     "id": 145,
     "name": "Nanchang",
+    "name_dev": "नानछांग",
     "constituency": "Nanchang-Poyang",
     "continent": "Asia",
     "pop": 17880000,
@@ -4601,6 +4746,7 @@
   {
     "id": 146,
     "name": "Ganzhou-Longyan",
+    "name_dev": "गानझोउ–लोंगयान",
     "constituency": "Ganzhou-Ji'an-Longyan (Hakka)",
     "continent": "Asia",
     "pop": 15890000,
@@ -4635,6 +4781,7 @@
   {
     "id": 147,
     "name": "Jiujiang",
+    "name_dev": "जिउजियांग",
     "constituency": "Jiujiang-Jingdezhen-Yichun-Pingxiang-Xinyu",
     "continent": "Asia",
     "pop": 14120000,
@@ -4665,6 +4812,7 @@
   {
     "id": 148,
     "name": "Shenyang",
+    "name_dev": "शेनयांग",
     "constituency": "Shenyang–Fushun–Anshan",
     "continent": "Asia",
     "pop": 18700000,
@@ -4696,6 +4844,7 @@
   {
     "id": 149,
     "name": "Dalian",
+    "name_dev": "दालियान",
     "constituency": "Dalian–Liaodong–Western Liaoning",
     "continent": "Asia",
     "pop": 19490000,
@@ -4728,6 +4877,7 @@
   {
     "id": 150,
     "name": "Fuzhou",
+    "name_dev": "फ़ूझोउ",
     "constituency": "Fuzhou-Northern Fujian",
     "continent": "Asia",
     "pop": 20110000,
@@ -4758,6 +4908,7 @@
   {
     "id": 151,
     "name": "Southern Fujian",
+    "name_dev": "दक्षिणी फ़ूजियान",
     "constituency": "Xiamen-Quanzhou-Zhangzhou (Southern Fujian)",
     "continent": "Asia",
     "pop": 19260000,
@@ -4786,6 +4937,7 @@
   {
     "id": 152,
     "name": "Xi'an",
+    "name_dev": "शीआन",
     "constituency": "Xi'an–Xianyang–Baoji (Guanzhong)",
     "continent": "Asia",
     "pop": 20410000,
@@ -4814,6 +4966,7 @@
   {
     "id": 153,
     "name": "Northern Shaanxi",
+    "name_dev": "उत्तरी शानशी",
     "constituency": "Northern Shaanxi–Weinan–Hanzhong–Qinba",
     "continent": "Asia",
     "pop": 19090000,
@@ -4846,6 +4999,7 @@
   {
     "id": 154,
     "name": "Guiyang",
+    "name_dev": "गुइयांग",
     "constituency": "Guiyang-Southern and Central Guizhou",
     "continent": "Asia",
     "pop": 18990000,
@@ -4876,6 +5030,7 @@
   {
     "id": 155,
     "name": "Zunyi",
+    "name_dev": "ज़ुनयी",
     "constituency": "Zunyi-Bijie-Northern and Western Guizhou",
     "continent": "Asia",
     "pop": 19510000,
@@ -4905,6 +5060,7 @@
   {
     "id": 156,
     "name": "Taiyuan",
+    "name_dev": "ताइयुआन",
     "constituency": "Taiyuan–Northern Shanxi",
     "continent": "Asia",
     "pop": 16920000,
@@ -4936,6 +5092,7 @@
   {
     "id": 157,
     "name": "Linfen",
+    "name_dev": "लिनफ़ेन",
     "constituency": "Linfen–Southern Shanxi",
     "continent": "Asia",
     "pop": 17080000,
@@ -4966,6 +5123,7 @@
   {
     "id": 158,
     "name": "Chongqing West",
+    "name_dev": "पश्चिमी छोंगछिंग",
     "constituency": "Chongqing Urban Core & Western Districts",
     "continent": "Asia",
     "pop": 16400000,
@@ -5007,6 +5165,7 @@
   {
     "id": 159,
     "name": "Chongqing East",
+    "name_dev": "पूर्वी छोंगछिंग",
     "constituency": "Chongqing Eastern & Southern Uplands (Three Gorges, Wuling)",
     "continent": "Asia",
     "pop": 15700000,
@@ -5054,6 +5213,7 @@
   {
     "id": 160,
     "name": "Harbin",
+    "name_dev": "हार्बिन",
     "constituency": "Harbin–Suihua–Daqing",
     "continent": "Asia",
     "pop": 15830000,
@@ -5082,6 +5242,7 @@
   {
     "id": 161,
     "name": "Northern Heilongjiang",
+    "name_dev": "उत्तरी हेइलोंगजियांग",
     "constituency": "Qiqihar–Heihe–Eastern Heilongjiang",
     "continent": "Asia",
     "pop": 13770000,
@@ -5117,6 +5278,7 @@
   {
     "id": 162,
     "name": "Xinjiang North",
+    "name_dev": "उत्तरी शिनजियांग",
     "constituency": "Northern Xinjiang–Ili",
     "continent": "Asia",
     "pop": 13070000,
@@ -5158,6 +5320,7 @@
   {
     "id": 163,
     "name": "Xinjiang South",
+    "name_dev": "दक्षिणी शिनजियांग",
     "constituency": "Southern Xinjiang–Tarim",
     "continent": "Asia",
     "pop": 13230000,
@@ -5193,6 +5356,7 @@
   {
     "id": 164,
     "name": "Hexi Corridor",
+    "name_dev": "हेशी गलियारा",
     "constituency": "Hexi Corridor–Lanzhou–Linxia",
     "continent": "Asia",
     "pop": 14570000,
@@ -5227,6 +5391,7 @@
   {
     "id": 165,
     "name": "Mongolia",
+    "name_dev": "मंगोलिया",
     "constituency": "Mongolia–Central & Western Inner Mongolia",
     "continent": "Asia",
     "pop": 17030000,
@@ -5266,6 +5431,7 @@
   {
     "id": 166,
     "name": "Eastern Inner Mongolia",
+    "name_dev": "पूर्वी भीतरी मंगोलिया",
     "constituency": "Hulunbuir–Hinggan–Tongliao–Chifeng (Horqin & Jehol)",
     "continent": "Asia",
     "pop": 17270000,
@@ -5310,6 +5476,7 @@
   {
     "id": 167,
     "name": "Jilin",
+    "name_dev": "जिलिन",
     "constituency": "Changchun–Jilin–Yanbian",
     "continent": "Asia",
     "pop": 19030000,
@@ -5342,6 +5509,7 @@
   {
     "id": 168,
     "name": "Shanghai",
+    "name_dev": "शंघाई",
     "constituency": "Shanghai Municipality",
     "continent": "Asia",
     "pop": 24700000,
@@ -5366,6 +5534,7 @@
   {
     "id": 169,
     "name": "Beijing",
+    "name_dev": "बीजिंग",
     "constituency": "Beijing Capital Region",
     "continent": "Asia",
     "pop": 21800000,
@@ -5390,6 +5559,7 @@
   {
     "id": 170,
     "name": "Tianjin",
+    "name_dev": "थ्यानजिन",
     "constituency": "Tianjin–Langfang (Bohai Port)",
     "continent": "Asia",
     "pop": 18930000,
@@ -5421,6 +5591,7 @@
   {
     "id": 171,
     "name": "Qinghai–Tibet",
+    "name_dev": "छिंगहाई–तिब्बत",
     "constituency": "Tibetan Plateau–Qinghai–Amdo & Kham",
     "continent": "Asia",
     "pop": 14640000,
@@ -5466,6 +5637,7 @@
   {
     "id": 172,
     "name": "Ningxia",
+    "name_dev": "निंगशिया",
     "constituency": "Ningxia–Longdong",
     "continent": "Asia",
     "pop": 14190000,
@@ -5499,6 +5671,7 @@
   {
     "id": 173,
     "name": "Hong Kong-Macau",
+    "name_dev": "हांगकांग–मकाऊ",
     "constituency": "Hong Kong-Macau-Zhuhai-Jiangmen Pearl Delta",
     "continent": "Asia",
     "pop": 15580000,
@@ -5538,6 +5711,7 @@
   {
     "id": 174,
     "name": "Taiwan",
+    "name_dev": "ताइवान",
     "constituency": "Taiwan",
     "continent": "Asia",
     "pop": 23300000,
@@ -5556,6 +5730,7 @@
   {
     "id": 175,
     "name": "Karachi",
+    "name_dev": "कराची",
     "constituency": "Karachi",
     "continent": "Asia",
     "pop": 21310000,
@@ -5582,6 +5757,7 @@
   {
     "id": 176,
     "name": "Hyderabad Sindh",
+    "name_dev": "हैदराबाद सिंध",
     "constituency": "Hyderabad–Lower Sindh",
     "continent": "Asia",
     "pop": 17690000,
@@ -5618,6 +5794,7 @@
   {
     "id": 177,
     "name": "Sukkur",
+    "name_dev": "सक्खर",
     "constituency": "Upper Sindh–Sukkur",
     "continent": "Asia",
     "pop": 19230000,
@@ -5653,6 +5830,7 @@
   {
     "id": 178,
     "name": "Lahore",
+    "name_dev": "लाहौर",
     "constituency": "Lahore Metropolitan",
     "continent": "Asia",
     "pop": 13590000,
@@ -5679,6 +5857,7 @@
   {
     "id": 179,
     "name": "Kasur",
+    "name_dev": "कसूर",
     "constituency": "Kasur–Sheikhupura–Okara",
     "continent": "Asia",
     "pop": 16060000,
@@ -5708,6 +5887,7 @@
   {
     "id": 180,
     "name": "Faisalabad",
+    "name_dev": "फ़ैसलाबाद",
     "constituency": "Faisalabad–Jhang",
     "continent": "Asia",
     "pop": 16930000,
@@ -5736,6 +5916,7 @@
   {
     "id": 181,
     "name": "Gujranwala",
+    "name_dev": "गुजरांवाला",
     "constituency": "Gujranwala–Sialkot",
     "continent": "Asia",
     "pop": 16220000,
@@ -5765,6 +5946,7 @@
   {
     "id": 182,
     "name": "Potohar",
+    "name_dev": "पोठोहार",
     "constituency": "Rawalpindi–Islamabad–Potohar–Azad Kashmir",
     "continent": "Asia",
     "pop": 14530000,
@@ -5799,6 +5981,7 @@
   {
     "id": 183,
     "name": "Multan",
+    "name_dev": "मुल्तान",
     "constituency": "Multan–South Punjab",
     "continent": "Asia",
     "pop": 17870000,
@@ -5829,6 +6012,7 @@
   {
     "id": 184,
     "name": "Bahawalpur",
+    "name_dev": "बहावलपुर",
     "constituency": "Bahawalpur–Cholistan",
     "continent": "Asia",
     "pop": 14040000,
@@ -5857,6 +6041,7 @@
   {
     "id": 185,
     "name": "Sargodha",
+    "name_dev": "सरगोधा",
     "constituency": "Sargodha–Mianwali",
     "continent": "Asia",
     "pop": 13350000,
@@ -5888,6 +6073,7 @@
   {
     "id": 186,
     "name": "Dera Ghazi Khan",
+    "name_dev": "डेरा ग़ाज़ी ख़ान",
     "constituency": "Dera Ghazi Khan–West Punjab",
     "continent": "Asia",
     "pop": 13620000,
@@ -5917,6 +6103,7 @@
   {
     "id": 187,
     "name": "Peshawar",
+    "name_dev": "पेशावर",
     "constituency": "Peshawar–Mardan",
     "continent": "Asia",
     "pop": 14380000,
@@ -5948,6 +6135,7 @@
   {
     "id": 188,
     "name": "Hazara",
+    "name_dev": "हज़ारा",
     "constituency": "Hazara–Malakand–Gilgit-Baltistan",
     "continent": "Asia",
     "pop": 14350000,
@@ -5984,6 +6172,7 @@
   {
     "id": 189,
     "name": "Waziristan",
+    "name_dev": "वज़ीरिस्तान",
     "constituency": "Southern & Tribal Khyber Pakhtunkhwa–Waziristan",
     "continent": "Asia",
     "pop": 13860000,
@@ -6023,6 +6212,7 @@
   {
     "id": 190,
     "name": "Balochistan",
+    "name_dev": "बलोचिस्तान",
     "constituency": "Balochistan–Quetta–Makran",
     "continent": "Asia",
     "pop": 15570000,
@@ -6047,6 +6237,7 @@
   {
     "id": 191,
     "name": "Dhaka City",
+    "name_dev": "ढाका शहर",
     "constituency": "Dhaka City District",
     "continent": "Asia",
     "pop": 15770000,
@@ -6073,6 +6264,7 @@
   {
     "id": 192,
     "name": "Dhaka Outer",
+    "name_dev": "ढाका बाहरी",
     "constituency": "Narayanganj–Faridpur–Padma Basin",
     "continent": "Asia",
     "pop": 15620000,
@@ -6113,6 +6305,7 @@
   {
     "id": 193,
     "name": "Gazipur",
+    "name_dev": "गाज़ीपुर",
     "constituency": "Gazipur–Tangail–Narsingdi",
     "continent": "Asia",
     "pop": 14390000,
@@ -6142,6 +6335,7 @@
   {
     "id": 194,
     "name": "Mymensingh",
+    "name_dev": "मयमनसिंह",
     "constituency": "Mymensingh–Brahmaputra–Kishoreganj",
     "continent": "Asia",
     "pop": 16580000,
@@ -6173,6 +6367,7 @@
   {
     "id": 195,
     "name": "Chattogram",
+    "name_dev": "चट्टग्राम",
     "constituency": "Chattogram–Hill Tracts–Cox’s Bazar",
     "continent": "Asia",
     "pop": 16570000,
@@ -6204,6 +6399,7 @@
   {
     "id": 196,
     "name": "Jashore",
+    "name_dev": "जशोर",
     "constituency": "Jashore–Kushtia–Pabna",
     "continent": "Asia",
     "pop": 16270000,
@@ -6242,6 +6438,7 @@
   {
     "id": 197,
     "name": "Cumilla",
+    "name_dev": "कुमिल्ला",
     "constituency": "Cumilla–Noakhali",
     "continent": "Asia",
     "pop": 15430000,
@@ -6271,6 +6468,7 @@
   {
     "id": 198,
     "name": "Sylhet",
+    "name_dev": "सिलहट",
     "constituency": "Sylhet–Surma Valley–Brahmanbaria",
     "continent": "Asia",
     "pop": 15350000,
@@ -6302,6 +6500,7 @@
   {
     "id": 199,
     "name": "Rajshahi",
+    "name_dev": "राजशाही",
     "constituency": "Rajshahi–Barind–Bogura",
     "continent": "Asia",
     "pop": 17820000,
@@ -6340,6 +6539,7 @@
   {
     "id": 200,
     "name": "Rangpur",
+    "name_dev": "रंगपुर",
     "constituency": "Rangpur–Northern Bengal",
     "continent": "Asia",
     "pop": 17180000,
@@ -6372,6 +6572,7 @@
   {
     "id": 201,
     "name": "Ganges Delta",
+    "name_dev": "गंगा डेल्टा",
     "constituency": "Khulna–Barishal Delta",
     "continent": "Asia",
     "pop": 16620000,
@@ -6405,6 +6606,7 @@
   {
     "id": 202,
     "name": "Nepal East",
+    "name_dev": "पूर्वी नेपाल",
     "constituency": "Kathmandu–Bagmati–Koshi–Eastern Madhesh",
     "continent": "Asia",
     "pop": 14980000,
@@ -6458,6 +6660,7 @@
   {
     "id": 203,
     "name": "Nepal West",
+    "name_dev": "पश्चिमी नेपाल",
     "constituency": "Terai–Pokhara–Western Hills",
     "continent": "Asia",
     "pop": 15630000,
@@ -6513,6 +6716,7 @@
   {
     "id": 204,
     "name": "Kabul",
+    "name_dev": "काबुल",
     "constituency": "Kabul–Eastern Highlands",
     "continent": "Asia",
     "pop": 15100000,
@@ -6587,6 +6791,7 @@
   {
     "id": 205,
     "name": "Kandahar",
+    "name_dev": "कंधार",
     "constituency": "Kandahar–Helmand–Herat",
     "continent": "Asia",
     "pop": 14200000,
@@ -6666,6 +6871,7 @@
   {
     "id": 206,
     "name": "Mazar-i-Sharif",
+    "name_dev": "मज़ार-ए-शरीफ़",
     "constituency": "Northern Afghanistan–Balkh",
     "continent": "Asia",
     "pop": 14700000,
@@ -6740,6 +6946,7 @@
   {
     "id": 207,
     "name": "Colombo",
+    "name_dev": "कोलंबो",
     "constituency": "Colombo–Western Sri Lanka",
     "continent": "Asia",
     "pop": 12030000,
@@ -6780,6 +6987,7 @@
   {
     "id": 208,
     "name": "Kandy",
+    "name_dev": "कैंडी",
     "constituency": "Kandy",
     "continent": "Asia",
     "pop": 11570000,
@@ -6829,6 +7037,7 @@
   {
     "id": 209,
     "name": "Jakarta",
+    "name_dev": "जकार्ता",
     "constituency": "Jakarta–Tangerang",
     "continent": "Asia",
     "pop": 17780000,
@@ -6862,6 +7071,7 @@
   {
     "id": 210,
     "name": "Bogor",
+    "name_dev": "बोगोर",
     "constituency": "Bogor–Depok–Sukabumi–Cianjur",
     "continent": "Asia",
     "pop": 15020000,
@@ -6893,6 +7103,7 @@
   {
     "id": 211,
     "name": "Bandung",
+    "name_dev": "बांडुंग",
     "constituency": "Greater Bandung–Priangan",
     "continent": "Asia",
     "pop": 17710000,
@@ -6929,6 +7140,7 @@
   {
     "id": 212,
     "name": "Bekasi",
+    "name_dev": "बेकासी",
     "constituency": "Bekasi–Karawang–Purwakarta–Subang",
     "continent": "Asia",
     "pop": 13360000,
@@ -6960,6 +7172,7 @@
   {
     "id": 213,
     "name": "Cirebon",
+    "name_dev": "चिरेबोन",
     "constituency": "Cirebon–Tegal–Banyumas",
     "continent": "Asia",
     "pop": 17980000,
@@ -7004,6 +7217,7 @@
   {
     "id": 214,
     "name": "Semarang",
+    "name_dev": "सेमारांग",
     "constituency": "Semarang–Pekalongan–Magelang–Kudus",
     "continent": "Asia",
     "pop": 18130000,
@@ -7048,6 +7262,7 @@
   {
     "id": 215,
     "name": "Yogyakarta–Surakarta",
+    "name_dev": "योग्यकर्ता–सुरकर्ता",
     "constituency": "Surakarta–Yogyakarta–Mataraman",
     "continent": "Asia",
     "pop": 17600000,
@@ -7099,6 +7314,7 @@
   {
     "id": 216,
     "name": "Surabaya",
+    "name_dev": "सुराबाया",
     "constituency": "Surabaya–North East Java–Madura",
     "continent": "Asia",
     "pop": 17270000,
@@ -7137,6 +7353,7 @@
   {
     "id": 217,
     "name": "Malang",
+    "name_dev": "मलंग",
     "constituency": "Malang–South East Java–Tapal Kuda",
     "continent": "Asia",
     "pop": 18160000,
@@ -7179,6 +7396,7 @@
   {
     "id": 218,
     "name": "Medan",
+    "name_dev": "मेदान",
     "constituency": "Aceh–Medan–North Sumatra",
     "continent": "Asia",
     "pop": 19710000,
@@ -7237,6 +7455,7 @@
   {
     "id": 219,
     "name": "Riau–Minangkabau",
+    "name_dev": "रियाउ–मिनांगकाबाउ",
     "constituency": "Riau–Riau Islands–West Sumatra–Mandailing",
     "continent": "Asia",
     "pop": 16640000,
@@ -7282,6 +7501,7 @@
   {
     "id": 220,
     "name": "Palembang–Jambi",
+    "name_dev": "पालेमबांग–जांबी",
     "constituency": "South Sumatra–Jambi–Bengkulu–Bangka Belitung",
     "continent": "Asia",
     "pop": 16480000,
@@ -7321,6 +7541,7 @@
   {
     "id": 221,
     "name": "Lampung–Banten",
+    "name_dev": "लमपुंग–बैंटन",
     "constituency": "Lampung–Banten (Sunda Strait)",
     "continent": "Asia",
     "pop": 15290000,
@@ -7356,6 +7577,7 @@
   {
     "id": 222,
     "name": "Kalimantan",
+    "name_dev": "कालीमंतन",
     "constituency": "Kalimantan–Borneo (Indonesian)",
     "continent": "Asia",
     "pop": 18010000,
@@ -7400,6 +7622,7 @@
   {
     "id": 223,
     "name": "Sulawesi",
+    "name_dev": "सुलावेसी",
     "constituency": "Makassar–Central Sulawesi",
     "continent": "Asia",
     "pop": 17180000,
@@ -7439,6 +7662,7 @@
   {
     "id": 224,
     "name": "Lesser Sundas",
+    "name_dev": "लघु सुंडा द्वीप",
     "constituency": "Bali–Nusa Tenggara–Timor-Leste",
     "continent": "Asia",
     "pop": 17340000,
@@ -7479,6 +7703,7 @@
   {
     "id": 225,
     "name": "Papua–Maluku",
+    "name_dev": "पापुआ–मालुकु",
     "constituency": "Maluku–Papua–North Sulawesi–Gorontalo",
     "continent": "Asia",
     "pop": 13500000,
@@ -7548,6 +7773,7 @@
   {
     "id": 226,
     "name": "Manila North",
+    "name_dev": "उत्तरी मनीला",
     "constituency": "Metro Manila North-Bulacan-Pampanga",
     "continent": "Asia",
     "pop": 16720000,
@@ -7588,6 +7814,7 @@
   {
     "id": 227,
     "name": "Manila South",
+    "name_dev": "दक्षिणी मनीला",
     "constituency": "Metro Manila South-Cavite-Laguna-Rizal",
     "continent": "Asia",
     "pop": 18050000,
@@ -7633,6 +7860,7 @@
   {
     "id": 228,
     "name": "Eastern Visayas-N Mindanao",
+    "name_dev": "पूर्वी विसाया–उत्तरी मिंडानाओ",
     "constituency": "Eastern Visayas-Northern Mindanao-Caraga-Zamboanga",
     "continent": "Asia",
     "pop": 17530000,
@@ -7672,6 +7900,7 @@
   {
     "id": 229,
     "name": "Northern Luzon",
+    "name_dev": "उत्तरी लुज़ोन",
     "constituency": "Northern Luzon-Ilocos-Cagayan-Nueva Ecija",
     "continent": "Asia",
     "pop": 16730000,
@@ -7716,6 +7945,7 @@
   {
     "id": 230,
     "name": "Bicol",
+    "name_dev": "बिकोल",
     "constituency": "Southern Luzon-Bicol-Mimaropa",
     "continent": "Asia",
     "pop": 15580000,
@@ -7753,6 +7983,7 @@
   {
     "id": 231,
     "name": "Visayas",
+    "name_dev": "विसाया",
     "constituency": "Western and Central Visayas (Panay-Negros-Cebu-Bohol)",
     "continent": "Asia",
     "pop": 17300000,
@@ -7782,6 +8013,7 @@
   {
     "id": 232,
     "name": "Mindanao",
+    "name_dev": "मिंडानाओ",
     "constituency": "Mindanao-Davao-Cotabato-BARMM",
     "continent": "Asia",
     "pop": 15690000,
@@ -7816,6 +8048,7 @@
   {
     "id": 233,
     "name": "Hanoi",
+    "name_dev": "हनोई",
     "constituency": "Hanoi-Red River Core-Northern Highlands",
     "continent": "Asia",
     "pop": 16710000,
@@ -7880,6 +8113,7 @@
   {
     "id": 234,
     "name": "Red River Delta",
+    "name_dev": "लाल नदी डेल्टा",
     "constituency": "Hai Phong-Red River Delta-Northeast",
     "continent": "Asia",
     "pop": 15990000,
@@ -7954,6 +8188,7 @@
   {
     "id": 235,
     "name": "Thanh Hoa",
+    "name_dev": "थान होआ",
     "constituency": "Thanh Hoa-North Central Coast-Northwest",
     "continent": "Asia",
     "pop": 16370000,
@@ -8028,6 +8263,7 @@
   {
     "id": 236,
     "name": "Da Nang-Highlands",
+    "name_dev": "दा नांग–उच्चभूमि",
     "constituency": "Da Nang-South Central Coast-Central Highlands",
     "continent": "Asia",
     "pop": 17050000,
@@ -8117,6 +8353,7 @@
   {
     "id": 237,
     "name": "Saigon",
+    "name_dev": "सायगॉन",
     "constituency": "Ho Chi Minh City-Dong Nai-Binh Duong-Tay Ninh",
     "continent": "Asia",
     "pop": 18160000,
@@ -8161,6 +8398,7 @@
   {
     "id": 238,
     "name": "Mekong Delta",
+    "name_dev": "मेकांग डेल्टा",
     "constituency": "Mekong Delta-Can Tho",
     "continent": "Asia",
     "pop": 17820000,
@@ -8245,6 +8483,7 @@
   {
     "id": 239,
     "name": "Bangkok",
+    "name_dev": "बैंकॉक",
     "constituency": "Bangkok Metropolitan Region-Central Plains",
     "continent": "Asia",
     "pop": 14880000,
@@ -8324,6 +8563,7 @@
   {
     "id": 240,
     "name": "Chiang Mai",
+    "name_dev": "चियांग माई",
     "constituency": "Northern Thailand-Chao Phraya Plain",
     "continent": "Asia",
     "pop": 15300000,
@@ -8448,6 +8688,7 @@
   {
     "id": 241,
     "name": "East-Lower Isan",
+    "name_dev": "पूर्वी–निचला इसान",
     "constituency": "Eastern Seaboard-Pattaya-Lower Isan",
     "continent": "Asia",
     "pop": 18900000,
@@ -8547,6 +8788,7 @@
   {
     "id": 242,
     "name": "Southern Thailand",
+    "name_dev": "दक्षिणी थाईलैंड",
     "constituency": "Southern Peninsula-Andaman-West",
     "continent": "Asia",
     "pop": 13270000,
@@ -8656,6 +8898,7 @@
   {
     "id": 243,
     "name": "Isan-Laos",
+    "name_dev": "इसान–लाओस",
     "constituency": "Upper Isan-Mekong-Laos",
     "continent": "Asia",
     "pop": 17250000,
@@ -8731,6 +8974,7 @@
   {
     "id": 244,
     "name": "Yangon",
+    "name_dev": "यांगून",
     "constituency": "Yangon-Bago-Southeast",
     "continent": "Asia",
     "pop": 18500000,
@@ -8775,6 +9019,7 @@
   {
     "id": 245,
     "name": "Mandalay",
+    "name_dev": "मांडले",
     "constituency": "Mandalay-Magway-Ayeyarwady-Naypyitaw",
     "continent": "Asia",
     "pop": 18600000,
@@ -8819,6 +9064,7 @@
   {
     "id": 246,
     "name": "Irrawaddy–Arakan",
+    "name_dev": "इरावदी–अराकान",
     "constituency": "Shan-Sagaing-Kachin-Rakhine",
     "continent": "Asia",
     "pop": 18100000,
@@ -8863,6 +9109,7 @@
   {
     "id": 247,
     "name": "Cambodia",
+    "name_dev": "कंबोडिया",
     "constituency": "Cambodia-Khmer Heartland",
     "continent": "Asia",
     "pop": 18100000,
@@ -8881,6 +9128,7 @@
   {
     "id": 248,
     "name": "Malaya West",
+    "name_dev": "पश्चिमी मलाया",
     "constituency": "North and West Coast Peninsular Malaysia",
     "continent": "Asia",
     "pop": 17290000,
@@ -8935,6 +9183,7 @@
   {
     "id": 249,
     "name": "Malaya East",
+    "name_dev": "पूर्वी मलाया",
     "constituency": "Johor-Singapore-East Coast",
     "continent": "Asia",
     "pop": 18210000,
@@ -8990,6 +9239,7 @@
   {
     "id": 250,
     "name": "North Borneo",
+    "name_dev": "उत्तरी बोर्नियो",
     "constituency": "Sarawak-Sabah-Labuan-Brunei",
     "continent": "Asia",
     "pop": 7170000,
@@ -9030,6 +9280,7 @@
   {
     "id": 251,
     "name": "Hokkaido–Tohoku",
+    "name_dev": "होक्काइदो–तोहोकू",
     "constituency": "Hokkaido–Tohoku–Niigata",
     "continent": "Asia",
     "pop": 15170000,
@@ -9089,6 +9340,7 @@
   {
     "id": 252,
     "name": "North Kanto–Saitama",
+    "name_dev": "उत्तरी कांतो–सइतामा",
     "constituency": "North Kanto–Saitama",
     "continent": "Asia",
     "pop": 13760000,
@@ -9128,6 +9380,7 @@
   {
     "id": 253,
     "name": "Tokyo",
+    "name_dev": "टोक्यो",
     "constituency": "Tokyo Metropolis",
     "continent": "Asia",
     "pop": 14040000,
@@ -9152,6 +9405,7 @@
   {
     "id": 254,
     "name": "Kanagawa–Chiba",
+    "name_dev": "कानागावा–चिबा",
     "constituency": "Kanagawa–Chiba (Tokyo Bay)",
     "continent": "Asia",
     "pop": 15370000,
@@ -9181,6 +9435,7 @@
   {
     "id": 255,
     "name": "Chubu",
+    "name_dev": "चूबू",
     "constituency": "Chubu–Hokuriku–Nagoya",
     "continent": "Asia",
     "pop": 18360000,
@@ -9240,6 +9495,7 @@
   {
     "id": 256,
     "name": "Kansai",
+    "name_dev": "कंसाई",
     "constituency": "Kansai–Osaka–Kyoto",
     "continent": "Asia",
     "pop": 16390000,
@@ -9289,6 +9545,7 @@
   {
     "id": 257,
     "name": "Chugoku–Shikoku",
+    "name_dev": "चूगोकू–शिकोकू",
     "constituency": "Hyogo–Chugoku–Shikoku",
     "continent": "Asia",
     "pop": 15760000,
@@ -9358,6 +9615,7 @@
   {
     "id": 258,
     "name": "Kyushu–Okinawa",
+    "name_dev": "क्यूशू–ओकिनावा",
     "constituency": "Kyushu–Okinawa",
     "continent": "Asia",
     "pop": 13840000,
@@ -9417,6 +9675,7 @@
   {
     "id": 259,
     "name": "Seoul–Incheon",
+    "name_dev": "सियोल–इंचियोन",
     "constituency": "Seoul–Incheon–NW Gyeonggi",
     "continent": "Asia",
     "pop": 17310000,
@@ -9463,6 +9722,7 @@
   {
     "id": 260,
     "name": "Sejong",
+    "name_dev": "सेजोंग",
     "constituency": "Gyeonggi South–Gangwon–Chungcheong",
     "continent": "Asia",
     "pop": 16170000,
@@ -9533,6 +9793,7 @@
   {
     "id": 261,
     "name": "Busan-Jeju",
+    "name_dev": "बुसान–जेजू",
     "constituency": "Yeongnam–Honam–Jeju",
     "continent": "Asia",
     "pop": 18220000,
@@ -9597,6 +9858,7 @@
   {
     "id": 262,
     "name": "DPRK West",
+    "name_dev": "उत्तर कोरिया पश्चिम",
     "constituency": "Pyongyang–Pyongan–Chagang",
     "continent": "Asia",
     "pop": 12900000,
@@ -9641,6 +9903,7 @@
   {
     "id": 263,
     "name": "DPRK East",
+    "name_dev": "उत्तर कोरिया पूर्व",
     "constituency": "Hwanghae–Kangwon–Hamgyong",
     "continent": "Asia",
     "pop": 13800000,
@@ -9700,6 +9963,7 @@
   {
     "id": 264,
     "name": "Istanbul",
+    "name_dev": "इस्तांबुल",
     "constituency": "Istanbul European Shore-Thrace-South Marmara",
     "continent": "Asia",
     "pop": 17800000,
@@ -9739,6 +10003,7 @@
   {
     "id": 265,
     "name": "Ankara",
+    "name_dev": "अंकारा",
     "constituency": "Istanbul Anatolian Shore-East Marmara-Ankara",
     "continent": "Asia",
     "pop": 18330000,
@@ -9828,6 +10093,7 @@
   {
     "id": 266,
     "name": "Antalya–Izmir",
+    "name_dev": "अंताल्या–इज़मीर",
     "constituency": "Aegean-Izmir-Antalya-Konya",
     "continent": "Asia",
     "pop": 17190000,
@@ -9907,6 +10173,7 @@
   {
     "id": 267,
     "name": "Gaziantep",
+    "name_dev": "गाज़ियांतेप",
     "constituency": "Cukurova-Southeast Anatolia",
     "continent": "Asia",
     "pop": 17640000,
@@ -10001,6 +10268,7 @@
   {
     "id": 268,
     "name": "Eastern Anatolia",
+    "name_dev": "पूर्वी अनातोलिया",
     "constituency": "Black Sea-Cappadocia-Eastern Anatolia",
     "continent": "Asia",
     "pop": 16940000,
@@ -10200,6 +10468,7 @@
   {
     "id": 269,
     "name": "Tehran",
+    "name_dev": "तेहरान",
     "constituency": "Tehran-Alborz",
     "continent": "Asia",
     "pop": 18430000,
@@ -10229,6 +10498,7 @@
   {
     "id": 270,
     "name": "Isfahan-Khuzestan",
+    "name_dev": "इस्फ़हान–ख़ूज़ेस्तान",
     "constituency": "Isfahan-Zagros-Khuzestan",
     "continent": "Asia",
     "pop": 19030000,
@@ -10283,6 +10553,7 @@
   {
     "id": 271,
     "name": "South Iran",
+    "name_dev": "दक्षिणी ईरान",
     "constituency": "Fars-Persian Gulf-Kerman-Sistan",
     "continent": "Asia",
     "pop": 17980000,
@@ -10337,6 +10608,7 @@
   {
     "id": 272,
     "name": "Khorasan",
+    "name_dev": "ख़ुरासान",
     "constituency": "Khorasan-Semnan-Qom-Mazandaran-Golestan",
     "continent": "Asia",
     "pop": 17550000,
@@ -10391,6 +10663,7 @@
   {
     "id": 273,
     "name": "Northwest Iran",
+    "name_dev": "उत्तर-पश्चिमी ईरान",
     "constituency": "Tabriz-Ardabil-Kurdistan-Gilan",
     "continent": "Asia",
     "pop": 19210000,
@@ -10450,6 +10723,7 @@
   {
     "id": 274,
     "name": "Baghdad",
+    "name_dev": "बग़दाद",
     "constituency": "Baghdad–Diyala–Anbar–Babylon",
     "continent": "Asia",
     "pop": 16560000,
@@ -10489,6 +10763,7 @@
   {
     "id": 275,
     "name": "Basra",
+    "name_dev": "बसरा",
     "constituency": "Basra–Southern Mesopotamia",
     "continent": "Asia",
     "pop": 15550000,
@@ -10548,6 +10823,7 @@
   {
     "id": 276,
     "name": "Upper Tigris",
+    "name_dev": "ऊपरी दजला",
     "constituency": "Mosul–Kurdistan–Upper Tigris",
     "continent": "Asia",
     "pop": 15290000,
@@ -10602,6 +10878,7 @@
   {
     "id": 277,
     "name": "Makkah-Madinah",
+    "name_dev": "मक्का–मदीना",
     "constituency": "Hejaz–Mecca–Medina–Asir–Red Sea",
     "continent": "Asia",
     "pop": 15690000,
@@ -10651,6 +10928,7 @@
   {
     "id": 278,
     "name": "Najd",
+    "name_dev": "नज्द",
     "constituency": "Riyadh–Najd–Northern Arabia",
     "continent": "Asia",
     "pop": 13560000,
@@ -10700,6 +10978,7 @@
   {
     "id": 279,
     "name": "North Yemen",
+    "name_dev": "उत्तरी यमन",
     "constituency": "Sanaa–Northern Yemen",
     "continent": "Asia",
     "pop": 20500000,
@@ -10764,6 +11043,7 @@
   {
     "id": 280,
     "name": "South Yemen",
+    "name_dev": "दक्षिणी यमन",
     "constituency": "Taiz–Aden–Hadramaut–Southern Yemen",
     "continent": "Asia",
     "pop": 21200000,
@@ -10848,6 +11128,7 @@
   {
     "id": 281,
     "name": "Aleppo",
+    "name_dev": "हलब",
     "constituency": "Aleppo–Northern and Central Syria",
     "continent": "Asia",
     "pop": 16000000,
@@ -10902,6 +11183,7 @@
   {
     "id": 282,
     "name": "Levant",
+    "name_dev": "लेवांत",
     "constituency": "Damascus–Southern Syria–Syrian Coast–Lebanon",
     "continent": "Asia",
     "pop": 15300000,
@@ -10962,6 +11244,7 @@
   {
     "id": 283,
     "name": "Jordan",
+    "name_dev": "जॉर्डन",
     "constituency": "Jordan",
     "continent": "Asia",
     "pop": 11800000,
@@ -10980,6 +11263,7 @@
   {
     "id": 284,
     "name": "Israel–Palestine",
+    "name_dev": "इज़राइल–फ़िलिस्तीन",
     "constituency": "Israel–Palestine",
     "continent": "Asia",
     "pop": 15250000,
@@ -11004,6 +11288,7 @@
   {
     "id": 285,
     "name": "Oman–UAE",
+    "name_dev": "ओमान–यूएई",
     "constituency": "Oman–United Arab Emirates",
     "continent": "Asia",
     "pop": 17000000,
@@ -11028,6 +11313,7 @@
   {
     "id": 286,
     "name": "Gulf States",
+    "name_dev": "खाड़ी देश",
     "constituency": "Kuwait–Qatar–Bahrain–Eastern Arabia",
     "continent": "Asia",
     "pop": 15260000,
@@ -11070,6 +11356,7 @@
   {
     "id": 287,
     "name": "Ashgabat",
+    "name_dev": "अश्गाबात",
     "constituency": "Western Kazakhstan–Turkmenistan",
     "continent": "Asia",
     "pop": 14960000,
@@ -11130,6 +11417,7 @@
   {
     "id": 288,
     "name": "Astana–Almaty",
+    "name_dev": "अस्ताना–अल्माती",
     "constituency": "Northern, Central and Eastern Kazakhstan",
     "continent": "Asia",
     "pop": 13240000,
@@ -11214,6 +11502,7 @@
   {
     "id": 289,
     "name": "Tashkent",
+    "name_dev": "ताशकंद",
     "constituency": "Tashkent–Fergana Valley",
     "continent": "Asia",
     "pop": 17830000,
@@ -11263,6 +11552,7 @@
   {
     "id": 290,
     "name": "Samarkand",
+    "name_dev": "समरकंद",
     "constituency": "Samarkand–Western Uzbekistan",
     "continent": "Asia",
     "pop": 19470000,
@@ -11322,6 +11612,7 @@
   {
     "id": 291,
     "name": "Kyrgyzstan–Tajikistan",
+    "name_dev": "किर्गिज़स्तान–ताजिकिस्तान",
     "constituency": "Kyrgyzstan–Tajikistan",
     "continent": "Asia",
     "pop": 18100000,
@@ -11346,6 +11637,7 @@
   {
     "id": 292,
     "name": "South Caucasus",
+    "name_dev": "दक्षिण काकेशस",
     "constituency": "Azerbaijan-Georgia-Armenia",
     "continent": "Asia",
     "pop": 17100000,
@@ -11376,6 +11668,7 @@
   {
     "id": 293,
     "name": "Lagos",
+    "name_dev": "लागोस",
     "constituency": "Lagos State",
     "continent": "Africa",
     "pop": 17200000,
@@ -11400,6 +11693,7 @@
   {
     "id": 294,
     "name": "Abeokuta–Akure",
+    "name_dev": "अबेओकुटा–अकूरे",
     "constituency": "Abeokuta–Akure–Ado-Ekiti",
     "continent": "Africa",
     "pop": 15080000,
@@ -11434,6 +11728,7 @@
   {
     "id": 295,
     "name": "Oyo–Osun",
+    "name_dev": "ओयो–ओसुन",
     "constituency": "Ibadan–Oyo–Osogbo",
     "continent": "Africa",
     "pop": 14120000,
@@ -11463,6 +11758,7 @@
   {
     "id": 296,
     "name": "Ilorin–Lokoja",
+    "name_dev": "इलोरिन–लोकोजा",
     "constituency": "Ilorin–Minna–Lokoja",
     "continent": "Africa",
     "pop": 16200000,
@@ -11497,6 +11793,7 @@
   {
     "id": 297,
     "name": "Jos–Makurdi",
+    "name_dev": "जोस–मकुर्दी",
     "constituency": "Benue–Plateau–Taraba–Nasarawa",
     "continent": "Africa",
     "pop": 20400000,
@@ -11536,6 +11833,7 @@
   {
     "id": 298,
     "name": "Edumanom",
+    "name_dev": "एदुमानोम",
     "constituency": "Benin City–Warri–Yenagoa",
     "continent": "Africa",
     "pop": 14200000,
@@ -11570,6 +11868,7 @@
   {
     "id": 299,
     "name": "Port Harcourt",
+    "name_dev": "पोर्ट हारकोर्ट",
     "constituency": "Port Harcourt–Uyo",
     "continent": "Africa",
     "pop": 14280000,
@@ -11599,6 +11898,7 @@
   {
     "id": 300,
     "name": "Owerri–Calabar",
+    "name_dev": "ओवेरी–कैलाबार",
     "constituency": "Owerri–Umuahia–Calabar",
     "continent": "Africa",
     "pop": 15160000,
@@ -11633,6 +11933,7 @@
   {
     "id": 301,
     "name": "Enugu–Onitsha",
+    "name_dev": "एनुगु–ओनित्शा",
     "constituency": "Enugu–Abakaliki–Onitsha",
     "continent": "Africa",
     "pop": 15100000,
@@ -11667,6 +11968,7 @@
   {
     "id": 302,
     "name": "Bauchi–Gombe",
+    "name_dev": "बाउची–गोम्बे",
     "constituency": "Bauchi–Gombe–Jigawa",
     "continent": "Africa",
     "pop": 20000000,
@@ -11701,6 +12003,7 @@
   {
     "id": 303,
     "name": "Maiduguri–Yola",
+    "name_dev": "मैदुगुरी–योला",
     "constituency": "Borno–Yobe–Adamawa",
     "continent": "Africa",
     "pop": 17000000,
@@ -11735,6 +12038,7 @@
   {
     "id": 304,
     "name": "Abuja–Kaduna",
+    "name_dev": "अबुजा–कादुना",
     "constituency": "Abuja–Kaduna",
     "continent": "Africa",
     "pop": 14100000,
@@ -11764,6 +12068,7 @@
   {
     "id": 305,
     "name": "Kano",
+    "name_dev": "कानो",
     "constituency": "Kano",
     "continent": "Africa",
     "pop": 16810000,
@@ -11788,6 +12093,7 @@
   {
     "id": 306,
     "name": "Katsina–Zamfara",
+    "name_dev": "कत्सिना–ज़ामफ़ारा",
     "constituency": "Katsina–Gusau",
     "continent": "Africa",
     "pop": 16240000,
@@ -11817,6 +12123,7 @@
   {
     "id": 307,
     "name": "Sokoto–Kebbi",
+    "name_dev": "सोकोटो–केब्बी",
     "constituency": "Sokoto–Birnin Kebbi",
     "continent": "Africa",
     "pop": 12440000,
@@ -11846,6 +12153,7 @@
   {
     "id": 308,
     "name": "Ontario",
+    "name_dev": "ओंटारियो",
     "constituency": "Ontario",
     "continent": "North America",
     "pop": 14500000,
@@ -11881,6 +12189,7 @@
   {
     "id": 309,
     "name": "Addis Ababa",
+    "name_dev": "अदीस अबाबा",
     "constituency": "Addis Ababa–Shewa",
     "continent": "Africa",
     "pop": 16800000,
@@ -11922,6 +12231,7 @@
   {
     "id": 310,
     "name": "Arsi–Bale",
+    "name_dev": "अरसी–बाले",
     "constituency": "East Shewa–Arsi–Bale–Borena",
     "continent": "Africa",
     "pop": 17600000,
@@ -11953,6 +12263,7 @@
   {
     "id": 311,
     "name": "Hararghe",
+    "name_dev": "हरारगे",
     "constituency": "Eastern Oromia–Hararghe–Somali",
     "continent": "Africa",
     "pop": 17200000,
@@ -11995,6 +12306,7 @@
   {
     "id": 312,
     "name": "Jimma",
+    "name_dev": "जिम्मा",
     "constituency": "Jimma–Gurage–Southwest Ethiopia",
     "continent": "Africa",
     "pop": 15900000,
@@ -12038,6 +12350,7 @@
   {
     "id": 313,
     "name": "Gondar",
+    "name_dev": "गोंदर",
     "constituency": "Amhara–Gondar–Wollo",
     "continent": "Africa",
     "pop": 14700000,
@@ -12067,6 +12380,7 @@
   {
     "id": 314,
     "name": "Bahir Dar",
+    "name_dev": "बहिर दार",
     "constituency": "Amhara–Gojjam–Bahir Dar",
     "continent": "Africa",
     "pop": 16000000,
@@ -12096,6 +12410,7 @@
   {
     "id": 315,
     "name": "Northern Horn",
+    "name_dev": "उत्तरी हॉर्न",
     "constituency": "Tigray–Afar–Eritrea–Djibouti",
     "continent": "Africa",
     "pop": 15700000,
@@ -12137,6 +12452,7 @@
   {
     "id": 316,
     "name": "Wollega",
+    "name_dev": "वोल्लेगा",
     "constituency": "Wollega–Benishangul–Gambela",
     "continent": "Africa",
     "pop": 14900000,
@@ -12178,6 +12494,7 @@
   {
     "id": 317,
     "name": "Southern Ethiopia",
+    "name_dev": "दक्षिणी इथियोपिया",
     "constituency": "Southern Ethiopia–Sidama–Wolayita–Gamo",
     "continent": "Africa",
     "pop": 15000000,
@@ -12210,6 +12527,7 @@
   {
     "id": 318,
     "name": "Cairo East",
+    "name_dev": "पूर्वी काहिरा",
     "constituency": "Cairo East",
     "continent": "Africa",
     "pop": 15790000,
@@ -12259,6 +12577,7 @@
   {
     "id": 319,
     "name": "Cairo West",
+    "name_dev": "पश्चिमी काहिरा",
     "constituency": "Greater Cairo West (Giza–Qalyubia)",
     "continent": "Africa",
     "pop": 18390000,
@@ -12288,6 +12607,7 @@
   {
     "id": 320,
     "name": "Alexandria",
+    "name_dev": "अलेक्ज़ेंड्रिया",
     "constituency": "Alexandria–Nile Delta West",
     "continent": "Africa",
     "pop": 14620000,
@@ -12322,6 +12642,7 @@
   {
     "id": 321,
     "name": "Mansoura",
+    "name_dev": "मंसूरा",
     "constituency": "Mansoura–Nile Delta East",
     "continent": "Africa",
     "pop": 18510000,
@@ -12356,6 +12677,7 @@
   {
     "id": 322,
     "name": "Tanta",
+    "name_dev": "तंता",
     "constituency": "Tanta–Central Nile Delta",
     "continent": "Africa",
     "pop": 15650000,
@@ -12390,6 +12712,7 @@
   {
     "id": 323,
     "name": "Faiyum",
+    "name_dev": "फ़ैयूम",
     "constituency": "Faiyum–Middle Egypt",
     "continent": "Africa",
     "pop": 15310000,
@@ -12424,6 +12747,7 @@
   {
     "id": 324,
     "name": "Upper Egypt",
+    "name_dev": "ऊपरी मिस्र",
     "constituency": "Upper Egypt–Aswan–Red Sea",
     "continent": "Africa",
     "pop": 19730000,
@@ -12478,6 +12802,7 @@
   {
     "id": 325,
     "name": "Kinshasa",
+    "name_dev": "किंशासा",
     "constituency": "Kinshasa Metropolitan",
     "continent": "Africa",
     "pop": 17200000,
@@ -12502,6 +12827,7 @@
   {
     "id": 326,
     "name": "Kongo Central",
+    "name_dev": "कोंगो सेंट्रल",
     "constituency": "Kongo Central–Kwango–Kwilu",
     "continent": "Africa",
     "pop": 14700000,
@@ -12536,6 +12862,7 @@
   {
     "id": 327,
     "name": "Kasai",
+    "name_dev": "कसाई",
     "constituency": "Kasai–Kananga",
     "continent": "Africa",
     "pop": 17500000,
@@ -12580,6 +12907,7 @@
   {
     "id": 328,
     "name": "Ubangi",
+    "name_dev": "उबांगी",
     "constituency": "Equateur–Ubangi–Mai-Ndombe",
     "continent": "Africa",
     "pop": 14900000,
@@ -12629,6 +12957,7 @@
   {
     "id": 329,
     "name": "Kisangani",
+    "name_dev": "किसांगानी",
     "constituency": "Kisangani–Tshopo–Uele–Ituri",
     "continent": "Africa",
     "pop": 15200000,
@@ -12673,6 +13002,7 @@
   {
     "id": 330,
     "name": "Kivu",
+    "name_dev": "कीवू",
     "constituency": "Kivu–Goma–Bukavu",
     "continent": "Africa",
     "pop": 19200000,
@@ -12702,6 +13032,7 @@
   {
     "id": 331,
     "name": "Katanga",
+    "name_dev": "कटंगा",
     "constituency": "Katanga–Lubumbashi",
     "continent": "Africa",
     "pop": 17800000,
@@ -12741,6 +13072,7 @@
   {
     "id": 332,
     "name": "Dar es Salaam",
+    "name_dev": "दार एस सलाम",
     "constituency": "Dar es Salaam–Pwani–Zanzibar–Swahili Coast",
     "continent": "Africa",
     "pop": 17290000,
@@ -12810,6 +13142,7 @@
   {
     "id": 333,
     "name": "Arusha–Mwanza",
+    "name_dev": "अरुशा–मवांज़ा",
     "constituency": "Arusha–Kilimanjaro–Manyara–Mwanza–Mara–Simiyu",
     "continent": "Africa",
     "pop": 16800000,
@@ -12859,6 +13192,7 @@
   {
     "id": 334,
     "name": "Dodoma",
+    "name_dev": "डोडोमा",
     "constituency": "Dodoma–Morogoro–Southern Highlands",
     "continent": "Africa",
     "pop": 19460000,
@@ -12918,6 +13252,7 @@
   {
     "id": 335,
     "name": "Western Tanzania",
+    "name_dev": "पश्चिमी तंज़ानिया",
     "constituency": "Western Tanzania–Kagera–Tabora–Kigoma",
     "continent": "Africa",
     "pop": 18850000,
@@ -12967,6 +13302,7 @@
   {
     "id": 336,
     "name": "Nairobi",
+    "name_dev": "नैरोबी",
     "constituency": "Nairobi–Mount Kenya (Central Highlands)",
     "continent": "Africa",
     "pop": 15360000,
@@ -13031,6 +13367,7 @@
   {
     "id": 337,
     "name": "Mombasa",
+    "name_dev": "मोम्बासा",
     "constituency": "Coast–Lower Eastern–North Eastern Kenya",
     "continent": "Africa",
     "pop": 13710000,
@@ -13120,6 +13457,7 @@
   {
     "id": 338,
     "name": "Rift Valley",
+    "name_dev": "रिफ़्ट वैली",
     "constituency": "Rift Valley–Nakuru–Eldoret–Kajiado",
     "continent": "Africa",
     "pop": 15770000,
@@ -13209,6 +13547,7 @@
   {
     "id": 339,
     "name": "Western Kenya",
+    "name_dev": "पश्चिमी केन्या",
     "constituency": "Western–Nyanza (Lake Victoria)",
     "continent": "Africa",
     "pop": 13960000,
@@ -13278,6 +13617,7 @@
   {
     "id": 340,
     "name": "Gauteng",
+    "name_dev": "गाउटेंग",
     "constituency": "Gauteng–Johannesburg–North West",
     "continent": "Africa",
     "pop": 19500000,
@@ -13307,6 +13647,7 @@
   {
     "id": 341,
     "name": "KwaZulu–Lesotho",
+    "name_dev": "क्वाज़ुलु–लेसोथो",
     "constituency": "KwaZulu-Natal–Lesotho–Eswatini",
     "continent": "Africa",
     "pop": 16470000,
@@ -13343,6 +13684,7 @@
   {
     "id": 342,
     "name": "Cape Of Good Hope",
+    "name_dev": "केप ऑफ़ गुड होप",
     "constituency": "Western Cape–Eastern Cape–Free State",
     "continent": "Africa",
     "pop": 18190000,
@@ -13383,6 +13725,7 @@
   {
     "id": 343,
     "name": "Kalahari–Kruger",
+    "name_dev": "कालाहारी–क्रूगर",
     "constituency": "Limpopo–Mpumalanga–Northern Cape–Botswana–Namibia",
     "continent": "Africa",
     "pop": 19230000,
@@ -13429,6 +13772,7 @@
   {
     "id": 344,
     "name": "Khartoum",
+    "name_dev": "ख़ार्तूम",
     "constituency": "Khartoum–Nile Valley",
     "continent": "Africa",
     "pop": 12100000,
@@ -13463,6 +13807,7 @@
   {
     "id": 345,
     "name": "Darfur",
+    "name_dev": "दारफ़ुर",
     "constituency": "Darfur–Western Sudan",
     "continent": "Africa",
     "pop": 13800000,
@@ -13502,6 +13847,7 @@
   {
     "id": 346,
     "name": "Kordofan",
+    "name_dev": "कोर्दोफ़ान",
     "constituency": "Kordofan–White Nile–Blue Nile",
     "continent": "Africa",
     "pop": 14300000,
@@ -13561,6 +13907,7 @@
   {
     "id": 347,
     "name": "Gezira",
+    "name_dev": "गेज़ीरा",
     "constituency": "Gezira–Red Sea–Eastern Sudan",
     "continent": "Africa",
     "pop": 13100000,
@@ -13600,6 +13947,7 @@
   {
     "id": 348,
     "name": "Kampala",
+    "name_dev": "कंपाला",
     "constituency": "Kampala–Buganda–Busoga",
     "continent": "Africa",
     "pop": 19940000,
@@ -13642,6 +13990,7 @@
   {
     "id": 349,
     "name": "North-Eastern Uganda",
+    "name_dev": "उत्तर-पूर्वी युगांडा",
     "constituency": "Eastern (Bukedi–Elgon–Teso)–Lango–Acholi–Karamoja",
     "continent": "Africa",
     "pop": 15100000,
@@ -13724,6 +14073,7 @@
   {
     "id": 350,
     "name": "Western Uganda",
+    "name_dev": "पश्चिमी युगांडा",
     "constituency": "Western Uganda–Bunyoro–West Nile",
     "continent": "Africa",
     "pop": 17770000,
@@ -13767,6 +14117,7 @@
   {
     "id": 351,
     "name": "Algiers",
+    "name_dev": "अल्जीयर्स",
     "constituency": "Algiers–Kabylie–Northern Coast",
     "continent": "Africa",
     "pop": 15690000,
@@ -13841,6 +14192,7 @@
   {
     "id": 352,
     "name": "Oran",
+    "name_dev": "ओरान",
     "constituency": "Oran–Western Algeria",
     "continent": "Africa",
     "pop": 15630000,
@@ -13955,6 +14307,7 @@
   {
     "id": 353,
     "name": "Eastern Algeria",
+    "name_dev": "पूर्वी अल्जीरिया",
     "constituency": "Constantine–High Plateaus–Sahara",
     "continent": "Africa",
     "pop": 16080000,
@@ -14064,6 +14417,7 @@
   {
     "id": 354,
     "name": "Rabat–Casablanca",
+    "name_dev": "रबात–कासाब्लांका",
     "constituency": "Rabat–Casablanca–Northern Morocco",
     "continent": "Africa",
     "pop": 19840000,
@@ -14103,6 +14457,7 @@
   {
     "id": 355,
     "name": "Marrakesh–El Aaiun",
+    "name_dev": "मराकेश–एल आइउन",
     "constituency": "Marrakesh–Atlas–Fès–Southern Morocco–Western Sahara",
     "continent": "Africa",
     "pop": 18460000,
@@ -14158,6 +14513,7 @@
   {
     "id": 356,
     "name": "Luanda",
+    "name_dev": "लुआंडा",
     "constituency": "Luanda–Bengo–Zaire–Cabinda",
     "continent": "Africa",
     "pop": 13000000,
@@ -14197,6 +14553,7 @@
   {
     "id": 357,
     "name": "Kwanza–Lunda",
+    "name_dev": "क्वांज़ा–लुंडा",
     "constituency": "Cuanza Sul–Cuanza Norte–Uíge–Malanje–Bié–Lundas–Moxico",
     "continent": "Africa",
     "pop": 12700000,
@@ -14256,6 +14613,7 @@
   {
     "id": 358,
     "name": "Huambo–Lubango",
+    "name_dev": "ह्वाम्बो–लुबांगो",
     "constituency": "Benguela–Huambo–Lubango–Southern Angola",
     "continent": "Africa",
     "pop": 13300000,
@@ -14305,6 +14663,7 @@
   {
     "id": 359,
     "name": "Mozambique South",
+    "name_dev": "दक्षिणी मोज़ाम्बिक",
     "constituency": "Maputo–Beira–Southern & Central Mozambique",
     "continent": "Africa",
     "pop": 16700000,
@@ -14359,6 +14718,7 @@
   {
     "id": 360,
     "name": "Mozambique North",
+    "name_dev": "उत्तरी मोज़ाम्बिक",
     "constituency": "Zambezia–Nampula–Cabo Delgado–Niassa",
     "continent": "Africa",
     "pop": 19900000,
@@ -14398,6 +14758,7 @@
   {
     "id": 361,
     "name": "Accra",
+    "name_dev": "अक्रा",
     "constituency": "Greater Accra–Coastal Ghana",
     "continent": "Africa",
     "pop": 15810000,
@@ -14468,6 +14829,7 @@
   {
     "id": 362,
     "name": "Ashanti",
+    "name_dev": "अशांति",
     "constituency": "Ashanti–Northern Ghana",
     "continent": "Africa",
     "pop": 16350000,
@@ -14532,6 +14894,7 @@
   {
     "id": 363,
     "name": "Madagascar Inner",
+    "name_dev": "भीतरी मेडागास्कर",
     "constituency": "Antananarivo–Central & Eastern Madagascar",
     "continent": "Africa",
     "pop": 17760000,
@@ -14596,6 +14959,7 @@
   {
     "id": 364,
     "name": "Madagascar Outer",
+    "name_dev": "बाहरी मेडागास्कर",
     "constituency": "Coastal Madagascar–Comoros–Mayotte–Réunion–Mauritius–Seychelles",
     "continent": "Africa",
     "pop": 18370000,
@@ -14710,6 +15074,7 @@
   {
     "id": 365,
     "name": "Abidjan",
+    "name_dev": "अबिजान",
     "constituency": "Abidjan–Southern Côte d’Ivoire",
     "continent": "Africa",
     "pop": 16190000,
@@ -14754,6 +15119,7 @@
   {
     "id": 366,
     "name": "Bouaké",
+    "name_dev": "बुआके",
     "constituency": "Bouaké–Northern Côte d’Ivoire",
     "continent": "Africa",
     "pop": 16810000,
@@ -14818,6 +15184,7 @@
   {
     "id": 367,
     "name": "Douala",
+    "name_dev": "दुआला",
     "constituency": "Douala–Littoral–West–South–East Cameroon",
     "continent": "Africa",
     "pop": 14130000,
@@ -14867,6 +15234,7 @@
   {
     "id": 368,
     "name": "Yaoundé",
+    "name_dev": "याउंदे",
     "constituency": "Yaoundé–Adamawa–North–Far North Cameroon",
     "continent": "Africa",
     "pop": 16510000,
@@ -14906,6 +15274,7 @@
   {
     "id": 369,
     "name": "Niamey",
+    "name_dev": "नियामे",
     "constituency": "Niamey–Western Niger",
     "continent": "Africa",
     "pop": 15460000,
@@ -14959,6 +15328,7 @@
   {
     "id": 370,
     "name": "Zinder",
+    "name_dev": "ज़िंदर",
     "constituency": "Zinder–Eastern Niger",
     "continent": "Africa",
     "pop": 13140000,
@@ -15000,6 +15370,7 @@
   {
     "id": 371,
     "name": "Bamako",
+    "name_dev": "बामाको",
     "constituency": "Bamako–Kayes–Southern Mali",
     "continent": "Africa",
     "pop": 15400000,
@@ -15039,6 +15410,7 @@
   {
     "id": 372,
     "name": "Mali–Mauritania",
+    "name_dev": "माली–मॉरिटानिया",
     "constituency": "Ségou–Timbuktu–Gao–Mauritania",
     "continent": "Africa",
     "pop": 14800000,
@@ -15089,6 +15461,7 @@
   {
     "id": 373,
     "name": "Ouagadougou",
+    "name_dev": "ऊगाडूगू",
     "constituency": "Ouagadougou–Western & Northern Burkina",
     "continent": "Africa",
     "pop": 19410000,
@@ -15158,6 +15531,7 @@
   {
     "id": 374,
     "name": "Chad",
+    "name_dev": "चाड",
     "constituency": "N’Djamena–Lake Chad–Sahel",
     "continent": "Africa",
     "pop": 21560000,
@@ -15176,6 +15550,7 @@
   {
     "id": 375,
     "name": "Somalia",
+    "name_dev": "सोमालिया",
     "constituency": "Somali Peninsula–Mogadishu",
     "continent": "Africa",
     "pop": 20300000,
@@ -15194,6 +15569,7 @@
   {
     "id": 376,
     "name": "Senegambia–Cabo Verde",
+    "name_dev": "सेनेगैम्बिया–काबो वेर्दे",
     "constituency": "Senegal–Gambia–Cabo Verde",
     "continent": "Africa",
     "pop": 19840000,
@@ -15280,6 +15656,7 @@
   {
     "id": 377,
     "name": "Lusaka",
+    "name_dev": "लुसाका",
     "constituency": "Zambia (excl. Southern Province)",
     "continent": "Africa",
     "pop": 20020000,
@@ -15344,6 +15721,7 @@
   {
     "id": 378,
     "name": "Malawi",
+    "name_dev": "मलावी",
     "constituency": "Malawi–Lake Nyasa",
     "continent": "Africa",
     "pop": 22800000,
@@ -15362,6 +15740,7 @@
   {
     "id": 379,
     "name": "Victoria Falls",
+    "name_dev": "विक्टोरिया फ़ॉल्स",
     "constituency": "Harare–Bulawayo–Zimbabwe Plateau–Southern Zambia",
     "continent": "Africa",
     "pop": 19680000,
@@ -15392,6 +15771,7 @@
   {
     "id": 380,
     "name": "The Guineas",
+    "name_dev": "द गिनीज़",
     "constituency": "Guinea–Conakry–Guinea-Bissau–Casamance",
     "continent": "Africa",
     "pop": 19690000,
@@ -15438,6 +15818,7 @@
   {
     "id": 381,
     "name": "Benin–East Burkina",
+    "name_dev": "बेनिन–पूर्वी बुर्किना",
     "constituency": "Benin–Cotonou–Abomey–Eastern Burkina",
     "continent": "Africa",
     "pop": 19490000,
@@ -15478,6 +15859,7 @@
   {
     "id": 382,
     "name": "Rwanda",
+    "name_dev": "रवांडा",
     "constituency": "Rwanda–Kigali Highlands",
     "continent": "Africa",
     "pop": 14900000,
@@ -15496,6 +15878,7 @@
   {
     "id": 383,
     "name": "Burundi",
+    "name_dev": "बुरुंडी",
     "constituency": "Burundi–Bujumbura Highlands",
     "continent": "Africa",
     "pop": 14700000,
@@ -15514,6 +15897,7 @@
   {
     "id": 384,
     "name": "South Sudan",
+    "name_dev": "दक्षिण सूडान",
     "constituency": "Upper Nile–Juba–South Sudan",
     "continent": "Africa",
     "pop": 12400000,
@@ -15532,6 +15916,7 @@
   {
     "id": 385,
     "name": "Tunisia–Libya",
+    "name_dev": "ट्यूनीशिया–लीबिया",
     "constituency": "Tunis–Tripolitania–Cyrenaica–Fezzan",
     "continent": "Africa",
     "pop": 19950000,
@@ -15556,6 +15941,7 @@
   {
     "id": 386,
     "name": "Sierra Leone–Liberia",
+    "name_dev": "सिएरा लियोन–लाइबेरिया",
     "constituency": "Sierra Leone–Liberian Coast",
     "continent": "Africa",
     "pop": 14510000,
@@ -15580,6 +15966,7 @@
   {
     "id": 387,
     "name": "Western Congo Basin",
+    "name_dev": "पश्चिमी कांगो बेसिन",
     "constituency": "Congo–Gabon–Equatorial Guinea–Central African Republic–São Tomé",
     "continent": "Africa",
     "pop": 17200000,
@@ -15622,6 +16009,7 @@
   {
     "id": 388,
     "name": "Togo–Volta",
+    "name_dev": "टोगो–वोल्टा",
     "constituency": "Togo–Volta–Ewe Coast",
     "continent": "Africa",
     "pop": 12830000,
@@ -15667,6 +16055,7 @@
   {
     "id": 389,
     "name": "Moscow",
+    "name_dev": "मॉस्को",
     "constituency": "Moscow City",
     "continent": "Europe",
     "pop": 13120000,
@@ -15691,6 +16080,7 @@
   {
     "id": 390,
     "name": "Saint Petersburg",
+    "name_dev": "सेंट पीटर्सबर्ग",
     "constituency": "Saint Petersburg-Northwest Russia",
     "continent": "Europe",
     "pop": 16250000,
@@ -15775,6 +16165,7 @@
   {
     "id": 391,
     "name": "Volga",
+    "name_dev": "वोल्गा",
     "constituency": "Volga-Kazan-Nizhny Novgorod",
     "continent": "Europe",
     "pop": 17860000,
@@ -15844,6 +16235,7 @@
   {
     "id": 392,
     "name": "Black Earth",
+    "name_dev": "चेर्नोज़ेम",
     "constituency": "Central Black Earth-Don-Lower Volga",
     "continent": "Europe",
     "pop": 17610000,
@@ -15913,6 +16305,7 @@
   {
     "id": 393,
     "name": "Southern Russia",
+    "name_dev": "दक्षिणी रूस",
     "constituency": "Southern Russia-Kuban-North Caucasus",
     "continent": "Europe",
     "pop": 17690000,
@@ -15987,6 +16380,7 @@
   {
     "id": 394,
     "name": "Urals",
+    "name_dev": "उराल",
     "constituency": "Ural-Yekaterinburg-Perm-Bashkortostan",
     "continent": "Europe",
     "pop": 16560000,
@@ -16036,6 +16430,7 @@
   {
     "id": 395,
     "name": "Siberia West",
+    "name_dev": "पश्चिमी साइबेरिया",
     "constituency": "West Siberia-Tyumen-Novosibirsk-Omsk",
     "continent": "Europe",
     "pop": 14360000,
@@ -16100,6 +16495,7 @@
   {
     "id": 396,
     "name": "Moscow Outer",
+    "name_dev": "बाहरी मॉस्को",
     "constituency": "Central Russia-Moscow Oblast ring",
     "continent": "Europe",
     "pop": 15730000,
@@ -16159,6 +16555,7 @@
   {
     "id": 397,
     "name": "Siberia East",
+    "name_dev": "पूर्वी साइबेरिया",
     "constituency": "East Siberia and Russian Far East-Vladivostok-Sakha",
     "continent": "Europe",
     "pop": 13830000,
@@ -16253,6 +16650,7 @@
   {
     "id": 398,
     "name": "Berlin–Brandenburg",
+    "name_dev": "बर्लिन–ब्रांडेनबर्ग",
     "constituency": "Berlin–Brandenburg–Eastern Germany",
     "continent": "Europe",
     "pop": 16180000,
@@ -16302,6 +16700,7 @@
   {
     "id": 399,
     "name": "Northern Germany",
+    "name_dev": "उत्तरी जर्मनी",
     "constituency": "Hamburg–Schleswig-Holstein–Lower Saxony–Bremen",
     "continent": "Europe",
     "pop": 13580000,
@@ -16341,6 +16740,7 @@
   {
     "id": 400,
     "name": "Ruhr",
+    "name_dev": "रूर",
     "constituency": "North Rhine–Ruhr",
     "continent": "Europe",
     "pop": 18100000,
@@ -16365,6 +16765,7 @@
   {
     "id": 401,
     "name": "Rhineland–Hesse",
+    "name_dev": "राइनलैंड–हेसे",
     "constituency": "Hesse–Rhineland-Palatinate–Saarland–North Baden-Württemberg",
     "continent": "Europe",
     "pop": 18600000,
@@ -16453,6 +16854,7 @@
   {
     "id": 402,
     "name": "Bavaria–Swabia",
+    "name_dev": "बवेरिया–श्वाबेन",
     "constituency": "Bavaria–South Baden-Württemberg",
     "continent": "Europe",
     "pop": 17430000,
@@ -16520,6 +16922,7 @@
   {
     "id": 403,
     "name": "Celtic Isles",
+    "name_dev": "सेल्टिक द्वीप",
     "constituency": "Ireland–Northern Ireland–Wales–South West England–Western Scotland",
     "continent": "Europe",
     "pop": 16240000,
@@ -16566,6 +16969,7 @@
   {
     "id": 404,
     "name": "London",
+    "name_dev": "लंदन",
     "constituency": "Greater London–South East England–Channel Islands",
     "continent": "Europe",
     "pop": 19900000,
@@ -16658,6 +17062,7 @@
   {
     "id": 405,
     "name": "English Midlands",
+    "name_dev": "इंग्लिश मिडलैंड्स",
     "constituency": "Midlands–Eastern England",
     "continent": "Europe",
     "pop": 19700000,
@@ -16725,6 +17130,7 @@
   {
     "id": 406,
     "name": "Manchester",
+    "name_dev": "मैनचेस्टर",
     "constituency": "Northern England–Eastern Scotland",
     "continent": "Europe",
     "pop": 19600000,
@@ -16811,6 +17217,7 @@
   {
     "id": 407,
     "name": "Paris",
+    "name_dev": "पेरिस",
     "constituency": "Île-de-France–Centre-Val de Loire",
     "continent": "Europe",
     "pop": 15080000,
@@ -16840,6 +17247,7 @@
   {
     "id": 408,
     "name": "Northern France",
+    "name_dev": "उत्तरी फ़्रांस",
     "constituency": "Hauts-de-France–Normandy–Grand Est–Bourgogne-Franche-Comté",
     "continent": "Europe",
     "pop": 17820000,
@@ -16879,6 +17287,7 @@
   {
     "id": 409,
     "name": "Bordeaux",
+    "name_dev": "बोर्दो",
     "constituency": "Brittany–Pays de la Loire–Nouvelle-Aquitaine–Midi-Pyrénées",
     "continent": "Europe",
     "pop": 16790000,
@@ -16927,6 +17336,7 @@
   {
     "id": 410,
     "name": "Southern France",
+    "name_dev": "दक्षिणी फ़्रांस",
     "constituency": "Auvergne-Rhône-Alpes–Provence–Languedoc–Corsica–Monaco",
     "continent": "Europe",
     "pop": 16940000,
@@ -16978,6 +17388,7 @@
   {
     "id": 411,
     "name": "Milano",
+    "name_dev": "मिलानो",
     "constituency": "Lombardy–Piedmont–Liguria–Aosta Valley",
     "continent": "Europe",
     "pop": 15950000,
@@ -17017,6 +17428,7 @@
   {
     "id": 412,
     "name": "Venice",
+    "name_dev": "वेनिस",
     "constituency": "Veneto–Emilia-Romagna–Trentino–Friuli–Marche–Abruzzo–San Marino",
     "continent": "Europe",
     "pop": 14390000,
@@ -17072,6 +17484,7 @@
   {
     "id": 413,
     "name": "Roma",
+    "name_dev": "रोमा",
     "constituency": "Tuscany–Umbria–Rome–Campania–Vatican",
     "continent": "Europe",
     "pop": 15800000,
@@ -17117,6 +17530,7 @@
   {
     "id": 414,
     "name": "Bari-Sicily",
+    "name_dev": "बारी–सिसिली",
     "constituency": "Puglia–Calabria–Sicily–Sardinia–Molise–Basilicata–Malta",
     "continent": "Europe",
     "pop": 13370000,
@@ -17172,6 +17586,7 @@
   {
     "id": 415,
     "name": "Lisboa",
+    "name_dev": "लिस्बोआ",
     "constituency": "Portugal–Galicia–Cantabrian Spain–Castile and León–Extremadura",
     "continent": "Europe",
     "pop": 20240000,
@@ -17227,6 +17642,7 @@
   {
     "id": 416,
     "name": "Catalonia–Aragon",
+    "name_dev": "कैटालोनिया–आरागोन",
     "constituency": "Madrid–Castilla-La Mancha–Aragon–Navarre–La Rioja–Catalonia–Andorra",
     "continent": "Europe",
     "pop": 19270000,
@@ -17282,6 +17698,7 @@
   {
     "id": 417,
     "name": "Valencia",
+    "name_dev": "वालेंसिया",
     "constituency": "Andalusia–Valencia–Murcia–Balearics–Canaries–Ceuta–Melilla–Gibraltar",
     "continent": "Europe",
     "pop": 18850000,
@@ -17342,6 +17759,7 @@
   {
     "id": 418,
     "name": "Poland East",
+    "name_dev": "पूर्वी पोलैंड",
     "constituency": "Warsaw–Eastern Poland–Pomerania",
     "continent": "Europe",
     "pop": 18090000,
@@ -17401,6 +17819,7 @@
   {
     "id": 419,
     "name": "Poland West",
+    "name_dev": "पश्चिमी पोलैंड",
     "constituency": "Kraków–Silesia–Western Poland",
     "continent": "Europe",
     "pop": 19710000,
@@ -17460,6 +17879,7 @@
   {
     "id": 420,
     "name": "Western Ukraine",
+    "name_dev": "पश्चिमी यूक्रेन",
     "constituency": "Kyiv–Central and Western Ukraine",
     "continent": "Europe",
     "pop": 15100000,
@@ -17534,6 +17954,7 @@
   {
     "id": 421,
     "name": "Eastern Ukraine",
+    "name_dev": "पूर्वी यूक्रेन",
     "constituency": "Kharkiv–Dnipro–Southern and Eastern Ukraine",
     "continent": "Europe",
     "pop": 16300000,
@@ -17608,6 +18029,7 @@
   {
     "id": 422,
     "name": "Romania–Moldova",
+    "name_dev": "रोमानिया–मोल्दोवा",
     "constituency": "Romania (Wallachia–Moldavia–Dobruja)–Moldova",
     "continent": "Europe",
     "pop": 15390000,
@@ -17763,6 +18185,7 @@
   {
     "id": 423,
     "name": "Netherlands",
+    "name_dev": "नीदरलैंड",
     "constituency": "Netherlands–Low Countries",
     "continent": "Europe",
     "pop": 18150000,
@@ -17842,6 +18265,7 @@
   {
     "id": 424,
     "name": "Belgium–Luxembourg",
+    "name_dev": "बेल्जियम–लक्ज़मबर्ग",
     "constituency": "Belgium–Flanders–Wallonia–Luxembourg",
     "continent": "Europe",
     "pop": 12570000,
@@ -17866,6 +18290,7 @@
   {
     "id": 425,
     "name": "Czechoslovakia",
+    "name_dev": "चेकोस्लोवाकिया",
     "constituency": "Bohemia–Moravia–Slovakia",
     "continent": "Europe",
     "pop": 16000000,
@@ -17890,6 +18315,7 @@
   {
     "id": 426,
     "name": "Hellas",
+    "name_dev": "हेलास",
     "constituency": "Greece–Cyprus–North Macedonia",
     "continent": "Europe",
     "pop": 13090000,
@@ -17920,6 +18346,7 @@
   {
     "id": 427,
     "name": "Denmark-Sweden",
+    "name_dev": "डेनमार्क–स्वीडन",
     "constituency": "Denmark–Sweden–Iceland–Faroe",
     "continent": "Europe",
     "pop": 16750000,
@@ -17949,7 +18376,8 @@
   },
   {
     "id": 428,
-    "name": "Baltic–Nordic East",
+    "name": "Scandinavia Outer",
+    "name_dev": "बाहरी स्कैंडिनेविया",
     "constituency": "Norway–Finland–Baltic States",
     "continent": "Europe",
     "pop": 17210000,
@@ -17992,6 +18420,7 @@
   {
     "id": 429,
     "name": "Alpine States",
+    "name_dev": "आल्पीय राज्य",
     "constituency": "Austria–Switzerland–Liechtenstein",
     "continent": "Europe",
     "pop": 18440000,
@@ -18022,6 +18451,7 @@
   {
     "id": 430,
     "name": "Hungary",
+    "name_dev": "हंगरी",
     "constituency": "Hungary–Transylvania–Hungarian Plain",
     "continent": "Europe",
     "pop": 16010000,
@@ -18127,6 +18557,7 @@
   {
     "id": 431,
     "name": "Minsk",
+    "name_dev": "मिन्स्क",
     "constituency": "Belarus–Polesia–Northern Ukraine",
     "continent": "Europe",
     "pop": 13600000,
@@ -18177,6 +18608,7 @@
   {
     "id": 432,
     "name": "Balkans West",
+    "name_dev": "पश्चिमी बाल्कन",
     "constituency": "Slovenia–Croatia–Bosnia–Montenegro–Albania–Kosovo",
     "continent": "Europe",
     "pop": 14120000,
@@ -18225,6 +18657,7 @@
   {
     "id": 433,
     "name": "Balkans East",
+    "name_dev": "पूर्वी बाल्कन",
     "constituency": "Bulgaria–Serbia",
     "continent": "Europe",
     "pop": 13360000,
@@ -18249,6 +18682,7 @@
   {
     "id": 434,
     "name": "New England",
+    "name_dev": "न्यू इंग्लैंड",
     "constituency": "New England: Connecticut, Maine, Massachusetts, New Hampshire, Rhode Island, Vermont",
     "continent": "North America",
     "pop": 15480000,
@@ -18298,6 +18732,7 @@
   {
     "id": 435,
     "name": "New York Metro",
+    "name_dev": "न्यूयॉर्क महानगर",
     "constituency": "New York City–Long Island–Lower Hudson–North Jersey",
     "continent": "North America",
     "pop": 18170000,
@@ -18346,6 +18781,7 @@
   {
     "id": 436,
     "name": "Upstate New York",
+    "name_dev": "अपस्टेट न्यूयॉर्क",
     "constituency": "Upstate New York–Western and Northern Pennsylvania–Northeast Ohio",
     "continent": "North America",
     "pop": 16330000,
@@ -18498,6 +18934,7 @@
   {
     "id": 437,
     "name": "Delaware Valley",
+    "name_dev": "डेलावेयर घाटी",
     "constituency": "Philadelphia–South and Central Jersey–Delaware–Susquehanna Valley",
     "continent": "North America",
     "pop": 13120000,
@@ -18565,6 +19002,7 @@
   {
     "id": 438,
     "name": "Chesapeake",
+    "name_dev": "चेसापीक",
     "constituency": "Chesapeake: Maryland–DC–Virginia",
     "continent": "North America",
     "pop": 15920000,
@@ -18599,6 +19037,7 @@
   {
     "id": 439,
     "name": "Carolinas",
+    "name_dev": "कैरोलाइनास",
     "constituency": "North Carolina–South Carolina",
     "continent": "North America",
     "pop": 17000000,
@@ -18628,6 +19067,7 @@
   {
     "id": 440,
     "name": "Atlanta",
+    "name_dev": "अटलांटा",
     "constituency": "Georgia–Jacksonville–North Florida",
     "continent": "North America",
     "pop": 15510000,
@@ -18684,6 +19124,7 @@
   {
     "id": 441,
     "name": "Florida Peninsula",
+    "name_dev": "फ़्लोरिडा प्रायद्वीप",
     "constituency": "Central and South Florida",
     "continent": "North America",
     "pop": 18350000,
@@ -18739,6 +19180,7 @@
   {
     "id": 442,
     "name": "Appalachia",
+    "name_dev": "एपलाचिया",
     "constituency": "Appalachia: West Virginia–Kentucky–Tennessee–Southern Ohio",
     "continent": "North America",
     "pop": 16470000,
@@ -18807,6 +19249,7 @@
   {
     "id": 443,
     "name": "Mississippi Delta",
+    "name_dev": "मिसिसिपी डेल्टा",
     "constituency": "Alabama–Mississippi–Louisiana–Arkansas–Florida Panhandle (west)",
     "continent": "North America",
     "pop": 17140000,
@@ -18863,6 +19306,7 @@
   {
     "id": 444,
     "name": "Houston",
+    "name_dev": "ह्यूस्टन",
     "constituency": "Houston–Texas Gulf Coast–San Antonio–South Texas",
     "continent": "North America",
     "pop": 15170000,
@@ -18971,6 +19415,7 @@
   {
     "id": 445,
     "name": "Dallas",
+    "name_dev": "डलास",
     "constituency": "Dallas–Fort Worth–Austin–North and Central Texas–Oklahoma",
     "continent": "North America",
     "pop": 20160000,
@@ -19165,6 +19610,7 @@
   {
     "id": 446,
     "name": "Great Lakes",
+    "name_dev": "ग्रेट लेक्स",
     "constituency": "Michigan–Central and Northwest Ohio",
     "continent": "North America",
     "pop": 15500000,
@@ -19242,6 +19688,7 @@
   {
     "id": 447,
     "name": "Chicago",
+    "name_dev": "शिकागो",
     "constituency": "Chicago–Northern Illinois–Indiana",
     "continent": "North America",
     "pop": 16720000,
@@ -19294,6 +19741,7 @@
   {
     "id": 448,
     "name": "Upper Midwest",
+    "name_dev": "ऊपरी मिडवेस्ट",
     "constituency": "Wisconsin–Minnesota–Iowa–North Dakota",
     "continent": "North America",
     "pop": 15900000,
@@ -19333,6 +19781,7 @@
   {
     "id": 449,
     "name": "St. Louis",
+    "name_dev": "सेंट लुइस",
     "constituency": "St. Louis–Missouri–Kansas–Nebraska–South Dakota–Downstate Illinois",
     "continent": "North America",
     "pop": 15290000,
@@ -19458,6 +19907,7 @@
   {
     "id": 450,
     "name": "Rocky Mountains",
+    "name_dev": "रॉकी पर्वत",
     "constituency": "Colorado–Utah–Idaho–Wyoming–Montana",
     "continent": "North America",
     "pop": 13410000,
@@ -19502,6 +19952,7 @@
   {
     "id": 451,
     "name": "Grand Canyon",
+    "name_dev": "ग्रैंड कैन्यन",
     "constituency": "Arizona–Nevada–New Mexico–San Bernardino County–El Paso/Trans-Pecos Texas",
     "continent": "North America",
     "pop": 16270000,
@@ -19556,6 +20007,7 @@
   {
     "id": 452,
     "name": "California North",
+    "name_dev": "उत्तरी कैलिफ़ोर्निया",
     "constituency": "Northern and Central California–Bay Area–Central Coast",
     "continent": "North America",
     "pop": 17440000,
@@ -19632,6 +20084,7 @@
   {
     "id": 453,
     "name": "California South",
+    "name_dev": "दक्षिणी कैलिफ़ोर्निया",
     "constituency": "Southern California: Los Angeles–San Diego–Orange–Riverside–Ventura–Imperial",
     "continent": "North America",
     "pop": 19680000,
@@ -19663,6 +20116,7 @@
   {
     "id": 454,
     "name": "Pacific Northwest",
+    "name_dev": "प्रशांत उत्तर-पश्चिम",
     "constituency": "Pacific Northwest: Washington–Oregon–Alaska",
     "continent": "North America",
     "pop": 13090000,
@@ -19697,6 +20151,7 @@
   {
     "id": 455,
     "name": "Mexico City",
+    "name_dev": "मेक्सिको सिटी",
     "constituency": "Mexico City–Inner Valley",
     "continent": "North America",
     "pop": 17390000,
@@ -19738,6 +20193,7 @@
   {
     "id": 456,
     "name": "Toluca–Acapulco",
+    "name_dev": "तोलूका–अकापुल्को",
     "constituency": "Outer State of México–Morelos–Guerrero",
     "continent": "North America",
     "pop": 15780000,
@@ -19887,6 +20343,7 @@
   {
     "id": 457,
     "name": "Puebla–Veracruz",
+    "name_dev": "पुएब्ला–वेराक्रुज़",
     "constituency": "Puebla–Tlaxcala–Veracruz",
     "continent": "North America",
     "pop": 16720000,
@@ -19921,6 +20378,7 @@
   {
     "id": 458,
     "name": "Southeast Mexico",
+    "name_dev": "दक्षिण-पूर्वी मेक्सिको",
     "constituency": "Oaxaca–Chiapas–Tabasco–Yucatán Peninsula",
     "continent": "North America",
     "pop": 17970000,
@@ -19970,6 +20428,7 @@
   {
     "id": 459,
     "name": "Jalisco–Michoacán",
+    "name_dev": "हालिस्को–मिचोआकान",
     "constituency": "Guadalajara–Michoacán–Nayarit–Colima",
     "continent": "North America",
     "pop": 15760000,
@@ -20009,6 +20468,7 @@
   {
     "id": 460,
     "name": "Bajío",
+    "name_dev": "बाहियो",
     "constituency": "Bajío–Guanajuato–Querétaro–Aguascalientes–San Luis Potosí–Hidalgo",
     "continent": "North America",
     "pop": 16600000,
@@ -20053,6 +20513,7 @@
   {
     "id": 461,
     "name": "Northwest Mexico",
+    "name_dev": "उत्तर-पश्चिमी मेक्सिको",
     "constituency": "Northwest Mexico–Baja California–Baja California Sur–Sonora–Chihuahua–Sinaloa",
     "continent": "North America",
     "pop": 14940000,
@@ -20097,6 +20558,7 @@
   {
     "id": 462,
     "name": "Northeast Mexico",
+    "name_dev": "उत्तर-पूर्वी मेक्सिको",
     "constituency": "Northeast Mexico–Monterrey–Coahuila–Tamaulipas–Durango–Zacatecas",
     "continent": "North America",
     "pop": 16650000,
@@ -20141,6 +20603,7 @@
   {
     "id": 463,
     "name": "Quebec–Greenland",
+    "name_dev": "क्यूबेक–ग्रीनलैंड",
     "constituency": "Quebec–Atlantic–North Atlantic",
     "continent": "North America",
     "pop": 13800000,
@@ -20210,6 +20673,7 @@
   {
     "id": 464,
     "name": "Western Canada",
+    "name_dev": "पश्चिमी कनाडा",
     "constituency": "Western Canada",
     "continent": "North America",
     "pop": 13600000,
@@ -20264,6 +20728,7 @@
   {
     "id": 465,
     "name": "Guatemala–Belize",
+    "name_dev": "ग्वाटेमाला–बेलीज़",
     "constituency": "Guatemala–Belize",
     "continent": "North America",
     "pop": 19020000,
@@ -20288,6 +20753,7 @@
   {
     "id": 466,
     "name": "Honduras–El Salvador",
+    "name_dev": "होंडुरास–अल साल्वाडोर",
     "constituency": "Honduras–El Salvador",
     "continent": "North America",
     "pop": 17080000,
@@ -20312,6 +20778,7 @@
   {
     "id": 467,
     "name": "America Isthmus",
+    "name_dev": "अमेरिका इस्थमस",
     "constituency": "Nicaragua–Costa Rica–Panama",
     "continent": "North America",
     "pop": 16800000,
@@ -20342,6 +20809,7 @@
   {
     "id": 468,
     "name": "Cuba–Jamaica",
+    "name_dev": "क्यूबा–जमैका",
     "constituency": "Cuba–Jamaica–Bahamas–Turks and Caicos–Cayman–Bermuda",
     "continent": "North America",
     "pop": 14350000,
@@ -20390,6 +20858,7 @@
   {
     "id": 469,
     "name": "Haiti",
+    "name_dev": "हैती",
     "constituency": "Haiti",
     "continent": "North America",
     "pop": 11980000,
@@ -20408,6 +20877,7 @@
   {
     "id": 470,
     "name": "Eastern Caribbean",
+    "name_dev": "पूर्वी कैरिबियन",
     "constituency": "Dominican Republic–Puerto Rico–Lesser Antilles–Dutch Leeward Antilles",
     "continent": "North America",
     "pop": 18270000,
@@ -20552,6 +21022,7 @@
   {
     "id": 471,
     "name": "São Paulo Central",
+    "name_dev": "साओ पाउलो मध्य",
     "constituency": "São Paulo City–West Metropolitan Core",
     "continent": "South America",
     "pop": 15140000,
@@ -20594,6 +21065,7 @@
   {
     "id": 472,
     "name": "São Paulo Outer",
+    "name_dev": "साओ पाउलो बाहरी",
     "constituency": "Greater São Paulo East (Guarulhos, ABC, Alto Tietê)–Baixada Santista–Vale do Paraíba–Sorocaba",
     "continent": "South America",
     "pop": 15010000,
@@ -20778,6 +21250,7 @@
   {
     "id": 473,
     "name": "São Paulo Interior",
+    "name_dev": "साओ पाउलो अंदरूनी",
     "constituency": "Campinas–São Paulo Interior",
     "continent": "South America",
     "pop": 15760000,
@@ -21272,6 +21745,7 @@
   {
     "id": 474,
     "name": "Rio de Janeiro",
+    "name_dev": "रियो दे जनेरियो",
     "constituency": "Rio de Janeiro–Guanabara",
     "continent": "South America",
     "pop": 17130000,
@@ -21296,6 +21770,7 @@
   {
     "id": 475,
     "name": "Belo Horizonte",
+    "name_dev": "बेलो होरिज़ोंते",
     "constituency": "Minas Gerais–Belo Horizonte",
     "continent": "South America",
     "pop": 12730000,
@@ -21727,6 +22202,7 @@
   {
     "id": 476,
     "name": "Minas South–Espírito Santo",
+    "name_dev": "दक्षिणी मिनास–एस्पिरितो सांतो",
     "constituency": "Sul de Minas–Triângulo–Zona da Mata–Espírito Santo",
     "continent": "South America",
     "pop": 12740000,
@@ -22204,6 +22680,7 @@
   {
     "id": 477,
     "name": "Bahia–Sergipe",
+    "name_dev": "बाहिया–सेरजिपी",
     "constituency": "Bahia–Salvador–Sergipe",
     "continent": "South America",
     "pop": 17100000,
@@ -22233,6 +22710,7 @@
   {
     "id": 478,
     "name": "Fortaleza–Teresina",
+    "name_dev": "फ़ोर्तालेज़ा–तेरेज़ीना",
     "constituency": "Ceará–Piauí–Rio Grande do Norte",
     "continent": "South America",
     "pop": 16070000,
@@ -22267,6 +22745,7 @@
   {
     "id": 479,
     "name": "Recife",
+    "name_dev": "रेसीफ़ी",
     "constituency": "Pernambuco–Recife–Paraíba–Alagoas",
     "continent": "South America",
     "pop": 16890000,
@@ -22301,6 +22780,7 @@
   {
     "id": 480,
     "name": "Belém–São Luís",
+    "name_dev": "बेलेम–साओ लुइस",
     "constituency": "Maranhão–Pará–Tocantins (Eastern Amazon)",
     "continent": "South America",
     "pop": 17280000,
@@ -22335,6 +22815,7 @@
   {
     "id": 481,
     "name": "Paraná–Paraguay",
+    "name_dev": "पाराना–पैराग्वे",
     "constituency": "Paraná–Paraguay Borderlands",
     "continent": "South America",
     "pop": 18810000,
@@ -22365,6 +22846,7 @@
   {
     "id": 482,
     "name": "Southern Brazil",
+    "name_dev": "दक्षिणी ब्राज़ील",
     "constituency": "Santa Catarina–Rio Grande do Sul",
     "continent": "South America",
     "pop": 19440000,
@@ -22394,6 +22876,7 @@
   {
     "id": 483,
     "name": "Central Brazil",
+    "name_dev": "मध्य ब्राज़ील",
     "constituency": "Goiás–Brasília–Mato Grosso do Sul",
     "continent": "South America",
     "pop": 13380000,
@@ -22428,6 +22911,7 @@
   {
     "id": 484,
     "name": "Amazon–Guianas",
+    "name_dev": "अमेज़न–गुयाना",
     "constituency": "Amazonas–Mato Grosso–Amapá–Guianas",
     "continent": "South America",
     "pop": 14230000,
@@ -22501,6 +22985,7 @@
   {
     "id": 485,
     "name": "Bogotá",
+    "name_dev": "बोगोटा",
     "constituency": "Bogotá–Cundinamarca–Boyacá–Santanders",
     "continent": "South America",
     "pop": 17250000,
@@ -22545,6 +23030,7 @@
   {
     "id": 486,
     "name": "Colombia Caribbean",
+    "name_dev": "कोलंबिया कैरिबियन",
     "constituency": "Medellín–Antioquia–Caribbean Colombia",
     "continent": "South America",
     "pop": 19050000,
@@ -22609,6 +23095,7 @@
   {
     "id": 487,
     "name": "Colombia Ecuatorial",
+    "name_dev": "कोलंबिया भूमध्यरेखीय",
     "constituency": "Cali–Pacific–Eje Cafetero–South Colombia–Llanos–Amazonia",
     "continent": "South America",
     "pop": 16800000,
@@ -22723,6 +23210,7 @@
   {
     "id": 488,
     "name": "Buenos Aires",
+    "name_dev": "ब्यूनस आयर्स",
     "constituency": "Greater Buenos Aires (AMBA)",
     "continent": "South America",
     "pop": 16650000,
@@ -22793,6 +23281,7 @@
   {
     "id": 489,
     "name": "Pampas–Uruguay",
+    "name_dev": "पंपास–उरुग्वे",
     "constituency": "Pampas–Litoral–Uruguay",
     "continent": "South America",
     "pop": 16900000,
@@ -22954,6 +23443,7 @@
   {
     "id": 490,
     "name": "Córdoba–Patagonia",
+    "name_dev": "कोर्दोबा–पैटागोनिया",
     "constituency": "Córdoba–Cuyo–Northwest–Patagonia",
     "continent": "South America",
     "pop": 15750000,
@@ -23060,6 +23550,7 @@
   {
     "id": 491,
     "name": "Lima",
+    "name_dev": "लीमा",
     "constituency": "Lima–Central & North-Central Coast",
     "continent": "South America",
     "pop": 16800000,
@@ -23104,6 +23595,7 @@
   {
     "id": 492,
     "name": "Andean Peru",
+    "name_dev": "एंडीज़ पेरू",
     "constituency": "Northern, Andean and Amazonian Peru",
     "continent": "South America",
     "pop": 17700000,
@@ -23223,6 +23715,7 @@
   {
     "id": 493,
     "name": "Venezuela Inner",
+    "name_dev": "भीतरी वेनेज़ुएला",
     "constituency": "Caracas–Central & Eastern Coastal Venezuela",
     "continent": "South America",
     "pop": 14700000,
@@ -23302,6 +23795,7 @@
   {
     "id": 494,
     "name": "Venezuela Outer",
+    "name_dev": "बाहरी वेनेज़ुएला",
     "constituency": "Maracaibo–Andes–Llanos–Guayana Venezuela",
     "continent": "South America",
     "pop": 13800000,
@@ -23386,6 +23880,7 @@
   {
     "id": 495,
     "name": "Chile–Antarctica",
+    "name_dev": "चिली–अंटार्कटिका",
     "constituency": "Chile–Atacama–Santiago–Patagonia",
     "continent": "South America",
     "pop": 19900000,
@@ -23410,6 +23905,7 @@
   {
     "id": 496,
     "name": "Ecuador",
+    "name_dev": "इक्वाडोर",
     "constituency": "Ecuador–Quito–Guayaquil–Galápagos",
     "continent": "South America",
     "pop": 18300000,
@@ -23428,6 +23924,7 @@
   {
     "id": 497,
     "name": "Bolivia",
+    "name_dev": "बोलीविया",
     "constituency": "Bolivia–Altiplano–Santa Cruz",
     "continent": "South America",
     "pop": 12600000,
@@ -23446,6 +23943,7 @@
   {
     "id": 498,
     "name": "Australia West",
+    "name_dev": "पश्चिमी ऑस्ट्रेलिया",
     "constituency": "Australian South and West",
     "continent": "Oceania",
     "pop": 12820000,
@@ -23502,6 +24000,7 @@
   {
     "id": 499,
     "name": "Australia East",
+    "name_dev": "पूर्वी ऑस्ट्रेलिया",
     "constituency": "Eastern Australia-Aotearoa New Zealand",
     "continent": "Oceania",
     "pop": 20020000,
@@ -23571,6 +24070,7 @@
   {
     "id": 500,
     "name": "Pacific Islands",
+    "name_dev": "प्रशांत द्वीप",
     "constituency": "Papua New Guinea-Melanesia-Micronesia-Polynesia",
     "continent": "Oceania",
     "pop": 15850000,
