@@ -13277,7 +13277,7 @@
   },
   {
     "id": 340,
-    "name": "Gauteng–North West",
+    "name": "Gauteng",
     "constituency": "Gauteng–Johannesburg–North West",
     "continent": "Africa",
     "pop": 19500000,
@@ -13382,7 +13382,7 @@
   },
   {
     "id": 343,
-    "name": "Southern African Interior",
+    "name": "Kalahari–Kruger",
     "constituency": "Limpopo–Mpumalanga–Northern Cape–Botswana–Namibia",
     "continent": "Africa",
     "pop": 19230000,
@@ -14196,7 +14196,7 @@
   },
   {
     "id": 357,
-    "name": "Kwanza–Lunda & East",
+    "name": "Kwanza–Lunda",
     "constituency": "Cuanza Sul–Cuanza Norte–Uíge–Malanje–Bié–Lundas–Moxico",
     "continent": "Africa",
     "pop": 12700000,
