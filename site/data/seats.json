@@ -1029,21 +1029,16 @@
   {
     "id": 35,
     "name": "Kolkata",
-    "constituency": "Kolkata–Howrah–South 24 Parganas–Andaman",
+    "constituency": "Kolkata–Howrah–South 24 Parganas",
     "continent": "Asia",
-    "pop": 20220000,
-    "desc": "Kolkata, Howrah and South 24 Parganas districts of West Bengal plus Andaman & Nicobar Islands (shipping corridor from Kolkata)",
+    "pop": 19790000,
+    "desc": "Kolkata, Howrah and South 24 Parganas districts of West Bengal",
     "countries": [
       {
         "name": "India",
         "iso2": "in",
         "whole": false,
         "adm1": [
-          {
-            "name": "Andaman and Nicobar Islands",
-            "whole": true,
-            "adm2": []
-          },
           {
             "name": "West Bengal",
             "whole": false,
@@ -1402,17 +1397,22 @@
   },
   {
     "id": 46,
-    "name": "Chennai",
-    "constituency": "Chennai–Tiruvallur–Kanchipuram",
+    "name": "Chennai–Andaman",
+    "constituency": "Chennai–Tiruvallur–Kanchipuram–Andaman",
     "continent": "Asia",
-    "pop": 13800000,
-    "desc": "Chennai, Tiruvallur, Kancheepuram and Chengalpattu districts of Tamil Nadu",
+    "pop": 14230000,
+    "desc": "Chennai, Tiruvallur, Kancheepuram and Chengalpattu districts of Tamil Nadu plus Andaman & Nicobar Islands (sea link from Chennai)",
     "countries": [
       {
         "name": "India",
         "iso2": "in",
         "whole": false,
         "adm1": [
+          {
+            "name": "Andaman and Nicobar Islands",
+            "whole": true,
+            "adm2": []
+          },
           {
             "name": "Tamil Nadu",
             "whole": false,
@@ -8323,7 +8323,7 @@
   },
   {
     "id": 240,
-    "name": "North-Chao Phraya",
+    "name": "Chiang Mai",
     "constituency": "Northern Thailand-Chao Phraya Plain",
     "continent": "Asia",
     "pop": 15300000,

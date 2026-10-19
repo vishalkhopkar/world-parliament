@@ -961,21 +961,16 @@
 {
 "seat": 35,
 "name": "Kolkata",
-"constituency": "Kolkata–Howrah–South 24 Parganas–Andaman",
+"constituency": "Kolkata–Howrah–South 24 Parganas",
 "continent": "Asia",
-"pop": 20220000,
+"pop": 19790000,
 "group": "IN3",
-"description": "Kolkata, Howrah and South 24 Parganas districts of West Bengal plus Andaman & Nicobar Islands (shipping corridor from Kolkata)",
+"description": "Kolkata, Howrah and South 24 Parganas districts of West Bengal",
 "countries": [
 {
 "name": "India",
 "whole": false,
 "adm1": [
-{
-"name": "Andaman and Nicobar Islands",
-"whole": true,
-"adm2": []
-},
 {
 "name": "West Bengal",
 "whole": false,
@@ -1312,16 +1307,21 @@
 {
 "seat": 46,
 "name": "Chennai",
-"constituency": "Chennai–Tiruvallur–Kanchipuram",
+"constituency": "Chennai–Tiruvallur–Kanchipuram–Andaman",
 "continent": "Asia",
-"pop": 13800000,
-"group": "IN3",
-"description": "Chennai, Tiruvallur, Kancheepuram and Chengalpattu districts of Tamil Nadu",
+"pop": 14230000,
+"group": " estimate) attached by sea route (~1",
+"description": "Chennai, Tiruvallur, Kancheepuram and Chengalpattu districts of Tamil Nadu plus Andaman & Nicobar Islands (sea link from Chennai)",
 "countries": [
 {
 "name": "India",
 "whole": false,
 "adm1": [
+{
+"name": "Andaman and Nicobar Islands",
+"whole": true,
+"adm2": []
+},
 {
 "name": "Tamil Nadu",
 "whole": false,

@@ -19,4 +19,4 @@ OVERLAP seats 345 & 384 area=12.6
 OVERLAP seats 353 & 385 area=1.3
 OVERLAP seats 390 & 428 area=1.6
 OVERLAP seats 408 & 424 area=1.2
-stats {'lvl2': 3861, 'adm2_disamb': 527, 'lvl1': 1456, 'lvl0': 137, 'geo': 2, 'chn': 371, 'ne': 41, 'pt': 5}; seats written 500; overlaps 8; time 234s
+stats {'lvl2': 3861, 'adm2_disamb': 527, 'lvl1': 1456, 'lvl0': 137, 'geo': 2, 'chn': 371, 'ne': 41, 'pt': 5}; seats written 500; overlaps 8; time 208s
