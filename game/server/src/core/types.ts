@@ -32,6 +32,8 @@ export interface PlayerRecord {
   /** 'agent' = AI player joined via MCP/CLI; missing = 'human'. */
   kind?: PlayerKind;
   status: PlayerStatus;
+  /** 0-based candidates.csv column this party draws its candidates from. Server-internal: set once at game start, never sent to clients. */
+  candidateColumn?: number;
   party?: PartyIdentity;
   budget: number;
   joinedAt: number;

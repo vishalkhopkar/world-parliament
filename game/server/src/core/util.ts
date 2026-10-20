@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomInt as cryptoRandomInt } from 'node:crypto';
 import { GameError } from './types';
 
 export function newToken(): string { return randomBytes(32).toString('base64url'); }
@@ -33,3 +33,6 @@ export function cleanText(v: unknown, min: number, max: number, what: string): s
 }
 
 export function uniq<T>(xs: T[]): T[] { return [...new Set(xs)]; }
+
+/** Uniform random integer in [0, max) from the OS CSPRNG. */
+export function randomInt(max: number): number { return cryptoRandomInt(max); }

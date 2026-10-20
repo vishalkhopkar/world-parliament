@@ -15,7 +15,7 @@ import type {
   Clock, CountPlan, GameRecord, LoadedMap, MapProvider, Notifier, PlayerRecord, Repo, Scheduler,
 } from './types';
 import { GameError } from './types';
-import { cleanText, hashToken, newId, newJoinCode, newToken, uniq } from './util';
+import { cleanText, hashToken, newId, newJoinCode, newToken, randomInt, uniq } from './util';
 
 export interface GameServiceDeps {
   repo: Repo;
@@ -33,6 +33,17 @@ const CONTENDER: ReadonlySet<string> = new Set(['active', 'disconnected']);
 /** Negotiation (chat + coalition offers) needs at least this many players who started the game. */
 const MIN_NEGOTIATION_PLAYERS = 3;
 const MEMBER: ReadonlySet<string> = new Set(['active', 'disconnected', 'eliminated']);
+
+/** `count` distinct random candidates.csv columns out of 0..columns-1 (partial Fisher-Yates with the OS CSPRNG). */
+export function dealCandidateColumns(count: number, columns: number): number[] {
+  if (count > columns) throw new GameError('GAME_FULL', 'Not enough candidate columns for every player');
+  const pool = Array.from({ length: columns }, (_, i) => i);
+  for (let i = 0; i < count; i++) {
+    const j = i + randomInt(columns - i);
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, count);
+}
 
 export function toPublic(p: PlayerRecord): PlayerPublic {
   const out: PlayerPublic = { playerId: p.playerId, nickname: p.nickname, isAdmin: p.isAdmin, kind: p.kind ?? 'human', status: p.status };
@@ -266,6 +277,10 @@ export class GameService {
     if (missing.length) throw new GameError('BAD_REQUEST', `Waiting for a party (name, colour, symbol and avatar) from: ${missing.map((p) => p.nickname).join(', ')}`);
     // Re-validate uniqueness (party picks are not atomic with each other).
     for (const p of active) this.validateParty(p.party as PartyIdentity, p.playerId, active);
+    // Candidate columns are dealt once, here, when the roster is final (so there is nothing to race over): a random
+    // permutation of the map's columns, one per active player. Never sent to clients.
+    const columns = dealCandidateColumns(active.length, cfg.players.max);
+    await Promise.all(active.map((p, i) => this.repo.updatePlayer(gameId, p.playerId, { candidateColumn: columns[i] })));
 
     const now = this.now();
     const timeline = buildTimeline(cfg, game.phases, now + (this.d.startDelayMs ?? 5000));

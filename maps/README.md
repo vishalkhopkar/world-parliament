@@ -18,6 +18,7 @@ maps/<id>/
       world.topo.json   coarse TopoJSON, one feature per seat (id = seat number)
       detail.topo.json  detailed TopoJSON, loaded lazily when zoomed in
       seats.json        seat names (authoritative), population, countries / ADM1 / ADM2 covered
+      candidates.csv    optional: 10 fictional local-sounding candidate names per seat (header candidate_1..10, row n = seat n)
       game.json         game package: centroids, neighbour graph, phase groupings k = 1..5 (see below)
   source/             the editing toolkit - files needed to CHANGE the map, never needed to render it
     README.md           how to edit seats / geometry and rebuild

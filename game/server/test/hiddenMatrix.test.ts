@@ -11,7 +11,7 @@ function keys(v: Json, fn: (key: string, value: Json, path: string[]) => void, p
   else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) { fn(k, x, [...path, k]); keys(x, fn, [...path, k]); }
 }
 
-const SECRET_KEYS = new Set(['roadshow', 'roadshows', 'effect', 'effects', 'tokenHash', 'token', 'connectionId', 'graceSchedule', 'disconnectedAt', 'joinedAt', 'kernel', 'kernels']);
+const SECRET_KEYS = new Set(['roadshow', 'roadshows', 'effect', 'effects', 'tokenHash', 'token', 'connectionId', 'graceSchedule', 'disconnectedAt', 'joinedAt', 'kernel', 'kernels', 'candidateColumn']);
 const PRIVATE_ONLY = new Set(['hello', 'private', 'actionAck', 'report']);
 
 interface Played { c: Ctx; roadshowTs: Map<number, number[]>; reportTs: number[] }

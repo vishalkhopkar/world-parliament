@@ -273,3 +273,21 @@ def test_components_helper():
     assert sorted(map(sorted, components(g, g))) == [[1, 2, 3], [4], [5, 6]]
     assert sorted(map(sorted, components([1, 3], g))) == [[1], [3]]      # induced subgraph: 2 is not in the set
     assert components([], g) == []
+
+
+# ---------------------------------------------------------------- mock candidates (optional per map)
+def test_candidates_csv(mapd):
+    """site/data/candidates.csv: header candidate_1..candidate_10, then one row per seat (row n = seat n),
+    10 unique non-empty mock candidate names per seat."""
+    path = mapd.dir / 'site' / 'data' / 'candidates.csv'
+    if not path.exists():
+        pytest.skip('map has no candidates.csv')
+    with open(path, encoding='utf-8', newline='') as f:
+        rows = list(csv.reader(f))
+    assert rows[0] == [f'candidate_{k}' for k in range(1, 11)]
+    body = rows[1:]
+    assert len(body) == mapd.manifest['seatCount']
+    for n, row in enumerate(body, start=1):
+        assert len(row) == 10, f'seat {n}: {len(row)} columns'
+        assert all(name.strip() == name and name for name in row), f'seat {n}: empty/padded name'
+        assert len(set(row)) == 10, f'seat {n}: duplicate names'
