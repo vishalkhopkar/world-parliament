@@ -1,0 +1,14 @@
+# Agent T notes (tests / TDD / CI)
+- 2026-10-20 start. Baseline (before my work): shared 60 tests, server 189, agent ? (see below), web (agent U working), sim 0, maps 0.
+- @vitest/coverage-v8 is NOT installed (node_modules/@vitest has only expect, mocker, pretty-format, runner, snapshot, spy, utils) -> no coverage numbers; writing scripts/coverage-gaps.ts (grep-based export/handler/ErrorCode/action gap list).
+- Plan: 1 gap script, 2 maps pytest (maps/tests), 3 scripts (gen-maps --check/--maps-dir, e2e orchestrator, package.json), 4 CI + hook + docs, 5 write missing tests per workspace, 6 run all.
+- Done: maps/tests (pytest.ini, conftest, maplib, test_map_data, test_source_pipeline) 71 pass 1 skip (slow 03); 02/05/07 geo tests run locally (~13 s total) and skip w/o data.
+- Done: gen-maps.ts got --dry / --check / --maps-dir; scripts/coverage-gaps.ts (grep gap list); scripts/e2e.ts orchestrator; package.json scripts; scripts/tsconfig.json (typechecks scripts + e2e/*.ts).
+- Finding: CSV seats 308/463/464 flagged LOW but in band (informational, harmless).
+- e2e orchestrator bots 2p+3p PASS (88 s, parallel). CI: ci.yml (test+e2e jobs, workflow_call), game-deploy.yml now calls ci then deploys; pages.yml gated by maps pytest. .githooks/pre-push + .gitattributes. YAML parsed OK (python yaml + node yaml).
+- server tests written so far: wsMatrix (44), rest (98); helpers.ts extended (CtxOptions, lineMap, setResults, pollAll, driveTo)
+- server tests added: countingUnit(91) lifecycle(44) lobbyRules(50) campaignRules(31) negotiationRules(52)
+- BUG fixed: server/src/local/localEnv.ts num(): whitespace-only HP_*_MS env var parsed as 0 (Number(' ')===0) -> now ignored. Test in localAdapters.test.ts
+- BUG fixed: agent/src/errors.ts had no hint for AVATAR_TAKEN (agent got an error without 'Hint:'). Test in agent/test/actionsAll.test.ts
+- tests added: server wsMatrix/rest/countingUnit/lifecycle/lobbyRules/campaignRules/negotiationRules/hiddenMatrix/handlers/mapGeneric/localAdapters/devServerHttp; agent actionsAll/clientRest; shared engineEdges; sim smoke (new workspace test script); 
+- FINAL: npm run verify EXIT=0 (build + e2e bots 2p/3p + browser). Counts: shared 60->155, server 189->754, agent 45->176, sim 0->32, web 51->66 (agent U), maps pytest 0->71(+1 slow skip). 2 bugs fixed (localEnv whitespace, AVATAR_TAKEN hint).

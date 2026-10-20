@@ -1,0 +1,49 @@
+HUNG PARLIAMENT game map report  (build/07_game_map.py)
+seats: 500   land-adjacency edges: 1274   ferry links added: 10   total edges: 1284
+land-graph components before ferry links: 10  (Boruvka rounds: 2)
+inverse Equal Earth round-trip max error over 121x61 grid: 3.439e-12 deg  (OK)
+seats whose area centroid lies outside their polygon (37): 13 Kashi, 46 Chennai–Andaman, 89 Northeast India, 100 Jiaodong, 101 Dezhou, 108 Nanyang, 121 Tangshan, 164 Hexi Corridor, 191 Dhaka City, 224 Lesser Sundas, 228 Eastern Visayas-N Mindanao, 230 Bicol, 242 Southern Thailand, 244 Yangon, 254 Kanagawa–Chiba, 287 Ashgabat, 289 Tashkent, 293 Lagos, 294 Abeokuta–Akure, 299 Port Harcourt, 313 Gondar, 342 Cape Of Good Hope, 354 Rabat–Casablanca, 361 Accra, 364 Madagascar Outer, 367 Douala, 375 Somalia, 405 English Midlands, 414 Bari-Sicily, 426 Hellas, 428 Scandinavia Outer, 454 Pacific Northwest, 463 Quebec–Greenland, 467 America Isthmus, 470 Eastern Caribbean, 476 Minas South–Espírito Santo, 500 Pacific Islands
+
+FERRY LINKS (seat A <-> seat B, approx km between closest boundary points)
+  224 Lesser Sundas  <->  225 Papua–Maluku        27 km
+  250 North Borneo  <->  232 Mindanao        40 km
+  251 Hokkaido–Tohoku  <->  397 Siberia East        44 km
+  208 Kandy  <->   47 Cauvery Delta        55 km
+  220 Palembang–Jambi  <->  222 Kalimantan        65 km
+  454 Pacific Northwest  <->  397 Siberia East        78 km
+  468 Cuba–Jamaica  <->  469 Haiti        87 km
+  499 Australia East  <->  500 Pacific Islands        96 km
+  364 Madagascar Outer  <->  360 Mozambique North       296 km
+  463 Quebec–Greenland  <->  403 Celtic Isles       821 km
+Explicit EXTRA_FERRY links: 463<->403 821 km (North Atlantic (Greenland/Iceland - Scotland))
+
+PHASE GROUPS  (ordered east -> west by circular mean longitude: phase 1 = most easterly, since polling across the world
+naturally starts in the east and follows the time zones westward)
+
+k = 1   target 500.0 per group   sizes [500]
+  phase 1: 500 seats, contiguous=True, mean lon/lat 65.0/35.5; Asia 292, Africa 95, Europe 45; e.g. Mazar-i-Sharif, Kandahar, Kabul
+
+k = 2   target 250.0 per group   sizes [250, 250]
+  phase 1: 250 seats, contiguous=True, mean lon/lat 99.8/24.9; Asia 246, Oceania 3, Europe 1; e.g. Dali, Kunming, Qujing
+  phase 2: 250 seats, contiguous=True, mean lon/lat 7.5/29.4; Africa 95, Asia 46, Europe 44; e.g. Eastern Algeria, Algiers, Oran
+
+k = 3   target 166.7 per group   sizes [167, 167, 166]
+  phase 1: 167 seats, contiguous=True, mean lon/lat 110.4/24.2; Asia 163, Oceania 3, Europe 1; e.g. Wuzhou-Yulin, Guilin, Western Guangdong
+  phase 2: 167 seats, contiguous=True, mean lon/lat 63.8/24.9; Asia 126, Africa 33, Europe 8; e.g. Karachi, Balochistan, Hyderabad Sindh
+  phase 3: 166 seats, contiguous=True, mean lon/lat -19.5/26.2; Africa 62, North America 38, Europe 36; e.g. Marrakesh–El Aaiun, Senegambia–Cabo Verde, Mali–Mauritania
+
+k = 4   target 125.0 per group   sizes [126, 125, 125, 124]
+  phase 1: 126 seats, contiguous=True, mean lon/lat 116.2/23.7; Asia 122, Oceania 3, Europe 1; e.g. East Guangdong (Chaoshan), Dongguan-Huizhou, Hakka
+  phase 2: 125 seats, contiguous=True, mean lon/lat 83.7/24.4; Asia 125; e.g. Bhojpur, Kashi, Ranchi
+  phase 3: 125 seats, contiguous=True, mean lon/lat 36.7/17.4; Africa 72, Asia 45, Europe 8; e.g. Gezira, Northern Horn, Gondar
+  phase 4: 124 seats, contiguous=True, mean lon/lat -39.6/32.7; North America 38, Europe 36, South America 27; e.g. Marrakesh–El Aaiun, New England, Lisboa
+
+k = 5   target 100.0 per group   sizes [101, 100, 100, 100, 99]
+  phase 1: 101 seats, contiguous=True, mean lon/lat 115.1/20.2; Asia 98, Oceania 3; e.g. Shenzhen, Hong Kong-Macau, Dongguan-Huizhou
+  phase 2: 100 seats, contiguous=True, mean lon/lat 86.2/22.4; Asia 100; e.g. Mayurbhanj, Medinipur, Ranchi
+  phase 3: 100 seats, contiguous=True, mean lon/lat 75.0/41.5; Asia 81, Europe 19; e.g. Kyrgyzstan–Tajikistan, Tashkent, Hazara
+  phase 4: 100 seats, contiguous=True, mean lon/lat 25.0/7.9; Africa 86, Asia 13, Europe 1; e.g. South Sudan, Darfur, Kisangani
+  phase 5: 99 seats, contiguous=True, mean lon/lat -53.4/29.6; North America 38, South America 27, Europe 25; e.g. Eastern Caribbean, New England, New York Metro
+
+VALIDATION: PASSED
+runtime 4.6s

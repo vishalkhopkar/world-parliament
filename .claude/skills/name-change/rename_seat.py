@@ -1,11 +1,19 @@
 import json, os, sys
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-SEATS_JSON = os.path.join(ROOT, 'site', 'data', 'seats.json')
+DEFAULT_MAP = 'world-500'
 
 def main():
-    args = [a for a in sys.argv[1:] if a != '--dry-run']
-    dry = '--dry-run' in sys.argv
-    if len(args) != 2: sys.exit('usage: rename_seat.py "<seat number or current name>" "<new name>" [--dry-run]')
+    argv = sys.argv[1:]
+    map_id = DEFAULT_MAP
+    if '--map' in argv:
+        i = argv.index('--map')
+        if i + 1 >= len(argv): sys.exit('--map needs a map id (a folder under maps/)')
+        map_id = argv[i + 1]; del argv[i:i + 2]
+    SEATS_JSON = os.path.join(ROOT, 'maps', map_id, 'site', 'data', 'seats.json')
+    if not os.path.exists(SEATS_JSON): sys.exit(f'no such map or seats file: {SEATS_JSON}')
+    args = [a for a in argv if a != '--dry-run']
+    dry = '--dry-run' in argv
+    if len(args) != 2: sys.exit('usage: rename_seat.py [--map <map id, default world-500>] "<seat number or current name>" "<new name>" [--dry-run]')
     key, new = args[0].strip(), args[1].strip()
     if not new: sys.exit('new name is empty')
     data = json.load(open(SEATS_JSON, encoding='utf-8'))

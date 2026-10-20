@@ -1,0 +1,19 @@
+/* map/SeatMap.css */
+.map-wrap{position:absolute;inset:0}
+.map{width:100%;height:100%;display:block;background:var(--sandstone);touch-action:none;cursor:default}
+.map.dragging,.map.dragging *{cursor:grabbing !important}
+.seat{fill:#d3d0c6;stroke:var(--seat-stroke);stroke-width:.6px;vector-effect:non-scaling-stroke;cursor:pointer}
+.seat.won{stroke:rgba(0,0,0,.55)}
+.seat.leading{fill-opacity:.55;stroke-dasharray:3 2;stroke:rgba(0,0,0,.65)}
+.seat.selected{stroke:var(--hover-stroke);stroke-width:1.8px}
+.seat.flash{animation:flash .9s ease-out}
+@keyframes flash{0%{filter:brightness(1.8)}100%{filter:none}}
+.hl{fill:var(--hover);fill-opacity:.55;stroke:var(--hover-stroke);stroke-width:1.4px;vector-effect:non-scaling-stroke;pointer-events:none}
+.sel{fill:none;stroke:var(--hover-stroke);stroke-width:2.2px;vector-effect:non-scaling-stroke;pointer-events:none}
+.hit{fill:transparent;stroke:none;cursor:pointer}
+.tip{position:fixed;display:none;z-index:40;pointer-events:none;background:var(--green-deep);color:var(--ivory);padding:4px 10px;border-radius:5px;border:1px solid var(--gold);font-weight:600;font-size:13px;white-space:nowrap;box-shadow:0 2px 8px rgba(40,30,0,.4)}
+.map-zoom{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:4px;z-index:2}
+.map-zoom button{width:34px;height:34px;border-radius:8px;border:1px solid var(--green);background:var(--ivory);color:var(--green);font-size:18px;cursor:pointer;font-weight:700}
+.map-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-family:var(--serif);font-size:18px;pointer-events:none}
+.fx{pointer-events:none}
+.pulse{vector-effect:non-scaling-stroke}

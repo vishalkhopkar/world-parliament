@@ -1,0 +1,96 @@
+name: CI
+
+# Runs on every push and pull request (all branches). Also callable from other workflows (game-deploy.yml calls it
+# and only deploys when it passes).
+#   job "test": registry stale-check, typecheck, unit tests of every workspace, maps (pytest), web build, cdk synth
+#   job "e2e":  bot e2e (2 and 3 players) + browser e2e on the runner's Google Chrome
+# Local equivalent: `npm run build` (job test) and `npm run test:e2e` (job e2e) in game/, or `npm run verify` for both.
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: game
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: game/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - run: pip install pytest
+      - run: npm ci
+
+      - name: Map registry is up to date (gen:maps + stale check)
+        run: |
+          npm run gen:maps
+          git diff --exit-code -- shared/src/maps.generated.ts server/src/maps.generated.ts
+
+      - name: Typecheck (all workspaces + scripts + e2e)
+        run: npm run typecheck
+
+      - name: Unit + integration tests (shared, server, web, agent, sim)
+        run: npm test
+
+      - name: Every public function / error code / route / action is mentioned by a test (gap check)
+        run: npm run check:gaps
+
+      - name: Maps tests (pytest; tests that need the large GEO data skip themselves)
+        run: npm run test:maps
+
+      - name: Build web
+        run: npm run build -w @hp/web
+
+      - name: CDK synth (no credentials needed)
+        working-directory: game/infra
+        run: npx cdk synth -c stage=dev --quiet
+
+  e2e:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: game
+    env:
+      CHROME_PATH: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: game/package-lock.json
+      - run: npm ci
+      - run: npm run gen:maps
+      - name: Chrome is available
+        run: |
+          test -x "$CHROME_PATH"
+          "$CHROME_PATH" --version
+      - name: End-to-end (bots 2 and 3 players, then browser)
+        run: npm run test:e2e
+      - name: Upload e2e screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: game/e2e/shots/
+          if-no-files-found: ignore
+          retention-days: 7

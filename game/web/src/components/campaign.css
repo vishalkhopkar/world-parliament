@@ -1,0 +1,9 @@
+/* components/campaign.css */
+.report{border-top:1px dashed var(--line);padding:6px 0}
+.report-head{display:flex;justify-content:space-between;gap:8px}
+.report-row{display:flex;align-items:center;gap:8px;padding:1px 0}
+.swatch-sm{width:12px;height:12px;border-radius:3px;flex:none}
+.rr-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rr-val{font-variant-numeric:tabular-nums}
+.rr-val small{color:var(--muted)}
+.swatch-sm{background:var(--party-colour)}

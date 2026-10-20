@@ -3,7 +3,7 @@ name: Deploy site to GitHub Pages
 on:
   push:
     branches: [main]
-    paths: ['site/**', '.github/workflows/pages.yml']
+    paths: ['maps/world-500/site/**', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 permissions:
@@ -16,7 +16,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Gate: the published site data must pass the maps tests (seat ids/names, game package, topojson, populations).
+  # Only pytest is needed; tests that require the large boundary data skip themselves.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - run: pip install pytest
+      - run: python -I -m pytest maps -q
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -26,6 +39,6 @@ jobs:
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: maps/world-500/site
       - id: deployment
         uses: actions/deploy-pages@v4

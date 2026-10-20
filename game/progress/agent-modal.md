@@ -1,0 +1,1 @@
+Seat action modal: web/src/components/SeatActionModal.tsx(+css); Campaign.tsx wires it; SeatPanel removed; AnalystShop keeps Global report only. e2e/browser.ts still clicks old Rally/Seat report buttons in sidebar and needs updating.

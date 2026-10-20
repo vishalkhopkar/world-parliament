@@ -1,0 +1,14 @@
+#!/bin/sh
+# Pre-push gate: the same checks as the CI "test" job (maps registry, typecheck, all unit/integration tests, maps tests, web build).
+# Enable once per clone (this does not change anything globally):   git config core.hooksPath .githooks
+# Skip in an emergency:                                              git push --no-verify
+# Add the browser/bot end-to-end run too:                            HP_PREPUSH_E2E=1 git push
+set -e
+root="$(git rev-parse --show-toplevel)"
+cd "$root/game"
+echo "pre-push: npm run build (tests must pass before anything is pushed)"
+npm run build
+if [ "${HP_PREPUSH_E2E:-}" = "1" ]; then
+  echo "pre-push: npm run test:e2e"
+  npm run test:e2e
+fi

@@ -1,0 +1,16 @@
+/* components/mapChooser.css: "Choose a map" cards on the start page */
+.map-chooser{border:0;margin:0;padding:0;min-width:0}
+.map-chooser-title{font-family:var(--serif);font-size:16px;color:var(--green);padding:0;margin-bottom:8px}
+.map-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.map-card{position:relative;display:flex;flex-direction:column;gap:8px;background:var(--panel);border:2px solid var(--line);border-radius:10px;padding:10px;box-shadow:0 2px 8px rgba(40,30,0,.12);transition:border-color .12s,box-shadow .12s}
+.map-card:hover{border-color:var(--gold)}
+.map-card.selected{border-color:var(--green);box-shadow:0 0 0 2px var(--gold),0 2px 8px rgba(40,30,0,.15);background:var(--ivory)}
+.map-card:focus-within{outline:2px solid var(--gold);outline-offset:2px}
+.map-card-radio{position:absolute;top:12px;right:12px;width:18px;height:18px;margin:0;accent-color:var(--green);z-index:1;cursor:pointer}
+.map-card-body{display:flex;flex-direction:column;gap:8px;cursor:pointer;min-width:0}
+.map-card-thumb{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:7px;border:1px solid var(--line);background:var(--sandstone)}
+.map-card-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.map-card-name{font-weight:700;font-size:15px;color:var(--ink)}
+.map-card-seats{font-size:12.5px;font-weight:600;color:var(--green)}
+.map-card-desc{font-size:12.5px;color:var(--muted)}
+.map-card-view{align-self:flex-start;display:inline-flex;align-items:center;gap:5px;text-decoration:none}

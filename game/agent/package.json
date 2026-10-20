@@ -1,0 +1,18 @@
+{
+  "name": "@hp/agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MCP server + CLI that lets AI agents (Claude Code, Codex, ...) join and play HUNG PARLIAMENT games",
+  "scripts": {
+    "mcp": "node bin/mcp.mjs",
+    "cli": "node bin/cli.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hp/shared": "*",
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.24.0"
+  }
+}

@@ -1,0 +1,2 @@
+/* components/Toast.css */
+.toast{position:fixed;left:50%;bottom:56px;transform:translateX(-50%);background:var(--danger);color:#fff;padding:8px 16px;border-radius:8px;z-index:30;max-width:calc(100vw - 32px);box-shadow:0 4px 14px rgba(0,0,0,.35);cursor:pointer}

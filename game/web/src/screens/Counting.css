@@ -1,0 +1,23 @@
+/* screens/Counting.css */
+.tally{width:100%}
+.tally-bar{position:relative;display:flex;height:22px;background:rgba(255,255,255,.85);border:1px solid var(--gold);border-radius:6px;overflow:visible}
+.tally-bar .seg{height:100%;transition:width .4s}
+.tally-bar .seg.lead{opacity:.45}
+.tally-bar .seg:first-child{border-radius:5px 0 0 5px}
+.majority{position:absolute;top:-4px;bottom:-4px;width:0;border-left:2px solid var(--ink)}
+.majority span{position:absolute;top:100%;left:50%;transform:translateX(-50%);font-size:10.5px;white-space:nowrap;color:inherit;margin-top:1px;background:var(--panel);color:var(--ink);padding:0 4px;border-radius:3px}
+.hud .majority span{display:none}
+.hud .majority{border-color:var(--hover)}
+.tally-legend{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px;font-size:12.5px}
+.tl-item{display:inline-flex;align-items:center;gap:5px}
+.tally-foot{font-size:11.5px;margin-top:2px}
+.hud .tally-legend{margin-top:5px}
+.hud .tally-foot{color:var(--gold-light)}
+.hud .tally-legend strong,.tally-legend strong{font-size:13px;line-height:1.2}
+.tally-legend span{font-size:12.5px}
+.tally{padding-top:16px}
+.majority span{top:auto;bottom:100%;margin:0 0 2px}
+.hud .tally{padding-top:0}
+.tally-bar .seg{width:var(--seg-width);background:var(--party-colour)}
+.majority{left:var(--majority-left)}
+.party-text{color:var(--party-colour)}

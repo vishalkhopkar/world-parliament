@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "hung-parliament": {
+      "command": "node",
+      "args": ["game/agent/bin/mcp.mjs"],
+      "env": {
+        "HP_SERVER": "http://localhost:8787"
+      }
+    }
+  }
+}

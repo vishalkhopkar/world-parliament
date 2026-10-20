@@ -1,0 +1,9 @@
+{
+  "id": "world-500",
+  "name": "World – 500 seats",
+  "description": "The world (about 8.3 billion people) divided into 500 parliament seats of roughly 16.6 million people each, drawn instead of countries.",
+  "seatCount": 500,
+  "thumbnail": "thumbnail.jpg",
+  "site": "site/index.html",
+  "gamePackage": "site/data/game.json"
+}

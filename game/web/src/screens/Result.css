@@ -1,0 +1,10 @@
+/* screens/Result.css */
+.result-map{position:relative;min-height:320px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.table-wrap{overflow-x:auto}
+table.points{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+table.points th,table.points td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+table.points th{color:var(--muted);font-size:12px}
+table.points tr.winner{background:rgba(227,197,102,.35)}
+.winners{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+.winners .party-badge strong{font-weight:800}
+.gov-members{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
