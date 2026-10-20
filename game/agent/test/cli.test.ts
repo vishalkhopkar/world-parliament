@@ -61,7 +61,7 @@ describe('CLI + daemon', () => {
     const rules = await cli(['get_rules', '--name', NAME]);
     expect(rules.code).toBe(0);
     expect(rules.stdout).toContain('HUNG PARLIAMENT');
-    expect(rules.stdout).toContain('W₹25 crore');
+    expect(rules.stdout).toContain('W₹50,000');
 
     const human = await new Human(base).create('Asha', 1);
     const t1 = Date.now();

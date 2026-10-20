@@ -11,6 +11,7 @@ export const TEST_CFG: MapConfig = {
   effects: {
     rally: { local: 1.0, global: 0.01, decay: { halfDistanceKm: 100, maxKm: 500, capRatio: 0.5 } },
     roadshow: { local: 1.5, decay: { halfDistanceKm: 30, maxKm: 150, capRatio: 0.4 } },
+    firstMover: { rally: 0, roadshow: 0 }, // off in the base test config; firstMover.test.ts turns it on
   },
   timeMultiplier: { start: 1.0, end: 1.2 },
   randomSwing: 0.02,

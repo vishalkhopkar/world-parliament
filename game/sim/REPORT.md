@@ -1,6 +1,8 @@
 # Simulator report: world map tuning
 
-Produced by Agent E (19 Oct 2026) with `game/sim`. The final values are in `WORLD_CONFIG` (`game/shared/src/mapConfig.ts`).
+Produced by Agent E (19 Oct 2026) with `game/sim`. The values now live in `game/config/game.properties` (read by `WORLD_CONFIG`).
+
+> **Update 20 Oct 2026:** the budget was doubled and all money amounts were rescaled to round numbers (÷10,000: budget W₹50,000, rally 2,000, roadshow 400, seat report 800→1,800, global 2,800→6,200), and a first mover's advantage was added (`effects.firstMover.*`, +0.5 rally / +1.5 roadshow). The tables below are the ORIGINAL tuning run (W₹ in crore, no first mover, budget 100 crore) and have NOT been re-run; re-run `npx tsx src/run.ts --mode full` before trusting the balance.
 
 Run everything from `game/sim` with `npx tsx src/run.ts --mode full` (3–4 min). Other modes: `field`, `mix`, `h2h --pool A,B`, `evolve`, `crowd`, `lone`, `checks`. Flags: `--games N --players 2,3,5,10 --phases 1,3,5 --seed S --set effects.rally.global=0.02 --verify`.
 

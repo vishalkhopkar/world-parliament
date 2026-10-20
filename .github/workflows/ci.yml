@@ -38,10 +38,11 @@ jobs:
       - run: pip install pytest
       - run: npm ci
 
-      - name: Map registry is up to date (gen:maps + stale check)
+      - name: Map registry and game config are up to date (gen:maps + gen:config + stale check)
         run: |
           npm run gen:maps
-          git diff --exit-code -- shared/src/maps.generated.ts server/src/maps.generated.ts
+          npm run gen:config
+          git diff --exit-code -- shared/src/maps.generated.ts server/src/maps.generated.ts shared/src/config.generated.ts
 
       - name: Typecheck (all workspaces + scripts + e2e)
         run: npm run typecheck
@@ -80,6 +81,7 @@ jobs:
           cache-dependency-path: game/package-lock.json
       - run: npm ci
       - run: npm run gen:maps
+      - run: npm run gen:config
       - name: Chrome is available
         run: |
           test -x "$CHROME_PATH"

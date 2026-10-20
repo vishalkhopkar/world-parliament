@@ -65,7 +65,8 @@ export function timeMultiplier(cfg: MapConfig, timeline: GameTimeline, ts: numbe
 }
 
 /**
- * Sum the effect of every action on every seat, per player.
+ * Sum the effect of every action on every seat, per player. The first party to act in a seat also gets the
+ * cfg.effects.firstMover bonus there (once, flat).
  * A seat is frozen for an action when its phase close time <= action ts (the action does not touch it);
  * the action's contributions to still-open seats are kept.
  */
@@ -92,6 +93,22 @@ export function computeEffects(
   const { start: m0, end: m1 } = cfg.timeMultiplier;
   const span = timeline.campaignEnd - timeline.campaignStart;
   const t0 = timeline.campaignStart;
+
+  // First mover's advantage: per seat, the earliest counted action (either type) while the seat is still open.
+  // Ties on ts go to the earlier entry in `actions`.
+  const fm = cfg.effects.firstMover;
+  let firstOf: Int32Array | undefined;
+  if (fm.rally !== 0 || fm.roadshow !== 0) {
+    firstOf = new Int32Array(n).fill(-1);
+    const firstTs = new Float64Array(n).fill(Infinity);
+    for (let k = 0; k < actions.length; k++) {
+      const a = actions[k];
+      if (a.ts > upTo || (exclude !== undefined && exclude.has(a.playerId))) continue;
+      const r = kernels.index.get(a.seat);
+      if (r === undefined || !(closeOfSeat[r] > a.ts)) continue;
+      if (a.ts < firstTs[r]) { firstTs[r] = a.ts; firstOf[r] = k; }
+    }
+  }
 
   let lastPlayer: PlayerId | undefined;
   let vec: Float64Array | undefined;
@@ -123,6 +140,7 @@ export function computeEffects(
         if (closeOfSeat[j] > ts) vec[j] += roadshow[base + j] * mult;
       }
     }
+    if (firstOf !== undefined && firstOf[row] === k) vec[row] += a.type === 'rally' ? fm.rally : fm.roadshow;
   }
   return effects;
 }

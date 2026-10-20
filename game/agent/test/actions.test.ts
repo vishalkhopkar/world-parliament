@@ -194,8 +194,8 @@ describe('read-only views', () => {
     expect(d.seats_total).toBe(500);
     expect(d.majority).toBe(251);
     expect(d.budget.wr).toBe(cfg.budget);
-    expect(d.budget.rallies_affordable).toBe(12);
-    expect(d.budget.roadshows_affordable).toBe(62);
+    expect(d.budget.rallies_affordable).toBe(Math.floor(cfg.budget / cfg.costs.rally));
+    expect(d.budget.roadshows_affordable).toBe(Math.floor(cfg.budget / cfg.costs.roadshow));
     expect(d.budget.seat_report_price_now_wr).toBeGreaterThanOrEqual(cfg.analyst.seatReport.start);
     expect(d.timers.current_polling_phase).toBe(1);
     expect(d.timers.polling_phases_total).toBe(3);
@@ -242,22 +242,30 @@ describe('rules rendering', () => {
   it('the template has no unrendered placeholders and numbers come from the config', () => {
     const text = renderRules(cfg);
     expect(text).not.toMatch(/\{\{/);
-    expect(text).toContain('W₹25 crore');
-    expect(text).toContain('W₹2 crore');
-    expect(text).toContain('W₹0.4 crore');
+    expect(text).toContain('W₹50,000');
+    expect(text).toContain('W₹2,000');
+    expect(text).toContain('W₹400');
     expect(text).toContain('251 seats');
     expect(text).toContain('500 parliament seats');
     expect(text).toContain('| `PM` | Prime Minister | 100 | 1 |');
     expect(text).toContain('| `DPM` | Deputy Prime Minister | 50 | 2 |');
   });
 
+  it('explains the first mover bonus with the configured amounts', () => {
+    const text = renderRules(cfg);
+    expect(text).toContain("First mover's advantage");
+    expect(text).toContain(`+${cfg.effects.firstMover.rally}`);
+    expect(text).toContain(`+${cfg.effects.firstMover.roadshow}`);
+    expect(renderRules({ ...cfg, effects: { ...cfg.effects, firstMover: { rally: 0.25, roadshow: 4 } } })).toContain('+0.25');
+  });
+
   it('follows config changes (nothing hard-coded)', () => {
-    const changed = { ...cfg, seatCount: 543, budget: 300_000_000, costs: { rally: 30_000_000, roadshow: 5_000_000 } };
+    const changed = { ...cfg, seatCount: 543, budget: 30_000, costs: { rally: 3_000, roadshow: 500 } };
     const text = renderRules(changed);
-    expect(text).toContain('W₹30 crore');
+    expect(text).toContain('W₹3,000');
     expect(text).toContain('272 seats');
     expect(text).toContain('543 parliament seats');
-    expect(text).not.toContain('W₹25 crore');
+    expect(text).not.toContain('W₹50,000');
     const v = rulesValues(changed);
     expect(v.MAX_RALLIES).toBe('10');
     expect(v.MAX_ROADSHOWS).toBe('60');

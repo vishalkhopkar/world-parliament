@@ -16,6 +16,7 @@ export class State {
   readonly pubTotal: Float64Array;   // sum of pub over players
   readonly visitedRoad: Uint8Array[];
   readonly rallied: Uint8Array[];
+  readonly firstTaken: Uint8Array;   // seat already has its first mover (bonus given)
   readonly actions: Action[] = [];
   private seq = 0;
 
@@ -29,6 +30,7 @@ export class State {
     const mk = () => Array.from({ length: P }, () => new Float64Array(n));
     this.eff = mk(); this.road = mk(); this.cEff = mk(); this.pub = mk();
     this.pubTotal = new Float64Array(n);
+    this.firstTaken = new Uint8Array(n);
     this.visitedRoad = Array.from({ length: P }, () => new Uint8Array(n));
     this.rallied = Array.from({ length: P }, () => new Uint8Array(n));
   }
@@ -81,6 +83,11 @@ export class State {
         }
       }
       this.visitedRoad[p][i] = 1;
+    }
+    if (!this.firstTaken[i]) {
+      // first mover's advantage: flat bonus in the seat itself, hidden (not part of the public rally effect)
+      this.firstTaken[i] = 1;
+      eff[i] += type === 'rally' ? this.w.cfg.effects.firstMover.rally : this.w.cfg.effects.firstMover.roadshow;
     }
     this.actions.push({ id: `a${this.seq++}`, playerId: `P${p}`, type, seat: this.w.kernels.seatIds[i], ts });
     return true;

@@ -65,7 +65,7 @@ class Bot {
   token = '';
   /** budget as last reported by the server for this player */
   budget = -1;
-  /** budget kept back from random campaigning (the analyst scenario must still afford its reports; W₹25 crore is tight) */
+  /** budget kept back from random campaigning (the analyst scenario must still afford its reports; W₹50,000 is tight) */
   reserve = 0;
   acked: { type: string; seat: number }[] = [];
   reportsBought = 0;

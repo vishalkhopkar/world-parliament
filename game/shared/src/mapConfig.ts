@@ -1,6 +1,7 @@
-// Per-map tuning. Every number that depends on the map lives here, so a new map
-// (e.g. India) only needs a new MapConfig + map package. Values marked TUNE are
-// placeholders until the simulator (game/sim) picks them; update FEATURE REQUIREMENTS.docx after.
+// Per-map tuning types and the game constants. The NUMBERS live in game/config/game.properties (edit that file, not this
+// one); `npm run gen:config` turns it into config.generated.ts, which WORLD_CONFIG is built from. A new map (e.g. India)
+// only needs a map package; it gets a copy of these values unless MAP_CONFIGS has an entry for it.
+import { GAME_CONFIG_VALUES } from './config.generated';
 
 export interface DecayParams {
   /** Spill-over halves every `halfDistanceKm` of great-circle distance between seat centres. */
@@ -21,6 +22,11 @@ export interface EffectParams {
     local: number;      // s : must be significantly larger than rally.global (docx) and larger than rally.local
     decay: DecayParams; // s_d : decays much faster than the rally's
   };
+  /**
+   * First mover's advantage: the very first party to rally OR roadshow in a seat gets this extra effect in THAT seat
+   * (the amount depends on which action it used). Not scaled by the time multiplier. 0 = off.
+   */
+  firstMover: { rally: number; roadshow: number };
 }
 
 export interface PortfolioDef {
@@ -84,43 +90,47 @@ export function majorityOf(seatCount: number): number {
   return Math.floor(seatCount / 2) + 1;
 }
 
-const STANDARD_PORTFOLIOS: PortfolioDef[] = [
-  { id: 'PM', label: 'Prime Minister', points: 100, max: 1 },
-  { id: 'DPM', label: 'Deputy Prime Minister', points: 50, max: 2 },
-  { id: 'HOME', label: 'Home', points: 20, max: 1 },
-  { id: 'DEFENCE', label: 'Defence', points: 20, max: 1 },
-  { id: 'FINANCE', label: 'Finance', points: 20, max: 1 },
-  { id: 'EXTERNAL', label: 'External Affairs', points: 20, max: 1 },
-  { id: 'SPEAKER', label: 'Speaker of Parliament', points: 10, max: 1 },
-];
-
 /** Map the game uses when a client does not ask for a specific one (folder name under maps/). */
 export const DEFAULT_MAP_ID = 'world-500';
+
+/** Throws (naming the key) if a number is missing, not finite or out of range. Runs once at start-up on the file values. */
+export function validateConfig(cfg: MapConfig): void {
+  const bad = (key: string, why: string): never => { throw new Error(`game config: ${key} ${why}`); };
+  const num = (key: string, v: unknown, min = 0, strict = false) => {
+    if (typeof v !== 'number' || !Number.isFinite(v)) bad(key, `must be a number (got ${String(v)})`);
+    if (strict ? (v as number) <= min : (v as number) < min) bad(key, `must be ${strict ? '>' : '>='} ${min} (got ${String(v)})`);
+  };
+  num('budget', cfg.budget, 0, true);
+  num('costs.rally', cfg.costs?.rally, 0, true);
+  num('costs.roadshow', cfg.costs?.roadshow, 0, true);
+  const decay = (k: string, d: DecayParams) => {
+    num(`${k}.halfDistanceKm`, d?.halfDistanceKm, 0, true);
+    num(`${k}.maxKm`, d?.maxKm);
+    num(`${k}.capRatio`, d?.capRatio);
+  };
+  num('effects.rally.local', cfg.effects?.rally?.local);
+  num('effects.rally.global', cfg.effects?.rally?.global);
+  decay('effects.rally.decay', cfg.effects?.rally?.decay);
+  num('effects.roadshow.local', cfg.effects?.roadshow?.local);
+  decay('effects.roadshow.decay', cfg.effects?.roadshow?.decay);
+  num('effects.firstMover.rally', cfg.effects?.firstMover?.rally);
+  num('effects.firstMover.roadshow', cfg.effects?.firstMover?.roadshow);
+  num('timeMultiplier.start', cfg.timeMultiplier?.start);
+  num('timeMultiplier.end', cfg.timeMultiplier?.end);
+  num('analyst.seatReport.start', cfg.analyst?.seatReport?.start);
+  num('analyst.seatReport.end', cfg.analyst?.seatReport?.end);
+  num('analyst.globalReport.start', cfg.analyst?.globalReport?.start);
+  num('analyst.globalReport.end', cfg.analyst?.globalReport?.end);
+  num('randomSwing', cfg.randomSwing);
+  if (!cfg.points?.portfolios?.length) bad('points.portfolios', 'must list at least one portfolio');
+}
 
 export const WORLD_CONFIG: MapConfig = {
   mapId: 'world-500',
   seatCount: 500,
-  currency: { name: 'World Rupee', symbol: 'W₹' },
-  budget: 250_000_000,  // W₹25 crore: designer cut the sim-tuned W₹100 crore by 75% (20 Oct 2026)
-  costs: { rally: 20_000_000, roadshow: 4_000_000 }, // tuned by sim (see game/sim/REPORT.md)
-  effects: {
-    rally: { local: 1.0, global: 0.01, decay: { halfDistanceKm: 150, maxKm: 800, capRatio: 0.5 } },   // tuned by sim (see game/sim/REPORT.md)
-    roadshow: { local: 3.0, decay: { halfDistanceKm: 40, maxKm: 200, capRatio: 0.4 } },                // tuned by sim (see game/sim/REPORT.md)
-  },
-  timeMultiplier: { start: 1.0, end: 1.1 },
-  analyst: {
-    seatReport: { start: 8_000_000, end: 18_000_000 },     // tuned by sim (see game/sim/REPORT.md)
-    globalReport: { start: 28_000_000, end: 62_000_000 },  // tuned by sim (see game/sim/REPORT.md)
-    delayMs: 30_000,
-    noise: 0.07,
-    marginFactor: 1.0,
-  },
-  randomSwing: 0.02,
-  phases: { min: 1, max: 5, default: 3 },
-  durations: { campaignMs: 600_000, countingMs: 180_000, postCountingMs: 120_000, graceMs: 90_000 },
-  players: { min: 2, max: 10 },
-  points: { portfolios: STANDARD_PORTFOLIOS, seatMultiplier: 200, governmentFloor: 10, opposition: 0 },
+  ...GAME_CONFIG_VALUES,
 };
+validateConfig(WORLD_CONFIG);
 
 export const MAP_CONFIGS: Record<string, MapConfig> = { 'world-500': WORLD_CONFIG };
 

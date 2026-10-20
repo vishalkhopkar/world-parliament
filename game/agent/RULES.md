@@ -15,7 +15,7 @@ player. Numbers below are rendered from this game's live configuration ({{MAP_NA
 - **Majority = floor(N/2) + 1 = {{MAJORITY}} seats.**
 - Each seat has an id (1..N), a name, a centre point (longitude/latitude), neighbouring seats, and belongs to exactly one of the
   polling phases (see section 4). Distances between seats are great-circle distances between their centre points.
-- Everything uses a fictional currency, the {{CURRENCY}} ({{SYM}}). 1 crore = 10,000,000. Amounts are whole numbers.
+- Everything uses a fictional currency, the {{CURRENCY}} ({{SYM}}). Amounts are whole numbers.
 
 ## 2. Lobby (before the game)
 1. A human creates the game, chooses the map and the number of polling phases ({{PHASES_MIN}} to {{PHASES_MAX}}), and shares a **join code**.
@@ -28,15 +28,15 @@ player. Numbers below are rendered from this game's live configuration ({{MAP_NA
    There is a short lead-in (a few seconds) between the start and the first moment you may campaign.
 
 ## 3. Money, prices, actions (campaign phase)
-Every player starts with the same **budget of {{BUDGET_CR}}** ({{BUDGET}} {{SYM}}). **Unused money is worth nothing**: spend it all, but wisely.
+Every player starts with the same **budget of {{BUDGET_TEXT}}**. **Unused money is worth nothing**: spend it all, but wisely.
 Only these things cost money:
 
 | Action | Price | Max if you only did this |
 |---|---|---|
-| **Rally** in a seat | {{RALLY_COST_CR}} | {{MAX_RALLIES}} rallies |
-| **Roadshow** in a seat | {{ROADSHOW_COST_CR}} | {{MAX_ROADSHOWS}} roadshows |
-| **Seat analyst report** (one seat) | {{SEAT_REPORT_START_CR}} at campaign start, rising linearly to {{SEAT_REPORT_END_CR}} at the end | |
-| **Global analyst report** | {{GLOBAL_REPORT_START_CR}} rising linearly to {{GLOBAL_REPORT_END_CR}} | |
+| **Rally** in a seat | {{RALLY_COST_TEXT}} | {{MAX_RALLIES}} rallies |
+| **Roadshow** in a seat | {{ROADSHOW_COST_TEXT}} | {{MAX_ROADSHOWS}} roadshows |
+| **Seat analyst report** (one seat) | {{SEAT_REPORT_START_TEXT}} at campaign start, rising linearly to {{SEAT_REPORT_END_TEXT}} at the end | |
+| **Global analyst report** | {{GLOBAL_REPORT_START_TEXT}} rising linearly to {{GLOBAL_REPORT_END_TEXT}} | |
 
 `get_state` shows today's exact prices, your budget and what you can still afford.
 
@@ -52,6 +52,9 @@ Every action adds **effect** for you in seats. Effects are additive: ten roadsho
   - strong local effect **s = {{ROADSHOW_LOCAL}}** in the seat ({{S_OVER_Y}} times a rally's local effect, for {{COST_RATIO}} of the price);
   - very steep spill-over: s x 0.5^(distance / {{ROADSHOW_HALF}} km), at most {{ROADSHOW_CAP}} of s, 0 beyond {{ROADSHOW_MAX}} km;
   - **no** global effect, and **nobody else can see it** (only you see your own roadshows).
+- **First mover's advantage**: the **very first party to campaign in a seat** (with a rally or a roadshow, whichever comes first on the server clock) gets a one-off
+  bonus effect in **that seat**: **+{{FIRST_MOVER_RALLY}}** if its first action there was a rally, **+{{FIRST_MOVER_ROADSHOW}}** if it was a roadshow, on top of the normal effect. Only one party gets it per seat, it is
+  not scaled by the time bonus, and it is hidden like all effects. A seat that has already closed has no first mover. Being early in a quiet seat is worth it.
 - **Time bonus**: every effect is multiplied by a factor that rises linearly from {{TM_START}} at campaign start to {{TM_END}} at campaign end. It is small, so
   waiting is not a big win. The exact moment of your action is decided by the **server clock**.
 - A roadshow in a quiet seat (s = {{ROADSHOW_LOCAL}}) comfortably beats the global effect of someone else's rallies elsewhere (c is only {{RALLY_GLOBAL}} per rally).

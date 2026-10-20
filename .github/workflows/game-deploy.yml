@@ -37,6 +37,7 @@ jobs:
           cache-dependency-path: game/package-lock.json
       - run: npm ci
       - run: npm run gen:maps
+      - run: npm run gen:config
       - run: npm run build -w @hp/web
       - uses: aws-actions/configure-aws-credentials@v4
         with:

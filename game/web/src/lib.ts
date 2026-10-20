@@ -3,11 +3,9 @@ import { PARTY_COLOURS, majorityOf } from '@hp/shared';
 import type { PartyIdentity, PlayerId, PlayerPublic, SeatId } from '@hp/shared';
 import { useStore } from './state/store';
 
-/** W₹ amounts: 1 crore = 10,000,000. */
+/** Money in whole currency units with Indian digit grouping, e.g. "W₹ 50,000". */
 export function formatMoney(n: number, currencySymbol: string): string {
-  const cr = n / 10_000_000;
-  const s = cr.toLocaleString('en-IN', { maximumFractionDigits: 2 });
-  return `${currencySymbol} ${s} crore`;
+  return `${currencySymbol} ${Math.round(n).toLocaleString('en-IN')}`;
 }
 
 export function formatClock(ms: number): string {

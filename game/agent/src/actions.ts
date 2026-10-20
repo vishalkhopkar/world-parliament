@@ -27,7 +27,7 @@ const def = <S extends z.ZodObject<z.ZodRawShape>>(a: ActionDef<S>): ActionDef =
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 const secs = (ms: number): number => Math.max(0, Math.round(ms / 1000));
-const WR = (cfg: { currency: { symbol: string } }, n: number) => `${cfg.currency.symbol}${round1(n / 1e7)} crore`;
+const WR = (cfg: { currency: { symbol: string } }, n: number) => `${cfg.currency.symbol}${Math.round(n).toLocaleString('en-US')}`;
 
 // ------------------------------------------------------------------ shared helpers
 function needJoined(s: AgentSession): void {
@@ -84,7 +84,6 @@ function budgetView(s: AgentSession) {
   const b = s.client.state.priv?.budget ?? 0;
   return {
     budget_wr: b,
-    budget_crore: round1(b / 1e7),
     rallies_affordable: Math.floor(b / cfg.costs.rally),
     roadshows_affordable: Math.floor(b / cfg.costs.roadshow),
   };
@@ -402,7 +401,7 @@ export const ACTIONS: ActionDef[] = [
         hint_state: {
           status: st.snapshot?.status ?? null,
           connection: st.link,
-          budget_crore: st.priv ? round1(st.priv.budget / 1e7) : null,
+          budget: st.priv ? st.priv.budget : null,
           phase_left_s: tl && st.snapshot?.status === 'campaign' && cur >= 0 ? secs(tl.phaseCloses[cur] - now) : null,
         },
       };

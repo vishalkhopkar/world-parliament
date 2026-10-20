@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "tsx ../scripts/gen-config.ts",
     "dev": "tsx src/local/devServer.ts",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json"

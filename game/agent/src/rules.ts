@@ -20,11 +20,11 @@ export function configForMap(mapId: string | null | undefined): MapConfig {
   return WORLD_CONFIG;
 }
 
-const CRORE = 10_000_000;
 const trim = (n: number, d = 2): string => String(Number(n.toFixed(d)));
 const group = (n: number): string => n.toLocaleString('en-US');
 
-export const crore = (cfg: MapConfig, n: number): string => `${cfg.currency.symbol}${trim(n / CRORE)} crore`;
+/** Whole-number money with thousands separators, e.g. W₹50,000. */
+export const money = (cfg: MapConfig, n: number): string => `${cfg.currency.symbol}${group(Math.round(n))}`;
 
 export interface RenderOptions {
   mapName?: string;
@@ -59,16 +59,15 @@ export function rulesValues(cfg: MapConfig, opts: RenderOptions = {}): Record<st
     SYM: cfg.currency.symbol,
     PHASES_MIN: String(cfg.phases.min),
     PHASES_MAX: String(cfg.phases.max),
-    BUDGET: group(cfg.budget),
-    BUDGET_CR: crore(cfg, cfg.budget),
-    RALLY_COST_CR: crore(cfg, cfg.costs.rally),
-    ROADSHOW_COST_CR: crore(cfg, cfg.costs.roadshow),
+    BUDGET_TEXT: money(cfg, cfg.budget),
+    RALLY_COST_TEXT: money(cfg, cfg.costs.rally),
+    ROADSHOW_COST_TEXT: money(cfg, cfg.costs.roadshow),
     MAX_RALLIES: String(Math.floor(cfg.budget / cfg.costs.rally)),
     MAX_ROADSHOWS: String(Math.floor(cfg.budget / cfg.costs.roadshow)),
-    SEAT_REPORT_START_CR: crore(cfg, cfg.analyst.seatReport.start),
-    SEAT_REPORT_END_CR: crore(cfg, cfg.analyst.seatReport.end),
-    GLOBAL_REPORT_START_CR: crore(cfg, cfg.analyst.globalReport.start),
-    GLOBAL_REPORT_END_CR: crore(cfg, cfg.analyst.globalReport.end),
+    SEAT_REPORT_START_TEXT: money(cfg, cfg.analyst.seatReport.start),
+    SEAT_REPORT_END_TEXT: money(cfg, cfg.analyst.seatReport.end),
+    GLOBAL_REPORT_START_TEXT: money(cfg, cfg.analyst.globalReport.start),
+    GLOBAL_REPORT_END_TEXT: money(cfg, cfg.analyst.globalReport.end),
     RALLY_LOCAL: trim(r.local),
     RALLY_GLOBAL: trim(r.global, 4),
     RALLY_HALF: String(r.decay.halfDistanceKm),
@@ -78,6 +77,8 @@ export function rulesValues(cfg: MapConfig, opts: RenderOptions = {}): Record<st
     ROADSHOW_HALF: String(s.decay.halfDistanceKm),
     ROADSHOW_MAX: String(s.decay.maxKm),
     ROADSHOW_CAP: trim(s.decay.capRatio),
+    FIRST_MOVER_RALLY: trim(cfg.effects.firstMover.rally),
+    FIRST_MOVER_ROADSHOW: trim(cfg.effects.firstMover.roadshow),
     S_OVER_Y: trim(s.local / r.local),
     COST_RATIO: `1/${trim(cfg.costs.rally / cfg.costs.roadshow, 1)}`,
     TM_START: trim(cfg.timeMultiplier.start),

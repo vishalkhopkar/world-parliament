@@ -22,7 +22,7 @@ const snap = (mapId: string): GameSnapshot => ({
   gameId: 'g', mapId, status: 'campaign', phases: 2, timeline: null,
   players, news: [], polledPhases: [], seats: {}, tally: { leads: {}, wins: { p1: 10, p2: 10, p3: 10 }, declared: 0, total: 30 }, offers: [], government: null, result: null,
 });
-const priv: PrivateState = { you: 'p1', budget: 900_000_000, myActions: [], myReports: [] };
+const priv: PrivateState = { you: 'p1', budget: 90_000, myActions: [], myReports: [] };
 
 const costOf = (label: string) => screen.getByText(label).closest('.sam-opt-row')!.querySelector('.sam-cost')!.textContent;
 
@@ -37,17 +37,17 @@ beforeEach(() => useStore.setState({ snapshot: null, lobby: null, gamePkg: null,
 describe('seat panel costs follow the current map', () => {
   it('uses the fake map costs, report price and currency', () => {
     modal(FAKE_MAP_ID);
-    expect(costOf('Rally')).toBe('F$ 5 crore');
-    expect(costOf('Roadshow')).toBe('F$ 3 crore');
-    expect(costOf('Local report')).toBe('F$ 7 crore');
+    expect(costOf('Rally')).toBe('F$ 5,000');
+    expect(costOf('Roadshow')).toBe('F$ 3,000');
+    expect(costOf('Local report')).toBe('F$ 7,000');
   });
   it('uses the world costs for the world map', () => {
     modal(WORLD_CONFIG.mapId);
-    expect(costOf('Rally')).toBe('W₹ 2 crore');
-    expect(costOf('Roadshow')).toBe('W₹ 0.4 crore');
+    expect(costOf('Rally')).toBe('W₹ 2,000');
+    expect(costOf('Roadshow')).toBe('W₹ 400');
   });
   it("disables an action the budget cannot cover at that map's price", () => {
-    modal(FAKE_MAP_ID, 40_000_000); // 4 crore: enough for the world rally (2) but not for the fake one (5)
+    modal(FAKE_MAP_ID, 4_000); // 4,000: enough for the world rally (2,000) but not for the fake one (5,000)
     expect(screen.getByText('Rally').closest('button')).toBeDisabled();
   });
 });
@@ -56,9 +56,9 @@ describe('campaign panels follow the current map', () => {
   it('HUD budget and analyst prices use the map currency and prices', () => {
     const s = snap(FAKE_MAP_ID);
     useStore.setState({ me: 'p1', gameId: 'g', snapshot: s });
-    render(<><CampaignHud snap={s} priv={{ ...priv, budget: 900_000_000 }} now={1} /><AnalystShop snap={s} priv={priv} now={1} /></>);
-    expect(screen.getByText('F$ 90 crore')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Global report \(F\$ 11 crore\)/ })).toBeInTheDocument();
+    render(<><CampaignHud snap={s} priv={{ ...priv, budget: 90_000 }} now={1} /><AnalystShop snap={s} priv={priv} now={1} /></>);
+    expect(screen.getByText('F$ 90,000')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Global report \(F\$ 11,000\)/ })).toBeInTheDocument();
     expect(screen.getByText(/45 s ago/)).toBeInTheDocument();
   });
 });

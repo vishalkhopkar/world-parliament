@@ -12,8 +12,10 @@
   ],
   "scripts": {
     "gen:maps": "tsx scripts/gen-maps.ts",
+    "gen:config": "tsx scripts/gen-config.ts",
     "check:maps": "tsx scripts/gen-maps.ts --check",
-    "pretest": "npm run gen:maps",
+    "check:config": "tsx scripts/gen-config.ts --check",
+    "pretest": "npm run gen:maps && npm run gen:config",
     "test": "npm run test --workspaces --if-present",
     "test:maps": "python -I -m pytest ../maps -q",
     "test:gaps": "tsx scripts/coverage-gaps.ts",
@@ -21,7 +23,7 @@
     "test:e2e": "tsx scripts/e2e.ts",
     "typecheck": "npm run typecheck --workspaces --if-present && npm run typecheck:scripts",
     "typecheck:scripts": "tsc -p scripts/tsconfig.json",
-    "build": "npm run gen:maps && npm run typecheck && npm test && npm run check:gaps && npm run test:maps && npm run build -w @hp/web",
+    "build": "npm run gen:maps && npm run gen:config && npm run typecheck && npm test && npm run check:gaps && npm run test:maps && npm run build -w @hp/web",
     "verify": "npm run build && npm run test:e2e"
   },
   "devDependencies": {

@@ -140,7 +140,7 @@ export function eventView(s: AgentSession, e: AgentEvent, dir: SeatDirectory | n
     case 'result': return { ...base, ...resultView(s, d.result) };
     case 'status': return { ...base, status: d.status };
     case 'players': return { ...base, players: (d.players as PlayerPublic[]).map((p) => ({ nickname: p.nickname, party: p.party?.name ?? null, kind: p.kind ?? 'human', status: p.status, admin: p.isAdmin })) };
-    case 'report': return { ...base, report: reportView(s, d.report, dir), budget_crore: round1(d.budget / 1e7) };
+    case 'report': return { ...base, report: reportView(s, d.report, dir), budget: d.budget };
     case 'error': return { ...base, code: d.error, message: d.message };
   }
 }
@@ -207,7 +207,6 @@ export function stateView(s: AgentSession, dir: SeatDirectory | null) {
     const prices = tl ? { seat: analystPrice(cfg, 'seat', tl, now), global: analystPrice(cfg, 'global', tl, now) } : null;
     out.budget = {
       wr: budget,
-      crore: round1(budget / 1e7),
       rally_cost_wr: cost.rally,
       roadshow_cost_wr: cost.roadshow,
       rallies_affordable: Math.floor(budget / cost.rally),
@@ -242,7 +241,7 @@ export function stateView(s: AgentSession, dir: SeatDirectory | null) {
     if (tl && now < tl.campaignStart) advice.push(`The campaign starts in ${secs(tl.campaignStart - now)} s. Plan now with list_seats; campaign actions wait for the start automatically.`);
     else if (inCampaign) {
       const minCost = Math.min(cfg.costs.rally, cfg.costs.roadshow);
-      if (budget >= minCost) advice.push(`You have ${round1(budget / 1e7)} crore left (${Math.floor(budget / cfg.costs.roadshow)} roadshows or ${Math.floor(budget / cfg.costs.rally)} rallies). Unspent money is wasted: use list_seats {open_only:true} and campaign_batch before phase ${(phaseIdx ?? 0) + 1} closes.`);
+      if (budget >= minCost) advice.push(`You have ${cfg.currency.symbol}${Math.round(budget).toLocaleString('en-US')} left (${Math.floor(budget / cfg.costs.roadshow)} roadshows or ${Math.floor(budget / cfg.costs.rally)} rallies). Unspent money is wasted: use list_seats {open_only:true} and campaign_batch before phase ${(phaseIdx ?? 0) + 1} closes.`);
       else advice.push('Your budget is spent. Use get_news / wait_for_events to follow the game; negotiation starts at counting.');
     }
   } else if (status === 'counting' || status === 'postCounting') {

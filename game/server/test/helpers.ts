@@ -16,6 +16,7 @@ export const TEST_CFG: MapConfig = {
   effects: {
     rally: { local: 1.0, global: 0.01, decay: { halfDistanceKm: 100, maxKm: 500, capRatio: 0.5 } },
     roadshow: { local: 1.5, decay: { halfDistanceKm: 30, maxKm: 150, capRatio: 0.4 } },
+    firstMover: { rally: 0, roadshow: 0 }, // off in the shared server test config
   },
   durations: { campaignMs: 60_000, countingMs: 30_000, postCountingMs: 10_000, graceMs: 5_000 },
 };

@@ -86,7 +86,7 @@ async function main() {
   // wait for the campaign
   while (!started) await sleep(500);
   await sleep(6000);
-  log('campaign running; budget', (budget / 1e7).toFixed(1), 'crore');
+  log('campaign running; budget', budget);
   // Fast pacing (designer: 4 s per decision was too slow): one decision every TICK_MS, budget spread evenly over the
   // remaining campaign so the bot never runs dry early; a rally roughly every 5th action; two global reports.
   const TICK_MS = Number(flag('tick', '600'));
