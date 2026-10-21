@@ -1,10 +1,13 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { majorityOf } from '@hp/shared';
 import type { GameSnapshot, SeatId } from '@hp/shared';
 import { useStore } from '../state/store';
 import { useMapConfig } from '../state/mapConfig';
 import { SeatMap } from '../map/SeatMap';
 import { Negotiation } from '../components/Negotiation';
+import { ResultPanels } from '../components/ResultPanels';
+import { SeatShareHint } from '../components/SeatShareHint';
+import { SeatSharesModal } from '../components/SeatSharesModal';
 import { PartyDot, PartyLabel } from '../components/ui';
 import './game.css';
 import './Counting.css';
@@ -49,6 +52,9 @@ export function Counting() {
   const selectSeat = useStore(s => s.selectSeat);
   const now = useServerNow();
 
+  // a seat picked here must not stay selected on the next screen
+  useEffect(() => () => selectSeat(null), [selectSeat]);
+
   const { fills, leading } = useMemo(() => {
     const f: Record<SeatId, string> = {};
     const l = new Set<SeatId>();
@@ -68,12 +74,14 @@ export function Counting() {
 
   return (
     <div className="game">
+      <SeatShareHint />
       <div className="hud">
         <div className="hud-item"><span>{counting ? 'Counting ends in' : snap.government ? 'Final result in' : 'Government must form within'}</span><strong>{formatClock(left)}</strong></div>
         <div className="hud-item wide"><TallyBar snap={snap} /></div>
       </div>
       <div className="game-body">
         <div className="map-col">
+          {counting && <div className="result-col"><ResultPanels /></div>}
           <SeatMap names={names} fills={fills} leading={leading} selectedSeat={selected} onSeatClick={selectSeat} />
           {selected != null && (
             <div className="map-note">
@@ -81,6 +89,7 @@ export function Counting() {
               {decl ? <span>{decl.status === 'won' ? 'won by' : 'leading:'} <b className="party-text" style={{ '--party-colour': colourHex(dp?.party?.colour) } as React.CSSProperties}>{dp?.party?.name}</b></span> : <span className="muted">not yet declared</span>}
             </div>
           )}
+          {selected != null && <SeatSharesModal seat={selected} onClose={() => selectSeat(null)} />}
         </div>
         <aside className="side">
           <Negotiation snap={snap} />

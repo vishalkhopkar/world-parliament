@@ -4,6 +4,7 @@
 //   shared/src/maps.generated.ts   -> MAP_MANIFESTS: MapManifest[]            (used by web + shared)
 //   server/src/maps.generated.ts   -> GAME_PACKAGES: Record<id, GameMapPackage> (static JSON imports, so esbuild /
 //                                                                                vite / vitest bundle them; used by the server)
+//   (and the same file's CANDIDATES: each map's optional site/data/candidates.csv, validated: header candidate_1..K, one row of K names per seat)
 // Adding a map = adding a maps/<id>/ folder with a valid map.json, then running this script. No code changes.
 // The generated files are committed. Exits non-zero on any validation error.
 //
@@ -82,8 +83,47 @@ function validate(id: string, dir: string, m: Manifest): boolean {
   return errors.length === before;
 }
 
+/** Minimal CSV reader (RFC-4180 quotes, CRLF/LF); returns rows of cells. */
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [], cell = '', quoted = false;
+  const t = text.replace(/^﻿/, '');
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i];
+    if (quoted) {
+      if (ch === '"') { if (t[i + 1] === '"') { cell += '"'; i++; } else quoted = false; } else cell += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === ',') { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && t[i + 1] === '\n') i++;
+      row.push(cell); cell = '';
+      if (row.some(c => c !== '')) rows.push(row);
+      row = [];
+    } else cell += ch;
+  }
+  row.push(cell);
+  if (row.some(c => c !== '')) rows.push(row);
+  return rows;
+}
+
+/** Optional site/data/candidates.csv: header candidate_1..candidate_K, then one row of K non-empty names per seat (row n = seat n). */
+function loadCandidates(id: string, dir: string, m: Manifest): string[][] | undefined {
+  const file = path.join(dir, path.dirname(m.gamePackage), 'candidates.csv');
+  if (!fs.existsSync(file)) return undefined;
+  const rows = parseCsv(fs.readFileSync(file, 'utf8'));
+  const [header, ...body] = rows;
+  const k = header?.length ?? 0;
+  const before = errors.length;
+  if (k < 1 || header.some((h, i) => h.trim() !== `candidate_${i + 1}`)) err(id, 'candidates.csv: header must be candidate_1..candidate_K');
+  if (body.length !== m.seatCount) err(id, `candidates.csv: ${body.length} rows, expected one per seat (${m.seatCount})`);
+  const bad = body.findIndex(r => r.length !== k || r.some(c => !c.trim()));
+  if (bad >= 0) err(id, `candidates.csv: row ${bad + 1} must have exactly ${k} non-empty names`);
+  return errors.length === before ? body.map(r => r.map(c => c.trim())) : undefined;
+}
+
 if (!fs.existsSync(mapsDir)) { console.error(`maps dir not found: ${mapsDir}`); process.exit(1); }
 const manifests: Manifest[] = [];
+const candidatesByMap: Record<string, string[][]> = {};
 for (const ent of fs.readdirSync(mapsDir, { withFileTypes: true }).filter(e => e.isDirectory()).sort((a, b) => a.name.localeCompare(b.name))) {
   const dir = path.join(mapsDir, ent.name);
   const file = path.join(dir, 'map.json');
@@ -91,7 +131,11 @@ for (const ent of fs.readdirSync(mapsDir, { withFileTypes: true }).filter(e => e
   let raw: any;
   try { raw = readJson(file); } catch (e) { err(ent.name, `map.json is not valid JSON: ${(e as Error).message}`); continue; }
   const m: Manifest = Object.fromEntries(MANIFEST_KEYS.map(k => [k, raw[k]])) as unknown as Manifest;
-  if (validate(ent.name, dir, m)) manifests.push(m);
+  if (validate(ent.name, dir, m)) {
+    manifests.push(m);
+    const cands = loadCandidates(ent.name, dir, m);
+    if (cands) candidatesByMap[ent.name] = cands;
+  }
 }
 if (errors.length) { console.error('map validation FAILED:\n  ' + errors.join('\n  ')); process.exit(1); }
 if (!manifests.length) { console.error('no maps found under ' + mapsDir); process.exit(1); }
@@ -108,7 +152,9 @@ const outputs: [string, string][] = [
     manifests.map(m => `import ${ident(m.id)} from '../../../maps/${m.id}/${m.gamePackage}';`).join('\n') + '\n\n' +
     '/** Every maps/<id>/ game package, statically imported so the Lambda bundle and the local server both contain them. */\n' +
     'export const GAME_PACKAGES: Record<string, GameMapPackage> = {\n' +
-    manifests.map(m => `  ${JSON.stringify(m.id)}: ${ident(m.id)} as unknown as GameMapPackage,`).join('\n') + '\n};\n'],
+    manifests.map(m => `  ${JSON.stringify(m.id)}: ${ident(m.id)} as unknown as GameMapPackage,`).join('\n') + '\n};\n\n' +
+    "/** Each map's optional candidates.csv (site/data/candidates.csv) as rows of names (row n = seat n); the server turns a party's column into the candidate names players see. */\n" +
+    'export const CANDIDATES: Record<string, string[][]> = ' + JSON.stringify(candidatesByMap) + ';\n'],
 ];
 if (CHECK) {
   const norm = (t: string) => t.replace(/\r\n/g, '\n');

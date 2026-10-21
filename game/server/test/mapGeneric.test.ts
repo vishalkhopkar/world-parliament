@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { MAP_MANIFESTS, WORLD_CONFIG, configForMap } from '@hp/shared';
 import type { GameMapPackage } from '@hp/shared';
-import { GAME_PACKAGES } from '../src/maps.generated';
+import { CANDIDATES, GAME_PACKAGES } from '../src/maps.generated';
 import { makeMapProvider, makeRegistryMapProvider, registryEntries } from '../src/core/maps';
 import { Ctx, driveTo, lineMap } from './helpers';
 
@@ -25,7 +25,13 @@ interface Opts {
   skip?: string[];
   rawManifest?: string;
   rawPkg?: string;
+  /** Raw text of site/data/candidates.csv (omitted = the map has none). */
+  candidates?: string;
 }
+
+/** A valid candidates.csv for `n` seats with `k` columns. */
+const goodCandidates = (n: number, k = 4) =>
+  [Array.from({ length: k }, (_, i) => `candidate_${i + 1}`).join(','), ...Array.from({ length: n }, (_, s) => Array.from({ length: k }, (_, i) => `Name ${s + 1}-${i + 1}`).join(','))].join('\n') + '\n';
 
 function goodPackage(id: string, n: number): Pkg {
   const base = JSON.parse(JSON.stringify(lineMap(n, id)));
@@ -51,6 +57,7 @@ function makeMap(mapsDir: string, id: string, n: number, opts: Opts = {}): void 
   write('site/data/game.json', opts.rawPkg ?? JSON.stringify(pkg));
   write('site/data/world.topo.json', '{}');
   write('site/data/detail.topo.json', '{}');
+  if (opts.candidates !== undefined) write('site/data/candidates.csv', opts.candidates);
 }
 
 interface Run { code: number; out: string; err: string }
@@ -68,7 +75,7 @@ const fresh = () => { const d = path.join(root, `case${counter++}`); fs.mkdirSyn
 describe('gen-maps validation of a temporary maps folder (real script, child process)', () => {
   it('accepts several valid fake maps of different sizes and reports them (no files written: --dry)', async () => {
     const dir = fresh();
-    makeMap(dir, 'tiny-3', 3);
+    makeMap(dir, 'tiny-3', 3, { candidates: goodCandidates(3) }); // candidates.csv is optional but validated when present
     makeMap(dir, 'odd-7', 7);
     makeMap(dir, 'big-120', 120);
     const before = fs.readFileSync(path.join(gameDir, 'shared/src/maps.generated.ts'), 'utf8');
@@ -105,6 +112,10 @@ describe('gen-maps validation of a temporary maps folder (real script, child pro
     ['topo.coarse missing from the package', { pkg: (p) => { delete p.topo.coarse; } }, /topo.coarse missing/],
     ['topo file does not exist', { skip: ['site/data/world.topo.json'] }, /topo.coarse file not found/],
     ['detail topo declared but missing', { skip: ['site/data/detail.topo.json'] }, /topo.detail file not found/],
+    ['candidates.csv with the wrong header', { candidates: goodCandidates(5).replace('candidate_2', 'cand2') }, /header must be candidate_1/],
+    ['candidates.csv with too few rows', { candidates: goodCandidates(4) }, /candidates.csv: 4 rows, expected one per seat \(5\)/],
+    ['candidates.csv with a ragged row', { candidates: goodCandidates(5).replace('Name 3-4', '') }, /row 3 must have exactly 4 non-empty names/],
+    ['candidates.csv with an empty name', { candidates: goodCandidates(5).replace('Name 2-2', ' ') }, /row 2 must have exactly 4 non-empty names/],
   ];
 
   // all broken maps live in ONE maps folder and are validated in a single run (each gen-maps start costs ~1.5 s)
@@ -184,6 +195,20 @@ describe('registry (generated files)', () => {
       expect(a.kernels.n).toBe(m.seatCount);
       expect(provider(m.id)!.kernels).toBe(a.kernels);
     }
+  });
+
+  it('candidates.csv of every map that has one is embedded (one row per seat) and served by the registry provider', () => {
+    const mapsDir = path.resolve(gameDir, '../maps');
+    for (const m of MAP_MANIFESTS) {
+      const file = path.join(mapsDir, m.id, path.dirname(m.gamePackage), 'candidates.csv');
+      if (!fs.existsSync(file)) { expect(CANDIDATES[m.id]).toBeUndefined(); continue; }
+      const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/).filter(Boolean);
+      expect(CANDIDATES[m.id]).toHaveLength(m.seatCount);
+      expect(CANDIDATES[m.id][0]).toEqual(lines[1].split(',').map((s) => s.trim()));
+      expect(makeRegistryMapProvider()(m.id)!.candidates).toBe(CANDIDATES[m.id]);
+    }
+    expect(CANDIDATES['world-500']).toHaveLength(500);
+    expect(CANDIDATES['world-500'].every((r) => r.length === 10)).toBe(true);
   });
 
   it('unknown ids and prototype keys are not maps', () => {

@@ -65,6 +65,16 @@ export interface CountingParams {
   leadNoiseEpochFraction: number;
   /** Seats are confirmed in order of (winning margin + winJitter x random), biggest first. */
   winJitter: number;
+  /** Seat pie chart: how often (ms) an open pie of a LEADING seat fetches the current shares again. */
+  pieRefreshMs: number;
+  /** Result panels: how long (ms) each card stays. */
+  panelDisplayMs: number;
+  /** Result panels: panel k first appears k x this many ms after panel 0 (and keeps the offset when refreshing). */
+  panelStaggerMs: number;
+  /** A TRAILS / LOST card shows the seat's runner-up this % of the time... */
+  panelRunnerUpPercent: number;
+  /** ...and a random other non-leading party this % of the time (the two add up to 100). */
+  panelOtherPercent: number;
 }
 
 export interface MapConfig {
@@ -160,6 +170,15 @@ export function validateConfig(cfg: MapConfig): void {
   num('counting.leadNoiseExponent', cfg.counting?.leadNoiseExponent);
   num('counting.leadNoiseEpochFraction', cfg.counting?.leadNoiseEpochFraction, 0, true);
   num('counting.winJitter', cfg.counting?.winJitter);
+  num('counting.pieRefreshMs', cfg.counting?.pieRefreshMs, 249, true);
+  num('counting.panelDisplayMs', cfg.counting?.panelDisplayMs, 0, true);
+  num('counting.panelStaggerMs', cfg.counting?.panelStaggerMs);
+  if (cfg.counting.panelStaggerMs >= cfg.counting.panelDisplayMs) bad('counting.panelStaggerMs', 'must be shorter than counting.panelDisplayMs');
+  num('counting.panelRunnerUpPercent', cfg.counting?.panelRunnerUpPercent);
+  num('counting.panelOtherPercent', cfg.counting?.panelOtherPercent);
+  if (cfg.counting.panelRunnerUpPercent > 100 || cfg.counting.panelRunnerUpPercent + cfg.counting.panelOtherPercent !== 100) {
+    bad('counting.panelOtherPercent', 'must add up to 100 together with counting.panelRunnerUpPercent');
+  }
   if (!cfg.points?.portfolios?.length) bad('points.portfolios', 'must list at least one portfolio');
 }
 

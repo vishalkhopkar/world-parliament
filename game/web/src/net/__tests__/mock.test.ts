@@ -10,6 +10,19 @@ async function lobbyOf(t: MockTransport, mapId = 'world-500') {
   return { r, lobby: await t.getLobby(r.gameId, r.token) };
 }
 
+describe('mock transport peekSeat', () => {
+  it('refuses before counting has started and replies with an error, not shares', async () => {
+    t = new MockTransport();
+    const { r } = await lobbyOf(t);
+    const got: { type: string; error?: string }[] = [];
+    t.connect(r.gameId, r.token, m => got.push(m as never));
+    t.send({ action: 'peekSeat', seat: 1 });
+    await new Promise(res => setTimeout(res, 100)); // the mock delivers messages after ~20 ms
+    expect(got.filter(m => m.type === 'seatShares')).toHaveLength(0);
+    expect(got.find(m => m.type === 'error')?.error).toBe('WRONG_PHASE');
+  });
+});
+
 describe('mock transport avatars / AI / map', () => {
   it('bots have avatars and one bot is an AI agent', async () => {
     t = new MockTransport();

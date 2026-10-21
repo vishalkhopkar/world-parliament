@@ -96,7 +96,7 @@ export function lineMap(n: number, mapId = 'line'): GameMapPackage {
   return { mapId, version: 1, seatCount: n, seats, phaseGroups, topo: { coarse: 'x.json' } };
 }
 
-export interface CtxOptions { map?: GameMapPackage; cfg?: MapConfig; startDelayMs?: number }
+export interface CtxOptions { map?: GameMapPackage; cfg?: MapConfig; startDelayMs?: number; candidates?: string[][] }
 
 export class Ctx {
   clock = new FakeClock();
@@ -110,7 +110,9 @@ export class Ctx {
   constructor(opts: CtxOptions = {}) {
     this.map = opts.map ?? TEST_MAP;
     this.cfg = opts.cfg ?? { ...TEST_CFG, mapId: this.map.mapId, seatCount: this.map.seatCount };
-    this.maps = (id) => (id === this.map.mapId ? { map: this.map, cfg: this.cfg, kernels: buildKernels(this.map, this.cfg) } : undefined);
+    this.maps = (id) => (id === this.map.mapId
+      ? { map: this.map, cfg: this.cfg, kernels: buildKernels(this.map, this.cfg), ...(opts.candidates ? { candidates: opts.candidates } : {}) }
+      : undefined);
     this.svc = new GameService({
       repo: this.repo, notifier: this.notifier, scheduler: this.scheduler, clock: this.clock, maps: this.maps, startDelayMs: opts.startDelayMs ?? 1000,
     });

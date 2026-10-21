@@ -1,9 +1,11 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import type { Outcome, SeatId } from '@hp/shared';
 import { useStore } from '../state/store';
 import { useMapConfig } from '../state/mapConfig';
 import { SeatMap } from '../map/SeatMap';
 import { Card, PartyBadge, PartyTags } from '../components/ui';
+import { SeatSharesModal } from '../components/SeatSharesModal';
+import { SeatShareHint } from '../components/SeatShareHint';
 import { colourHex, playerName } from '../lib';
 import { leaveGame } from '../net/client';
 import './Result.css';
@@ -21,6 +23,10 @@ export function Result() {
   const names = useStore(s => s.names);
   const me = useStore(s => s.me);
   const cfg = useMapConfig();
+  const selectedSeat = useStore(s => s.selectedSeat);
+  const selectSeat = useStore(s => s.selectSeat);
+  // the selection lives in the store: do not carry it over to another screen
+  useEffect(() => () => selectSeat(null), [selectSeat]);
 
   const fills = useMemo(() => {
     const f: Record<SeatId, string> = {};
@@ -35,6 +41,8 @@ export function Result() {
   const points = [...r.points].sort((a, b) => b.total - a.total);
 
   return (
+    <>
+    <SeatShareHint />
     <div className="page result">
       <div className={'banner ' + (iWon ? 'win' : 'neutral')}>
         <h2>{HEADLINE[r.outcome]}</h2>
@@ -46,7 +54,10 @@ export function Result() {
       </div>
 
       <div className="grid-2 result-grid">
-        <div className="result-map"><SeatMap names={names} fills={fills} /></div>
+        <div className="result-map">
+          <SeatMap names={names} fills={fills} selectedSeat={selectedSeat} onSeatClick={selectSeat} />
+          {selectedSeat !== null && <SeatSharesModal seat={selectedSeat} onClose={() => selectSeat(null)} />}
+        </div>
         <div>
           <Card title="Seats"><TallyBar snap={snap} /></Card>
           {gov && (
@@ -87,5 +98,6 @@ export function Result() {
 
       <div className="actions"><button className="btn primary" onClick={() => leaveGame()}>Back to start</button></div>
     </div>
+    </>
   );
 }

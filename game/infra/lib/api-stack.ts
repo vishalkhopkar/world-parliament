@@ -23,7 +23,7 @@ export interface ApiStackProps extends StackProps {
   webOrigin: string;
 }
 
-const WS_ACTIONS = ['ping', 'campaign', 'buyReport', 'chat', 'proposeGovernment', 'respondOffer', 'withdrawOffer'];
+const WS_ACTIONS = ['ping', 'campaign', 'buyReport', 'peekSeat', 'chat', 'proposeGovernment', 'respondOffer', 'withdrawOffer'];
 
 const HTTP_ROUTES: [apigw.HttpMethod, string][] = [
   [apigw.HttpMethod.POST, '/games'],

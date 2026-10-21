@@ -10,7 +10,7 @@ import type {
   PartyIdentity, PartyRequest, PlayerId, PlayerPublic, PortfolioAssignment, PrivateState, SeatDeclaration, SeatId,
   SeatResult, ServerMessage, SettingsRequest, StartResponse,
 } from '@hp/shared';
-import { declaredState, diffDeclarations, fullTally, makePlan, stepAt, stepTime } from './counting';
+import { declaredState, diffDeclarations, fullTally, makePlan, seatSharesAt, stepAt, stepTime } from './counting';
 import type {
   Clock, CountPlan, GameRecord, LoadedMap, MapProvider, Notifier, PlayerRecord, Repo, Scheduler,
 } from './types';
@@ -379,6 +379,7 @@ export class GameService {
           break;
         case 'campaign': await this.campaign(player, msg.type, msg.seat, msg.clientRef); break;
         case 'buyReport': await this.buyReport(player, msg.scope, msg.seat); break;
+        case 'peekSeat': await this.peekSeat(player, msg.seat); break;
         case 'chat': await this.chat(player, msg.to, msg.text); break;
         case 'proposeGovernment': await this.proposeGovernment(player, msg.portfolios, msg.partners); break;
         case 'respondOffer': await this.respondOffer(player, msg.offerId, msg.accept); break;
@@ -550,6 +551,41 @@ export class GameService {
       return;
     }
     throw new GameError('TOO_LATE', 'Polling has just closed, try again');
+  }
+
+  // ------------------------------------------------------------------ seat vote shares (counting screen pie chart / result panels)
+  /**
+   * A player clicked a seat (or the result panels need its candidates): reply, to that player only, with the seat's shares and
+   * candidate names. Only seats the count has already declared (lead or result) answer, so nothing is revealed early; a lead
+   * answers with the swinging estimate, never with the true shares. Works until the game is over (Result screen).
+   */
+  async peekSeat(player: PlayerRecord, seat: unknown): Promise<void> {
+    if (typeof seat !== 'number' || !Number.isInteger(seat)) throw new GameError('BAD_REQUEST', 'Invalid seat');
+    const me = await this.repo.getPlayer(player.gameId, player.playerId);
+    if (!me || !MEMBER.has(me.status)) throw new GameError('FORBIDDEN', 'You are not a player of this game');
+    const game = await this.loadGame(player.gameId);
+    if (game.status !== 'counting' && game.status !== 'postCounting' && game.status !== 'finished') {
+      throw new GameError('WRONG_PHASE', 'Vote shares are available once counting has started');
+    }
+    const { map, candidates } = this.loadMap(game.mapId);
+    if (!map.seats.some((s) => s.id === seat)) throw new GameError('BAD_REQUEST', 'Unknown seat');
+    const plan = await this.repo.getCountPlan(game.gameId);
+    const result = plan ? (await this.repo.listSeatResults(game.gameId)).find((r) => r.seat === seat) : undefined;
+    const view = plan && result ? seatSharesAt(plan, result, this.currentStep(game, plan)) : null;
+    if (!view) throw new GameError('NOT_FOUND', 'That seat has no lead yet');
+    const names: Record<PlayerId, string> = {};
+    // candidates.csv row n belongs to the n-th seat in id order (= seat n on maps numbered 1..N)
+    const row = candidates?.[map.seats.map((s) => s.id).sort((a, b) => a - b).indexOf(seat)];
+    if (row) {
+      for (const p of await this.repo.listPlayers(game.gameId)) {
+        const name = MEMBER.has(p.status) && p.candidateColumn !== undefined ? row[p.candidateColumn] : undefined;
+        if (name) names[p.playerId] = name;
+      }
+    }
+    await this.d.notifier.sendToPlayer(game.gameId, me.playerId, {
+      type: 'seatShares', seat, status: view.status, shares: view.shares,
+      ...(Object.keys(names).length ? { candidates: names } : {}),
+    });
   }
 
   // ------------------------------------------------------------------ lifecycle (called by Step Functions / timers)

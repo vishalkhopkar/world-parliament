@@ -1,0 +1,10 @@
+.ssm-backdrop{position:absolute;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;background:rgba(20,30,20,.28);padding:12px}
+.ssm-card{position:relative;width:min(360px,92vw);max-height:92%;overflow-y:auto;background:var(--panel);border:2px solid var(--gold);border-radius:12px;padding:16px 16px 14px;box-shadow:0 10px 30px rgba(0,0,0,.4);outline:none;animation:ssm-in .14s ease-out}
+@keyframes ssm-in{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:none}}
+.ssm-x{position:absolute;top:6px;right:8px;width:36px;height:36px;border:0;background:none;font-size:26px;line-height:1;color:var(--muted);cursor:pointer;border-radius:50%}
+.ssm-x:hover{background:var(--sandstone);color:var(--ink)}
+.ssm-title{margin:0 40px 6px 0;font-family:var(--serif);color:var(--green);font-size:1.3rem}
+.ssm-badge{margin:0 0 12px;padding:5px 10px;border-radius:8px;font-size:.8rem;font-weight:600}
+.ssm-leading{background:var(--sandstone);color:var(--ink);border:1px solid var(--gold)}
+.ssm-won{background:var(--green);color:var(--ivory)}
+.ssm-loading{margin:20px 0;text-align:center;color:var(--muted)}

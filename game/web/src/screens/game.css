@@ -16,6 +16,13 @@
 @media (min-width:900px){
   .app.screen-campaign,.app.screen-counting{height:100vh;height:100dvh;overflow:hidden}
 }
+.result-col{display:none}
+@media (min-width:1200px){
+  /* the result panels float over the left edge of the map and always stay there */
+  .result-col{display:block;position:absolute;left:10px;top:10px;bottom:10px;width:220px;z-index:3;pointer-events:none}
+  .result-col .result-slot{pointer-events:auto}
+  .map-col:has(.result-col) .map-note{left:242px}
+}
 @media (max-width:899px){
   .game-body{display:flex;flex-direction:column}
   .map-col{height:52vh;min-height:300px;flex:none}

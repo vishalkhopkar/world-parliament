@@ -71,7 +71,7 @@ function add(title: string, names: string[], text: string, quoted = false) {
   // a route counts as mentioned when it appears as a quoted literal or as a path segment ("/admit")
   groups.push({ title: 'server: REST routes (core/http.ts)', items: ['join', ...routes].map(name => ({ name, hit: mentioned(text, name, true) || new RegExp(`/${name}\\b`).test(text) })) });
 
-  const wsActions = [...[...svc.matchAll(/case '(\w+)'(?::| )/g)].map(m => m[1])].filter(a => ['ping', 'campaign', 'buyReport', 'chat', 'proposeGovernment', 'respondOffer', 'withdrawOffer'].includes(a));
+  const wsActions = [...[...svc.matchAll(/case '(\w+)'(?::| )/g)].map(m => m[1])].filter(a => ['ping', 'campaign', 'buyReport', 'peekSeat', 'chat', 'proposeGovernment', 'respondOffer', 'withdrawOffer'].includes(a));
   add('server: WebSocket actions', wsActions, text, true);
 
   const handlers = walk(path.join(gameDir, 'server/src/handlers'), f => /\.ts$/.test(f)).map(f => path.basename(f, '.ts'));

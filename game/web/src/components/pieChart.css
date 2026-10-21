@@ -1,0 +1,8 @@
+.pie{display:flex;flex-direction:column;align-items:center;gap:10px}
+.pie-svg{max-width:100%;height:auto;flex:none;filter:drop-shadow(0 1px 3px rgba(40,30,0,.25))}
+.pie-legend{list-style:none;margin:0;padding:0;width:100%;display:flex;flex-direction:column;gap:5px}
+.pie-legend li{display:flex;align-items:center;gap:8px;font-size:.9rem}
+.pie-swatch{flex:none;width:14px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,.25)}
+.pie-name{flex:1;min-width:0;overflow-wrap:anywhere}
+.pie-name small{color:var(--muted);font-size:.8rem}
+.pie-pct{flex:none;color:var(--green);font-variant-numeric:tabular-nums}

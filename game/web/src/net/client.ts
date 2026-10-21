@@ -185,6 +185,8 @@ export const campaign = (type: ActionType, seat: SeatId) => {
   transport.send({ action: 'campaign', type, seat, clientRef });
 };
 export const buyReport = (scope: ReportScope, seat?: SeatId) => transport.send({ action: 'buyReport', scope, seat });
+/** Ask for the vote shares + candidates of a seat that has a lead or a result; the answer lands in the store's seatShares. */
+export const peekSeat = (seat: SeatId) => transport.send({ action: 'peekSeat', seat });
 export const chat = (to: PlayerId[], text: string) => transport.send({ action: 'chat', to, text });
 export const proposeGovernment = (portfolios: PortfolioAssignment, partners?: PlayerId[]) =>
   transport.send({ action: 'proposeGovernment', portfolios, partners });

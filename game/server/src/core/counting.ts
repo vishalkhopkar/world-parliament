@@ -109,6 +109,53 @@ export function leaderAt(plan: CountPlan, r: SeatResult, step: number): PlayerId
   return best ?? winner;
 }
 
+/** The pie chart of a lead shows less extreme numbers than the raw lead noise (sigma up to 2): capped here... */
+const DISPLAY_SIGMA_CAP = 0.6;
+/** ...and swings from step to step by this fraction of the (capped) noise, on top of the per-epoch noise that picks the leader. */
+const DISPLAY_SWING = 0.2;
+
+/**
+ * Estimated vote share of every party in `r` while it is only LEADING at `step`: the true shares x exp(sigma x noise),
+ * normalised and rounded to 3 decimals. Changes every step (the pie swings), settles on the true shares when the noise
+ * dies down just before the seat is confirmed, and its biggest slice is always `leaderAt` (the map and the pie agree).
+ */
+export function leadSharesAt(plan: CountPlan, r: SeatResult, step: number): Record<PlayerId, number> {
+  const sigma = Math.min(DISPLAY_SIGMA_CAP, leadSigma(plan, r.seat, step));
+  const epoch = Math.floor(step / plan.noise.epochSteps);
+  const parties = Object.keys(r.shares).sort();
+  const raw: Record<PlayerId, number> = {};
+  let total = 0;
+  for (const p of parties) {
+    const share = r.shares[p];
+    if (!(share > 0)) { raw[p] = 0; continue; }
+    const zEpoch = gaussian(createRng(`${plan.seed}:lead:${r.seat}:${epoch}:${p}`));
+    const zStep = gaussian(createRng(`${plan.seed}:swing:${r.seat}:${step}:${p}`));
+    raw[p] = share * Math.exp(sigma * (zEpoch + DISPLAY_SWING * zStep));
+    total += raw[p];
+  }
+  // the leader must be the biggest slice (the lead noise picks it with the full sigma, the pie uses a gentler one)
+  const leader = leaderAt(plan, r, step);
+  if (leader in raw) {
+    const top = Math.max(...parties.filter((p) => p !== leader).map((p) => raw[p]), 0);
+    if (!(raw[leader] > top)) { total += top * 1.05 - raw[leader]; raw[leader] = top * 1.05; }
+  }
+  const out: Record<PlayerId, number> = {};
+  for (const p of parties) out[p] = total > 0 ? Math.round((raw[p] / total) * 1000) / 1000 : 0;
+  // ...also after rounding (two slices can round to the same value)
+  if (leader in out) {
+    const others = Math.max(0, ...parties.filter((p) => p !== leader).map((p) => out[p]));
+    if (!(out[leader] > others)) out[leader] = Math.min(1, Math.round((others + 0.001) * 1000) / 1000);
+  }
+  return out;
+}
+
+/** What a client may see of `seat` at `step` when it clicks it: the status plus every party's share (null = no lead yet / no winner). */
+export function seatSharesAt(plan: CountPlan, r: SeatResult, step: number): { status: 'leading' | 'won'; shares: Record<PlayerId, number> } | null {
+  const d = seatStateAt(plan, r, step);
+  if (!d) return null;
+  return d.status === 'won' ? { status: 'won', shares: { ...r.shares } } : { status: 'leading', shares: leadSharesAt(plan, r, step) };
+}
+
 /** What `seat` shows after `step` steps (null = nothing yet, or the seat has no winner). */
 export function seatStateAt(plan: CountPlan, r: SeatResult, step: number): SeatDeclaration | null {
   if (r.winner === null) return null;

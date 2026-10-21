@@ -50,6 +50,21 @@ describe('game.properties is the source of the game constants', () => {
     expect(WORLD_CONFIG.connection.retryMs).toBe(5_000);
   });
 
+  it('counting display tunables (pie chart refresh, result panel timings and trailing mix) come from the file', () => {
+    const c = WORLD_CONFIG.counting;
+    expect(c.pieRefreshMs).toBe(n('counting.pieRefreshMs'));
+    expect(c.panelDisplayMs).toBe(n('counting.panelDisplayMs'));
+    expect(c.panelStaggerMs).toBe(n('counting.panelStaggerMs'));
+    expect(c.panelRunnerUpPercent).toBe(n('counting.panelRunnerUpPercent'));
+    expect(c.panelOtherPercent).toBe(n('counting.panelOtherPercent'));
+  });
+
+  it('the agreed display values: pie every 1 s, each result panel 3 s, 0.5 s stagger, runner-up 75% / other 25%', () => {
+    const c = WORLD_CONFIG.counting;
+    expect([c.pieRefreshMs, c.panelDisplayMs, c.panelStaggerMs]).toEqual([1_000, 3_000, 500]);
+    expect([c.panelRunnerUpPercent, c.panelOtherPercent]).toEqual([75, 25]);
+  });
+
   it('every map without its own entry shares the file values', () => {
     const c = configForMap('some-new-map', 123);
     expect(c.mapId).toBe('some-new-map');
@@ -101,6 +116,23 @@ describe('gen-config rejects a bad properties file', () => {
     expect(r.ok).toBe(false);
     expect(r.err).toContain('connection.retryMs');
   }, 30_000);
+  it.each([
+    ['a pie refresh under 250 ms', /^counting\.pieRefreshMs=.*$/m, 'counting.pieRefreshMs=100', 'counting.pieRefreshMs'],
+    ['a zero panel display time', /^counting\.panelDisplayMs=.*$/m, 'counting.panelDisplayMs=0', 'counting.panelDisplayMs'],
+    ['a stagger that is not shorter than the display time', /^counting\.panelStaggerMs=.*$/m, 'counting.panelStaggerMs=3_000', 'counting.panelStaggerMs'],
+    ['a negative stagger', /^counting\.panelStaggerMs=.*$/m, 'counting.panelStaggerMs=-1', 'counting.panelStaggerMs'],
+    ['runner-up / other percentages that do not add up to 100', /^counting\.panelOtherPercent=.*$/m, 'counting.panelOtherPercent=30', 'counting.panelOtherPercent'],
+    ['a percentage over 100', /^counting\.panelRunnerUpPercent=.*$/m, 'counting.panelRunnerUpPercent=150', 'counting.panelRunnerUpPercent'],
+  ])('rejects %s', (_label, re, line, key) => {
+    const r = run(propsText.replace(re, line));
+    expect(r.ok).toBe(false);
+    expect(r.err).toContain(key);
+  }, 30_000);
+  it.each(['pieRefreshMs', 'panelDisplayMs', 'panelStaggerMs', 'panelRunnerUpPercent', 'panelOtherPercent'])('rejects a missing counting.%s', (k) => {
+    const r = run(propsText.replace(new RegExp(`^counting\\.${k}=.*$`, 'm'), ''));
+    expect(r.ok).toBe(false);
+    expect(r.err).toContain(`counting.${k}`);
+  }, 30_000);
   it('rejects a negative first-mover bonus', () => {
     const r = run(propsText.replace(/^effects\.firstMover\.rally=.*$/m, 'effects.firstMover.rally=-1'));
     expect(r.ok).toBe(false);
@@ -113,6 +145,13 @@ describe('validateConfig', () => {
     expect(() => validateConfig({ ...WORLD_CONFIG, budget: NaN })).toThrow(/budget/);
     expect(() => validateConfig({ ...WORLD_CONFIG, connection: { retryMs: 200 } })).toThrow(/connection.retryMs/);
     expect(() => validateConfig({ ...WORLD_CONFIG, costs: { rally: -1, roadshow: 1 } })).toThrow(/costs.rally/);
+    const counting = (over: object) => ({ ...WORLD_CONFIG, counting: { ...WORLD_CONFIG.counting, ...over } });
+    expect(() => validateConfig(counting({ pieRefreshMs: 100 }))).toThrow(/counting.pieRefreshMs/);
+    expect(() => validateConfig(counting({ panelDisplayMs: 0 }))).toThrow(/counting.panelDisplayMs/);
+    expect(() => validateConfig(counting({ panelStaggerMs: -5 }))).toThrow(/counting.panelStaggerMs/);
+    expect(() => validateConfig(counting({ panelStaggerMs: 3_000 }))).toThrow(/counting.panelStaggerMs/);
+    expect(() => validateConfig(counting({ panelRunnerUpPercent: 60, panelOtherPercent: 60 }))).toThrow(/counting.panelOtherPercent/);
+    expect(() => validateConfig(counting({ panelRunnerUpPercent: undefined }))).toThrow(/counting.panelRunnerUpPercent/);
     expect(() => validateConfig({ ...WORLD_CONFIG, effects: { ...WORLD_CONFIG.effects, firstMover: { rally: 0 } } } as never)).toThrow(/firstMover/);
   });
 });

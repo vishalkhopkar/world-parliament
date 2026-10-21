@@ -1,0 +1,16 @@
+.rp{width:220px;height:200px;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel);box-shadow:0 2px 8px rgba(40,30,0,.2);animation:rp-in .35s ease-out}
+.rp-head{flex:none;height:28px;display:flex;align-items:center;justify-content:center;font:800 17px/1 var(--sans);letter-spacing:.12em}
+.rp-leads .rp-head{background:#b9e3b0;color:#0b3d20}
+.rp-won .rp-head{background:#0b5a2a;color:#fff}
+.rp-trails .rp-head{background:#f4b8b8;color:#6b1111}
+.rp-lost .rp-head{background:#9b1c1c;color:#fff}
+.rp-photo{flex:none;width:100%;height:64px;display:block}
+.rp-box{flex:none;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 8px;text-align:center;min-width:0}
+.rp-name,.rp-seat{background:var(--green);color:var(--ivory)}
+.rp-name{height:38px;font-weight:700;letter-spacing:.02em}
+.rp-party{height:34px;font-weight:700}
+.rp-seat{flex:1;font-weight:500}
+.rp-text{min-width:0;max-height:100%;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;text-overflow:ellipsis;overflow-wrap:anywhere;line-height:1.15}
+.rp-symbol{flex:none}
+@keyframes rp-in{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.rp{animation:none}}

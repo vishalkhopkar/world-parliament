@@ -73,6 +73,8 @@ class MockGame {
   result: FinalResult | null = null;
   myReports: AnalystReport[] = [];
   schedule: { t: number; decl: SeatDeclaration }[] = [];
+  /** True final shares per seat, set when counting starts (peekSeat shows them for won seats, a wobbly version for leads). */
+  trueShares: Record<SeatId, Record<PlayerId, number>> = {};
   botOfferSent = false;
   nextBotRally = 0;
   constructor(phases: number, mapId: string = DEFAULT_MAP_ID) { this.phases = phases; this.mapId = mapId; this.cfg = mapConfigFor(mapId); }
@@ -297,6 +299,7 @@ export class MockTransport implements Transport {
       case 'ping': this.emit({ type: 'pong', clientTime: msg.clientTime, serverTime: this.now() }); break;
       case 'campaign': this.handleCampaign(g, msg, err); break;
       case 'buyReport': this.handleReport(g, msg, err); break;
+      case 'peekSeat': this.handlePeek(g, msg, err); break;
       case 'chat': this.handleChat(g, msg, err); break;
       case 'proposeGovernment': this.handlePropose(g, msg, err); break;
       case 'respondOffer': this.handleRespond(g, msg, err); break;
@@ -307,6 +310,23 @@ export class MockTransport implements Transport {
         break;
       }
     }
+  }
+
+  private handlePeek(g: MockGame, msg: Msg<'peekSeat'>, err: ErrFn) {
+    if (g.status === 'lobby' || g.status === 'campaign') return err('WRONG_PHASE', 'Vote shares are available once counting has started');
+    if (typeof msg.seat !== 'number' || !g.seatPhase.has(msg.seat)) return err('BAD_REQUEST', 'Unknown seat');
+    const d = g.seats[msg.seat], truth = g.trueShares[msg.seat];
+    if (!d || !truth) return err('NOT_FOUND', 'That seat has no lead yet');
+    let shares = truth;
+    if (d.status === 'leading') {
+      // wobble the true shares and keep the party shown as leading on top (like the real server's estimate)
+      const w = Object.entries(truth).map(([id, v]) => [id, v * (0.5 + Math.random())] as const);
+      const tot = w.reduce((a, [, v]) => a + v, 0);
+      shares = Object.fromEntries(w.map(([id, v]) => [id, Math.round((v / tot) * 1000) / 1000]));
+      const top = Math.max(0, ...Object.entries(shares).filter(([id]) => id !== d.playerId).map(([, v]) => v));
+      if (!(shares[d.playerId] > top)) shares[d.playerId] = Math.min(1, Math.round((top + 0.01) * 1000) / 1000);
+    }
+    this.emit({ type: 'seatShares', seat: msg.seat, status: d.status, shares });
   }
 
   private handleCampaign(g: MockGame, msg: Msg<'campaign'>, err: ErrFn) {
@@ -523,6 +543,7 @@ export class MockTransport implements Transport {
     const cc = g.cfg.counting;
     g.tally = { leads: Object.fromEntries(act.map(id => [id, 0])), wins: Object.fromEntries(act.map(id => [id, 0])), declared: 0, total: g.seatIds.length };
     g.schedule = [];
+    g.trueShares = {};
     // Per seat: true shares and winner, plus a noisy lead that is re-guessed every epoch (noise decays with time).
     const seatInfo = g.seatIds.map(seat => {
       const w = this.weights(g, seat, Infinity);
@@ -532,6 +553,7 @@ export class MockTransport implements Transport {
       w.forEach((v, id) => (shares[id] = v / tot));
       const sorted = Object.entries(shares).sort((a, b) => b[1] - a[1]);
       const margin = sorted[0][1] - (sorted[1]?.[1] ?? 0);
+      g.trueShares[seat] = shares;
       return { seat, shares, winner: sorted[0][0], key: margin + cc.winJitter * Math.random() };
     });
     // confirm safest seats first (margin + jitter), spread evenly over [winStart, 1] of the time, last seat at the very end

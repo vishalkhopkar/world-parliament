@@ -133,7 +133,11 @@ export interface Scheduler {
 
 export interface Clock { now(): number }
 
-export interface LoadedMap { map: GameMapPackage; cfg: MapConfig; kernels: Kernels }
+export interface LoadedMap {
+  map: GameMapPackage; cfg: MapConfig; kernels: Kernels;
+  /** The map's optional candidates.csv rows (row n = seat n, one name per column). */
+  candidates?: string[][];
+}
 export type MapProvider = (mapId: string) => LoadedMap | undefined;
 
 export interface GameServiceOptions {

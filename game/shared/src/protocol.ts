@@ -68,6 +68,8 @@ export type ClientMessage =
   | { action: 'ping'; clientTime: number }
   | { action: 'campaign'; type: ActionType; seat: SeatId; clientRef?: string }
   | { action: 'buyReport'; scope: ReportScope; seat?: SeatId }
+  /** Counting phase onwards: the vote shares (and candidate names) of a seat that already has a lead or a result. Answered with 'seatShares'. */
+  | { action: 'peekSeat'; seat: SeatId }
   | { action: 'chat'; to: PlayerId[]; text: string }                       // counting & post-counting only
   | { action: 'proposeGovernment'; portfolios: PortfolioAssignment; partners?: PlayerId[] }
   | { action: 'respondOffer'; offerId: string; accept: boolean }
@@ -119,6 +121,20 @@ export interface CountTally { leads: SeatTally; wins: SeatTally; declared: numbe
 
 export interface ChatMessage { id: string; from: PlayerId; to: PlayerId[]; text: string; ts: number }
 
+/**
+ * Private reply to 'peekSeat'. status 'won' = the seat's true final shares (they never change); 'leading' = the server's
+ * current ESTIMATE of every party's share (it swings from step to step and settles on the truth by confirmation; its
+ * biggest slice is always the party the seat shows as leading). Shares are 0..1 and add up to ~1. `candidates` = each
+ * party's candidate in this seat (omitted when the map has no candidates.csv).
+ */
+export interface SeatSharesMessage {
+  type: 'seatShares';
+  seat: SeatId;
+  status: 'leading' | 'won';
+  shares: Record<PlayerId, number>;
+  candidates?: Record<PlayerId, string>;
+}
+
 export type ServerMessage =
   | { type: 'hello'; serverTime: number; snapshot: GameSnapshot; private: PrivateState }
   | { type: 'pong'; clientTime: number; serverTime: number }
@@ -130,6 +146,7 @@ export type ServerMessage =
   | { type: 'report'; report: AnalystReport; budget: number }
   | { type: 'phaseClosed'; phase: number; seats: SeatId[] }
   | { type: 'seatUpdate'; declaration: SeatDeclaration; tally: CountTally }
+  | SeatSharesMessage
   | { type: 'chat'; message: ChatMessage }
   | { type: 'offer'; offer: CoalitionOffer }
   | { type: 'government'; government: Government }

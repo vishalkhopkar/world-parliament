@@ -40,6 +40,8 @@ const NUMBER_KEYS = [
   'connection.retryMs',
   'counting.winStartFraction', 'counting.allLeadsByFraction', 'counting.leadNoiseStart', 'counting.leadNoiseExponent',
   'counting.leadNoiseEpochFraction', 'counting.winJitter',
+  'counting.pieRefreshMs', 'counting.panelDisplayMs', 'counting.panelStaggerMs',
+  'counting.panelRunnerUpPercent', 'counting.panelOtherPercent',
   'points.seatMultiplier', 'points.governmentFloor', 'points.opposition',
 ];
 const STRING_KEYS = ['currency.name', 'currency.symbol'];
@@ -107,7 +109,12 @@ if (!errors.length) {
   rule(val('counting.allLeadsByFraction') > 0 && val('counting.allLeadsByFraction') <= val('counting.winStartFraction'), 'counting.allLeadsByFraction must be in (0, winStartFraction]');
   rule(val('counting.leadNoiseStart') >= 0 && val('counting.leadNoiseExponent') >= 0 && val('counting.winJitter') >= 0, 'counting.leadNoiseStart / leadNoiseExponent / winJitter must be >= 0');
   rule(val('counting.leadNoiseEpochFraction') > 0 && val('counting.leadNoiseEpochFraction') <= 1, 'counting.leadNoiseEpochFraction must be in (0, 1]');
-  rule(val('analyst.seatReport.end') >= val('analyst.seatReport.start') && val('analyst.globalReport.end') >= val('analyst.globalReport.start'), 'analyst report end price must be >= start price');
+  rule(val('counting.pieRefreshMs') >= 250, 'counting.pieRefreshMs must be >= 250 (ms between pie chart refreshes)');
+  rule(val('counting.panelDisplayMs') > 0, 'counting.panelDisplayMs must be > 0');
+  rule(val('counting.panelStaggerMs') >= 0 && val('counting.panelStaggerMs') < val('counting.panelDisplayMs'), 'counting.panelStaggerMs must be >= 0 and shorter than counting.panelDisplayMs');
+  for (const k of ['counting.panelRunnerUpPercent', 'counting.panelOtherPercent']) rule(val(k) >= 0 && val(k) <= 100, `${k} must be in 0..100`);
+  rule(val('counting.panelRunnerUpPercent') + val('counting.panelOtherPercent') === 100, 'counting.panelOtherPercent + counting.panelRunnerUpPercent must add up to 100');
+  rule(val('analyst.seatReport.end') >=val('analyst.seatReport.start') && val('analyst.globalReport.end') >= val('analyst.globalReport.start'), 'analyst report end price must be >= start price');
 }
 if (errors.length) { console.error(`config FAILED (${path.relative(gameDir, file)}):\n  ` + errors.join('\n  ')); process.exit(1); }
 
