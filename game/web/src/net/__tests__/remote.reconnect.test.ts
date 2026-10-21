@@ -113,4 +113,61 @@ describe('RemoteTransport reconnect (phone: tab switched or browser app backgrou
     last().open(); last().hello();
     expect(last().sent.some(s => s.includes('"roadshow"'))).toBe(true);
   });
+
+  describe('never waits forever for a connection that is not coming', () => {
+    it('abandons a socket that stays CONNECTING (mobile network black hole) and tries a new one', () => {
+      t.connect('g1', 'tok', m => msgs.push(m), s => states.push(s));
+      const first = last();              // never opens, never errors
+      vi.advanceTimersByTime(9_000);
+      vi.advanceTimersByTime(2_000);     // backoff before the next attempt
+      expect(FakeWs.all.length).toBeGreaterThanOrEqual(2);
+      expect(last()).not.toBe(first);
+      expect(states).not.toContain('down');
+    });
+
+    it('abandons a socket that opens but never delivers the hello (lost first ping) and tries a new one', () => {
+      t.connect('g1', 'tok', m => msgs.push(m), s => states.push(s));
+      const first = last(); first.open(); // open, but the server never answers
+      vi.advanceTimersByTime(9_000);
+      vi.advanceTimersByTime(2_000);
+      expect(last()).not.toBe(first);
+      last().open(); last().hello();
+      expect(states[states.length - 1]).toBe('open');
+    });
+
+    it('keeps trying on a bad network for minutes without silently freezing', () => {
+      t.connect('g1', 'tok', m => msgs.push(m), s => states.push(s));
+      vi.advanceTimersByTime(120_000);
+      expect(FakeWs.all.length).toBeGreaterThanOrEqual(8); // many attempts, not one stuck forever
+    });
+  });
+
+  describe('manual reconnect (the "Reconnect now" button)', () => {
+    it('opens a fresh socket immediately and resets the backoff', () => {
+      connected();
+      last().drop();
+      vi.advanceTimersByTime(20_000);
+      const n = FakeWs.all.length;
+      t.reconnect();
+      expect(FakeWs.all.length).toBe(n + 1);
+      last().open(); last().hello();
+      expect(states[states.length - 1]).toBe('open');
+    });
+
+    it('also works after the transport gave up ("down")', () => {
+      t.connect('g1', 'tok', m => msgs.push(m), s => states.push(s));
+      vi.advanceTimersByTime(400_000);   // far beyond the give-up window
+      expect(states).toContain('down');
+      const n = FakeWs.all.length;
+      t.reconnect();
+      expect(FakeWs.all.length).toBe(n + 1);
+      last().open(); last().hello();
+      expect(states[states.length - 1]).toBe('open');
+    });
+
+    it('is a no-op when there is no session', () => {
+      expect(() => t.reconnect()).not.toThrow();
+      expect(FakeWs.all.length).toBe(0);
+    });
+  });
 });

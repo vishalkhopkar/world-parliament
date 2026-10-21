@@ -21,13 +21,16 @@ const BACKOFF_MS = [300, 600, 1200, 2500, 5000, 8000];
 const GIVE_UP_MS = 150_000;
 /** After the page returns, how long the server gets to answer our probe ping before the socket is declared dead. */
 const PROBE_MS = 3_000;
+/** A socket that has not delivered the server's `hello` this long after we started connecting is abandoned (a mobile network can
+ *  leave a socket CONNECTING for minutes, or the first ping / hello can be lost): never wait forever on one attempt. */
+const HELLO_MS = 8_000;
 
 export class RemoteTransport implements Transport {
   private readonly api: string;
   private readonly ws: string;
   private sock: WebSocket | null = null;
   private gen = 0; // bumps on every connect()/disconnect(); events of older sockets are ignored
-  private timers: { retry?: ReturnType<typeof setTimeout>; ping?: ReturnType<typeof setInterval>; probe?: ReturnType<typeof setTimeout> } = {};
+  private timers: { retry?: ReturnType<typeof setTimeout>; ping?: ReturnType<typeof setInterval>; probe?: ReturnType<typeof setTimeout>; hello?: ReturnType<typeof setTimeout> } = {};
   private lastRx = 0; // time of the last frame received from the server
   private session: { gameId: GameId; token: string; onMessage: (m: ServerMessage) => void; onState?: (s: LinkState) => void } | null = null;
   private failures = 0;
@@ -111,11 +114,17 @@ export class RemoteTransport implements Transport {
     }, PROBE_MS);
   }
 
+  /** Public: the user pressed "Reconnect now" (also works after the transport gave up). */
+  reconnect() { this.reconnectNow(); }
+
+  private clearHelloTimer() { if (this.timers.hello) clearTimeout(this.timers.hello); this.timers.hello = undefined; }
+
   /** Drop whatever socket / retry state we have and open a fresh connection immediately (backoff and give-up reset). */
   private reconnectNow() {
     if (!this.session) return;
     if (this.timers.retry) { clearTimeout(this.timers.retry); this.timers.retry = undefined; }
     if (this.timers.probe) { clearTimeout(this.timers.probe); this.timers.probe = undefined; }
+    this.clearHelloTimer();
     this.stopPing();
     const old = this.sock;
     this.sock = null;
@@ -136,6 +145,16 @@ export class RemoteTransport implements Transport {
     let ws: WebSocket;
     try { ws = new WebSocket(url); } catch { this.scheduleRetry(gen); return; }
     this.sock = ws;
+    this.clearHelloTimer();
+    this.timers.hello = setTimeout(() => {
+      this.timers.hello = undefined;
+      if (gen !== this.gen || this.sock !== ws) return;
+      ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null;
+      try { ws.close(); } catch { /* ignore */ }
+      this.sock = null;
+      this.stopPing();
+      this.scheduleRetry(gen);
+    }, HELLO_MS);
     ws.onopen = () => {
       if (gen !== this.gen) return;
       this.rawSend({ action: 'ping', clientTime: Date.now() }); // triggers `hello`
@@ -146,6 +165,7 @@ export class RemoteTransport implements Transport {
       let m: ServerMessage;
       try { m = JSON.parse(String(ev.data)) as ServerMessage; } catch { return; }
       if (m.type === 'hello') {
+        this.clearHelloTimer();
         this.failures = 0; this.downSince = 0;
         this.state('open');
         this.startPing(gen);
@@ -159,6 +179,7 @@ export class RemoteTransport implements Transport {
     };
     ws.onclose = ev => {
       if (gen !== this.gen) return;
+      this.clearHelloTimer();
       this.stopPing();
       this.sock = null;
       if (ev.code === 1008) { this.giveUp('Your request to join was declined.'); return; } // the server closes rejected players with 1008
@@ -190,10 +211,13 @@ export class RemoteTransport implements Transport {
     const wait = BACKOFF_MS[Math.min(this.failures - 1, BACKOFF_MS.length - 1)] + Math.random() * 200;
     this.timers.retry = setTimeout(() => {
       if (gen !== this.gen) return;
-      // a socket that never opens can mean "declined" or "game gone" (the upgrade is refused): check over REST
+      // a socket that never opens can mean "declined" or "game gone" (the upgrade is refused): check over REST, but IN
+      // PARALLEL with the next attempt and with a timeout - a hanging fetch on a bad network must never stall reconnecting
       if (this.failures >= 2) {
-        void this.probe().then(fatal => { if (gen !== this.gen) return; if (fatal) this.giveUp(fatal); else this.open(); });
-      } else this.open();
+        const session = this.session;
+        void this.probe().then(fatal => { if (fatal && this.session === session) this.giveUp(fatal); });
+      }
+      this.open();
     }, wait);
   }
 
@@ -202,7 +226,10 @@ export class RemoteTransport implements Transport {
     const s = this.session;
     if (!s) return null;
     try {
-      const lobby = await this.getLobby(s.gameId, s.token);
+      const lobby = await Promise.race([
+        this.getLobby(s.gameId, s.token),
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error('probe timeout')), 5_000)),
+      ]);
       const me = lobby.players.find(p => p.playerId === lobby.you);
       return me?.status === 'rejected' ? 'Your request to join was declined.' : null;
     } catch (e) {
@@ -215,6 +242,7 @@ export class RemoteTransport implements Transport {
     const s = this.session;
     this.gen++;
     this.stopPing();
+    this.clearHelloTimer();
     if (this.timers.retry) clearTimeout(this.timers.retry);
     this.sock = null;
     if (!s) return;
@@ -238,6 +266,7 @@ export class RemoteTransport implements Transport {
     this.gen++;
     this.listen(false);
     this.stopPing();
+    this.clearHelloTimer();
     if (this.timers.retry) clearTimeout(this.timers.retry);
     this.timers.retry = undefined;
     if (this.timers.probe) clearTimeout(this.timers.probe);

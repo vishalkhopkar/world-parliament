@@ -9,7 +9,7 @@ import { PartySetup } from './screens/PartySetup';
 import { Campaign } from './screens/Campaign';
 import { Counting } from './screens/Counting';
 import { Result } from './screens/Result';
-import { leaveGame, resumeSession } from './net/client';
+import { leaveGame, reconnect, resumeSession } from './net/client';
 import './App.css';
 
 let resuming: Promise<boolean> | null = null; // StrictMode runs effects twice in dev: resume only once
@@ -53,7 +53,8 @@ export function App() {
       </header>
       {inGame && link !== 'open' && (
         <div className="link-banner" role="status">
-          {link === 'down' ? 'Disconnected from the server. Reload the page to rejoin.' : 'Reconnecting to the server…'}
+          <span>{link === 'down' ? 'Disconnected from the server.' : 'Reconnecting to the server…'}</span>
+          <button className="btn sm link-retry" onClick={() => reconnect()}>Reconnect now</button>
         </div>
       )}
       <main className="main">

@@ -33,5 +33,7 @@ export interface Transport {
    */
   connect(gameId: GameId, token: string, onMessage: (m: ServerMessage) => void, onState?: (s: LinkState) => void): void;
   send(msg: ClientMessage): void;
+  /** Optional: drop the current socket and connect again right now (the user's "Reconnect now" button). */
+  reconnect?(): void;
   disconnect(): void;
 }

@@ -83,6 +83,13 @@ function openSocket(gameId: string, token: string) {
   transport.connect(gameId, token, onServerMessage, l => st().setLink(l));
 }
 
+/** The "Reconnect now" button: drop the current socket and connect again immediately. */
+export function reconnect() {
+  if (!isRemote) return;
+  st().setLink('connecting');
+  transport.reconnect?.();
+}
+
 async function enterGame(r: SavedSession) {
   st().setSession({ gameId: r.gameId, token: r.token, me: r.playerId, joinCode: r.joinCode });
   saveSession(r);
