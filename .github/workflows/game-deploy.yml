@@ -66,6 +66,19 @@ jobs:
           extra=""
           if [ -n "$ALERT_EMAIL" ]; then extra="-c alertEmail=$ALERT_EMAIL"; fi
           npx cdk deploy --all --require-approval never -c stage=$STAGE $extra --outputs-file cdk-outputs.json
+      # The web bundle is built before the stacks exist, so it cannot know the API URLs: it would fall back to the
+      # in-browser mock. Now that they exist, rebuild with them and redeploy only the Web stack.
+      - name: Rebuild web with the API URLs and redeploy the Web stack
+        working-directory: game
+        env:
+          STAGE: ${{ inputs.stage || 'prod' }}
+        run: |
+          out=infra/cdk-outputs.json
+          export VITE_API_URL=$(node -p "require('./$out')['HungParliament-$STAGE-Api'].HttpApiUrl")
+          export VITE_WS_URL=$(node -p "require('./$out')['HungParliament-$STAGE-Api'].WebSocketUrl")
+          npm run build -w @hp/web
+          cd infra
+          npx cdk deploy "HungParliament-$STAGE-Web" --exclusively --require-approval never -c stage=$STAGE
       - name: Summary and smoke test
         working-directory: game/infra
         env:
@@ -73,8 +86,14 @@ jobs:
         run: |
           node summarize-outputs.mjs
           url=$(cat site-url.txt)
+          ok=""
           for i in 1 2 3 4 5; do
-            code=$(curl -s -o /dev/null -w '%{http_code}' "$url/") && [ "$code" = 200 ] && exit 0
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$url/")
+            if [ "$code" = 200 ]; then ok=1; break; fi
             sleep 10
           done
-          echo "::error::Smoke test failed for $url (last status $code)"; exit 1
+          [ -n "$ok" ] || { echo "::error::Smoke test failed for $url (last status $code)"; exit 1; }
+          # the live bundle must point at the real API, not the in-browser mock
+          api=$(node -p "require('./cdk-outputs.json')['HungParliament-$STAGE-Api'].HttpApiUrl")
+          js=$(curl -s "$url/" | grep -o 'assets/[^"]*\.js' | head -1)
+          curl -s "$url/$js" | grep -q "$api" || { echo "::error::Deployed bundle does not contain the API URL ($api): it would run in mock mode"; exit 1; }
