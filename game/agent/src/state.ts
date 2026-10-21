@@ -185,5 +185,7 @@ export function applyMessage(st: ClientState, m: ServerMessage, localNow: number
     case 'error':
       if (m.clientRef) st.pendingActions.delete(m.clientRef);
       return [ev('error', { error: m.error, message: m.message, ...(m.clientRef ? { clientRef: m.clientRef } : {}) })];
+    default:
+      return []; // unknown frames (e.g. API Gateway's own {"message":...} replies) must never crash the client
   }
 }

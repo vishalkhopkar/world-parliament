@@ -164,3 +164,11 @@ describe('applyMessage (state reducer)', () => {
     expect(admissionOf(st)).toBe('declined');
   });
 });
+
+describe('applyMessage with frames it does not know', () => {
+  it('ignores them instead of crashing (API Gateway sends bare {"message":...} frames)', () => {
+    const st = newState();
+    expect(applyMessage(st, { message: 'Internal server error' } as unknown as ServerMessage, 0)).toEqual([]);
+    expect(applyMessage(st, { type: 'somethingNew' } as unknown as ServerMessage, 0)).toEqual([]);
+  });
+});

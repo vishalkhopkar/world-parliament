@@ -164,6 +164,22 @@ export class DynamoRepo implements Repo {
     gameId: string, playerId: PlayerId, cost: number, item: Item, expectClosedPhases: number,
   ): Promise<SpendResult> {
     const ttl = this.ttl();
+    // Concurrent actions (several from one player, or all players sharing the game META condition check) make DynamoDB
+    // cancel a transaction with TransactionConflict: not a business failure, so retry briefly with jitter.
+    for (let attempt = 0; ; attempt++) {
+      try { return await this.spendAndInsertOnce(gameId, playerId, cost, item, expectClosedPhases, ttl); } catch (e) {
+        const reasons = (e as { CancellationReasons?: { Code?: string }[] })?.CancellationReasons;
+        const isConflict = (e as { name?: string })?.name === 'TransactionCanceledException'
+          && !!reasons?.some((r) => r.Code === 'TransactionConflict');
+        if (!isConflict || attempt >= 7) throw e;
+        await new Promise((r) => setTimeout(r, 15 * 2 ** attempt * (0.5 + Math.random())));
+      }
+    }
+  }
+
+  private async spendAndInsertOnce(
+    gameId: string, playerId: PlayerId, cost: number, item: Item, expectClosedPhases: number, ttl: number,
+  ): Promise<SpendResult> {
     try {
       await this.doc.send(new TransactWriteCommand({
         TransactItems: [
