@@ -17,7 +17,8 @@ const t0 = Date.now();
 const log = (...a: unknown[]) => console.log(`[${((Date.now() - t0) / 1000).toFixed(0).padStart(4)}s] ${NAME}:`, ...a);
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 const pick = <T,>(xs: T[]): T => xs[Math.floor(Math.random() * xs.length)];
-const seatName = new Map(PKG.seats.map(s => [s.id, s.name]));
+const SEAT_NAMES = JSON.parse(readFileSync(fileURLToPath(new URL('../../maps/world-500/site/data/seats.json', import.meta.url)), 'utf8')) as { id: number; name: string }[];
+const seatName = new Map(SEAT_NAMES.map(s => [s.id, s.name]));
 
 async function api(method: string, path: string, body?: unknown, token?: string) {
   const r = await fetch(BASE + path, { method, body: body === undefined ? undefined : JSON.stringify(body), headers: { 'content-type': 'application/json', ...(token ? { authorization: 'Bearer ' + token } : {}) } });

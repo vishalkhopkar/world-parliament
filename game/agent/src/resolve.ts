@@ -43,19 +43,25 @@ function ambiguousPlayer(raw: string, hits: PlayerPublic[]): AgentError {
 }
 
 // ------------------------------------------------------------------ seats
+/** A map-package seat plus its display name (the name comes from seats.json, never from game.json). */
+export type NamedSeat = GameMapSeat & { name: string };
+
 export class SeatDirectory {
-  private byId = new Map<SeatId, GameMapSeat>();
-  private names: { seat: GameMapSeat; n: string }[];
-  constructor(readonly pkg: GameMapPackage) {
-    for (const s of pkg.seats) this.byId.set(s.id, s);
-    this.names = pkg.seats.map((seat) => ({ seat, n: norm(seat.name) }));
+  private byId = new Map<SeatId, NamedSeat>();
+  private names: { seat: NamedSeat; n: string }[];
+  private list: NamedSeat[];
+  /** `seatNames`: seat id -> name, read from maps/<id>/site/data/seats.json (see gamePackage.loadSeatNames). */
+  constructor(readonly pkg: GameMapPackage, seatNames: Record<number, string> = {}) {
+    this.list = pkg.seats.map((s) => ({ ...s, name: seatNames[s.id] ?? `Seat ${s.id}` }));
+    for (const s of this.list) this.byId.set(s.id, s);
+    this.names = this.list.map((seat) => ({ seat, n: norm(seat.name) }));
   }
-  get(id: SeatId): GameMapSeat | undefined { return this.byId.get(id); }
+  get(id: SeatId): NamedSeat | undefined { return this.byId.get(id); }
   name(id: SeatId): string { return this.byId.get(id)?.name ?? `Seat ${id}`; }
-  all(): GameMapSeat[] { return this.pkg.seats; }
+  all(): NamedSeat[] { return this.list; }
 
   /** Accepts a seat id (number or numeric string) or a seat name. */
-  resolve(ref: unknown): GameMapSeat {
+  resolve(ref: unknown): NamedSeat {
     if (typeof ref === 'number' && Number.isInteger(ref)) return this.must(ref);
     if (typeof ref !== 'string' || !ref.trim()) throw new AgentError('UNKNOWN_SEAT', `Invalid seat reference: ${JSON.stringify(ref)}.`);
     const raw = ref.trim();
@@ -74,16 +80,16 @@ export class SeatDirectory {
     throw new AgentError('UNKNOWN_SEAT', `No seat is named "${raw}".${near.length ? ` Did you mean: ${near.map((s) => `${s.name} (#${s.id})`).join(', ')}?` : ''}`);
   }
 
-  private must(id: number): GameMapSeat {
+  private must(id: number): NamedSeat {
     const s = this.byId.get(id);
     if (!s) throw new AgentError('UNKNOWN_SEAT', `There is no seat #${id} (valid ids: 1..${this.pkg.seatCount}).`);
     return s;
   }
 
   /** Substring search over names (accent/dash insensitive), best matches first. */
-  search(query: string): GameMapSeat[] {
+  search(query: string): NamedSeat[] {
     const n = norm(query);
-    if (!n) return this.pkg.seats;
+    if (!n) return this.list;
     const toks = n.split(' ');
     return this.names
       .filter((x) => toks.every((t) => x.n.includes(t)))
@@ -91,7 +97,7 @@ export class SeatDirectory {
       .map((x) => x.seat);
   }
 
-  private suggest(n: string): GameMapSeat[] {
+  private suggest(n: string): NamedSeat[] {
     const toks = n.split(' ').filter((t) => t.length >= 3);
     const scored = this.names
       .map((x) => ({ seat: x.seat, score: toks.filter((t) => x.n.includes(t)).length * 10 - lev(x.n.slice(0, n.length + 2), n) }))
@@ -101,7 +107,7 @@ export class SeatDirectory {
   }
 }
 
-function ambiguousSeat(raw: string, seats: GameMapSeat[]): AgentError {
+function ambiguousSeat(raw: string, seats: NamedSeat[]): AgentError {
   const shown = seats.slice(0, 8).map((s) => `${s.name} (#${s.id})`).join(', ');
   return new AgentError('UNKNOWN_SEAT', `"${raw}" matches several seats: ${shown}${seats.length > 8 ? ', ...' : ''}. Use the seat id.`);
 }

@@ -12,7 +12,7 @@ export type ActionType = 'rally' | 'roadshow';
 
 export interface GameMapSeat {
   id: SeatId;
-  name: string;
+  // No name here on purpose: seat names live ONLY in maps/<id>/site/data/seats.json (renamed by hand), everything else uses ids.
   /** Centre of the seat (area centroid), WGS84 degrees. Distances between seats are great-circle km between these. */
   lon: number;
   lat: number;

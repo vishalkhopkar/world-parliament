@@ -7,14 +7,14 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { ACTIONS, ACTION_BY_NAME, executeAction, formatResultText } from '../src/actions';
 import { AgentError, toErrorInfo } from '../src/errors';
-import { loadGamePackage } from '../src/gamePackage';
+import { loadGamePackage, loadSeatNames } from '../src/gamePackage';
 import { SeatDirectory } from '../src/resolve';
 import { AgentSession } from '../src/session';
 import { applyMessage } from '../src/state';
 
 const cfg = WORLD_CONFIG;
 let dir: SeatDirectory;
-beforeAll(async () => { dir = new SeatDirectory((await loadGamePackage('world-500'))!); });
+beforeAll(async () => { dir = new SeatDirectory((await loadGamePackage('world-500'))!, loadSeatNames('world-500')); });
 
 const P = (id: string, nick: string, i: number, over: Partial<PlayerPublic> = {}): PlayerPublic => ({
   playerId: id, nickname: nick, isAdmin: id === 'h', kind: id === 'h' ? 'human' : 'agent', status: 'active',

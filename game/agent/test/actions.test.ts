@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { WORLD_CONFIG } from '@hp/shared';
 import type { GameSnapshot, PlayerPublic } from '@hp/shared';
 import { ACTIONS, ACTION_BY_NAME, executeAction, formatResultText } from '../src/actions';
-import { loadGamePackage } from '../src/gamePackage';
+import { loadGamePackage, loadSeatNames } from '../src/gamePackage';
 import { SeatDirectory } from '../src/resolve';
 import { renderRules, rulesTemplate, rulesValues } from '../src/rules';
 import { toJsonSchema } from '../src/schema';
@@ -13,7 +13,7 @@ import { GameClient } from '../src/client';
 
 const cfg = WORLD_CONFIG;
 let dir: SeatDirectory;
-beforeAll(async () => { dir = new SeatDirectory((await loadGamePackage('world-500'))!); });
+beforeAll(async () => { dir = new SeatDirectory((await loadGamePackage('world-500'))!, loadSeatNames('world-500')); });
 
 const players: PlayerPublic[] = [
   { playerId: 'h', nickname: 'Asha', isAdmin: true, status: 'active', party: { name: 'Saffron', colour: '#E8710A', symbol: 'sun' } },

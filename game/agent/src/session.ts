@@ -5,7 +5,7 @@ import type { MapConfig, PlayerPublic, SeatId } from '@hp/shared';
 import { GameClient } from './client';
 import type { ClientOptions, Session } from './client';
 import { AgentError } from './errors';
-import { loadGamePackage } from './gamePackage';
+import { loadGamePackage, loadSeatNames } from './gamePackage';
 import { SeatDirectory } from './resolve';
 import { configForMap } from './rules';
 
@@ -96,7 +96,7 @@ export class AgentSession {
     const id = this.mapId();
     if (!id) return null;
     const pkg = await loadGamePackage(id);
-    if (pkg) this.seatDir = new SeatDirectory(pkg);
+    if (pkg) this.seatDir = new SeatDirectory(pkg, loadSeatNames(id));
     return this.seatDir;
   }
 

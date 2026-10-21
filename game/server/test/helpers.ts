@@ -24,7 +24,7 @@ export const TEST_CFG: MapConfig = {
 };
 
 function seat(id: number, lon: number): GameMapSeat {
-  return { id, name: `Seat ${id}`, lon, lat: 0, x: lon, y: 0, neighbours: [] };
+  return { id, lon, lat: 0, x: lon, y: 0, neighbours: [] };
 }
 
 export const TEST_MAP: GameMapPackage = {

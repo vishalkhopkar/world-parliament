@@ -1,11 +1,11 @@
 // THE action table. The MCP server (mcp.ts) and the CLI/daemon (cli.ts, daemon.ts) both execute actions only through this
 // table, so they can never diverge. Each action: name, LLM-facing description, zod input schema, handler on an AgentSession.
 import { analystPrice, AVATARS, haversineKm, majorityOf, PARTY_COLOURS, PARTY_SYMBOLS } from '@hp/shared';
-import type { ActionType, GameMapSeat, PartyIdentity, PortfolioAssignment, SeatId } from '@hp/shared';
+import type { ActionType, PartyIdentity, PortfolioAssignment, SeatId } from '@hp/shared';
 import { z } from 'zod';
 import { AgentError, toErrorInfo } from './errors';
 import type { ErrorInfo } from './errors';
-import { resolveColour, resolveOption, resolvePlayer, resolvePortfolio } from './resolve';
+import { resolveColour, resolveOption, resolvePlayer, resolvePortfolio, type NamedSeat } from './resolve';
 import { configForMap, renderRules } from './rules';
 import type { AgentSession } from './session';
 import { EVENT_TYPES, admissionOf } from './state';
@@ -41,7 +41,7 @@ function needAdmitted(s: AgentSession): void {
 }
 
 /** Seat ref -> seat (with names when the package is available, otherwise numeric ids only). */
-async function seatOf(s: AgentSession, ref: unknown): Promise<{ id: SeatId; name: string; seat: GameMapSeat | null }> {
+async function seatOf(s: AgentSession, ref: unknown): Promise<{ id: SeatId; name: string; seat: NamedSeat | null }> {
   const dir = await s.seatsOrNull();
   if (dir) { const seat = dir.resolve(ref); return { id: seat.id, name: seat.name, seat }; }
   const n = typeof ref === 'number' ? ref : typeof ref === 'string' && /^\d+$/.test(ref.trim()) ? Number(ref) : NaN;

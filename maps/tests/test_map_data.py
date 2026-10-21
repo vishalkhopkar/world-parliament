@@ -105,10 +105,11 @@ class TestGamePackage:
     def test_seat_ids_match_seats_json(self, mapd):
         assert [s['id'] for s in mapd.game['seats']] == sorted(s['id'] for s in mapd.seats)
 
-    def test_names_match_seats_json(self, mapd):
-        names = {s['id']: s['name'] for s in mapd.seats}
-        bad = [(s['id'], s['name'], names[s['id']]) for s in mapd.game['seats'] if s['name'] != names[s['id']]]
-        assert not bad, f'game.json names differ from seats.json (re-run 07_game_map.py): {bad[:5]}'
+    def test_game_json_has_no_seat_names(self, mapd):
+        # seats.json is the ONLY place seat names live; the game package carries ids and geometry only
+        named = [s['id'] for s in mapd.game['seats'] if 'name' in s]
+        assert not named, f'game.json must not contain seat names (seats {named[:5]}); re-run 07_game_map.py'
+        assert sorted(s['id'] for s in mapd.game['seats']) == sorted(s['id'] for s in mapd.seats)
 
     def test_coordinates_are_valid(self, mapd):
         for s in mapd.game['seats']:

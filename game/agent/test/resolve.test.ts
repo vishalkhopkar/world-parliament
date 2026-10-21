@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { PARTY_COLOURS, PARTY_SYMBOLS, WORLD_CONFIG } from '@hp/shared';
 import type { PlayerPublic } from '@hp/shared';
-import { loadGamePackage } from '../src/gamePackage';
+import { loadGamePackage, loadSeatNames } from '../src/gamePackage';
 import { SeatDirectory, norm, resolveColour, resolveOption, resolvePlayer, resolvePortfolio } from '../src/resolve';
 
 const players: PlayerPublic[] = [
@@ -69,7 +69,7 @@ describe('SeatDirectory (real world-500 package)', () => {
   beforeAll(async () => {
     const pkg = await loadGamePackage('world-500');
     expect(pkg).not.toBeNull();
-    dir = new SeatDirectory(pkg!);
+    dir = new SeatDirectory(pkg!, loadSeatNames('world-500'));
   });
 
   it('resolves ids, numeric strings, exact names, dash/accents variants', () => {

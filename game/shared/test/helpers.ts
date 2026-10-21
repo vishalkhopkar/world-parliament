@@ -18,7 +18,7 @@ export const TEST_CFG: MapConfig = {
 };
 
 function seat(id: number, lon: number, lat: number, neighbours: number[] = []): GameMapSeat {
-  return { id, name: `Seat ${id}`, lon, lat, x: lon, y: lat, neighbours };
+  return { id, lon, lat, x: lon, y: lat, neighbours };
 }
 
 /**

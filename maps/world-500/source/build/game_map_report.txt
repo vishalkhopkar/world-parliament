@@ -46,4 +46,4 @@ k = 5   target 100.0 per group   sizes [101, 100, 100, 100, 99]
   phase 5: 99 seats, contiguous=True, mean lon/lat -53.4/29.6; North America 38, South America 27, Europe 25; e.g. Eastern Caribbean, New England, New York Metro
 
 VALIDATION: PASSED
-runtime 5.3s
+runtime 4.5s

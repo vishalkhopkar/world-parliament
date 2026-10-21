@@ -1,4 +1,5 @@
-// Load the GameMapPackage (seat names, centres, neighbours, polling-phase groups) for a map id.
+// Load the GameMapPackage (centres, neighbours, polling-phase groups) for a map id, and the seat NAMES from seats.json
+// (the only place names live; game.json has ids only).
 // Order: HP_GAME_PACKAGE env file -> generated registry (server/src/maps.generated.ts) -> maps/<id>/site/data/game.json (disk).
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -36,6 +37,17 @@ export function packageCandidates(mapId: string, root = REPO_ROOT): string[] {
   if (process.env.HP_GAME_PACKAGE) out.push(resolve(process.env.HP_GAME_PACKAGE));
   out.push(join(root, 'maps', mapId, 'site', 'data', 'game.json'));
   return out;
+}
+
+/** Seat id -> name from maps/<id>/site/data/seats.json (next to HP_GAME_PACKAGE when that is set). {} when unavailable. */
+export function loadSeatNames(mapId: string, root = REPO_ROOT): Record<number, string> {
+  const file = process.env.HP_GAME_PACKAGE
+    ? join(dirname(resolve(process.env.HP_GAME_PACKAGE)), 'seats.json')
+    : join(root, 'maps', mapId, 'site', 'data', 'seats.json');
+  try {
+    const rows = JSON.parse(readFileSync(file, 'utf8')) as { id: number; name: string }[];
+    return Object.fromEntries(rows.filter((r) => Number.isInteger(r.id) && typeof r.name === 'string').map((r) => [r.id, r.name]));
+  } catch { return {}; }
 }
 
 export async function loadGamePackage(mapId: string, opts: { root?: string; noRegistry?: boolean } = {}): Promise<GameMapPackage | null> {

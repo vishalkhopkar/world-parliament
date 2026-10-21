@@ -95,7 +95,7 @@ describe('gen-maps validation of a temporary maps folder (real script, child pro
     ['package seatCount differs from the manifest', { pkg: (p) => { p.seatCount = 6; } }, /seatCount 6 != manifest 5/],
     ['fewer seats than seatCount', { pkg: (p) => { p.seats.pop(); } }, /seats.length 4 != 5/],
     ['duplicate seat ids', { pkg: (p) => { p.seats[1].id = p.seats[0].id; } }, /duplicate seat ids/],
-    ['seat without a name', { pkg: (p) => { delete p.seats[2].name; } }, /seat 3 malformed/],
+    ['seat that carries a name (names live only in seats.json)', { pkg: (p) => { p.seats[2].name = 'Third'; } }, /seat 3 has a name/],
     ['seat with a non-finite coordinate', { pkg: (p) => { p.seats[0].lon = 'east'; } }, /seat 1 malformed/],
     ['neighbour that does not exist', { pkg: (p) => { p.seats[0].neighbours = [99]; } }, /unknown neighbour/],
     ['phaseGroups key missing', { pkg: (p) => { delete p.phaseGroups['4']; } }, /phaseGroups\["4"\] missing/],

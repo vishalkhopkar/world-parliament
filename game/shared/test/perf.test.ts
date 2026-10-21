@@ -10,7 +10,7 @@ describe('performance smoke (500 seats, 5000 actions)', () => {
   for (let i = 1; i <= 500; i++) {
     const lon = rng() * 360 - 180;
     const lat = rng() * 140 - 70;
-    seats.push({ id: i, name: `S${i}`, lon, lat, x: lon, y: lat, neighbours: [] });
+    seats.push({ id: i, lon, lat, x: lon, y: lat, neighbours: [] });
   }
   const ids = seats.map((s) => s.id);
   const map: GameMapPackage = {

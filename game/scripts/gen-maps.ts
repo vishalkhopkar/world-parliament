@@ -63,7 +63,8 @@ function validate(id: string, dir: string, m: Manifest): boolean {
     if (new Set(ids).size !== ids.length) err(id, 'game package: duplicate seat ids');
     const idSet = new Set(ids);
     for (const s of pkg.seats) {
-      if (typeof s.name !== 'string' || !Number.isFinite(s.lon) || !Number.isFinite(s.lat) || !Array.isArray(s.neighbours)) { err(id, `game package: seat ${s.id} malformed`); break; }
+      if ('name' in s) { err(id, `game package: seat ${s.id} has a name; names live only in seats.json`); break; }
+      if (!Number.isFinite(s.lon) || !Number.isFinite(s.lat) || !Array.isArray(s.neighbours)) { err(id, `game package: seat ${s.id} malformed`); break; }
       if (s.neighbours.some((n: number) => !idSet.has(n))) { err(id, `game package: seat ${s.id} has an unknown neighbour`); break; }
     }
     for (let k = 1; k <= 5; k++) {

@@ -246,7 +246,7 @@ for k in range(1, 6):
 # ------------------------------------------------------------------ build output
 seats_out = []
 for i, sid in enumerate(ids):
-    seats_out.append({'id': sid, 'name': seats_meta[sid]['name'], 'lon': round(float(clon[i]), 4), 'lat': round(float(clat[i]), 4),
+    seats_out.append({'id': sid, 'lon': round(float(clon[i]), 4), 'lat': round(float(clat[i]), 4),
                       'x': round(float(cx[i]), 3), 'y': round(float(cy[i]), 3), 'neighbours': sorted(ids[j] for j in adj[i])})
 pkg = {'mapId': MAP_ID, 'version': 1, 'seatCount': N, 'seats': seats_out, 'phaseGroups': phase_groups,
        'topo': {'coarse': 'world.topo.json', 'detail': 'detail.topo.json'}}
@@ -260,7 +260,7 @@ def check(c, msg):
     if not c: errs.append(msg)
 check(len(seats_out) == 500 and N == 500, 'seat count != 500')
 check([s['id'] for s in seats_out] == list(range(1, 501)), 'ids not 1..500')
-check(all(s['name'] == seats_meta[s['id']]['name'] for s in seats_out), 'names differ from seats.json')
+check(all('name' not in s for s in seats_out), 'game.json seats must not carry names (seats.json is the only place for names)')
 nb = {s['id']: set(s['neighbours']) for s in seats_out}
 check(all(a not in nb[a] for a in nb), 'self-loop')
 check(all(a in nb[b] for a in nb for b in nb[a]), 'asymmetric neighbours')
