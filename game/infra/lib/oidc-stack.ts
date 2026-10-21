@@ -21,7 +21,14 @@ export class GithubOidcStack extends Stack {
       maxSessionDuration: Duration.hours(1),
       assumedBy: new iam.WebIdentityPrincipal(provider.openIdConnectProviderArn, {
         StringEquals: { 'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com' },
-        StringLike: { 'token.actions.githubusercontent.com:sub': 'repo:vishalkhopkar/world-parliament:ref:refs/heads/main' },
+        // This repo has GitHub's "immutable subject" OIDC option on, so the token's sub uses owner/repo ids
+        // (repo:<owner>@<ownerId>/<repo>@<repoId>:...); the name-based form is kept for repos without it.
+        StringLike: {
+          'token.actions.githubusercontent.com:sub': [
+            'repo:vishalkhopkar/world-parliament:ref:refs/heads/main',
+            'repo:vishalkhopkar@12594122/world-parliament@1424053154:ref:refs/heads/main',
+          ],
+        },
       }),
     });
     // CDK deploys by assuming the bootstrap roles (cdk-hnb659fds-*); that is all this role needs.
