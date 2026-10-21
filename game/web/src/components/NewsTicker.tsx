@@ -93,7 +93,9 @@ export function NewsTicker({ onPick }: { onPick?: (seat: SeatId) => void }) {
     const commit = (list: Entry[]) => { itemsRef.current = list; flushSync(() => setItems(list)); };
     const totalWidth = () => Array.from(track.children).reduce((w, c) => w + (c as HTMLElement).getBoundingClientRect().width, 0);
 
-    if (!itemsRef.current.length) commit([{ kind: 'gap', key: 'gap', width: view.clientWidth }]); // new items enter from the right edge
+    if (!itemsRef.current.length) { // new items enter from the right edge (plain setState: flushSync is not allowed inside an effect)
+      itemsRef.current = [{ kind: 'gap', key: 'gap', width: view.clientWidth }]; setItems(itemsRef.current);
+    }
     const frame = (t: number) => {
       const dt = last ? Math.min((t - last) / 1000, 0.1) : 0; last = t;
       if (!hover.current) x += SPEED * dt;
