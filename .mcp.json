@@ -2,10 +2,33 @@
   "mcpServers": {
     "hung-parliament": {
       "command": "node",
-      "args": ["game/agent/bin/mcp.mjs"],
+      "args": [
+        "game/agent/bin/mcp.mjs"
+      ],
       "env": {
         "HP_SERVER": "http://localhost:8787",
         "HP_SESSION_FILE": "game/agent/.sessions/mcp.session.json"
+      }
+    },
+    "aws-api": {
+      "command": "uvx",
+      "args": [
+        "awslabs.aws-api-mcp-server@latest"
+      ],
+      "env": {
+        "AWS_REGION": "ap-south-1",
+        "READ_OPERATIONS_ONLY": "true",
+        "AWS_API_MCP_WORKING_DIR": "D:/Projects/world-parliament/.aws-mcp-work",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "aws-iac": {
+      "command": "uvx",
+      "args": [
+        "awslabs.aws-iac-mcp-server@latest"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
       }
     }
   }

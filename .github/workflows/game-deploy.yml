@@ -5,6 +5,12 @@ on:
     branches: [main]
     paths: ['game/**', 'maps/**', '.github/workflows/game-deploy.yml']
   workflow_dispatch:
+    inputs:
+      stage:
+        description: Stage to deploy
+        type: choice
+        options: [prod, dev]
+        default: prod
 
 permissions:
   id-token: write
@@ -39,10 +45,32 @@ jobs:
       - run: npm run gen:maps
       - run: npm run gen:config
       - run: npm run build -w @hp/web
+      - name: Check AWS secret is configured
+        env:
+          ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+        run: |
+          if [ -z "$ROLE" ]; then
+            echo "::error::Repo secret AWS_DEPLOY_ROLE_ARN is not set. See game/infra/README.md (One-time AWS setup)."
+            exit 1
+          fi
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ap-south-1
       - name: CDK deploy
         working-directory: game/infra
-        run: npx cdk deploy --all --require-approval never -c stage=prod
+        env:
+          STAGE: ${{ inputs.stage || 'prod' }}
+        run: npx cdk deploy --all --require-approval never -c stage=$STAGE --outputs-file cdk-outputs.json
+      - name: Summary and smoke test
+        working-directory: game/infra
+        env:
+          STAGE: ${{ inputs.stage || 'prod' }}
+        run: |
+          node summarize-outputs.mjs
+          url=$(cat site-url.txt)
+          for i in 1 2 3 4 5; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$url/") && [ "$code" = 200 ] && exit 0
+            sleep 10
+          done
+          echo "::error::Smoke test failed for $url (last status $code)"; exit 1

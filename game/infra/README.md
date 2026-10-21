@@ -53,8 +53,12 @@ Then loop `count-reveal {gameId}` -> must return `{done: boolean, nextAtIso: str
 Then Wait until `postCountingEndIso` -> `finalise {gameId}`. Task retries: 2 with backoff; any failure -> `finalise {gameId, error: true}`.
 `finalise` may also be invoked early by the server and must be idempotent. `countingEndIso` is currently unused by the machine.
 
-## One-time GitHub Actions OIDC setup
-1. `npx cdk deploy GithubOidcStack -c oidc=true` (add `-c oidcProviderArn=…` if the account already has the GitHub OIDC provider).
-2. Copy output `DeployRoleArn` into the repo secret `AWS_DEPLOY_ROLE_ARN`. The role trusts only
+## One-time AWS setup (needed before the GitHub deploy workflow can work)
+Run these once from your own machine, with admin credentials for the target AWS account.
+1. Install the AWS CLI, run `aws configure` (or `aws sso login`), then confirm the account: `aws sts get-caller-identity` (the `Account` field is your 12-digit account id).
+2. `cd game && npm ci`, then from `game/infra`: `npx cdk bootstrap aws://<ACCOUNT_ID>/ap-south-1`
+3. `npx cdk deploy GithubOidcStack -c oidc=true` (add `-c oidcProviderArn=arn:aws:iam::<ACCOUNT_ID>:oidc-provider/token.actions.githubusercontent.com` if the account already has the GitHub OIDC provider; check with `aws iam list-open-id-connect-providers`).
+4. Copy output `DeployRoleArn` (`arn:aws:iam::<ACCOUNT_ID>:role/hp-github-deploy`) into the GitHub repo secret `AWS_DEPLOY_ROLE_ARN`: Settings -> Secrets and variables -> Actions -> New repository secret (or `gh secret set AWS_DEPLOY_ROLE_ARN --body <arn>`). The role trusts only
    `repo:vishalkhopkar/world-parliament:ref:refs/heads/main` and may only assume the CDK bootstrap roles (`cdk-*`).
-3. `.github/workflows/game-deploy.yml` then deploys `-c stage=prod` on pushes to main touching `game/**`.
+5. `.github/workflows/game-deploy.yml` then deploys `-c stage=prod` after CI passes on pushes to main touching `game/**` or `maps/**`; run it manually from the Actions tab to pick `prod` or `dev`. The run summary lists the site, REST and WebSocket URLs, and the job fails if the site does not return HTTP 200.
+No account id is stored in the repo: the CDK uses the account of the assumed role.

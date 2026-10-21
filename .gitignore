@@ -41,3 +41,4 @@ Thumbs.db
 # local dev-server logs
 /.srv.log
 /.vite.log
+.aws-mcp-work/
