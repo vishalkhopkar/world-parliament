@@ -61,7 +61,11 @@ jobs:
         working-directory: game/infra
         env:
           STAGE: ${{ inputs.stage || 'prod' }}
-        run: npx cdk deploy --all --require-approval never -c stage=$STAGE --outputs-file cdk-outputs.json
+          ALERT_EMAIL: ${{ vars.ALERT_EMAIL }}
+        run: |
+          extra=""
+          if [ -n "$ALERT_EMAIL" ]; then extra="-c alertEmail=$ALERT_EMAIL"; fi
+          npx cdk deploy --all --require-approval never -c stage=$STAGE $extra --outputs-file cdk-outputs.json
       - name: Summary and smoke test
         working-directory: game/infra
         env:
