@@ -7,18 +7,17 @@
 //   So we (a) probe the socket whenever the page comes back (visibilitychange / pageshow / focus) and reconnect at
 //   once if nothing answers, (b) reconnect at once on `online`, (c) treat 2 silent ping intervals as a dead socket, and
 //   (d) restart the give-up clock on every resume, so time spent asleep never counts as "server unreachable".
+import { WORLD_CONFIG } from '@hp/shared';
 import type {
   AdmissionRequest, AdmitRequest, ApiError, ClientMessage, CreateGameRequest, CreateGameResponse, GameId,
   JoinGameRequest, JoinGameResponse, LobbyView, PartyRequest, ServerMessage, SettingsRequest, StartResponse,
 } from '@hp/shared';
 import { ApiException, type LinkState, type Transport } from './transport';
 
-export interface RemoteOptions { apiUrl: string; wsUrl: string }
+/** `retryMs`: wait between automatic reconnect attempts (default: connection.retryMs from game.properties). */
+export interface RemoteOptions { apiUrl: string; wsUrl: string; retryMs?: number }
 
 const PING_MS = 15_000;
-const BACKOFF_MS = [300, 600, 1200, 2500, 5000, 8000];
-/** Stop retrying after this long without a working connection (the server's grace period is 90 s). */
-const GIVE_UP_MS = 150_000;
 /** After the page returns, how long the server gets to answer our probe ping before the socket is declared dead. */
 const PROBE_MS = 3_000;
 /** A socket that has not delivered the server's `hello` this long after we started connecting is abandoned (a mobile network can
@@ -28,18 +27,21 @@ const HELLO_MS = 8_000;
 export class RemoteTransport implements Transport {
   private readonly api: string;
   private readonly ws: string;
+  private readonly retryMs: number;
   private sock: WebSocket | null = null;
   private gen = 0; // bumps on every connect()/disconnect(); events of older sockets are ignored
-  private timers: { retry?: ReturnType<typeof setTimeout>; ping?: ReturnType<typeof setInterval>; probe?: ReturnType<typeof setTimeout>; hello?: ReturnType<typeof setTimeout> } = {};
+  private timers: { retry?: ReturnType<typeof setTimeout>; ping?: ReturnType<typeof setInterval>; probe?: ReturnType<typeof setTimeout>; hello?: ReturnType<typeof setTimeout>; watchdog?: ReturnType<typeof setInterval> } = {};
   private lastRx = 0; // time of the last frame received from the server
   private session: { gameId: GameId; token: string; onMessage: (m: ServerMessage) => void; onState?: (s: LinkState) => void } | null = null;
   private failures = 0;
-  private downSince = 0;
+  private attemptAt = 0; // when the current connection attempt started
+  private link: LinkState = 'connecting';
   private queue: ClientMessage[] = []; // messages sent while (re)connecting (pings are never queued)
 
   constructor(opts: RemoteOptions) {
     this.api = opts.apiUrl.replace(/\/+$/, '');
     this.ws = opts.wsUrl.replace(/\/+$/, '');
+    this.retryMs = Math.max(1000, opts.retryMs ?? WORLD_CONFIG.connection.retryMs);
   }
 
   // ------------------------------------------------------------------ REST
@@ -82,10 +84,24 @@ export class RemoteTransport implements Transport {
     this.disconnect();
     this.session = { gameId, token, onMessage, onState };
     this.failures = 0;
-    this.downSince = 0;
     this.listen(true);
+    this.startWatchdog();
     this.open();
   }
+
+  /**
+   * Safety net independent of the retry chain: if the link is not up and the current attempt has been running far longer than
+   * a normal attempt (handshake timeout + wait), something stalled (frozen timers, lost callback): start over.
+   */
+  private startWatchdog() {
+    if (this.timers.watchdog) return;
+    this.timers.watchdog = setInterval(() => {
+      if (!this.session || this.link === 'open') return;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      if (Date.now() - this.attemptAt > HELLO_MS + 2 * this.retryMs) this.reconnectNow();
+    }, this.retryMs);
+  }
+  private stopWatchdog() { if (this.timers.watchdog) clearInterval(this.timers.watchdog); this.timers.watchdog = undefined; }
 
   // ---- phone lifecycle: come back from background / network change
   private readonly onVisible = () => { if (typeof document === 'undefined' || document.visibilityState !== 'hidden') this.resume(); };
@@ -130,16 +146,17 @@ export class RemoteTransport implements Transport {
     this.sock = null;
     if (old) { old.onopen = old.onmessage = old.onclose = old.onerror = null; try { old.close(); } catch { /* ignore */ } }
     this.failures = 0;
-    this.downSince = 0;
+    this.startWatchdog();
     this.open();
   }
 
-  private state(s: LinkState) { this.session?.onState?.(s); }
+  private state(s: LinkState) { this.link = s; this.session?.onState?.(s); }
 
   private open() {
     const s = this.session;
     if (!s) return;
     const gen = ++this.gen;
+    this.attemptAt = Date.now();
     this.state('connecting');
     const url = `${this.ws}?gameId=${encodeURIComponent(s.gameId)}&token=${encodeURIComponent(s.token)}`;
     let ws: WebSocket;
@@ -166,7 +183,7 @@ export class RemoteTransport implements Transport {
       try { m = JSON.parse(String(ev.data)) as ServerMessage; } catch { return; }
       if (m.type === 'hello') {
         this.clearHelloTimer();
-        this.failures = 0; this.downSince = 0;
+        this.failures = 0;
         this.state('open');
         this.startPing(gen);
         // deliver hello first (it replaces the snapshot), then flush what the user did while offline
@@ -204,13 +221,16 @@ export class RemoteTransport implements Transport {
   private scheduleRetry(gen: number) {
     const s = this.session;
     if (!s || gen !== this.gen) return;
-    if (!this.downSince) this.downSince = Date.now();
     this.failures++;
     this.state('connecting');
-    if (Date.now() - this.downSince > GIVE_UP_MS) { this.giveUp('Connection to the game server was lost.'); return; }
-    const wait = BACKOFF_MS[Math.min(this.failures - 1, BACKOFF_MS.length - 1)] + Math.random() * 200;
+    // a steady beat (connection.retryMs, +0..10 % jitter), never a growing backoff and no time-based give-up: a phone that was
+    // away or offline for minutes must reconnect by itself. Only "declined" / "game gone" (checked below) are final.
+    const wait = this.retryMs * (1 + Math.random() * 0.1);
     this.timers.retry = setTimeout(() => {
+      this.timers.retry = undefined;
       if (gen !== this.gen) return;
+      // hidden page: do not retry in the background; resume() reconnects the moment the page is shown again
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       // a socket that never opens can mean "declined" or "game gone" (the upgrade is refused): check over REST, but IN
       // PARALLEL with the next attempt and with a timeout - a hanging fetch on a bad network must never stall reconnecting
       if (this.failures >= 2) {
@@ -242,6 +262,7 @@ export class RemoteTransport implements Transport {
     const s = this.session;
     this.gen++;
     this.stopPing();
+    this.stopWatchdog();
     this.clearHelloTimer();
     if (this.timers.retry) clearTimeout(this.timers.retry);
     this.sock = null;
@@ -265,6 +286,7 @@ export class RemoteTransport implements Transport {
   disconnect() {
     this.gen++;
     this.listen(false);
+    this.stopWatchdog();
     this.stopPing();
     this.clearHelloTimer();
     if (this.timers.retry) clearTimeout(this.timers.retry);

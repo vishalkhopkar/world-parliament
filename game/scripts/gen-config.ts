@@ -37,6 +37,7 @@ const NUMBER_KEYS = [
   'phases.min', 'phases.max', 'phases.default', 'players.min', 'players.max',
   'durations.campaignMs', 'durations.countingMs', 'durations.countingMsTwoPlayers', 'durations.countingStepMs',
   'durations.postCountingMs', 'durations.postCountingMsTwoPlayers', 'durations.graceMs',
+  'connection.retryMs',
   'counting.winStartFraction', 'counting.allLeadsByFraction', 'counting.leadNoiseStart', 'counting.leadNoiseExponent',
   'counting.leadNoiseEpochFraction', 'counting.winJitter',
   'points.seatMultiplier', 'points.governmentFloor', 'points.opposition',
@@ -101,6 +102,7 @@ if (!errors.length) {
   rule(val('phases.min') >= 1 && val('phases.max') >= val('phases.min'), 'phases: need 1 <= min <= max');
   rule(val('phases.default') >= val('phases.min') && val('phases.default') <= val('phases.max'), 'phases.default must be within min..max');
   rule(val('durations.countingMs') > 0 && val('durations.countingMsTwoPlayers') > 0 && val('durations.countingStepMs') > 0, 'durations.countingMs / countingMsTwoPlayers / countingStepMs must be > 0');
+  rule(val('connection.retryMs') >= 1000, 'connection.retryMs must be >= 1000 (ms between browser reconnect attempts)');
   rule(val('counting.winStartFraction') > 0 && val('counting.winStartFraction') <= 1, 'counting.winStartFraction must be in (0, 1]');
   rule(val('counting.allLeadsByFraction') > 0 && val('counting.allLeadsByFraction') <= val('counting.winStartFraction'), 'counting.allLeadsByFraction must be in (0, winStartFraction]');
   rule(val('counting.leadNoiseStart') >= 0 && val('counting.leadNoiseExponent') >= 0 && val('counting.winJitter') >= 0, 'counting.leadNoiseStart / leadNoiseExponent / winJitter must be >= 0');

@@ -64,6 +64,9 @@ export const GAME_CONFIG_VALUES = {
     "postCountingMsTwoPlayers": 0,
     "graceMs": 90000
   },
+  "connection": {
+    "retryMs": 5000
+  },
   "counting": {
     "winStartFraction": 0.75,
     "allLeadsByFraction": 0.5,

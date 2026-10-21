@@ -3,6 +3,8 @@ import { currentScreen, selectMapId, useStore } from './state/store';
 import { loadGamePackage, loadSeatNames } from './map/mapData';
 import { Emblem } from './components/ui';
 import { Toast } from './components/Toast';
+import { LinkBanner } from './components/LinkBanner';
+import { useMapConfig } from './state/mapConfig';
 import { Home } from './screens/Home';
 import { Lobby } from './screens/Lobby';
 import { PartySetup } from './screens/PartySetup';
@@ -19,6 +21,7 @@ export function App() {
   const inGame = useStore(s => !!s.gameId);
   const joinCode = useStore(s => s.joinCode);
   const link = useStore(s => s.link);
+  const cfg = useMapConfig();
   const [booting, setBooting] = useState(true);
 
   useEffect(() => {
@@ -51,12 +54,7 @@ export function App() {
           </div>
         )}
       </header>
-      {inGame && link !== 'open' && (
-        <div className="link-banner" role="status">
-          <span>{link === 'down' ? 'Disconnected from the server.' : 'Reconnecting to the server…'}</span>
-          <button className="btn sm link-retry" onClick={() => reconnect()}>Reconnect now</button>
-        </div>
-      )}
+      {inGame && <LinkBanner link={link} retryMs={cfg.connection.retryMs} onReconnect={reconnect} />}
       <main className="main">
         {booting && screen === 'home' && <p className="hint">Looking for your game…</p>}
         {!booting && screen === 'home' && <Home />}

@@ -31,6 +31,7 @@ describe('game.properties is the source of the game constants', () => {
     expect(WORLD_CONFIG.timeMultiplier).toEqual({ start: n('timeMultiplier.start'), end: n('timeMultiplier.end') });
     expect(WORLD_CONFIG.durations.campaignMs).toBe(n('durations.campaignMs'));
     expect(WORLD_CONFIG.points.seatMultiplier).toBe(n('points.seatMultiplier'));
+    expect(WORLD_CONFIG.connection).toEqual({ retryMs: n('connection.retryMs') });
     expect(WORLD_CONFIG.points.portfolios.map((p) => p.id)).toEqual(
       [...props.keys()].filter((k) => /^points\.portfolios\.\d+\.id$/.test(k)).map((k) => props.get(k)));
     expect(WORLD_CONFIG.currency).toEqual({ name: props.get('currency.name'), symbol: props.get('currency.symbol') });
@@ -43,6 +44,10 @@ describe('game.properties is the source of the game constants', () => {
     expect(WORLD_CONFIG.analyst.globalReport).toEqual({ start: 2_800, end: 6_200 });
     expect(WORLD_CONFIG.effects.firstMover.rally).toBeGreaterThan(0);
     expect(WORLD_CONFIG.effects.firstMover.roadshow).toBeGreaterThan(0);
+  });
+
+  it('browsers retry a lost connection every 5 s by default', () => {
+    expect(WORLD_CONFIG.connection.retryMs).toBe(5_000);
   });
 
   it('every map without its own entry shares the file values', () => {
@@ -86,6 +91,16 @@ describe('gen-config rejects a bad properties file', () => {
     expect(r.ok).toBe(false);
     expect(r.err).toContain('budgett');
   }, 30_000);
+  it('rejects a connection retry interval under one second (it would hammer the server)', () => {
+    const r = run(propsText.replace(/^connection\.retryMs=.*$/m, 'connection.retryMs=500'));
+    expect(r.ok).toBe(false);
+    expect(r.err).toContain('connection.retryMs');
+  }, 30_000);
+  it('rejects a missing connection.retryMs', () => {
+    const r = run(propsText.replace(/^connection\.retryMs=.*$/m, ''));
+    expect(r.ok).toBe(false);
+    expect(r.err).toContain('connection.retryMs');
+  }, 30_000);
   it('rejects a negative first-mover bonus', () => {
     const r = run(propsText.replace(/^effects\.firstMover\.rally=.*$/m, 'effects.firstMover.rally=-1'));
     expect(r.ok).toBe(false);
@@ -96,6 +111,7 @@ describe('validateConfig', () => {
   it('accepts WORLD_CONFIG', () => { expect(() => validateConfig(WORLD_CONFIG)).not.toThrow(); });
   it('rejects NaN, negative and missing numbers', () => {
     expect(() => validateConfig({ ...WORLD_CONFIG, budget: NaN })).toThrow(/budget/);
+    expect(() => validateConfig({ ...WORLD_CONFIG, connection: { retryMs: 200 } })).toThrow(/connection.retryMs/);
     expect(() => validateConfig({ ...WORLD_CONFIG, costs: { rally: -1, roadshow: 1 } })).toThrow(/costs.rally/);
     expect(() => validateConfig({ ...WORLD_CONFIG, effects: { ...WORLD_CONFIG.effects, firstMover: { rally: 0 } } } as never)).toThrow(/firstMover/);
   });

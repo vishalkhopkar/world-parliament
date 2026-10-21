@@ -105,6 +105,11 @@ export interface MapConfig {
   /** How the count is revealed: noisy leads first, confirmed wins only late. All fractions are of the counting time. */
   counting: CountingParams;
   players: { min: number; max: number };
+  /** Browser connection behaviour. */
+  connection: {
+    /** Milliseconds between automatic reconnect attempts while the link is down (min 1000). */
+    retryMs: number;
+  };
   points: PointsConfig;
 }
 
@@ -145,6 +150,7 @@ export function validateConfig(cfg: MapConfig): void {
   num('analyst.globalReport.start', cfg.analyst?.globalReport?.start);
   num('analyst.globalReport.end', cfg.analyst?.globalReport?.end);
   num('randomSwing', cfg.randomSwing);
+  num('connection.retryMs', cfg.connection?.retryMs, 999, true);
   num('durations.countingMs', cfg.durations?.countingMs, 0, true);
   num('durations.countingMsTwoPlayers', cfg.durations?.countingMsTwoPlayers, 0, true);
   num('durations.countingStepMs', cfg.durations?.countingStepMs, 0, true);

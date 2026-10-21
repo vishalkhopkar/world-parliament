@@ -13,6 +13,7 @@ class FakeWs {
   onmessage: ((e: { data: string }) => void) | null = null;
   onclose: ((e: { code: number }) => void) | null = null;
   onerror: (() => void) | null = null;
+  createdAt = Date.now();
   constructor(public url: string) { FakeWs.all.push(this); }
   send(d: string) { this.sent.push(d); }
   close() { this.readyState = 3; }
@@ -45,7 +46,8 @@ describe('RemoteTransport reconnect (phone: tab switched or browser app backgrou
     vi.useFakeTimers();
     FakeWs.all = [];
     vi.stubGlobal('WebSocket', FakeWs);
-    t = new RemoteTransport({ apiUrl: 'https://api.test', wsUrl: 'wss://ws.test/live' });
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline')))); // the REST probe must never hit a real network
+    t = new RemoteTransport({ apiUrl: 'https://api.test', wsUrl: 'wss://ws.test/live', retryMs: 5_000 });
     states = []; msgs = [];
   });
   afterEach(() => { t.disconnect(); vi.useRealTimers(); vi.unstubAllGlobals(); });
@@ -109,7 +111,7 @@ describe('RemoteTransport reconnect (phone: tab switched or browser app backgrou
     connected();
     last().drop();
     t.send({ action: 'campaign', type: 'roadshow', seat: 7, clientRef: 'c1' } as never);
-    vi.advanceTimersByTime(1_000);
+    vi.advanceTimersByTime(6_000);
     last().open(); last().hello();
     expect(last().sent.some(s => s.includes('"roadshow"'))).toBe(true);
   });
@@ -119,7 +121,7 @@ describe('RemoteTransport reconnect (phone: tab switched or browser app backgrou
       t.connect('g1', 'tok', m => msgs.push(m), s => states.push(s));
       const first = last();              // never opens, never errors
       vi.advanceTimersByTime(9_000);
-      vi.advanceTimersByTime(2_000);     // backoff before the next attempt
+      vi.advanceTimersByTime(6_000);     // the 5 s wait before the next attempt
       expect(FakeWs.all.length).toBeGreaterThanOrEqual(2);
       expect(last()).not.toBe(first);
       expect(states).not.toContain('down');
@@ -129,7 +131,7 @@ describe('RemoteTransport reconnect (phone: tab switched or browser app backgrou
       t.connect('g1', 'tok', m => msgs.push(m), s => states.push(s));
       const first = last(); first.open(); // open, but the server never answers
       vi.advanceTimersByTime(9_000);
-      vi.advanceTimersByTime(2_000);
+      vi.advanceTimersByTime(6_000);
       expect(last()).not.toBe(first);
       last().open(); last().hello();
       expect(states[states.length - 1]).toBe('open');
@@ -139,6 +141,17 @@ describe('RemoteTransport reconnect (phone: tab switched or browser app backgrou
       t.connect('g1', 'tok', m => msgs.push(m), s => states.push(s));
       vi.advanceTimersByTime(120_000);
       expect(FakeWs.all.length).toBeGreaterThanOrEqual(8); // many attempts, not one stuck forever
+    });
+
+    it('a stalled retry chain (lost timers) is restarted by the watchdog', () => {
+      t.connect('g1', 'tok', m => msgs.push(m), s => states.push(s));
+      const first = last();
+      // simulate a lost handshake timer: the attempt would otherwise sit there forever
+      const timers = (t as unknown as { timers: { hello?: ReturnType<typeof setTimeout> } }).timers;
+      clearTimeout(timers.hello); timers.hello = undefined;
+      vi.advanceTimersByTime(30_000);
+      expect(FakeWs.all.length).toBeGreaterThanOrEqual(2);
+      expect(last()).not.toBe(first);
     });
   });
 
@@ -156,7 +169,7 @@ describe('RemoteTransport reconnect (phone: tab switched or browser app backgrou
 
     it('also works after the transport gave up ("down")', () => {
       t.connect('g1', 'tok', m => msgs.push(m), s => states.push(s));
-      vi.advanceTimersByTime(400_000);   // far beyond the give-up window
+      last().drop(1008);                 // the server closes declined players with 1008: fatal
       expect(states).toContain('down');
       const n = FakeWs.all.length;
       t.reconnect();
@@ -168,6 +181,54 @@ describe('RemoteTransport reconnect (phone: tab switched or browser app backgrou
     it('is a no-op when there is no session', () => {
       expect(() => t.reconnect()).not.toThrow();
       expect(FakeWs.all.length).toBe(0);
+    });
+  });
+
+  describe('automatic retry every connection.retryMs (no manual click needed)', () => {
+    it('retries on a steady 5 s beat, without slowing down (no growing backoff)', () => {
+      t.connect('g1', 'tok', m => msgs.push(m), s => states.push(s));
+      last().drop(1006);                           // refused / dropped straight away, again and again
+      for (let i = 0; i < 12; i++) {
+        const n = FakeWs.all.length;
+        while (FakeWs.all.length === n) vi.advanceTimersByTime(50); // wait for the next attempt
+        last().drop(1006);                         // ...and have it fail at once
+      }
+      const times = FakeWs.all.map(w => w.createdAt);
+      const gaps = times.slice(1).map((x, k) => x - times[k]);
+      expect(gaps.length).toBeGreaterThanOrEqual(10);
+      for (const g of gaps) { expect(g).toBeGreaterThanOrEqual(4_900); expect(g).toBeLessThanOrEqual(5_600); }
+    });
+
+    it('never gives up on a transient outage, however long it lasts (10 minutes)', () => {
+      t.connect('g1', 'tok', m => msgs.push(m), s => states.push(s));
+      vi.advanceTimersByTime(600_000);
+      expect(states).not.toContain('down');
+      expect(msgs.some(m => m.type === 'error')).toBe(false);
+      expect(FakeWs.all.length).toBeGreaterThan(30);
+      last().open(); last().hello();               // the network finally comes back
+      expect(states[states.length - 1]).toBe('open');
+    });
+
+    it('does give up for good when the server says the game is gone (REST probe: NOT_FOUND)', async () => {
+      vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 404, text: async () => JSON.stringify({ error: 'NOT_FOUND', message: 'gone' }) })));
+      t.connect('g1', 'tok', m => msgs.push(m), s => states.push(s));
+      last().drop(1006); vi.advanceTimersByTime(6_000);
+      last().drop(1006); vi.advanceTimersByTime(6_000);   // 2 failures: the probe runs next time
+      last().drop(1006); vi.advanceTimersByTime(6_000);
+      await vi.advanceTimersByTimeAsync(10);
+      expect(states).toContain('down');
+      expect(msgs.some(m => m.type === 'error')).toBe(true);
+    });
+
+    it('makes no attempts while the page is hidden, and reconnects at once when it is shown', () => {
+      connected();
+      setHidden(true);
+      last().drop(1006);
+      const n = FakeWs.all.length;
+      vi.advanceTimersByTime(60_000);
+      expect(FakeWs.all.length).toBe(n);           // nothing while hidden (the browser freezes it anyway)
+      setHidden(false);
+      expect(FakeWs.all.length).toBe(n + 1);       // immediately on return
     });
   });
 });
