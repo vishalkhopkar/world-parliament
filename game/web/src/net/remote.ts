@@ -3,6 +3,10 @@
 // - The server sends `hello` only in reply to the client's FIRST message, so we ping as soon as the socket opens
 //   (and on every reconnect). Periodic pings keep the connection alive and refresh the server-clock offset (pong).
 // - Automatic reconnect with the same token (the server restores the player within its grace period).
+// - Phones: a backgrounded tab / browser app freezes timers and often leaves a socket that still says OPEN but is dead.
+//   So we (a) probe the socket whenever the page comes back (visibilitychange / pageshow / focus) and reconnect at
+//   once if nothing answers, (b) reconnect at once on `online`, (c) treat 2 silent ping intervals as a dead socket, and
+//   (d) restart the give-up clock on every resume, so time spent asleep never counts as "server unreachable".
 import type {
   AdmissionRequest, AdmitRequest, ApiError, ClientMessage, CreateGameRequest, CreateGameResponse, GameId,
   JoinGameRequest, JoinGameResponse, LobbyView, PartyRequest, ServerMessage, SettingsRequest, StartResponse,
@@ -15,13 +19,16 @@ const PING_MS = 15_000;
 const BACKOFF_MS = [300, 600, 1200, 2500, 5000, 8000];
 /** Stop retrying after this long without a working connection (the server's grace period is 90 s). */
 const GIVE_UP_MS = 150_000;
+/** After the page returns, how long the server gets to answer our probe ping before the socket is declared dead. */
+const PROBE_MS = 3_000;
 
 export class RemoteTransport implements Transport {
   private readonly api: string;
   private readonly ws: string;
   private sock: WebSocket | null = null;
   private gen = 0; // bumps on every connect()/disconnect(); events of older sockets are ignored
-  private timers: { retry?: ReturnType<typeof setTimeout>; ping?: ReturnType<typeof setInterval> } = {};
+  private timers: { retry?: ReturnType<typeof setTimeout>; ping?: ReturnType<typeof setInterval>; probe?: ReturnType<typeof setTimeout> } = {};
+  private lastRx = 0; // time of the last frame received from the server
   private session: { gameId: GameId; token: string; onMessage: (m: ServerMessage) => void; onState?: (s: LinkState) => void } | null = null;
   private failures = 0;
   private downSince = 0;
@@ -73,6 +80,48 @@ export class RemoteTransport implements Transport {
     this.session = { gameId, token, onMessage, onState };
     this.failures = 0;
     this.downSince = 0;
+    this.listen(true);
+    this.open();
+  }
+
+  // ---- phone lifecycle: come back from background / network change
+  private readonly onVisible = () => { if (typeof document === 'undefined' || document.visibilityState !== 'hidden') this.resume(); };
+  private readonly onOnline = () => { if (this.session) this.reconnectNow(); };
+  private listen(on: boolean) {
+    if (typeof document === 'undefined' || typeof window === 'undefined') return;
+    const op = on ? 'addEventListener' : 'removeEventListener';
+    document[op]('visibilitychange', this.onVisible);
+    document[op]('resume', this.onVisible); // Chrome (Android) page-lifecycle: fired when a frozen tab thaws
+    window[op]('pageshow', this.onVisible);
+    window[op]('focus', this.onVisible);
+    window[op]('online', this.onOnline);
+  }
+
+  /** The page is visible again: verify the socket is really alive, otherwise reconnect right away. */
+  private resume() {
+    if (!this.session) return;
+    const ws = this.sock;
+    if (!ws || ws.readyState !== WebSocket.OPEN) { this.reconnectNow(); return; }
+    const sentAt = Date.now();
+    this.rawSend({ action: 'ping', clientTime: sentAt });
+    if (this.timers.probe) clearTimeout(this.timers.probe);
+    this.timers.probe = setTimeout(() => {
+      this.timers.probe = undefined;
+      if (this.sock === ws && this.lastRx < sentAt) this.reconnectNow(); // nothing came back: half-open socket
+    }, PROBE_MS);
+  }
+
+  /** Drop whatever socket / retry state we have and open a fresh connection immediately (backoff and give-up reset). */
+  private reconnectNow() {
+    if (!this.session) return;
+    if (this.timers.retry) { clearTimeout(this.timers.retry); this.timers.retry = undefined; }
+    if (this.timers.probe) { clearTimeout(this.timers.probe); this.timers.probe = undefined; }
+    this.stopPing();
+    const old = this.sock;
+    this.sock = null;
+    if (old) { old.onopen = old.onmessage = old.onclose = old.onerror = null; try { old.close(); } catch { /* ignore */ } }
+    this.failures = 0;
+    this.downSince = 0;
     this.open();
   }
 
@@ -93,6 +142,7 @@ export class RemoteTransport implements Transport {
     };
     ws.onmessage = ev => {
       if (gen !== this.gen) return;
+      this.lastRx = Date.now();
       let m: ServerMessage;
       try { m = JSON.parse(String(ev.data)) as ServerMessage; } catch { return; }
       if (m.type === 'hello') {
@@ -119,7 +169,14 @@ export class RemoteTransport implements Transport {
 
   private startPing(gen: number) {
     this.stopPing();
-    this.timers.ping = setInterval(() => { if (gen === this.gen) this.rawSend({ action: 'ping', clientTime: Date.now() }); }, PING_MS);
+    this.lastRx = Date.now();
+    this.timers.ping = setInterval(() => {
+      if (gen !== this.gen) return;
+      // hidden tabs have frozen / throttled timers and sockets: judge them when the page returns (resume()), not now
+      const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
+      if (!hidden && Date.now() - this.lastRx > PING_MS * 2) { this.reconnectNow(); return; }
+      this.rawSend({ action: 'ping', clientTime: Date.now() });
+    }, PING_MS);
   }
   private stopPing() { if (this.timers.ping) clearInterval(this.timers.ping); this.timers.ping = undefined; }
 
@@ -179,9 +236,12 @@ export class RemoteTransport implements Transport {
 
   disconnect() {
     this.gen++;
+    this.listen(false);
     this.stopPing();
     if (this.timers.retry) clearTimeout(this.timers.retry);
     this.timers.retry = undefined;
+    if (this.timers.probe) clearTimeout(this.timers.probe);
+    this.timers.probe = undefined;
     const ws = this.sock;
     this.sock = null;
     this.session = null;
