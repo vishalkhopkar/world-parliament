@@ -5,7 +5,7 @@
 //   ?server=http(s)://host:port -> that server (ws URL derived: same host, /ws)
 //   VITE_API_URL (+VITE_WS_URL) -> real deployment
 //   otherwise                  -> mock
-import type { ActionType, PartyIdentity, PlayerId, PortfolioAssignment, ReportScope, SeatId, ServerMessage } from '@hp/shared';
+import type { ActionType, GameSnapshot, PartyIdentity, PlayerId, PortfolioAssignment, ReportScope, SeatId, ServerMessage } from '@hp/shared';
 import { useStore } from '../state/store';
 import { ApiException, type Transport } from './transport';
 import { MockTransport } from './mock';
@@ -67,8 +67,36 @@ function session() {
   return { gameId, token };
 }
 
-function onServerMessage(m: ServerMessage) {
+// ---------------------------------------------------------------- self-heal for missed seat declarations
+// Every seatUpdate carries the running tally. If frames were lost (a throttled push), the tally says more seats are declared
+// than the map holds. A reconnect makes the server send a fresh `hello` with every declaration, so resync when the gap persists.
+const GAP_CHECK_MS = 4_000;
+const GAP_COOLDOWN_MS = 20_000;
+let gapTimer: ReturnType<typeof setTimeout> | undefined;
+let lastResync = -Infinity;
+
+/** true when the tally claims more declared (won) seats than this client holds. */
+export function countingGap(snap: GameSnapshot): boolean {
+  if (!snap.tally) return false;
+  const won = Object.values(snap.seats).filter(d => d.status === 'won').length;
+  return snap.tally.declared > won;
+}
+
+function scheduleGapCheck() {
+  if (!isRemote || gapTimer) return;
+  gapTimer = setTimeout(() => {
+    gapTimer = undefined;
+    const snap = st().snapshot;
+    if (!snap || !countingGap(snap)) return;
+    if (Date.now() - lastResync < GAP_COOLDOWN_MS) return;
+    lastResync = Date.now();
+    reconnect();
+  }, GAP_CHECK_MS);
+}
+
+export function onServerMessage(m: ServerMessage) {
   st().applyServer(m);
+  if (m.type === 'seatUpdate' || m.type === 'status') scheduleGapCheck();
   // being declined: the server reports our own status as 'rejected' (then closes the socket)
   if (m.type === 'players') {
     const me = st().me;

@@ -71,7 +71,7 @@ export class ApiStack extends Stack {
       webSocketApi: this.wsApi,
       stageName: 'live',
       autoDeploy: true,
-      throttle: { burstLimit: 50, rateLimit: 20 },
+      throttle: { burstLimit: 2000, rateLimit: 1000 }, // also bounds our own PostToConnection pushes: 20 rps made counting broadcasts fail with 429
     });
     const wsEndpoint = `https://${this.wsApi.apiId}.execute-api.${this.region}.${Aws.URL_SUFFIX}/live`;
 

@@ -65,15 +65,52 @@ describe('ApiGwNotifier', () => {
     expect(await t.repo.getConnection('dead')).toBeNull();
   });
 
-  it('other errors are logged and swallowed; the connection record is kept', async () => {
+  it('other (non-throttle) errors are logged and swallowed; the connection record is kept', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const t = setupNotifier(() => { throw named('ThrottlingException', 429); });
+    const t = setupNotifier(() => { throw named('InternalFailure', 500); });
     await t.repo.putConnection({ connectionId: 'c', gameId: 'g1', playerId: 'p1' });
     await expect(t.notifier.sendToConnection('c', [pong(1), pong(2)])).resolves.toBeUndefined();
     expect(posts(t.sent)).toHaveLength(1);
     expect(await t.repo.getConnection('c')).not.toBeNull();
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
+  });
+
+  describe('throttling (API Gateway answers 429 "Too Many Requests" when many seat updates are pushed at once)', () => {
+    const throttled = () => named('TooManyRequestsException', 429);
+    const noSleep = async () => undefined;
+    const withRetry = (send: (cmd: unknown) => unknown) => {
+      const ddb = new FakeDdb();
+      const repo = new DynamoRepo(ddb as never, ddb.tableName);
+      const sent: { cmd: unknown }[] = [];
+      const client = { send: vi.fn(async (cmd: unknown) => { sent.push({ cmd }); return send(cmd); }) };
+      return { sent, notifier: new ApiGwNotifier(client as never, repo, noSleep) };
+    };
+
+    it('retries a throttled post and still delivers every message, in order', async () => {
+      let n = 0;
+      const t = withRetry(() => { if (++n % 3 === 1) throw throttled(); return {}; }); // every 3rd call attempt is throttled once
+      await t.notifier.sendToConnection('c', [pong(1), pong(2), pong(3), pong(4)]);
+      const delivered: number[] = [];
+      // a post "succeeds" when it is not the throttled attempt: replay the sequence
+      let k = 0;
+      for (const p of posts(t.sent)) { if (++k % 3 !== 1) delivered.push(p.data.clientTime); }
+      expect(delivered).toEqual([1, 2, 3, 4]);
+    });
+
+    it('a message that stays throttled is skipped but does NOT drop the rest of the batch', async () => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const t = withRetry((cmd) => {
+        const d = JSON.parse(Buffer.from((cmd as PostToConnectionCommand).input.Data as Uint8Array).toString());
+        if (d.clientTime === 2) throw throttled();
+        return {};
+      });
+      await t.notifier.sendToConnection('c', [pong(1), pong(2), pong(3)]);
+      const ids = posts(t.sent).map((p) => p.data.clientTime);
+      expect(ids).toContain(3);                 // the message after the failing one was still sent
+      expect(ids.filter((x) => x === 2).length).toBeGreaterThan(1); // and the failing one was retried
+      spy.mockRestore();
+    });
   });
 
   it('a failure removing a gone connection does not propagate', async () => {
