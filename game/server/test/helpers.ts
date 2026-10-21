@@ -18,7 +18,9 @@ export const TEST_CFG: MapConfig = {
     roadshow: { local: 1.5, decay: { halfDistanceKm: 30, maxKm: 150, capRatio: 0.4 } },
     firstMover: { rally: 0, roadshow: 0 }, // off in the shared server test config
   },
-  durations: { campaignMs: 60_000, countingMs: 30_000, postCountingMs: 10_000, graceMs: 5_000 },
+  durations: {
+    campaignMs: 60_000, countingMs: 30_000, countingMsTwoPlayers: 10_000, countingStepMs: 1_000, postCountingMs: 10_000, postCountingMsTwoPlayers: 0, graceMs: 5_000,
+  },
 };
 
 function seat(id: number, lon: number): GameMapSeat {

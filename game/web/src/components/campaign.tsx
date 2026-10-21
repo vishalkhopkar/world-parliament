@@ -3,7 +3,7 @@ import type { AnalystReport, GameSnapshot, PlayerPublic, PrivateState, SeatId } 
 import { useStore } from '../state/store';
 import { useMapConfig } from '../state/mapConfig';
 import { buyReport } from '../net/client';
-import { Card, PartyAvatar, PartyDot, SymbolIcon } from './ui';
+import { Card, PartyAvatar, PartyLabel, PartyDot, SymbolIcon } from './ui';
 import '../screens/game.css';
 import './campaign.css';
 import { colourHex, formatClock, formatMoney, formatTime, playerColour, playerName, seatName } from '../lib';
@@ -22,7 +22,7 @@ export function CampaignHud({ snap, priv, now }: { snap: GameSnapshot; priv: Pri
       {mine?.party && (
         <div className="hud-item hud-me" title={mine.party.name}>
           <PartyAvatar party={mine.party} size={44} />
-          <span className="hud-me-text"><span>You lead</span><strong>{mine.party.name}</strong></span>
+          <span className="hud-me-text"><span>You lead</span><PartyLabel party={mine.party} /></span>
         </div>
       )}
       {startsIn > 0 && <div className="hud-item"><span>Campaign starts in</span><strong>{formatClock(startsIn)}</strong></div>}

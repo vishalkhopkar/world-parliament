@@ -5,7 +5,7 @@ import { useStore } from '../state/store';
 import { useMapConfig } from '../state/mapConfig';
 import { SeatMap } from '../map/SeatMap';
 import { Negotiation } from '../components/Negotiation';
-import { PartyDot } from '../components/ui';
+import { PartyDot, PartyLabel } from '../components/ui';
 import './game.css';
 import './Counting.css';
 import { colourHex, formatClock, seatCountOf, seatName, useServerNow } from '../lib';
@@ -32,7 +32,7 @@ export function TallyBar({ snap }: { snap: GameSnapshot }) {
         {rows.map(r => (
           <span key={r.p.playerId} className="tl-item">
             <PartyDot party={r.p.party} size={26} />
-            <strong>{r.p.party?.name ?? r.p.nickname}</strong>
+            <PartyLabel party={r.p.party} fallback={r.p.nickname} />
             <span>{r.wins} won{r.leads ? ` + ${r.leads} leading` : ''}</span>
           </span>
         ))}

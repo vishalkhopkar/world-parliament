@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SeatActionModal, ReportToast } from '../components/SeatActionModal';
 import { useStore } from '../state/store';
 import { SeatMap, type SeatMapHandle } from '../map/SeatMap';
@@ -32,6 +32,25 @@ export function Campaign() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [polledSeats, phaseOf, snap?.polledPhases, snap?.timeline, snap && snap.timeline ? snap.timeline.phaseCloses.filter(c => c <= now).length : 0]);
 
+  // polling phase currently open (0-based); -1 once every phase has polled
+  const phaseIdx = snap?.timeline ? snap.timeline.phaseCloses.findIndex(c => c > now) : -1;
+  const multiPhase = (snap?.phases ?? 1) > 1 && !!phaseOf;
+  const [focusPhase, setFocusPhase] = useState(false);
+  // faint phase number on every seat that has not polled yet
+  const labels = useMemo(() => {
+    if (!multiPhase || !phaseOf) return undefined;
+    const out: Record<number, string> = {};
+    phaseOf.forEach((ph, seat) => { if (!polled.has(seat)) out[seat] = String(ph + 1); });
+    return out;
+  }, [multiPhase, phaseOf, polled]);
+  // "focus on this phase": everything not polled in the open phase is blurred out
+  const blurred = useMemo(() => {
+    if (!focusPhase || !multiPhase || !phaseOf || phaseIdx < 0) return undefined;
+    const s = new Set<number>();
+    phaseOf.forEach((ph, seat) => { if (ph !== phaseIdx) s.add(seat); });
+    return s;
+  }, [focusPhase, multiPhase, phaseOf, phaseIdx]);
+
   const pulse = useMemo(() => {
     if (!pulseState || !snap) return null;
     const p = snap.players.find(x => x.playerId === pulseState.playerId);
@@ -45,13 +64,20 @@ export function Campaign() {
       <CampaignHud snap={snap} priv={priv} now={now} />
       <div className="game-body">
         <div className="map-col">
-          <SeatMap ref={mapRef} names={names} centres={centres} dimmed={polled} selectedSeat={selected} onSeatClick={selectSeat} pulse={pulse} />
+          <SeatMap ref={mapRef} names={names} centres={centres} dimmed={polled} blurred={blurred} labels={labels} selectedSeat={selected} onSeatClick={selectSeat} pulse={pulse} />
           {selected != null && (
             <SeatActionModal seat={selected} snap={snap} priv={priv} now={now} phaseOf={phaseOf} polled={polled} onClose={closeModal} />
           )}
         </div>
         <aside className="side">
           <p className="hint">Click a seat to campaign there.</p>
+          {multiPhase && (
+            <label className="phase-focus">
+              <input type="checkbox" role="switch" checked={focusPhase} onChange={e => setFocusPhase(e.target.checked)} />
+              <span className="phase-focus-track" aria-hidden />
+              <span>{phaseIdx >= 0 ? `Focus on phase ${phaseIdx + 1} seats` : 'Focus on current phase'}</span>
+            </label>
+          )}
           <AnalystShop snap={snap} priv={priv} now={now} />
           <ReportToast />
           <MyActions priv={priv} />

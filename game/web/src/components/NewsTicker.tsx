@@ -1,13 +1,15 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import type { NewsItem, PlayerPublic, SeatId } from '@hp/shared';
 import { useStore } from '../state/store';
-import { PartyDot } from './ui';
+import { PartyDot, PartyLabel } from './ui';
 import { colourHex, seatName } from '../lib';
 import headlinesRaw from '../data/headlines.json';
 import './newsTicker.css';
 
-const SPEED = 80; // px per second
-const MAX_RALLIES = 8;
+const SPEED = 70; // px per second
+const MAX_RALLIES = 8; // rallies queued when the ticker first appears
+const MAX_PENDING = 30;
 
 function mulberry32(a: number) {
   return () => {
@@ -28,14 +30,18 @@ const HEADLINES: string[] = (() => {
 let hCursor = 0; // no repeats until the list is exhausted (module-level so it survives remounts)
 const nextHeadline = () => HEADLINES[hCursor++ % HEADLINES.length];
 
-type Entry = { kind: 'head'; key: string; text: string } | { kind: 'rally'; key: string; n: NewsItem };
+type Entry =
+  | { kind: 'gap'; key: string; width: number }
+  | { kind: 'head'; key: string; text: string }
+  | { kind: 'rally'; key: string; n: NewsItem };
+const newsKey = (n: NewsItem) => `${n.ts}:${n.seat}:${n.playerId}`;
 
 function RallyBit({ n, players, names, onPick }: { n: NewsItem; players: PlayerPublic[]; names: Record<SeatId, string>; onPick?: (s: SeatId) => void }) {
   const p = players.find(x => x.playerId === n.playerId);
   return (
     <button className="nt-rally" style={{ '--party-colour': colourHex(p?.party?.colour) } as React.CSSProperties} onClick={() => onPick?.(n.seat)}>
       <PartyDot party={p?.party} size={22} />
-      <span><strong>{p?.party?.name ?? p?.nickname}</strong> rallied in <em>{seatName(names, n.seat)}</em></span>
+      <span><PartyLabel party={p?.party} fallback={p?.nickname} /> rallied in <em>{seatName(names, n.seat)}</em></span>
     </button>
   );
 }
@@ -47,42 +53,75 @@ export function NewsTicker({ onPick }: { onPick?: (seat: SeatId) => void }) {
   const news = snap?.news;
   const players = snap?.players ?? [];
   const rallies = useMemo(() => [...(news ?? [])].reverse(), [news]);
-  const latestKey = rallies.length ? rallies[0].ts + ':' + rallies[0].seat : '';
 
-  // Queue: newest rally first, 2-4 headlines between rallies, headline tail so the crawl never stops.
-  const entries = useMemo<Entry[]>(() => {
-    const out: Entry[] = [];
-    const rnd = mulberry32(rallies.length * 7919 + 13);
-    const pushHeads = (k: number) => { for (let i = 0; i < k; i++) out.push({ kind: 'head', key: 'h' + out.length, text: nextHeadline() }); };
-    rallies.slice(0, MAX_RALLIES).forEach((n, i) => {
-      out.push({ kind: 'rally', key: 'r' + i + ':' + n.ts, n });
-      pushHeads(2 + Math.floor(rnd() * 3));
-    });
-    pushHeads(Math.max(14, 20 - out.length));
-    return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // One endless left-moving strip: items are appended on the right as room appears and dropped once they leave on the left.
+  // Rallies wait in `pending` and are mixed in between 1-3 shuffled headlines.
+  const [items, setItems] = useState<Entry[]>([]);
+  const viewRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const itemsRef = useRef<Entry[]>([]);
+  const pending = useRef<NewsItem[]>([]);
+  const seen = useRef(new Set<string>());
+  const gapLeft = useRef(0);
+  const uid = useRef(0);
+  const hover = useRef(false);
+
+  useEffect(() => {
+    const fresh = rallies.filter(n => !seen.current.has(newsKey(n)));
+    if (!fresh.length) return;
+    const firstLoad = seen.current.size === 0;
+    fresh.forEach(n => seen.current.add(newsKey(n)));
+    // first load: newest rallies first; later: arrival order
+    const add = firstLoad ? fresh.slice(0, MAX_RALLIES) : [...fresh].reverse();
+    pending.current = [...pending.current, ...add].slice(-MAX_PENDING);
   }, [rallies]);
 
-  const copyRef = useRef<HTMLDivElement>(null);
-  const [dur, setDur] = useState(60);
-  useLayoutEffect(() => {
-    const el = copyRef.current; if (!el) return;
-    const upd = () => { const w = el.getBoundingClientRect().width; if (w > 0) setDur(w / SPEED); };
-    upd();
-    const ro = new ResizeObserver(upd); ro.observe(el);
-    return () => ro.disconnect();
-  }, [entries]);
+  useEffect(() => {
+    const view = viewRef.current, track = trackRef.current;
+    if (!view || !track) return;
+    const rnd = mulberry32((Date.now() ^ 0x9e3779b9) >>> 0);
+    let x = 0, last = 0, raf = 0;
+    const next = (): Entry => {
+      const key = 'e' + uid.current++;
+      if (pending.current.length && gapLeft.current <= 0) {
+        gapLeft.current = 1 + Math.floor(rnd() * 3);
+        return { kind: 'rally', key, n: pending.current.shift()! };
+      }
+      gapLeft.current--;
+      return { kind: 'head', key, text: nextHeadline() };
+    };
+    const commit = (list: Entry[]) => { itemsRef.current = list; flushSync(() => setItems(list)); };
+    const totalWidth = () => Array.from(track.children).reduce((w, c) => w + (c as HTMLElement).getBoundingClientRect().width, 0);
 
-  // restart the crawl when a new rally arrives so it is next in line
-  const [epoch, setEpoch] = useState(0);
-  const first = useRef(true);
-  useEffect(() => { if (first.current) { first.current = false; return; } setEpoch(e => e + 1); }, [latestKey]);
+    if (!itemsRef.current.length) commit([{ kind: 'gap', key: 'gap', width: view.clientWidth }]); // new items enter from the right edge
+    const frame = (t: number) => {
+      const dt = last ? Math.min((t - last) / 1000, 0.1) : 0; last = t;
+      if (!hover.current) x += SPEED * dt;
+      let list = itemsRef.current;
+      // drop items that have fully left on the left
+      let first = track.firstElementChild as HTMLElement | null;
+      let fw = first ? first.getBoundingClientRect().width : 0;
+      while (first && fw > 0 && list.length > 1 && x >= fw) { // fw 0 = not laid out (hidden): never churn items
+        x -= fw;
+        list = list.slice(1); commit(list);
+        first = track.firstElementChild as HTMLElement | null;
+        fw = first ? first.getBoundingClientRect().width : 0;
+      }
+      // keep at least one viewport (+ a little) of content to the right of the visible area
+      let guard = 0;
+      while (view.clientWidth > 0 && totalWidth() - x < view.clientWidth + 400 && guard++ < 6) { list = [...list, next()]; commit(list); }
+      track.style.transform = `translateX(${-x}px)`;
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
-  const renderEntry = (e: Entry) => e.kind === 'rally'
-    ? <span className="nt-item nt-real" key={e.key}><RallyBit n={e.n} players={players} names={names} onPick={onPick} /></span>
-    : <span className="nt-item nt-head" key={e.key}><i className="nt-sep">•</i>{e.text}</span>;
-
-  const staticItem = entries[0];
+  const renderEntry = (e: Entry) => e.kind === 'gap'
+    ? <span className="nt-gap" key={e.key} style={{ width: e.width }} />
+    : e.kind === 'rally'
+      ? <span className="nt-item nt-real" key={e.key}><RallyBit n={e.n} players={players} names={names} onPick={onPick} /></span>
+      : <span className="nt-item nt-head" key={e.key}><i className="nt-sep">•</i>{e.text}</span>;
 
   return (
     <div className="nt">
@@ -99,12 +138,8 @@ export function NewsTicker({ onPick }: { onPick?: (seat: SeatId) => void }) {
       )}
       <div className="nt-bar">
         <span className="nt-label"><b className="nt-live">LIVE</b>NEWS</span>
-        <div className="nt-view">
-          <div className="nt-track" key={epoch} style={{ '--nt-duration': `${dur}s` } as React.CSSProperties}>
-            <div className="nt-copy" ref={copyRef}>{entries.map(renderEntry)}</div>
-            <div className="nt-copy" aria-hidden>{entries.map(e => <span key={'b' + e.key} className="nt-contents">{renderEntry(e)}</span>)}</div>
-          </div>
-          <div className="nt-static">{staticItem && renderEntry(staticItem)}</div>
+        <div className="nt-view" ref={viewRef} onMouseEnter={() => { hover.current = true; }} onMouseLeave={() => { hover.current = false; }}>
+          <div className="nt-track" ref={trackRef}>{items.map(renderEntry)}</div>
         </div>
         <button className="btn ghost sm nt-btn" onClick={() => setOpen(o => !o)}>{open ? 'Hide' : 'History'}</button>
       </div>

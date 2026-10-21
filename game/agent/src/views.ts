@@ -1,4 +1,4 @@
-// Compact, name-based views of game data for LLMs (ids replaced by nicknames / seat names, times by seconds).
+// Compact, name-based views of game data for LLMs (ids replaced by party names / seat names, times by seconds).
 import { analystPrice, majorityOf } from '@hp/shared';
 import type {
   AnalystReport, ChatMessage, CoalitionOffer, FinalResult, Government, PlayerPublic, PortfolioAssignment, SeatDeclaration,
@@ -14,7 +14,8 @@ const secs = (ms: number): number => Math.max(0, Math.round(ms / 1000));
 export function playerView(s: AgentSession, p: PlayerPublic) {
   return {
     id: p.playerId,
-    nickname: p.nickname,
+    // the nickname is only a stand-in identifier until the player has a party
+    ...(p.party ? {} : { nickname: p.nickname }),
     party: p.party?.name ?? null,
     colour: p.party?.colour ?? null,
     symbol: p.party?.symbol ?? null,
@@ -26,11 +27,11 @@ export function playerView(s: AgentSession, p: PlayerPublic) {
   };
 }
 
-/** "Asha" ; with party: "Asha (Saffron Front)". */
-export function who(s: AgentSession, id: string, withParty = false): string {
+/** The party name (the nickname is shown only for a player who has no party yet). `_withParty` is kept for call sites. */
+export function who(s: AgentSession, id: string, _withParty = false): string {
   const p = s.player(id);
   if (!p) return id;
-  return withParty && p.party ? `${p.nickname} (${p.party.name})` : p.nickname;
+  return p.party?.name ?? p.nickname;
 }
 
 const namesOf = (s: AgentSession, ids: string[]): string[] => ids.map((i) => who(s, i));
@@ -139,7 +140,7 @@ export function eventView(s: AgentSession, e: AgentEvent, dir: SeatDirectory | n
     case 'government': return { ...base, ...governmentView(s, d.government) };
     case 'result': return { ...base, ...resultView(s, d.result) };
     case 'status': return { ...base, status: d.status };
-    case 'players': return { ...base, players: (d.players as PlayerPublic[]).map((p) => ({ nickname: p.nickname, party: p.party?.name ?? null, kind: p.kind ?? 'human', status: p.status, admin: p.isAdmin })) };
+    case 'players': return { ...base, players: (d.players as PlayerPublic[]).map((p) => ({ ...(p.party ? {} : { nickname: p.nickname }), party: p.party?.name ?? null, kind: p.kind ?? 'human', status: p.status, admin: p.isAdmin })) };
     case 'report': return { ...base, report: reportView(s, d.report, dir), budget: d.budget };
     case 'error': return { ...base, code: d.error, message: d.message };
   }
@@ -171,7 +172,7 @@ export function stateView(s: AgentSession, dir: SeatDirectory | null) {
     status,
     admission,
     connection: st.link,
-    you: { id: c.me, nickname: mine?.nickname ?? st.nickname, party: mine?.party?.name ?? null, kind: 'agent' },
+    you: { id: c.me, ...(mine?.party ? {} : { nickname: mine?.nickname ?? st.nickname }), party: mine?.party?.name ?? null, kind: 'agent' },
     server_time_offset_ms: Math.round(st.serverOffsetMs),
   };
   const advice: string[] = [];

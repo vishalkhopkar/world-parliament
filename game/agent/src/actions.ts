@@ -117,7 +117,7 @@ export const ACTIONS: ActionDef[] = [
     description: 'Ask to join a game created by a human, using the join code the human gave you (6 letters/digits). You join as an AI player. The host must admit you (status "pending" until then). You can NOT create or start games. Next: wait_for_admission.',
     schema: z.object({
       join_code: z.string().min(3).describe('The join code shown in the host\'s lobby'),
-      nickname: z.string().min(1).max(24).describe('Your player nickname (max 24 characters), e.g. "Claude"'),
+      nickname: z.string().min(1).max(24).describe('Your join name (max 24 characters), e.g. "Claude"; shown only to the host until you set a party'),
     }),
     async run(s, i) {
       const sess = await s.client.join(i.join_code, i.nickname);
@@ -148,7 +148,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'get_lobby',
-    description: 'Lobby / game overview from the server: players (nickname, kind human|agent, admin flag, party, status), number of polling phases, game status, whether the host is admitting players, your own admission status.',
+    description: 'Lobby / game overview from the server: players (party name, kind human|agent, admin flag, status; a nickname appears only for players who have no party yet), number of polling phases, game status, whether the host is admitting players, your own admission status.',
     schema: z.object({}),
     readOnly: true,
     async run(s) {
@@ -177,7 +177,7 @@ export const ACTIONS: ActionDef[] = [
       needJoined(s);
       await s.client.refreshLobby().catch(() => undefined);
       const others = s.players().filter((p) => p.playerId !== s.client.me && p.party && p.status !== 'rejected');
-      const takenBy = (pred: (p: PartyIdentity) => boolean) => others.find((p) => pred(p.party as PartyIdentity))?.nickname;
+      const takenBy = (pred: (p: PartyIdentity) => boolean) => others.find((p) => pred(p.party as PartyIdentity))?.party?.name;
       const mine = s.players().find((p) => p.playerId === s.client.me)?.party ?? null;
       return {
         your_party: mine,
@@ -211,7 +211,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'get_state',
-    description: 'Compact summary for decision making: game status, seconds left (whole campaign, current polling phase, counting, post-counting; server-clock corrected), phase number, YOUR budget and the current prices (rally, roadshow, reports), how many actions you took, which polling phases are closed, all players (nickname, party, kind, status), public rally-news counts, the live tally during counting, open coalition offers involving you, the government and the result, plus "advice" with the suggested next step. Cheap: call it whenever unsure.',
+    description: 'Compact summary for decision making: game status, seconds left (whole campaign, current polling phase, counting, post-counting; server-clock corrected), phase number, YOUR budget and the current prices (rally, roadshow, reports), how many actions you took, which polling phases are closed, all players (party, kind, status), public rally-news counts, the live tally during counting, open coalition offers involving you, the government and the result, plus "advice" with the suggested next step. Cheap: call it whenever unsure.',
     schema: z.object({}),
     readOnly: true,
     async run(s) {
@@ -410,9 +410,9 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'chat',
-    description: 'Send a private chat message (counting and post-counting phases, only in games with 3+ players). `to` = list of recipient nicknames, party names or ids (or ["all"] for everyone else). Only you and the recipients see it.',
+    description: 'Send a private chat message (counting and post-counting phases, only in games with 3+ players). `to` = list of recipient party names or ids (or ["all"] for everyone else). Only you and the recipients see it.',
     schema: z.object({
-      to: z.array(z.string().min(1)).min(1).describe('Recipients: nicknames / party names / ids, or ["all"]'),
+      to: z.array(z.string().min(1)).min(1).describe('Recipients: party names / ids, or ["all"]'),
       text: z.string().min(1).max(500),
     }),
     async run(s, i) {
@@ -449,9 +449,9 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'propose_government',
-    description: 'Propose a coalition government (counting / post-counting, 3+ players). YOU are the Prime Minister. portfolios maps portfolio id -> list of player names (nickname, party name or id): e.g. {"DPM":["Ben","Chitra"],"HOME":["Ben"],"FINANCE":["Chitra"]}. PM defaults to you. Portfolio ids: PM, DPM (max 2), HOME, DEFENCE, FINANCE, EXTERNAL, SPEAKER (1 each). Every named player must accept (respond_offer); the government is confirmed automatically once all accepted AND the members\' WON seats reach the majority. `partners` optionally lists extra parties whose acceptance is required even without a portfolio. A new proposal supersedes your previous one.',
+    description: 'Propose a coalition government (counting / post-counting, 3+ players). YOU are the Prime Minister. portfolios maps portfolio id -> list of party names (or player ids): e.g. {"DPM":["Blue Wave","Green Front"],"HOME":["Blue Wave"],"FINANCE":["Green Front"]}. PM defaults to you. Portfolio ids: PM, DPM (max 2), HOME, DEFENCE, FINANCE, EXTERNAL, SPEAKER (1 each). Every named player must accept (respond_offer); the government is confirmed automatically once all accepted AND the members\' WON seats reach the majority. `partners` optionally lists extra parties whose acceptance is required even without a portfolio. A new proposal supersedes your previous one.',
     schema: z.object({
-      portfolios: z.record(z.union([z.string(), z.array(z.string())])).describe('Portfolio id -> player name or list of names'),
+      portfolios: z.record(z.union([z.string(), z.array(z.string())])).describe('Portfolio id -> party name or list of party names'),
       partners: z.array(z.string()).optional(),
     }),
     async run(s, i) {

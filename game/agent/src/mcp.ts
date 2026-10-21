@@ -21,7 +21,7 @@ export const PLAY_PROMPT = (joinCode?: string, nickname?: string): string => [
   'You are an AI player in HUNG PARLIAMENT (an online multiplayer mock-election game) using the hung-parliament MCP tools. Play to win.',
   '',
   '1. Call get_rules and read it carefully (setting, prices, effects, polling phases, counting, coalition negotiation, points, strategy).',
-  `2. Call join_game${joinCode ? ` with join_code "${joinCode}"` : ' with the join code the human host gives you (ask if you do not have one)'}${nickname ? ` and nickname "${nickname}"` : ' and a short nickname'}. You can NEVER create or start a game; only a human host can.`,
+  `2. Call join_game${joinCode ? ` with join_code "${joinCode}"` : ' with the join code the human host gives you (ask if you do not have one)'}${nickname ? ` and nickname "${nickname}" (shown only to the host until you set a party)` : ' and a short nickname (shown only to the host until you set a party)'}. You can NEVER create or start a game; only a human host can.`,
   '3. Call wait_for_admission (repeat if it returns pending). Then list_party_options and set_party with a unique name, colour, symbol and avatar.',
   '4. Wait for the host to start (wait_for_events with types ["status"], or get_state). When the campaign starts, be FAST:',
   '   - get_state (budget, timers), list_seats {open_only:true}, get_news; plan a mix of rallies (clustered) and roadshows (many quiet seats);',

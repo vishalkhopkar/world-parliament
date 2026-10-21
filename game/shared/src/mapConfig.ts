@@ -52,6 +52,21 @@ export interface PriceCurve {
   end: number;
 }
 
+export interface CountingParams {
+  /** No seat is confirmed ('won') before this fraction of the counting time; confirmations are then spread up to the end. */
+  winStartFraction: number;
+  /** Every seat shows a lead (however noisy) no later than this fraction. */
+  allLeadsByFraction: number;
+  /** Lead noise: estimated score = share x exp(sigma x gaussian); sigma at the start of counting... */
+  leadNoiseStart: number;
+  /** ...falling as (1 - elapsed)^exponent. */
+  leadNoiseExponent: number;
+  /** A lead can change at most once per this fraction of the counting time. */
+  leadNoiseEpochFraction: number;
+  /** Seats are confirmed in order of (winning margin + winJitter x random), biggest first. */
+  winJitter: number;
+}
+
 export interface MapConfig {
   mapId: string;
   seatCount: number;
@@ -78,9 +93,17 @@ export interface MapConfig {
   durations: {
     campaignMs: number;
     countingMs: number;
+    /** Counting lasts this long instead of countingMs when the game has exactly 2 players. */
+    countingMsTwoPlayers: number;
+    /** One counting step: the reveal advances (and may broadcast) this often. */
+    countingStepMs: number;
     postCountingMs: number;
+    /** Post-counting time instead of postCountingMs when the game has exactly 2 players (0 = straight to the result). */
+    postCountingMsTwoPlayers: number;
     graceMs: number;
   };
+  /** How the count is revealed: noisy leads first, confirmed wins only late. All fractions are of the counting time. */
+  counting: CountingParams;
   players: { min: number; max: number };
   points: PointsConfig;
 }
@@ -122,6 +145,15 @@ export function validateConfig(cfg: MapConfig): void {
   num('analyst.globalReport.start', cfg.analyst?.globalReport?.start);
   num('analyst.globalReport.end', cfg.analyst?.globalReport?.end);
   num('randomSwing', cfg.randomSwing);
+  num('durations.countingMs', cfg.durations?.countingMs, 0, true);
+  num('durations.countingMsTwoPlayers', cfg.durations?.countingMsTwoPlayers, 0, true);
+  num('durations.countingStepMs', cfg.durations?.countingStepMs, 0, true);
+  num('counting.winStartFraction', cfg.counting?.winStartFraction, 0, true);
+  num('counting.allLeadsByFraction', cfg.counting?.allLeadsByFraction, 0, true);
+  num('counting.leadNoiseStart', cfg.counting?.leadNoiseStart);
+  num('counting.leadNoiseExponent', cfg.counting?.leadNoiseExponent);
+  num('counting.leadNoiseEpochFraction', cfg.counting?.leadNoiseEpochFraction, 0, true);
+  num('counting.winJitter', cfg.counting?.winJitter);
   if (!cfg.points?.portfolios?.length) bad('points.portfolios', 'must list at least one portfolio');
 }
 

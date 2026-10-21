@@ -28,7 +28,7 @@ const HINTS: Partial<Record<AgentErrorCode, string>> = {
   INTERNAL: 'Server error. Wait a second and try again; if it persists, call get_state to check the connection.',
   NOT_JOINED: 'You have not joined a game yet. Call join_game with the join code the human host gave you.',
   ALREADY_JOINED: 'You are already in a game. Call leave_game first if you really want to join another one (you will lose your current party).',
-  UNKNOWN_PLAYER: 'Use a player nickname, party name or id exactly as listed by get_lobby / get_state.',
+  UNKNOWN_PLAYER: 'Use a party name or player id exactly as listed by get_lobby / get_state.',
   UNKNOWN_SEAT: 'Use a seat id (1..N) or a seat name as listed by list_seats (query=... searches by name).',
   UNKNOWN_OPTION: 'Call list_party_options to see valid colours, symbols and avatars.',
   INVALID_INPUT: 'Fix the input and try again. `cli.ts actions` / the tool schema lists the expected fields.',

@@ -71,7 +71,7 @@ export function Result() {
                 const pl = snap.players.find(x => x.playerId === p.playerId);
                 return (
                   <tr key={p.playerId} className={r.winners.includes(p.playerId) ? 'winner' : ''}>
-                    <td><PartyBadge party={pl?.party} nickname={pl?.nickname} kind={pl?.kind} size={36} /></td>
+                    <td><PartyBadge party={pl?.party} kind={pl?.kind} size={36} /></td>
                     <td>{r.tally[p.playerId] ?? 0}</td>
                     <td>{p.portfolioPoints}</td>
                     <td>{p.seatPoints}</td>

@@ -17,3 +17,6 @@
 .map-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-family:var(--serif);font-size:18px;pointer-events:none}
 .fx{pointer-events:none}
 .pulse{vector-effect:non-scaling-stroke}
+.seat.blurred{filter:url(#hp-blur);opacity:.5}
+.seat-labels{pointer-events:none}
+.seat-label{fill:#2b2a22;fill-opacity:.3;font-family:var(--serif);font-weight:700;text-anchor:middle;dominant-baseline:central;pointer-events:none;user-select:none}

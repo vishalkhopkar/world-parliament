@@ -1,6 +1,6 @@
 // Lobby rules at service level: party identity validation + uniqueness, admission, start conditions, concurrency, rollbacks.
 import { describe, expect, it } from 'vitest';
-import { AVATARS, PARTY_COLOURS, PARTY_SYMBOLS, buildTimeline } from '@hp/shared';
+import { AVATARS, PARTY_COLOURS, PARTY_SYMBOLS, buildTimeline, countingMsFor, postCountingMsFor } from '@hp/shared';
 import type { ErrorCode, PartyIdentity } from '@hp/shared';
 import { GameError } from '../src/core/types';
 import { Ctx } from './helpers';
@@ -181,7 +181,10 @@ describe('start conditions', () => {
     for (let i = 0; i < 2; i++) await c.svc.setParty(c.gameId, c.p[i].token, { party: base(i) });
     const now = c.clock.now();
     const r = await c.svc.start(c.gameId, c.p[0].token);
-    expect(r.timeline).toEqual(buildTimeline(c.cfg, 3, now + 1000));
+    expect(r.timeline).toEqual(buildTimeline(c.cfg, 3, now + 1000, countingMsFor(c.cfg, 2), postCountingMsFor(c.cfg, 2))); // 2 players: short counting
+    expect(r.timeline.countingEnd - r.timeline.campaignEnd).toBe(c.cfg.durations.countingMsTwoPlayers);
+    // 2 players cannot negotiate: no post-counting wait, the result follows as soon as counting ends
+    expect(r.timeline.postCountingEnd).toBe(r.timeline.countingEnd);
     const game = await c.game();
     expect(game.status).toBe('campaign');
     expect(game.admissionOpen).toBe(false);

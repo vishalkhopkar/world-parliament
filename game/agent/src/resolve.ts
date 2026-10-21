@@ -1,4 +1,4 @@
-// Name resolution: players (nickname / party name / id), seats (id / name), party options (colour / symbol / avatar).
+// Name resolution: players (party name / id), seats (id / name), party options (colour / symbol / avatar).
 // Everything is lenient (case, accents, dashes, unique prefixes) but never guesses when the answer is ambiguous.
 import type { GameMapPackage, GameMapSeat, PlayerPublic, SeatId } from '@hp/shared';
 import { AgentError } from './errors';
@@ -25,21 +25,21 @@ export function resolvePlayer(players: PlayerPublic[], ref: unknown, me: string 
   const byId = players.find((p) => p.playerId === raw);
   if (byId) return byId;
   const eq = (get: (p: PlayerPublic) => string | undefined) => players.filter((p) => { const v = get(p); return v !== undefined && norm(v) === nr; });
-  for (const get of [(p: PlayerPublic) => p.nickname, (p: PlayerPublic) => p.party?.name]) {
+  for (const get of [(p: PlayerPublic) => p.party?.name]) {
     const hits = eq(get);
     if (hits.length === 1) return hits[0];
     if (hits.length > 1) throw ambiguousPlayer(raw, hits);
   }
-  const pref = players.filter((p) => norm(p.nickname).startsWith(nr) || (p.party && norm(p.party.name).startsWith(nr)));
+  const pref = players.filter((p) => (p.party && norm(p.party.name).startsWith(nr)));
   if (pref.length === 1) return pref[0];
   if (pref.length > 1) throw ambiguousPlayer(raw, pref);
   throw new AgentError('UNKNOWN_PLAYER', `No player matches "${raw}". Players: ${players.map(describePlayer).join('; ') || '(none visible)'}.`);
 }
 
-export const describePlayer = (p: PlayerPublic): string => `${p.nickname}${p.party ? ` (party "${p.party.name}")` : ''}`;
+export const describePlayer = (p: PlayerPublic): string => p.party ? `"${p.party.name}"` : `${p.playerId} (no party yet)`;
 
 function ambiguousPlayer(raw: string, hits: PlayerPublic[]): AgentError {
-  return new AgentError('UNKNOWN_PLAYER', `"${raw}" is ambiguous: ${hits.map(describePlayer).join('; ')}. Use the exact nickname or the player id.`);
+  return new AgentError('UNKNOWN_PLAYER', `"${raw}" is ambiguous: ${hits.map(describePlayer).join('; ')}. Use the exact party name or the player id.`);
 }
 
 // ------------------------------------------------------------------ seats

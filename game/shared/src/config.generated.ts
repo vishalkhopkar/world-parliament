@@ -58,8 +58,19 @@ export const GAME_CONFIG_VALUES = {
   "durations": {
     "campaignMs": 600000,
     "countingMs": 180000,
+    "countingMsTwoPlayers": 60000,
+    "countingStepMs": 1000,
     "postCountingMs": 120000,
+    "postCountingMsTwoPlayers": 0,
     "graceMs": 90000
+  },
+  "counting": {
+    "winStartFraction": 0.75,
+    "allLeadsByFraction": 0.5,
+    "leadNoiseStart": 2,
+    "leadNoiseExponent": 2,
+    "leadNoiseEpochFraction": 0.05,
+    "winJitter": 0.35
   },
   "points": {
     "seatMultiplier": 200,

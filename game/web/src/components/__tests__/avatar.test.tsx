@@ -46,15 +46,31 @@ describe('PartyAvatar', () => {
   });
 });
 
+describe('PartyBadge symbol', () => {
+  it('shows the name, then the party symbol svg after it, and no nickname', () => {
+    const { container } = render(<PartyBadge party={party} />);
+    const name = container.querySelector('.party-label strong')!;
+    const svg = container.querySelector('svg.party-symbol')!;
+    expect(svg).not.toBeNull();
+    expect(name.compareDocumentPosition(svg) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(container.querySelector('small')).toBeNull();
+  });
+  it('does not repeat the symbol for a party without an avatar (the dot already is the symbol)', () => {
+    const { container } = render(<PartyBadge party={{ ...party, avatar: undefined }} />);
+    expect(container.querySelectorAll('svg')).toHaveLength(1);
+    expect(container.querySelector('svg.party-symbol')).toBeNull();
+  });
+});
+
 describe('AI badge', () => {
   it('is shown for agents with an AI label and tooltip', () => {
-    render(<PartyBadge party={party} nickname="Bot" kind="agent" />);
+    render(<PartyBadge party={party} kind="agent" />);
     expect(screen.getByTitle('AI player')).toHaveTextContent('AI');
   });
   it('is not shown for humans or when kind is missing', () => {
-    const { rerender } = render(<PartyBadge party={party} nickname="Hu" kind="human" />);
+    const { rerender } = render(<PartyBadge party={party} kind="human" />);
     expect(screen.queryByTitle('AI player')).toBeNull();
-    rerender(<PartyBadge party={party} nickname="Hu" />);
+    rerender(<PartyBadge party={party} />);
     expect(screen.queryByTitle('AI player')).toBeNull();
   });
   it('can be used on its own', () => {

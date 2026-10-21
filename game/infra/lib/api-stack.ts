@@ -4,6 +4,7 @@ import * as integ from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import * as budgets from 'aws-cdk-lib/aws-budgets';
 import * as cw from 'aws-cdk-lib/aws-cloudwatch';
 import type * as ddb from 'aws-cdk-lib/aws-dynamodb';
+import type * as s3 from 'aws-cdk-lib/aws-s3';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
@@ -16,6 +17,8 @@ import { Lifecycle } from './lifecycle';
 export interface ApiStackProps extends StackProps {
   cfg: Config;
   table: ddb.ITable;
+  /** Receives the election CSV reports (written by whichever Lambda finishes a game). */
+  reportBucket: s3.IBucket;
   /** https://<cloudfront-domain> */
   webOrigin: string;
 }
@@ -47,7 +50,7 @@ export class ApiStack extends Stack {
 
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
-    const { cfg, table, webOrigin } = props;
+    const { cfg, table, reportBucket, webOrigin } = props;
     const P = cfg.prefix;
 
     // ---- fixed-name ARNs (no resource references -> no cycles)
@@ -75,6 +78,7 @@ export class ApiStack extends Stack {
     // ---- Lambdas
     const env: Record<string, string> = {
       TABLE_NAME: table.tableName,
+      REPORT_BUCKET: reportBucket.bucketName,
       WS_ENDPOINT: wsEndpoint,
       STATE_MACHINE_ARN: stateMachineArn,
       SCHEDULER_ROLE_ARN: schedulerRoleArn,
@@ -115,6 +119,7 @@ export class ApiStack extends Stack {
         },
       });
       table.grantReadWriteData(fn);
+      reportBucket.grantPut(fn); // any handler can finish a game (finalise, count-reveal, ...)
       fn.addToRolePolicy(new iam.PolicyStatement({
         actions: ['execute-api:ManageConnections'],
         resources: [this.formatArn({ service: 'execute-api', resource: this.wsApi.apiId, resourceName: 'live/*/@connections/*', arnFormat: ArnFormat.SLASH_RESOURCE_NAME })],

@@ -21,6 +21,10 @@ export interface SeatMapProps {
   leading?: ReadonlySet<SeatId>;
   /** polled seats without a result: subtle hatch pattern. */
   dimmed?: ReadonlySet<SeatId>;
+  /** seats drawn blurred out (e.g. not polled in the current phase). */
+  blurred?: ReadonlySet<SeatId>;
+  /** faint text drawn at a seat's centre (e.g. its polling phase); shown once the seat is big enough on screen. */
+  labels?: Record<SeatId, string>;
   selectedSeat?: SeatId | null;
   onSeatClick?: (seat: SeatId) => void;
   /** Change `key` to fire a flash on `seat` (e.g. a rally just happened). */
@@ -77,7 +81,10 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
     hatch.append('rect').attr('width', 6).attr('height', 6).attr('fill', NEUTRAL);
     hatch.append('path').attr('d', 'M-1,1 l2,-2 M0,6 l6,-6 M5,7 l2,-2').attr('stroke', '#7d7a6c').attr('stroke-width', 1);
     const gZoom = svg.append('g');
+    const blur = defs.append('filter').attr('id', 'hp-blur').attr('x', '-100%').attr('y', '-100%').attr('width', '300%').attr('height', '300%');
+    const blurStd = blur.append('feGaussianBlur').attr('stdDeviation', 2);
     const gSeats = gZoom.append('g');
+    const gLabels = gZoom.append('g').attr('class', 'seat-labels');
     const gHits = gZoom.append('g');
     const gFx = gZoom.append('g').attr('class', 'fx');
     const hl = gZoom.append('path').attr('class', 'hl').style('display', 'none');
@@ -104,9 +111,31 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
         .style('fill', d => fills[d.properties.seat] ?? (p.dimmed?.has(d.properties.seat) ? 'url(#hp-hatch)' : NEUTRAL))
         .classed('leading', d => !!fills[d.properties.seat] && !!p.leading?.has(d.properties.seat))
         .classed('won', d => !!fills[d.properties.seat] && !p.leading?.has(d.properties.seat))
-        .classed('selected', d => d.properties.seat === p.selectedSeat);
+        .classed('selected', d => d.properties.seat === p.selectedSeat)
+        .classed('blurred', d => !!p.blurred?.has(d.properties.seat));
       const sf = p.selectedSeat != null ? featById.get(p.selectedSeat) : undefined;
       if (sf) showPath(sel as PSel, path(sf)); else hidePath(sel as PSel);
+    }
+
+    // faint per-seat labels; font size is constant on screen, hidden while the seat is too small to hold one
+    type Lab = { id: SeatId; text: string; x: number; y: number; size: number };
+    let labs: Lab[] = [];
+    function placeLabels() {
+      gLabels.selectAll<SVGTextElement, Lab>('text')
+        .attr('font-size', 13 / kNow)
+        .style('display', d => (d.size * kNow >= 24 ? null : 'none'));
+    }
+    function drawLabels() {
+      const labels = propsRef.current.labels ?? {};
+      labs = [];
+      for (const id of Object.keys(labels).map(Number)) {
+        const f = featById.get(id), c = f && centre(id); if (!f || !c) continue;
+        const b = path.bounds(f);
+        labs.push({ id, text: labels[id], x: c[0], y: c[1], size: Math.max(b[1][0] - b[0][0], b[1][1] - b[0][1]) });
+      }
+      gLabels.selectAll<SVGTextElement, Lab>('text').data(labs, d => d.id).join('text')
+        .attr('class', 'seat-label').attr('x', d => d.x).attr('y', d => d.y).text(d => d.text);
+      placeLabels();
     }
 
     function onMove(e: MouseEvent) {
@@ -128,7 +157,7 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
           .on('click', (_e, d) => click(d.properties.seat)),
         update => update, exit => exit.remove(),
       ).attr('d', path);
-      style();
+      style(); drawLabels();
     }
 
     function buildHits() {
@@ -168,6 +197,8 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
       if (dragStart && se && (se.type === 'mousemove' || se.type === 'pointermove') &&
           Math.hypot(se.clientX - dragStart[0], se.clientY - dragStart[1]) > 3) svg.classed('dragging', true);
       gHits.selectAll('circle').attr('r', 7 / t.k);
+      blurStd.attr('stdDeviation', 2.5 / t.k);
+      placeLabels();
       hatch.attr('patternTransform', `scale(${1 / t.k})`);
       if (t.k / baseT.k > DETAIL_K && !detail && !detailLoading) void loadDetail();
     }
@@ -197,7 +228,7 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
     };
 
     api.current = {
-      update: style,
+      update: () => { style(); drawLabels(); },
       pulse: p => {
         const c = centre(p.seat); if (!c) return;
         const col = p.colour ?? '#e0476a';
@@ -242,8 +273,8 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
   }, [mapId]);
 
   // ---- prop updates: restyle only, never re-render paths
-  const { fills, leading, dimmed, selectedSeat, names } = props;
-  useEffect(() => { api.current?.update(); }, [fills, leading, dimmed, selectedSeat, names]);
+  const { fills, leading, dimmed, blurred, labels, selectedSeat, names } = props;
+  useEffect(() => { api.current?.update(); }, [fills, leading, dimmed, blurred, labels, selectedSeat, names]);
   const pulseKey = props.pulse?.key;
   useEffect(() => { if (propsRef.current.pulse) api.current?.pulse(propsRef.current.pulse); }, [pulseKey]);
 

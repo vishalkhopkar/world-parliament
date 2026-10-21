@@ -68,12 +68,15 @@ describe('AI agents join and play through the action table', () => {
     expect((await human.setParty('Saffron Front', 'saffron', 'sun')).status).toBe(200);
 
     const lobby = await call(A, 'get_lobby');
-    expect(lobby.players.map((p: any) => [p.nickname, p.kind])).toEqual(expect.arrayContaining([['Asha', 'human'], ['Claude', 'agent'], ['Codex', 'agent']]));
+    expect(lobby.players.map((p: any) => [p.party, p.kind])).toEqual(expect.arrayContaining([['Saffron Front', 'human'], ['Blue Wave', 'agent'], ['Green Deal', 'agent']]));
+    // once parties are set no nickname is exposed anywhere in agent output
+    expect(JSON.stringify(lobby)).not.toMatch(/Asha|Claude|Codex/);
+    expect(lobby.players.every((p: any) => p.nickname === undefined)).toBe(true);
     expect(lobby.your_admission).toBe('admitted');
     expect(lobby.polling_phases).toBe(2);
     const opts2 = await call(B, 'list_party_options');
-    expect(opts2.colours.find((c: any) => c.label === 'Blue').taken_by).toBe('Claude');
-    expect(opts2.avatars.find((a: any) => a.id === 'modi').taken_by).toBe('Claude');
+    expect(opts2.colours.find((c: any) => c.label === 'Blue').taken_by).toBe('Blue Wave');
+    expect(opts2.avatars.find((a: any) => a.id === 'modi').taken_by).toBe('Blue Wave');
     expect(opts2.avatars.find((a: any) => a.id === 'kim').taken_by).toBeNull(); // B's own avatar is not 'taken' for B
 
     // ---- the human starts the game; agents learn it through events
@@ -87,7 +90,8 @@ describe('AI agents join and play through the action table', () => {
     const st0 = await call(A, 'get_state');
     expect(st0.status).toBe('campaign');
     expect(st0.budget.wr).toBe(WORLD_CONFIG.budget);
-    expect(st0.you.nickname).toBe('Claude');
+    expect(st0.you.party).toBe('Blue Wave');
+    expect(st0.you.nickname).toBeUndefined();
     const open = await call(A, 'list_seats', { open_only: true, limit: 100, phase: 2 });
     expect(open.rows.length).toBe(100);
     const phase2 = open.rows.map((r: any) => r.id as number);
@@ -147,23 +151,25 @@ describe('AI agents join and play through the action table', () => {
     await until(() => A.client.state.snapshot?.status === 'counting', 25_000, 'counting');
 
     // ---- negotiation: chat + coalition (3 players, humans host does not campaign so A+B hold every seat)
-    const chat = await call(A, 'chat', { to: ['Codex'], text: 'Shall we form a government? I will be PM.' });
+    const chat = await call(A, 'chat', { to: ['Green Deal'], text: 'Shall we form a government? I will be PM.' });
     expect(chat.sent).toBe(true);
     const gotChat = await call(B, 'wait_for_events', { timeout_s: 5, types: ['chat'] });
     expect(gotChat.events[0].text).toMatch(/government/);
-    expect(gotChat.events[0].from).toBe('Claude');
+    expect(gotChat.events[0].from).toBe('Blue Wave');
+    expect(gotChat.events[0].to).toEqual(['Green Deal']);
     const chats = await call(B, 'get_chat', {});
     expect(chats.messages.length).toBe(1);
     expect((await callErr(A, 'chat', { to: ['nobody'], text: 'hi' })).code).toBe('UNKNOWN_PLAYER');
 
-    const prop = await call(A, 'propose_government', { portfolios: { dpm: ['Green Deal'], finance: ['codex'] } });
+    const prop = await call(A, 'propose_government', { portfolios: { dpm: ['Green Deal'], finance: ['green deal'] } });
     expect(prop.offer.status).toBe('open');
-    expect(prop.offer.proposer).toBe('Claude');
-    expect(prop.offer.portfolios.PM).toEqual(['Claude']);
+    expect(prop.offer.proposer).toBe('Blue Wave');
+    expect(prop.offer.portfolios.PM).toEqual(['Blue Wave']);
+    expect((await callErr(A, 'propose_government', { portfolios: { home: ['Codex'] } })).code).toBe('UNKNOWN_PLAYER'); // nicknames are not accepted
     const offerId = prop.offer.offer_id as string;
     const offerEv = await call(B, 'wait_for_events', { timeout_s: 5, types: ['offer'] });
     expect(offerEv.events[0].offer_id).toBe(offerId);
-    expect(offerEv.events[0].waiting_for).toEqual(['Codex']);
+    expect(offerEv.events[0].waiting_for).toEqual(['Green Deal']);
     const offersB = await call(B, 'list_offers', {});
     expect(offersB.offers.map((o: any) => o.offer_id)).toContain(offerId);
     const acc = await call(B, 'respond_offer', { offer_id: offerId, accept: true });
@@ -178,12 +184,12 @@ describe('AI agents join and play through the action table', () => {
     const res = await call(A, 'wait_for_events', { timeout_s: 30, types: ['result'] });
     expect(res.events[0].outcome).toBe('coalition');
     expect(res.events[0].winners.length).toBeGreaterThan(0);
-    expect(res.events[0].government.pm).toContain('Claude');
+    expect(res.events[0].government.pm).toContain('Blue Wave');
     await until(() => B.client.state.snapshot?.status === 'finished', 5000, 'B sees the result');
     const fin = await call(B, 'get_state');
     expect(fin.status).toBe('finished');
     expect(fin.result.points.length).toBe(3);
-    expect(fin.government.pm).toContain('Claude');
+    expect(fin.government.pm).toContain('Blue Wave');
   });
 
   it('declined agents are told so; 2-player games have no chat/offers; leave_game forgets the session', async () => {

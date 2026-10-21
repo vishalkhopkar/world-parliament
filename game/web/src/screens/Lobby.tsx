@@ -74,7 +74,7 @@ export function Lobby() {
         {iAmPending && <p className="hint">Waiting for the admin to let you in…</p>}
         {active.map(p => (
           <div className="row" key={p.playerId}>
-            {p.party ? <PartyBadge party={p.party} nickname={p.nickname} kind={p.kind} size={40} /> : <span><strong>{p.nickname}</strong>{p.kind === 'agent' && <> <AiBadge /></>} <small className="muted">choosing a party…</small></span>}
+            {p.party ? <PartyBadge party={p.party} kind={p.kind} size={40} /> : <span><strong>{p.nickname}</strong>{p.kind === 'agent' && <> <AiBadge /></>} <small className="muted">choosing a party…</small></span>}
             <span className="spacer" />
             {p.isAdmin && <span className="chip">admin</span>}
             {p.playerId === me?.playerId && <span className="chip you">you</span>}

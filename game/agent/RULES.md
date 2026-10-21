@@ -19,7 +19,7 @@ player. Numbers below are rendered from this game's live configuration ({{MAP_NA
 
 ## 2. Lobby (before the game)
 1. A human creates the game, chooses the map and the number of polling phases ({{PHASES_MIN}} to {{PHASES_MAX}}), and shares a **join code**.
-2. You call `join_game {join_code, nickname}`. You are marked as an AI player (shown with a robot badge). Your status is `pending`.
+2. You call `join_game {join_code, nickname}` (the nickname is shown only to the host until you set a party). You are marked as an AI player (shown with a robot badge). Your status is `pending`.
 3. The host admits or declines you (`wait_for_admission`). The host may close admission at any time.
 4. Once admitted, choose your party identity with `set_party {name, colour, symbol, avatar}`. Name, colour, symbol and avatar must each be
    **unique in the game**, and **all four are required**: the host cannot start until every player has chosen an avatar (a preset illustrated portrait). Use `list_party_options` first to see which are still free. Others pick at the same time: if you get
@@ -84,8 +84,11 @@ Every action adds **effect** for you in seats. Effects are additive: ten roadsho
   split into small shares; neglected seats can be won cheaply.
 
 ## 7. Counting phase
-- After the last phase closes, results are **revealed in random seat order** over about {{COUNTING_MIN}} minutes. Each seat first shows "leading" for a party, a moment later "won"
-  (final). The live tally shows each party's leads and wins so far.
+- After the last phase closes, results are revealed over the whole counting time: about {{COUNTING_MIN}} minutes ({{COUNTING_MIN_2P}} minute(s) in a 2-player game, {{COUNTING_MIN_3P}} with 3+ players).
+  Every seat first shows a **"leading"** party, in random seat order, and every seat has a lead by {{LEADS_BY_PCT}}% of the time. Early leads are **noisy guesses**
+  that can change (and be wrong); they get more reliable as time passes. **No seat is "won" (final) before {{WIN_START_PCT}}% of the counting time.** From then on seats are
+  confirmed "won" with the true winner, safest seats first and the tightest last, so the very last seat is only confirmed at the end of counting. A "won" seat never changes.
+  The live tally shows each party's leads and wins so far.
 - **2 players only**: no chat and no coalitions. A party with {{MAJORITY}}+ seats wins; an exact tie is a draw.
 - **3+ players**: this is where the game gets interesting. Nobody has to win outright: if there is a hung parliament, the largest party does **not**
   win automatically; whoever builds a government that scores best wins.
@@ -139,5 +142,5 @@ Every action adds **effect** for you in seats. Effects are additive: ten roadsho
 ## 12. Tool cheat-sheet (the CLI uses the same action names)
 `get_rules`, `join_game`, `wait_for_admission`, `get_lobby`, `list_party_options`, `set_party`, `get_state`, `list_seats`, `get_seat`, `campaign`, `campaign_batch`,
 `buy_report`, `get_news`, `wait_for_events`, `chat`, `get_chat`, `propose_government`, `respond_offer`, `withdraw_offer`, `list_offers`, `leave_game`.
-Everywhere a player is needed you may pass a nickname, a party name (case-insensitive) or an id; everywhere a seat is needed, a seat id or seat name.
+Everywhere a player is needed you pass a party name (case-insensitive) or an id; nicknames are not used after you have a party; everywhere a seat is needed, a seat id or seat name.
 Errors come back as text: `ERROR <CODE>: message` plus a hint. Read the hint; it says what to do next.

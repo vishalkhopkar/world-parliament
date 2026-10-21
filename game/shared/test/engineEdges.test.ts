@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   AVATARS, DEFAULT_MAP_ID, MAP_CONFIGS, MAP_MANIFESTS, PARTY_COLOURS, PARTY_SYMBOLS, WORLD_CONFIG,
-  analystPrice, analystReport, buildKernels, buildTimeline, computeEffects, configForMap, createRng, finalResult, governmentFromOffer,
+  analystPrice, analystReport, buildKernels, buildTimeline, computeEffects, countingMsFor, postCountingMsFor, configForMap, createRng, finalResult, governmentFromOffer,
   haversineKm, majorityGovernment, majorityOf, phaseOfSeat, pollSeats, removePlayerFromResults, seatShares, tallySeats, timeMultiplier,
   validateGovernment,
 } from '../src';
@@ -87,6 +87,27 @@ describe('buildTimeline / phaseOfSeat', () => {
     expect(t.postCountingEnd).toBe(t.countingEnd + cfg.durations.postCountingMs);
     expect(t.campaignStart).toBe(T0);
     for (const c of t.phaseCloses) expect(Number.isInteger(c)).toBe(true);
+  });
+  it('the counting length can be overridden (2-player games count for 1 minute, others for 3)', () => {
+    expect(cfg.durations.countingMsTwoPlayers).toBe(60_000);
+    expect(cfg.durations.countingMs).toBe(180_000);
+    expect(countingMsFor(cfg, 2)).toBe(cfg.durations.countingMsTwoPlayers);
+    for (const n of [3, 4, 10]) expect(countingMsFor(cfg, n)).toBe(cfg.durations.countingMs);
+    const t2 = buildTimeline(cfg, 3, T0, countingMsFor(cfg, 2));
+    expect(t2.countingEnd - t2.campaignEnd).toBe(60_000);
+    expect(t2.postCountingEnd - t2.countingEnd).toBe(cfg.durations.postCountingMs);
+    const t3 = buildTimeline(cfg, 3, T0, countingMsFor(cfg, 3));
+    expect(t3.countingEnd - t3.campaignEnd).toBe(180_000);
+    expect(buildTimeline(cfg, 3, T0).countingEnd).toBe(t3.countingEnd); // default = countingMs
+    expect(t2.phaseCloses).toEqual(t3.phaseCloses);
+  });
+  it('2-player games have no post-counting wait (nothing to negotiate); 3+ keep postCountingMs', () => {
+    expect(postCountingMsFor(cfg, 2)).toBe(0);
+    for (const n of [3, 4, 10]) expect(postCountingMsFor(cfg, n)).toBe(cfg.durations.postCountingMs);
+    const t2 = buildTimeline(cfg, 3, T0, countingMsFor(cfg, 2), postCountingMsFor(cfg, 2));
+    expect(t2.postCountingEnd).toBe(t2.countingEnd);
+    const t3 = buildTimeline(cfg, 3, T0, countingMsFor(cfg, 3), postCountingMsFor(cfg, 3));
+    expect(t3.postCountingEnd - t3.countingEnd).toBe(120_000);
   });
   it('phases are equal length to within rounding', () => {
     const t = buildTimeline(cfg, 7, T0);
@@ -597,7 +618,9 @@ describe('configuration invariants (designer rules)', () => {
     expect(c.phases.default).toBeLessThanOrEqual(c.phases.max);
     expect(c.players.min).toBeGreaterThanOrEqual(2);
     expect(c.players.max).toBeGreaterThanOrEqual(c.players.min);
-    for (const d of Object.values(c.durations)) expect(d).toBeGreaterThan(0);
+    // postCountingMsTwoPlayers may be 0: nothing to negotiate with 2 players, so the result follows counting immediately
+    expect(c.durations.postCountingMsTwoPlayers).toBeGreaterThanOrEqual(0);
+    for (const [k, d] of Object.entries(c.durations)) if (k !== 'postCountingMsTwoPlayers') expect(d).toBeGreaterThan(0);
   });
   it('portfolios: unique ids, exactly one PM with max 1, whole positive points, PM worth the most, DPM max 2', () => {
     const ids = c.points.portfolios.map((p) => p.id);

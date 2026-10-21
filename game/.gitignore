@@ -6,3 +6,6 @@ cdk.out/
 coverage/
 playwright-report/
 test-results/
+
+# election CSV reports written by the local dev server
+data/elections/

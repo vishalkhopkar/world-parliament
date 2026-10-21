@@ -46,11 +46,19 @@ export interface ConnectionRecord { connectionId: string; gameId: string; player
 
 /** Deterministic counting schedule (stored once when counting starts). */
 export interface CountPlan {
-  order: SeatId[];          // random order in which seats are declared
-  steps: number;            // S
+  order: SeatId[];          // random order in which seats get their first lead
+  steps: number;            // S: the last step; every declarable seat is 'won' by then
   intervalMs: number;
   startMs: number;          // counting start (= campaign end)
-  gap: number;              // steps between 'leading' and 'won'
+  seed: string;             // seeds the lead noise (the game id)
+  winStart: number;         // first step at which any seat may be 'won' (ceil(winStartFraction * S))
+  leadStep: Record<SeatId, number>; // step at which the seat first shows a lead (declarable seats only)
+  winStep: Record<SeatId, number>;  // step at which the seat is confirmed 'won' (>= winStart, last seat = steps)
+  noise: {
+    start: number;          // sigma at t = 0
+    exponent: number;       // sigma ~ (1 - t/S)^exponent
+    epochSteps: number;     // a lead can change at most every epochSteps steps (also the ramp-down length before winStep)
+  };
 }
 
 export interface StoredReport { playerId: PlayerId; ts: number; report: AnalystReport }

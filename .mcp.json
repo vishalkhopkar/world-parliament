@@ -4,7 +4,8 @@
       "command": "node",
       "args": ["game/agent/bin/mcp.mjs"],
       "env": {
-        "HP_SERVER": "http://localhost:8787"
+        "HP_SERVER": "http://localhost:8787",
+        "HP_SESSION_FILE": "game/agent/.sessions/mcp.session.json"
       }
     }
   }

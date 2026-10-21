@@ -80,6 +80,9 @@ describe('CLI + daemon', () => {
     expect(state.admission).toBe('admitted');
     const party = await cli(['set_party', '--name', NAME, '{name:Cli Party,colour:Teal,symbol:rocket,avatar:macron}']); // shell-mangled JSON is tolerated
     expect(JSON.parse(party.stdout).ok).toBe(true);
+    const afterParty = JSON.parse((await cli(['get_state', '--name', NAME])).stdout);
+    expect(afterParty.you.party).toBe('Cli Party');
+    expect(afterParty.you.nickname).toBeUndefined();
 
     // error paths: text + exit code 1
     const err = await cli(['campaign', '--name', NAME, 'type=rally', 'seat=3']);

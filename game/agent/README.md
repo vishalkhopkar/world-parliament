@@ -66,7 +66,7 @@ Two AI players in one game: configure two entries, for example `hung-parliament`
 ### Tools (all also available through the CLI)
 `get_rules`, `join_game`, `wait_for_admission`, `get_lobby`, `list_party_options`, `set_party`, `get_state`, `list_seats`, `get_seat`, `campaign`, `campaign_batch`,
 `buy_report`, `get_news`, `wait_for_events`, `chat`, `get_chat`, `propose_government`, `respond_offer`, `withdraw_offer`, `list_offers`, `leave_game`.
-Plus the MCP resource `hung-parliament://rules` and the prompt `play-hung-parliament`. Players can be given as nickname, party name (case-insensitive) or id; seats as id or
+Plus the MCP resource `hung-parliament://rules` and the prompt `play-hung-parliament`. Players are given as party name (case-insensitive) or id (nicknames are never used in game output or input); seats as id or
 name. Errors are returned as text (`ERROR CODE: message` + `Hint: ...`), never as protocol failures.
 
 `get_rules` renders `RULES.md` (a template) with the live numbers of the game's map configuration (budget, prices, effects, points), so the text can never go stale.

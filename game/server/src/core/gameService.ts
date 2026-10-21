@@ -1,6 +1,6 @@
 // All game logic. Depends only on the interfaces in ./types (no AWS SDK imports).
 import {
-  AVATARS, DEFAULT_MAP_ID, PARTY_COLOURS, PARTY_SYMBOLS, analystPrice, analystReport, buildTimeline, computeEffects, createRng,
+  AVATARS, DEFAULT_MAP_ID, PARTY_COLOURS, PARTY_SYMBOLS, analystPrice, analystReport, buildTimeline, computeEffects, countingMsFor, postCountingMsFor, createRng,
   finalResult, governmentFromOffer, majorityGovernment, majorityOf, phaseOfSeat, pollSeats,
   removePlayerFromResults, validateGovernment,
 } from '@hp/shared';
@@ -10,11 +10,13 @@ import type {
   PartyIdentity, PartyRequest, PlayerId, PlayerPublic, PortfolioAssignment, PrivateState, SeatDeclaration, SeatId,
   SeatResult, ServerMessage, SettingsRequest, StartResponse,
 } from '@hp/shared';
-import { declaredState, eventsAt, fullTally, makePlan, stepAt, stepTime } from './counting';
+import { declaredState, diffDeclarations, fullTally, makePlan, stepAt, stepTime } from './counting';
 import type {
   Clock, CountPlan, GameRecord, LoadedMap, MapProvider, Notifier, PlayerRecord, Repo, Scheduler,
 } from './types';
 import { GameError } from './types';
+import { buildElectionCsv, electionReportName } from './reportSink';
+import type { ReportSink } from './reportSink';
 import { cleanText, hashToken, newId, newJoinCode, newToken, randomInt, uniq } from './util';
 
 export interface GameServiceDeps {
@@ -23,6 +25,8 @@ export interface GameServiceDeps {
   scheduler: Scheduler;
   clock: Clock;
   maps: MapProvider;
+  /** Receives the per-seat election CSV when a game finishes. Default: discard. */
+  reportSink?: ReportSink;
   /** Lead-in between /start and campaign start. Default 5000 ms. */
   startDelayMs?: number;
 }
@@ -283,7 +287,8 @@ export class GameService {
     await Promise.all(active.map((p, i) => this.repo.updatePlayer(gameId, p.playerId, { candidateColumn: columns[i] })));
 
     const now = this.now();
-    const timeline = buildTimeline(cfg, game.phases, now + (this.d.startDelayMs ?? 5000));
+    // counting is shorter with exactly 2 players (no negotiation)
+    const timeline = buildTimeline(cfg, game.phases, now + (this.d.startDelayMs ?? 5000), countingMsFor(cfg, active.length), postCountingMsFor(cfg, active.length));
     const ok = await this.repo.updateGame(gameId, {
       status: 'campaign', timeline, admissionOpen: false, closedPhases: 0, revealedStep: 0,
     }, { status: 'lobby' });
@@ -582,7 +587,10 @@ export class GameService {
     const game = await this.repo.getGame(gameId);
     if (!game || !game.timeline || game.status !== 'campaign') return;
     const { cfg, map } = this.loadMap(game.mapId);
-    const plan = makePlan(map.seats.map((s) => s.id), game.timeline.campaignEnd, cfg.durations.countingMs, createRng(`${gameId}:count`));
+    // plan length = the timeline's counting window (chosen at start from the player count); all phases are polled, so results exist
+    const results = await this.repo.listSeatResults(gameId);
+    const countingMs = game.timeline.countingEnd - game.timeline.campaignEnd;
+    const plan = makePlan(map.seats.map((s) => s.id), game.timeline.campaignEnd, countingMs, createRng(`${gameId}:count`), results, cfg, gameId);
     await this.repo.putCountPlan(gameId, plan);
     const ok = await this.repo.updateGame(gameId, { status: 'counting', revealedStep: 0 }, { status: 'campaign' });
     if (ok) await this.d.notifier.broadcast(gameId, { type: 'status', status: 'counting', timeline: game.timeline });
@@ -625,11 +633,12 @@ export class GameService {
     if (!ok) return false; // another invocation revealed these steps
     const results = await this.repo.listSeatResults(game.gameId);
     const msgs: ServerMessage[] = [];
+    // one declaredState per step: events = what changed since the previous step (lead changes included)
+    let prev = declaredState(plan, results, game.revealedStep, cfg.seatCount).seats;
     for (let s = game.revealedStep + 1; s <= target; s++) {
-      const events = eventsAt(plan, results, s);
-      if (!events.length) continue;
-      const { tally } = declaredState(plan, results, s, cfg.seatCount);
-      for (const declaration of events) msgs.push({ type: 'seatUpdate', declaration, tally });
+      const { seats, tally } = declaredState(plan, results, s, cfg.seatCount);
+      for (const declaration of diffDeclarations(prev, seats)) msgs.push({ type: 'seatUpdate', declaration, tally });
+      prev = seats;
     }
     if (msgs.length) await this.d.notifier.broadcast(game.gameId, msgs);
     game.revealedStep = target;
@@ -752,6 +761,22 @@ export class GameService {
     if (newGovernment && government) msgs.push({ type: 'government', government });
     msgs.push({ type: 'status', status: 'finished', timeline: game.timeline }, { type: 'result', result });
     await this.d.notifier.broadcast(gameId, msgs);
+    await this.saveElectionReport(gameId, game.mapId, players, results);
+  }
+
+  /** Best effort: failures are logged and never block finishing the game (runs once, after putResultIfAbsent). */
+  private async saveElectionReport(gameId: string, mapId: string, players: PlayerRecord[], results: SeatResult[]): Promise<void> {
+    const sink = this.d.reportSink;
+    if (!sink) return;
+    try {
+      const { map } = this.loadMap(mapId);
+      const csv = buildElectionCsv(
+        map.seats.map((s) => s.id), results, players.map((p) => ({ playerId: p.playerId, name: p.party?.name ?? p.playerId })),
+      );
+      await sink.saveElectionCsv(electionReportName(this.now(), gameId), csv);
+    } catch (e) {
+      console.error('saving election report failed', gameId, e);
+    }
   }
 
   // ------------------------------------------------------------------ chat

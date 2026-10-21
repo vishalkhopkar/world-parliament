@@ -80,7 +80,7 @@ const ARGS: Record<string, unknown> = {
   set_party: { name: 'Blue Wave', colour: 'blue', symbol: 'sun', avatar: 'xi' }, list_seats: {}, get_seat: { seat: 1 },
   campaign: { type: 'rally', seat: 1 }, campaign_batch: { actions: [{ type: 'rally', seat: 1 }] }, buy_report: { scope: 'global' },
   get_news: {}, wait_for_events: { timeout_s: 0 }, chat: { to: ['all'], text: 'hi' }, get_chat: {},
-  propose_government: { portfolios: { HOME: 'Codex' } }, respond_offer: { offer_id: 'x', accept: true }, withdraw_offer: { offer_id: 'x' }, list_offers: {},
+  propose_government: { portfolios: { HOME: 'Party Codex' } }, respond_offer: { offer_id: 'x', accept: true }, withdraw_offer: { offer_id: 'x' }, list_offers: {},
 };
 
 describe('guards: every action that needs a game refuses cleanly before joining', () => {
@@ -144,8 +144,10 @@ describe('get_lobby / list_party_options / set_party', () => {
     const { s } = session({ status: 'campaign' });
     const r = await ok(s, 'get_lobby');
     expect(r.your_admission).toBe('admitted');
-    expect(r.players.map((p: any) => p.nickname)).toEqual(['Asha', 'Claude', 'Codex', 'Dev']);
-    expect(r.players.find((p: any) => p.nickname === 'Asha').kind).toBe('human');
+    expect(r.players.map((p: any) => p.party)).toEqual(['Party Asha', 'Party Claude', 'Party Codex', 'Party Dev']);
+    expect(r.players.find((p: any) => p.party === 'Party Asha').kind).toBe('human');
+    expect(JSON.stringify(r)).not.toMatch(/Asha'|"Asha|"Claude|"Codex|"Dev"/);
+    expect(r.players.every((p: any) => p.nickname === undefined)).toBe(true);
     expect(r.players_needed_to_start).toBe(`${cfg.players.min}-${cfg.players.max}`);
     expect(r.polling_phases).toBe(3);
   });
@@ -156,10 +158,10 @@ describe('get_lobby / list_party_options / set_party', () => {
     expect(r.colours).toHaveLength(PARTY_COLOURS.length);
     expect(r.symbols).toHaveLength(PARTY_SYMBOLS.length);
     expect(r.avatars).toHaveLength(AVATARS.length);
-    expect(r.colours.find((x: any) => x.hex === PARTY_COLOURS[0].hex).taken_by).toBe('Asha');
+    expect(r.colours.find((x: any) => x.hex === PARTY_COLOURS[0].hex).taken_by).toBe('Party Asha');
     expect(r.colours.find((x: any) => x.hex === PARTY_COLOURS[1].hex).taken_by).toBeNull(); // mine
-    expect(r.avatars.find((x: any) => x.id === AVATARS[2].id).taken_by).toBe('Codex');
-    expect(r.symbols.find((x: any) => x.id === PARTY_SYMBOLS[3].id).taken_by).toBe('Dev');
+    expect(r.avatars.find((x: any) => x.id === AVATARS[2].id).taken_by).toBe('Party Codex');
+    expect(r.symbols.find((x: any) => x.id === PARTY_SYMBOLS[3].id).taken_by).toBe('Party Dev');
     expect(r.your_party.name).toBe('Party Claude');
   });
 
@@ -270,28 +272,28 @@ describe('chat / get_chat', () => {
   const counting = { status: 'counting' as const };
   it('needs 3+ players and the counting phase; the order of the checks is stable', async () => {
     const two = session({ ...counting, players: players().slice(0, 2).map((p, i) => (i === 1 ? { ...p, playerId: 'me' } : p)) });
-    expect((await err(two.s, 'chat', { to: ['Asha'], text: 'hi' })).code).toBe('NEGOTIATION_DISABLED');
+    expect((await err(two.s, 'chat', { to: ['Party Asha'], text: 'hi' })).code).toBe('NEGOTIATION_DISABLED');
     const early = session({ status: 'campaign' });
-    expect((await err(early.s, 'chat', { to: ['Asha'], text: 'hi' })).code).toBe('WRONG_PHASE');
+    expect((await err(early.s, 'chat', { to: ['Party Asha'], text: 'hi' })).code).toBe('WRONG_PHASE');
     expect(early.calls.chat).toBeUndefined();
   });
-  it('resolves nickname, party name and id; de-duplicates; "all" means every other living player', async () => {
+  it('resolves party name and id (never nicknames); de-duplicates; "all" means every other living player', async () => {
     const ps = players();
     ps[3] = { ...ps[3], status: 'eliminated' };
     const { s, calls } = session({ ...counting, players: ps });
-    await ok(s, 'chat', { to: ['asha', 'Party Asha', 'h'], text: 'hello' });
+    await ok(s, 'chat', { to: ['party asha', 'Party Asha', 'h'], text: 'hello' });
     expect(calls.chat[0][0]).toEqual(['h']);
     await ok(s, 'chat', { to: ['all'], text: 'everyone' });
     expect((calls.chat[1][0] as string[]).sort()).toEqual(['c', 'h']); // not me, not the eliminated Dev
     await ok(s, 'chat', { to: ['Everybody'], text: 'x' });
     expect((calls.chat[2][0] as string[]).sort()).toEqual(['c', 'h']);
-    await ok(s, 'chat', { to: ['Dev'], text: 'to the eliminated is allowed by name' });
+    await ok(s, 'chat', { to: ['Party Dev'], text: 'to the eliminated is allowed by name' });
     expect(calls.chat[3][0]).toEqual(['d']);
   });
   it.each([
-    [{ to: ['Claude'], text: 'me' }, 'INVALID_INPUT'], [{ to: ['me'], text: 'me' }, 'INVALID_INPUT'], [{ to: ['Nobody'], text: 'x' }, 'UNKNOWN_PLAYER'],
-    [{ to: [], text: 'x' }, 'INVALID_INPUT'], [{ to: ['Asha'], text: '' }, 'INVALID_INPUT'], [{ to: ['Asha'], text: 'x'.repeat(501) }, 'INVALID_INPUT'],
-    [{ to: 'Asha', text: 'x' }, 'INVALID_INPUT'], [{ text: 'x' }, 'INVALID_INPUT'],
+    [{ to: ['Party Claude'], text: 'me' }, 'INVALID_INPUT'], [{ to: ['me'], text: 'me' }, 'INVALID_INPUT'], [{ to: ['Nobody'], text: 'x' }, 'UNKNOWN_PLAYER'],
+    [{ to: [], text: 'x' }, 'INVALID_INPUT'], [{ to: ['Party Asha'], text: '' }, 'INVALID_INPUT'], [{ to: ['Party Asha'], text: 'x'.repeat(501) }, 'INVALID_INPUT'],
+    [{ to: 'Party Asha', text: 'x' }, 'INVALID_INPUT'], [{ text: 'x' }, 'INVALID_INPUT'],
   ])('%j -> %s', async (args, code) => {
     const { s, calls } = session(counting);
     expect((await err(s, 'chat', args)).code).toBe(code);
@@ -313,12 +315,12 @@ describe('propose_government', () => {
   const counting = { status: 'counting' as const };
   it('checks: 3+ players, counting phase', async () => {
     const two = session({ ...counting, players: [P('h', 'Asha', 0), P('me', 'Claude', 1)] });
-    expect((await err(two.s, 'propose_government', { portfolios: { HOME: 'Asha' } })).code).toBe('NEGOTIATION_DISABLED');
-    expect((await err(session({ status: 'campaign' }).s, 'propose_government', { portfolios: { HOME: 'Asha' } })).code).toBe('WRONG_PHASE');
+    expect((await err(two.s, 'propose_government', { portfolios: { HOME: 'Party Asha' } })).code).toBe('NEGOTIATION_DISABLED');
+    expect((await err(session({ status: 'campaign' }).s, 'propose_government', { portfolios: { HOME: 'Party Asha' } })).code).toBe('WRONG_PHASE');
   });
   it('resolves portfolio names/aliases and player references; PM defaults to me; lists may repeat players', async () => {
     const { s, calls } = session(counting);
-    const r = await ok(s, 'propose_government', { portfolios: { 'Deputy Prime Minister': ['asha', 'Codex', 'h'], home: 'Dev', 'external affairs': 'Codex' }, partners: ['Dev', 'Codex'] });
+    const r = await ok(s, 'propose_government', { portfolios: { 'Deputy Prime Minister': ['party asha', 'Party Codex', 'h'], home: 'Party Dev', 'external affairs': 'Party Codex' }, partners: ['Party Dev', 'Party Codex'] });
     const [pf, partners] = calls.propose[0] as [Record<string, string[]>, string[]];
     expect(pf.PM).toEqual(['me']);
     expect(pf.DPM.sort()).toEqual(['c', 'h']);
@@ -329,17 +331,17 @@ describe('propose_government', () => {
   });
   it('the PM must be me; unknown portfolio / player are clear errors; nothing sent', async () => {
     const { s, calls } = session(counting);
-    expect((await err(s, 'propose_government', { portfolios: { PM: 'Asha' } })).code).toBe('INVALID_GOVERNMENT');
-    expect((await err(s, 'propose_government', { portfolios: { PM: ['Claude', 'Asha'] } })).code).toBe('INVALID_GOVERNMENT');
-    expect((await err(s, 'propose_government', { portfolios: { MINISTER_OF_FUN: 'Asha' } })).code).not.toBe('INTERNAL');
+    expect((await err(s, 'propose_government', { portfolios: { PM: 'Party Asha' } })).code).toBe('INVALID_GOVERNMENT');
+    expect((await err(s, 'propose_government', { portfolios: { PM: ['Party Claude', 'Party Asha'] } })).code).toBe('INVALID_GOVERNMENT');
+    expect((await err(s, 'propose_government', { portfolios: { MINISTER_OF_FUN: 'Party Asha' } })).code).not.toBe('INTERNAL');
     expect((await err(s, 'propose_government', { portfolios: { HOME: 'Nobody' } })).code).toBe('UNKNOWN_PLAYER');
-    expect((await err(s, 'propose_government', { portfolios: { HOME: 'Asha' }, partners: ['Nobody'] })).code).toBe('UNKNOWN_PLAYER');
+    expect((await err(s, 'propose_government', { portfolios: { HOME: 'Party Asha' }, partners: ['Nobody'] })).code).toBe('UNKNOWN_PLAYER');
     expect((await err(s, 'propose_government', {})).code).toBe('INVALID_INPUT');
     expect(calls.propose).toBeUndefined();
   });
   it('proposing with myself as PM explicitly is fine', async () => {
     const { s, calls } = session(counting);
-    await ok(s, 'propose_government', { portfolios: { PM: 'me', HOME: 'Codex' } });
+    await ok(s, 'propose_government', { portfolios: { PM: 'me', HOME: 'Party Codex' } });
     expect((calls.propose[0][0] as any).PM).toEqual(['me']);
   });
 });

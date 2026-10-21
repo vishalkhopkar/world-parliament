@@ -77,7 +77,7 @@ export function PartySetup() {
 
         <div className="preview">
           <span className="muted">Preview</span>
-          <PartyBadge party={{ name: name.trim() || 'Your party', colour: colour || '#8a8676', symbol, avatar: avatar || undefined }} nickname={me?.nickname} kind={me?.kind} size={56} />
+          <PartyBadge party={{ name: name.trim() || 'Your party', colour: colour || '#8a8676', symbol, avatar: avatar || undefined }} kind={me?.kind} size={56} />
         </div>
         {problem && <p className="form-error" role="alert">{problem}</p>}
         <div className="actions">

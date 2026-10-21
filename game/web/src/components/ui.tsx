@@ -11,10 +11,10 @@ const ICONS: Record<string, ComponentType<LucideProps>> = {
   Anchor, KeyRound, Globe, Leaf, Mountain, Scale, Flame, Sun, Star, TreePine, Bell, BookOpen, Umbrella, Feather, Compass, Rocket,
 };
 
-export function SymbolIcon({ symbol, size = 16 }: { symbol?: string; size?: number }) {
+export function SymbolIcon({ symbol, size = 16, className }: { symbol?: string; size?: number; className?: string }) {
   const def = PARTY_SYMBOLS.find(s => s.id === symbol);
   const Icon = (def && ICONS[def.icon]) || Star;
-  return <Icon size={size} strokeWidth={2.2} aria-hidden />;
+  return <Icon size={size} strokeWidth={2.2} className={className} aria-hidden />;
 }
 
 export { avatarVariantFor };
@@ -48,14 +48,27 @@ export function AiBadge() {
   return <span className="ai-badge" title="AI player"><Bot size={12} strokeWidth={2.4} aria-hidden />AI</span>;
 }
 
-export function PartyBadge({ party, nickname, kind, size = 22 }: { party?: PartyIdentity; nickname?: string; kind?: PlayerKind; size?: number }) {
+/**
+ * A party's name followed by its symbol (sized 1.25em, so it stays visible at any text size). The trailing symbol is
+ * left out when the party has no avatar, because the avatar fallback already is the symbol on a coloured dot.
+ * `fallback` is the text for a player who has no party yet.
+ */
+export function PartyLabel({ party, fallback }: { party?: PartyIdentity; fallback?: string }) {
+  const showSymbol = !!party && !!avatarById(party.avatar);
+  return (
+    <span className="party-label">
+      <strong>{party?.name ?? fallback ?? '—'}</strong>
+      {showSymbol && <SymbolIcon symbol={party.symbol} size={16} className="party-symbol" />}
+    </span>
+  );
+}
+
+/** Avatar + name + symbol (+ AI badge for agents). */
+export function PartyBadge({ party, kind, size = 22 }: { party?: PartyIdentity; kind?: PlayerKind; size?: number }) {
   return (
     <span className="party-badge">
       <PartyAvatar party={party} size={size} />
-      <span className="pb-text">
-        <strong>{party?.name ?? nickname ?? '—'}</strong>
-        {party && nickname ? <small>{nickname}</small> : null}
-      </span>
+      <span className="pb-text"><PartyLabel party={party} /></span>
       {kind === 'agent' && <AiBadge />}
     </span>
   );
@@ -67,7 +80,7 @@ export function PartyTags({ players, ids, size = 28 }: { players: PlayerPublic[]
     <span className="party-tags">
       {ids.map(id => {
         const p = players.find(x => x.playerId === id);
-        return <PartyBadge key={id} party={p?.party} nickname={p?.party ? undefined : p?.nickname} kind={p?.kind} size={size} />;
+        return <PartyBadge key={id} party={p?.party} kind={p?.kind} size={size} />;
       })}
     </span>
   );

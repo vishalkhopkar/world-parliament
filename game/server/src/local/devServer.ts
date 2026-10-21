@@ -10,6 +10,7 @@ import { WebSocketServer } from 'ws';
 import { GameService } from '../core/gameService';
 import { CORS_HEADERS, handleRest } from '../core/http';
 import { GameError, HTTP_STATUS } from '../core/types';
+import { FileReportSink } from './fileReportSink';
 import { LocalNotifier } from './localNotifier';
 import { loadLocalMaps, startDelayFromEnv } from './localEnv';
 import { MemoryRepo } from './memoryRepo';
@@ -23,7 +24,7 @@ export async function startDevServer(opts: { port?: number; env?: NodeJS.Process
   const repo = new MemoryRepo();
   const notifier = new LocalNotifier(repo);
   const scheduler = new TimerScheduler(clock);
-  const svc = new GameService({ repo, notifier, scheduler, clock, maps: loadLocalMaps(env), startDelayMs: startDelayFromEnv(env) });
+  const svc = new GameService({ repo, notifier, scheduler, clock, maps: loadLocalMaps(env), startDelayMs: startDelayFromEnv(env), reportSink: FileReportSink.fromEnv(env) });
   scheduler.bind(svc);
   const http = createServer((req, res) => {
     const chunks: Buffer[] = [];

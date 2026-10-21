@@ -1,6 +1,7 @@
 // Builds the GameService with AWS implementations. Everything is created once per Lambda container.
 import { ApiGatewayManagementApiClient } from '@aws-sdk/client-apigatewaymanagementapi';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { S3Client } from '@aws-sdk/client-s3';
 import { SchedulerClient } from '@aws-sdk/client-scheduler';
 import { SFNClient } from '@aws-sdk/client-sfn';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
@@ -9,6 +10,7 @@ import { GameError, HTTP_STATUS } from '../core/types';
 import { ApiGwNotifier } from './apiGwNotifier';
 import { DynamoRepo } from './dynamoRepo';
 import { awsMaps } from './maps';
+import { S3ReportSink } from './s3ReportSink';
 import { SfnScheduler } from './sfnScheduler';
 
 function env(name: string): string {
@@ -30,7 +32,9 @@ export function getService(): GameService {
     graceCheckArn: env('GRACE_CHECK_ARN'),
     scheduleGroup: process.env.SCHEDULE_GROUP || 'default',
   });
-  cached = new GameService({ repo, notifier, scheduler, clock: { now: () => Date.now() }, maps: awsMaps });
+  cached = new GameService({ repo, notifier, scheduler, clock: { now: () => Date.now() }, maps: awsMaps,
+    reportSink: new S3ReportSink(new S3Client({}), env('REPORT_BUCKET')),
+  });
   return cached;
 }
 

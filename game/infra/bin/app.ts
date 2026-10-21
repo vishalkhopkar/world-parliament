@@ -12,7 +12,7 @@ const S = `HungParliament-${cfg.stage}`;
 
 const data = new DataStack(app, `${S}-Data`, { env, cfg });
 const web = new WebStack(app, `${S}-Web`, { env, cfg });
-const api = new ApiStack(app, `${S}-Api`, { env, cfg, table: data.table, webOrigin: web.origin });
+const api = new ApiStack(app, `${S}-Api`, { env, cfg, table: data.table, reportBucket: data.reportBucket, webOrigin: web.origin });
 
 if (app.node.tryGetContext('oidc')) {
   new GithubOidcStack(app, 'GithubOidcStack', {

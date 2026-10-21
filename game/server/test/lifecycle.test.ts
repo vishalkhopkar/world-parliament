@@ -142,7 +142,7 @@ describe('countReveal', () => {
     expect(r.done).toBe(false);
   });
 
-  it('every decided seat gets exactly one "leading" then one "won" message, tallies only grow, final tally matches the results', async () => {
+  it('every decided seat gets "leading" message(s) then exactly one "won" message, tallies only grow, final tally matches the results', async () => {
     const c = await new Ctx().started(3, 2);
     for (let s = 1; s <= 8; s++) await c.send(s % 3, { action: 'campaign', type: 'rally', seat: s });
     await pollAll(c);
@@ -158,10 +158,15 @@ describe('countReveal', () => {
       for (const m of msgs) bySeat.set(m.declaration.seat, [...(bySeat.get(m.declaration.seat) ?? []), m.declaration]);
       for (const res of results) {
         const ds = bySeat.get(res.seat)!;
-        expect(ds.map((d) => d.status)).toEqual(['leading', 'won']);
-        expect(ds.every((d) => d.playerId === res.winner)).toBe(true);
-        expect(ds[1].shares).toBeDefined();
-        expect(ds[0].shares).toBeUndefined(); // leading carries no shares
+        // leads first (they may change), then exactly one 'won' with the true winner
+        const st = ds.map((d) => d.status);
+        expect(st[0]).toBe('leading');
+        expect(st[st.length - 1]).toBe('won');
+        expect(st.filter((x) => x === 'won')).toHaveLength(1);
+        const won = ds[ds.length - 1];
+        expect(won.playerId).toBe(res.winner);
+        expect(won.shares).toBeDefined();
+        for (const d of ds.slice(0, -1)) expect(d.shares).toBeUndefined(); // leading carries no shares
       }
       let declared = 0;
       for (const m of msgs) { expect(m.tally.declared).toBeGreaterThanOrEqual(declared); declared = m.tally.declared; expect(m.tally.total).toBe(8); }

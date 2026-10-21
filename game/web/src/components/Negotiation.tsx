@@ -11,7 +11,7 @@ import { formatTime, playerName, seatCountOf } from '../lib';
 const key = (ids: PlayerId[]) => [...ids].sort().join('|');
 
 // ---------------------------------------------------------------- chat
-function Chat({ snap, me }: { snap: GameSnapshot; me: PlayerId }) {
+export function Chat({ snap, me }: { snap: GameSnapshot; me: PlayerId }) {
   const messages = useStore(s => s.chat);
   const others = snap.players.filter(p => p.playerId !== me && (p.status === 'active' || p.status === 'disconnected'));
   const [to, setTo] = useState<PlayerId[]>([]);
@@ -25,14 +25,14 @@ function Chat({ snap, me }: { snap: GameSnapshot; me: PlayerId }) {
 
   const thread = messages.filter(c => key([...new Set([c.from, ...c.to])].filter(x => x !== me)) === key(to));
   const toggle = (id: PlayerId) => setTo(t => (t.includes(id) ? t.filter(x => x !== id) : [...t, id]));
-  const label = (ids: PlayerId[]) => ids.map(id => snap.players.find(p => p.playerId === id)?.nickname ?? '?').join(', ');
+  const label = (ids: PlayerId[]) => ids.map(id => playerName(snap.players, id)).join(', ');
   const send = () => { if (!text.trim() || !to.length) return; chat(to, text.trim()); setText(''); };
 
   return (
     <Card title="Private chat">
       <div className="chips">
         {others.map(p => (
-          <button key={p.playerId} className={'chip btn-chip' + (to.includes(p.playerId) ? ' on' : '')} onClick={() => toggle(p.playerId)}>{p.nickname}</button>
+          <button key={p.playerId} className={'chip btn-chip' + (to.includes(p.playerId) ? ' on' : '')} onClick={() => toggle(p.playerId)}>{playerName(snap.players, p.playerId)}</button>
         ))}
       </div>
       {threads.length > 0 && (
@@ -45,7 +45,7 @@ function Chat({ snap, me }: { snap: GameSnapshot; me: PlayerId }) {
           thread.length === 0 ? <p className="hint">No messages with {label(to)} yet.</p> :
             thread.map(c => (
               <div key={c.id} className={'msg' + (c.from === me ? ' mine' : '')}>
-                <small><b>{c.from === me ? 'You' : snap.players.find(p => p.playerId === c.from)?.nickname}</b> · {formatTime(c.ts)}</small>
+                <small><b>{c.from === me ? 'You' : playerName(snap.players, c.from)}</b> · {formatTime(c.ts)}</small>
                 <div>{c.text}</div>
               </div>
             ))}
@@ -84,7 +84,7 @@ function OfferView({ o, snap, me }: { o: CoalitionOffer; snap: GameSnapshot; me:
         ))}
       </ul>
       <div className="hint">Seats {combined} / majority {maj}. Accepted: {o.accepted.length}/{o.partners.length}
-        {o.accepted.length > 0 && <> ({o.accepted.map(id => snap.players.find(p => p.playerId === id)?.nickname).join(', ')})</>}
+        {o.accepted.length > 0 && <> ({o.accepted.map(id => playerName(snap.players, id)).join(', ')})</>}
       </div>
       {o.status === 'open' && mineIncoming && !iAccepted && (
         <div className="actions">
@@ -134,7 +134,7 @@ function OfferBuilder({ snap, me }: { snap: GameSnapshot; me: PlayerId }) {
               {Array.from({ length: d.max }, (_, i) => (
                 <select key={i} className="input sm" value={(slots[d.id] ?? [])[i] ?? ''} onChange={e => set(d.id, i, e.target.value)}>
                   <option value="">—</option>
-                  {others.map(p => <option key={p.playerId} value={p.playerId}>{p.nickname}</option>)}
+                  {others.map(p => <option key={p.playerId} value={p.playerId}>{playerName(snap.players, p.playerId)}</option>)}
                 </select>
               ))}
             </div>
@@ -144,12 +144,12 @@ function OfferBuilder({ snap, me }: { snap: GameSnapshot; me: PlayerId }) {
       <div className="chips"><small className="muted">Also invite without a portfolio:</small>
         {others.filter(p => !partners.includes(p.playerId) || extra.includes(p.playerId)).map(p => (
           <button key={p.playerId} className={'chip btn-chip' + (extra.includes(p.playerId) ? ' on' : '')}
-            onClick={() => setExtra(e => (e.includes(p.playerId) ? e.filter(x => x !== p.playerId) : [...e, p.playerId]))}>{p.nickname}</button>
+            onClick={() => setExtra(e => (e.includes(p.playerId) ? e.filter(x => x !== p.playerId) : [...e, p.playerId]))}>{playerName(snap.players, p.playerId)}</button>
         ))}
       </div>
       <div className={'combined' + (combined >= maj ? ' good' : '')}>
         Combined seats: <b>{combined}</b> / majority {maj}
-        <small className="muted"> ({members.map(id => `${snap.players.find(p => p.playerId === id)?.nickname} ${seatsOf(snap, id)}`).join(' + ')})</small>
+        <small className="muted"> ({members.map(id => `${playerName(snap.players, id)} ${seatsOf(snap, id)}`).join(' + ')})</small>
       </div>
       <button className="btn primary" disabled={!ok} onClick={() => proposeGovernment(portfolios, extra)}>Send offer</button>
       {!ok && <p className="hint">{partners.length === 0 ? 'Add at least one partner.' : 'Not enough seats for a majority yet.'}</p>}
@@ -183,7 +183,7 @@ export function Negotiation({ snap }: { snap: GameSnapshot }) {
           <Card title="Parties">
             {snap.players.filter(p => p.status === 'active' || p.status === 'disconnected').map(p => (
               <div className="row" key={p.playerId}>
-                <PartyBadge party={p.party} nickname={p.nickname} kind={p.kind} size={34} />
+                <PartyBadge party={p.party} kind={p.kind} size={34} />
                 <span className="spacer" />
                 <b>{seatsOf(snap, p.playerId)}</b>
               </div>

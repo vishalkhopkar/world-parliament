@@ -274,11 +274,14 @@ describe.each(impls)('Repo contract: %s', (_name, make) => {
     const { repo } = make();
     await repo.createGame(game(), player('p0'));
     expect(await repo.getCountPlan('g1')).toBeNull();
-    const plan = { order: [3, 1, 2], steps: 3, intervalMs: 1000, startMs: NOW, gap: 1 };
+    const plan = {
+      order: [3, 1, 2], steps: 3, intervalMs: 1000, startMs: NOW, seed: 'g1', winStart: 3,
+      leadStep: { 1: 1, 2: 2, 3: 1 }, winStep: { 1: 3, 2: 3, 3: 3 }, noise: { start: 2, exponent: 2, epochSteps: 1 },
+    };
     await repo.putCountPlan('g1', plan);
     expect(await repo.getCountPlan('g1')).toEqual(plan);
-    await repo.putCountPlan('g1', { ...plan, gap: 2 });
-    expect((await repo.getCountPlan('g1'))?.gap).toBe(2);
+    await repo.putCountPlan('g1', { ...plan, winStart: 2 });
+    expect((await repo.getCountPlan('g1'))?.winStart).toBe(2);
   });
 
   it('chat: stored and listed in time order, per game', async () => {
@@ -368,7 +371,9 @@ describe('DynamoRepo specifics (against FakeDdb)', () => {
     await repo.addAction('g1', 'p0', 10, action('a1', 'p0', NOW + 1), 0);
     await repo.addReport('g1', 'p0', 10, report('p0', NOW + 2), 0);
     await repo.putSeatResults('g1', [{ seat: 1, phase: 0, winner: null, shares: {} }]);
-    await repo.putCountPlan('g1', { order: [1], steps: 1, intervalMs: 1, startMs: 1, gap: 0 });
+    await repo.putCountPlan('g1', {
+      order: [1], steps: 1, intervalMs: 1, startMs: 1, seed: 'g1', winStart: 1, leadStep: { 1: 1 }, winStep: { 1: 1 }, noise: { start: 0, exponent: 1, epochSteps: 1 },
+    });
     await repo.addChat('g1', { id: 'c', from: 'p0', to: [], text: 't', ts: NOW });
     await repo.putOffer('g1', { offerId: 'o', proposer: 'p0', portfolios: {}, partners: [], accepted: [], status: 'open', createdAt: 1 });
     await repo.putGovernmentIfAbsent('g1', { pm: 'p0', members: ['p0'], portfolios: {}, formedAt: 1, viaNegotiation: false });

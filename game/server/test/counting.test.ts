@@ -48,7 +48,13 @@ describe('counting', () => {
     const seen = new Map<number, string[]>();
     for (const u of updates) seen.set(u.declaration.seat, [...(seen.get(u.declaration.seat) ?? []), u.declaration.status]);
     expect(seen.size).toBe(8);
-    for (const statuses of seen.values()) expect(statuses).toEqual(['leading', 'won']);
+    for (const statuses of seen.values()) {
+      // leads first (they may change their mind: several 'leading' updates), then exactly one 'won' as the last update
+      expect(statuses.length).toBeGreaterThanOrEqual(2);
+      expect(statuses[statuses.length - 1]).toBe('won');
+      expect(statuses.filter((x) => x === 'won')).toHaveLength(1);
+      expect(statuses[0]).toBe('leading');
+    }
     const last = updates[updates.length - 1];
     expect(last.tally.declared).toBe(8);
     expect(last.tally.total).toBe(8);
@@ -88,7 +94,8 @@ describe('counting', () => {
     const c = await new Ctx().started(2, 1);
     await aWinsAll(c);
     await startCounting(c);
-    c.clock.set(c.timeline.campaignEnd + 15_000);
+    const plan = (await c.repo.getCountPlan(c.gameId))!;
+    c.clock.set(plan.startMs + Math.floor(0.9 * plan.steps) * plan.intervalMs); // confirmed wins only start at 75 %
     await c.svc.countReveal(c.gameId);
     await c.svc.connect(c.gameId, c.p[1].token, 'c1new');
     await c.svc.handleMessage('c1new', { action: 'ping', clientTime: 1 });

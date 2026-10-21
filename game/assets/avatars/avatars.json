@@ -1,5 +1,21 @@
 [
   {
+    "id": "akhilesh",
+    "label": "Akhilesh",
+    "full": "full/akhilesh.jpg",
+    "thumb": "thumb/akhilesh.jpg",
+    "width": 512,
+    "height": 512
+  },
+  {
+    "id": "amit",
+    "label": "Amit",
+    "full": "full/amit.jpg",
+    "thumb": "thumb/amit.jpg",
+    "width": 512,
+    "height": 512
+  },
+  {
     "id": "arvind",
     "label": "Arvind",
     "full": "full/arvind.jpg",
@@ -8,10 +24,50 @@
     "height": 512
   },
   {
+    "id": "babu",
+    "label": "Babu",
+    "full": "full/babu.jpg",
+    "thumb": "thumb/babu.jpg",
+    "width": 512,
+    "height": 512
+  },
+  {
+    "id": "bibi",
+    "label": "Bibi",
+    "full": "full/bibi.jpg",
+    "thumb": "thumb/bibi.jpg",
+    "width": 512,
+    "height": 512
+  },
+  {
+    "id": "gandhi",
+    "label": "Gandhi",
+    "full": "full/gandhi.jpg",
+    "thumb": "thumb/gandhi.jpg",
+    "width": 512,
+    "height": 512
+  },
+  {
+    "id": "indira",
+    "label": "Indira",
+    "full": "full/indira.jpg",
+    "thumb": "thumb/indira.jpg",
+    "width": 512,
+    "height": 512
+  },
+  {
     "id": "kim",
     "label": "Kim",
     "full": "full/kim.jpg",
     "thumb": "thumb/kim.jpg",
+    "width": 512,
+    "height": 512
+  },
+  {
+    "id": "lalu",
+    "label": "Lalu",
+    "full": "full/lalu.jpg",
+    "thumb": "thumb/lalu.jpg",
     "width": 512,
     "height": 512
   },
@@ -32,8 +88,16 @@
     "height": 512
   },
   {
+    "id": "mandela",
+    "label": "Mandela",
+    "full": "full/mandela.jpg",
+    "thumb": "thumb/mandela.jpg",
+    "width": 512,
+    "height": 512
+  },
+  {
     "id": "mbs",
-    "label": "MBS",
+    "label": "Mbs",
     "full": "full/mbs.jpg",
     "thumb": "thumb/mbs.jpg",
     "width": 512,
@@ -44,6 +108,14 @@
     "label": "Modi",
     "full": "full/modi.jpg",
     "thumb": "thumb/modi.jpg",
+    "width": 512,
+    "height": 512
+  },
+  {
+    "id": "nehru",
+    "label": "Nehru",
+    "full": "full/nehru.jpg",
+    "thumb": "thumb/nehru.jpg",
     "width": 512,
     "height": 512
   },
@@ -64,6 +136,14 @@
     "height": 512
   },
   {
+    "id": "sonia",
+    "label": "Sonia",
+    "full": "full/sonia.jpg",
+    "thumb": "thumb/sonia.jpg",
+    "width": 512,
+    "height": 512
+  },
+  {
     "id": "uddhav",
     "label": "Uddhav",
     "full": "full/uddhav.jpg",
@@ -72,10 +152,26 @@
     "height": 512
   },
   {
+    "id": "vijay",
+    "label": "Vijay",
+    "full": "full/vijay.jpg",
+    "thumb": "thumb/vijay.jpg",
+    "width": 512,
+    "height": 512
+  },
+  {
     "id": "xi",
     "label": "Xi",
     "full": "full/xi.jpg",
     "thumb": "thumb/xi.jpg",
+    "width": 512,
+    "height": 512
+  },
+  {
+    "id": "yogi",
+    "label": "Yogi",
+    "full": "full/yogi.jpg",
+    "thumb": "thumb/yogi.jpg",
     "width": 512,
     "height": 512
   }

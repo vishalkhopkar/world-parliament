@@ -78,7 +78,7 @@ describe('action table', () => {
     const party = ACTION_BY_NAME.get('set_party')!.schema;
     expect(party.safeParse({ name: 'Blue', colour: 'blue', symbol: 'sun' }).success).toBe(false); // avatar required
     expect(party.safeParse({ name: 'Blue', colour: 'blue', symbol: 'sun', avatar: 'xi' }).success).toBe(true);
-    expect(ACTION_BY_NAME.get('propose_government')!.schema.safeParse({ portfolios: { DPM: ['Ben', 'Chitra'], HOME: 'Ben' } }).success).toBe(true);
+    expect(ACTION_BY_NAME.get('propose_government')!.schema.safeParse({ portfolios: { DPM: ['Blue Wave', 'Green Front'], HOME: 'Blue Wave' } }).success).toBe(true);
   });
 
   it('every schema converts to a JSON schema with required fields', () => {
@@ -201,7 +201,7 @@ describe('read-only views', () => {
     expect(d.timers.polling_phases_total).toBe(3);
     expect(d.timers.campaign_left_s).toBeGreaterThan(290);
     expect(d.players).toHaveLength(3);
-    expect(d.players.find((p: any) => p.nickname === 'Claude').kind).toBe('agent');
+    expect(d.players.find((p: any) => p.party === 'Blue').kind).toBe('agent');
     expect(d.advice[0]).toContain('campaign_batch');
     expect(d.seats_still_open).toBe(500);
   });

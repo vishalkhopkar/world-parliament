@@ -19,7 +19,13 @@ describe('applyEnvOverrides / startDelayFromEnv', () => {
   });
   it('overrides each duration independently', () => {
     expect(applyEnvOverrides(WORLD_CONFIG, { HP_CAMPAIGN_MS: '1000' }).durations).toEqual({ ...d, campaignMs: 1000 });
-    expect(applyEnvOverrides(WORLD_CONFIG, { HP_COUNTING_MS: '2000' }).durations).toEqual({ ...d, countingMs: 2000 });
+    // a short HP_COUNTING_MS also caps the 2-player counting length
+    expect(applyEnvOverrides(WORLD_CONFIG, { HP_COUNTING_MS: '2000' }).durations).toEqual({ ...d, countingMs: 2000, countingMsTwoPlayers: 2000 });
+    // a longer one leaves the 2-player length alone
+    expect(applyEnvOverrides(WORLD_CONFIG, { HP_COUNTING_MS: '900000' }).durations).toEqual({ ...d, countingMs: 900_000 });
+    expect(applyEnvOverrides(WORLD_CONFIG, { HP_COUNTING_MS_2P: '1500' }).durations).toEqual({ ...d, countingMsTwoPlayers: 1500 });
+    expect(applyEnvOverrides(WORLD_CONFIG, { HP_COUNTING_MS: '2000', HP_COUNTING_MS_2P: '7000' }).durations)
+      .toEqual({ ...d, countingMs: 2000, countingMsTwoPlayers: 7000 });
     expect(applyEnvOverrides(WORLD_CONFIG, { HP_POST_MS: '3000' }).durations).toEqual({ ...d, postCountingMs: 3000 });
     expect(applyEnvOverrides(WORLD_CONFIG, { HP_GRACE_MS: '4000' }).durations).toEqual({ ...d, graceMs: 4000 });
   });

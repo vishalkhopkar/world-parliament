@@ -3,9 +3,9 @@
 // Signatures may only change with the coordinator's agreement. See each file for behaviour docs.
 
 export type { Rng, Kernels, Effects, EffectOptions } from './types';
-export { createRng } from './rng';
+export { createRng, gaussian } from './rng';
 export { buildKernels, timeMultiplier, computeEffects, seatShares, haversineKm } from './effects';
-export { buildTimeline, phaseOfSeat } from './schedule';
+export { buildTimeline, countingMsFor, phaseOfSeat, postCountingMsFor } from './schedule';
 export { pollSeats, removePlayerFromResults, tallySeats } from './votes';
 export { analystPrice, analystReport } from './analyst';
 export { validateGovernment, governmentFromOffer, majorityGovernment, finalResult } from './points';

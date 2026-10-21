@@ -87,8 +87,8 @@ export class AgentSession {
 
   player(id: string): PlayerPublic | undefined { return this.players().find((p) => p.playerId === id); }
 
-  /** nickname for display (falls back to the id). */
-  nameOf(id: string): string { return this.player(id)?.nickname ?? id; }
+  /** party name for display (nickname only while party-less; falls back to the id). */
+  nameOf(id: string): string { const p = this.player(id); return p ? (p.party?.name ?? p.nickname) : id; }
 
   /** Loaded seat directory or null when the map package is unavailable. */
   async seatsOrNull(): Promise<SeatDirectory | null> {

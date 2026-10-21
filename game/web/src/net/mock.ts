@@ -265,11 +265,13 @@ export class MockTransport implements Transport {
     await this.loadSeats(g);
     for (const p of g.players.values()) if (p.pub.status === 'pending') p.pub.status = 'rejected';
     const start = this.now();
+    // exactly 2 players: shorter counting (as the real server); the ?counting= tunable only ever shortens it
+    const countingMs = act.length === 2 ? Math.min(OPTS.countingMs, g.cfg.durations.countingMsTwoPlayers) : OPTS.countingMs;
     const closes = Array.from({ length: g.phases }, (_, i) => Math.round(start + (OPTS.campaignMs * (i + 1)) / g.phases));
     g.timeline = {
       campaignStart: start, phaseCloses: closes, campaignEnd: closes[closes.length - 1],
-      countingEnd: closes[closes.length - 1] + OPTS.countingMs,
-      postCountingEnd: closes[closes.length - 1] + OPTS.countingMs + OPTS.postCountingMs,
+      countingEnd: closes[closes.length - 1] + countingMs,
+      postCountingEnd: closes[closes.length - 1] + countingMs + OPTS.postCountingMs,
     };
     g.nextBotRally = start + 1500;
     this.emit({ type: 'status', status: 'campaign', timeline: g.timeline });
@@ -491,7 +493,7 @@ export class MockTransport implements Transport {
     } else if (g.status === 'counting' || g.status === 'postCounting') {
       this.reveal(g, now);
       if (g.status === 'counting' && now >= t.countingEnd) this.endCounting(g);
-      if (g.status === 'counting' && !g.botOfferSent && now > t.campaignEnd + OPTS.countingMs * 0.45) { g.botOfferSent = true; this.botOffer(g); }
+      if (g.status === 'counting' && !g.botOfferSent && now > t.campaignEnd + (t.countingEnd - t.campaignEnd) * 0.45) { g.botOfferSent = true; this.botOffer(g); }
       if (g.status === 'postCounting' && !g.result) {
         if (g.government && now >= g.government.formedAt + 4000) this.finish(g, 'coalition');
         else if (now >= t.postCountingEnd) this.finish(g, 'noGovernment');
@@ -517,22 +519,38 @@ export class MockTransport implements Transport {
   private beginCounting(g: MockGame) {
     g.status = 'counting';
     const act = this.activePlayers(g).map(p => p.pub.playerId);
-    const C = OPTS.countingMs, start = g.timeline!.campaignEnd;
+    const C = g.timeline!.countingEnd - g.timeline!.campaignEnd, start = g.timeline!.campaignEnd;
+    const cc = g.cfg.counting;
     g.tally = { leads: Object.fromEntries(act.map(id => [id, 0])), wins: Object.fromEntries(act.map(id => [id, 0])), declared: 0, total: g.seatIds.length };
     g.schedule = [];
-    for (const seat of g.seatIds) {
+    // Per seat: true shares and winner, plus a noisy lead that is re-guessed every epoch (noise decays with time).
+    const seatInfo = g.seatIds.map(seat => {
       const w = this.weights(g, seat, Infinity);
       for (const [id, v] of w) w.set(id, v * (0.85 + Math.random() * 0.3)); // random swing
       const tot = [...w.values()].reduce((a, b) => a + b, 0);
       const shares: Record<PlayerId, number> = {};
       w.forEach((v, id) => (shares[id] = v / tot));
-      const winner = [...w.entries()].sort((a, b) => b[1] - a[1])[0][0];
-      const leader = Math.random() < 0.25 ? pick(act) : winner;
-      const leadAt = rnd(0.02, 0.7) * C;
-      const wonAt = Math.min(0.97 * C, leadAt + rnd(0.1, 0.3) * C);
-      g.schedule.push({ t: start + leadAt, decl: { seat, status: 'leading', playerId: leader } });
-      g.schedule.push({ t: start + wonAt, decl: { seat, status: 'won', playerId: winner, shares } });
-    }
+      const sorted = Object.entries(shares).sort((a, b) => b[1] - a[1]);
+      const margin = sorted[0][1] - (sorted[1]?.[1] ?? 0);
+      return { seat, shares, winner: sorted[0][0], key: margin + cc.winJitter * Math.random() };
+    });
+    // confirm safest seats first (margin + jitter), spread evenly over [winStart, 1] of the time, last seat at the very end
+    const byWin = seatInfo.sort((a, b) => b.key - a.key);
+    const epoch = cc.leadNoiseEpochFraction * C;
+    byWin.forEach((si, i) => {
+      const f = byWin.length > 1 ? cc.winStartFraction + (i / (byWin.length - 1)) * (1 - cc.winStartFraction) : 1;
+      const wonAt = f * C;
+      let current: PlayerId | null = null;
+      // first lead somewhere before allLeadsByFraction, then a fresh guess each epoch; noise reaches 0 before the win
+      for (let t = rnd(0.02, cc.allLeadsByFraction) * C; t < wonAt - epoch; t += epoch) {
+        const sigma = cc.leadNoiseStart * Math.pow(1 - t / C, cc.leadNoiseExponent) * Math.min(1, (wonAt - epoch - t) / epoch);
+        let best = si.winner, bestScore = -Infinity;
+        for (const [id, sh] of Object.entries(si.shares)) { const sc = sh * Math.exp(sigma * gauss()); if (sc > bestScore) { bestScore = sc; best = id; } }
+        if (best !== current) { g.schedule.push({ t: start + t, decl: { seat: si.seat, status: 'leading', playerId: best } }); current = best; }
+      }
+      if (current !== si.winner) g.schedule.push({ t: start + wonAt - epoch / 2, decl: { seat: si.seat, status: 'leading', playerId: si.winner } });
+      g.schedule.push({ t: start + wonAt, decl: { seat: si.seat, status: 'won', playerId: si.winner, shares: si.shares } });
+    });
     g.schedule.sort((a, b) => b.t - a.t); // pop from the end
     this.emit({ type: 'status', status: 'counting', timeline: g.timeline });
   }
