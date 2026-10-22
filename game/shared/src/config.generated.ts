@@ -43,7 +43,7 @@ export const GAME_CONFIG_VALUES = {
   },
   "timeMultiplier": {
     "start": 1,
-    "end": 1.1
+    "end": 1
   },
   "randomSwing": 0.02,
   "phases": {
@@ -75,7 +75,7 @@ export const GAME_CONFIG_VALUES = {
     "leadNoiseEpochFraction": 0.05,
     "winJitter": 0.35,
     "pieRefreshMs": 1000,
-    "panelDisplayMs": 3000,
+    "panelDisplayMs": 5000,
     "panelStaggerMs": 500,
     "panelRunnerUpPercent": 75,
     "panelOtherPercent": 25
