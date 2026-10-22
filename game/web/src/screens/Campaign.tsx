@@ -4,6 +4,8 @@ import { useStore } from '../state/store';
 import { SeatMap, type SeatMapHandle } from '../map/SeatMap';
 import { AnalystShop, CampaignHud, MyActions } from '../components/campaign';
 import { NewsTicker } from '../components/NewsTicker';
+import { Chat } from '../components/Negotiation';
+import { useMapConfig } from '../state/mapConfig';
 import './game.css';
 import { colourHex, useSeatPhases, useServerNow } from '../lib';
 
@@ -11,6 +13,8 @@ export function Campaign() {
   const snap = useStore(s => s.snapshot);
   const priv = useStore(s => s.priv);
   const names = useStore(s => s.names);
+  const me = useStore(s => s.me);
+  const cfg = useMapConfig();
   const selected = useStore(s => s.selectedSeat);
   const selectSeat = useStore(s => s.selectSeat);
   const pulseState = useStore(s => s.pulse);
@@ -59,6 +63,9 @@ export function Campaign() {
 
   if (!snap || !priv) return <div className="page"><p className="hint">Connecting…</p></div>;
 
+  // chat opens at the campaign start when the map says so; with fewer than 3 players there is no chat at all
+  const chatOpen = cfg.messaging.opensAt === 'campaign' && snap.players.filter(p => p.status !== 'pending' && p.status !== 'rejected').length >= 3;
+
   return (
     <div className="game">
       <CampaignHud snap={snap} priv={priv} now={now} />
@@ -81,6 +88,7 @@ export function Campaign() {
           <AnalystShop snap={snap} priv={priv} now={now} />
           <ReportToast />
           <MyActions priv={priv} />
+          {chatOpen && me && <Chat snap={snap} me={me} />}
         </aside>
       </div>
       <NewsTicker onPick={s => { selectSeat(s); mapRef.current?.zoomToSeat(s); }} />

@@ -1,7 +1,7 @@
 // THE action table. The MCP server (mcp.ts) and the CLI/daemon (cli.ts, daemon.ts) both execute actions only through this
 // table, so they can never diverge. Each action: name, LLM-facing description, zod input schema, handler on an AgentSession.
 import { analystPrice, AVATARS, haversineKm, majorityOf, PARTY_COLOURS, PARTY_SYMBOLS } from '@hp/shared';
-import type { ActionType, PartyIdentity, PortfolioAssignment, SeatId } from '@hp/shared';
+import type { ActionType, CoalitionOffer, MapConfig, PartyIdentity, PortfolioAssignment, SeatId } from '@hp/shared';
 import { z } from 'zod';
 import { AgentError, toErrorInfo } from './errors';
 import type { ErrorInfo } from './errors';
@@ -11,7 +11,7 @@ import type { AgentSession } from './session';
 import { EVENT_TYPES, admissionOf } from './state';
 import type { EventType } from './state';
 import {
-  chatView, eventView, governmentView, offerView, playerView, reportView, round1, stateView, who, winsByName,
+  chatView, eventView, governmentView, offerView, playerView, reportView, round1, stageInfo, stateView, who, winsByName,
 } from './views';
 
 export interface ActionDef<S extends z.ZodObject<z.ZodRawShape> = z.ZodObject<z.ZodRawShape>> {
@@ -89,6 +89,42 @@ function budgetView(s: AgentSession) {
   };
 }
 
+/** Offer by exact id, or by a unique id prefix (shared by respond_offer and withdraw_offer). */
+function resolveOffer(s: AgentSession, ref: string): CoalitionOffer {
+  const offers = s.client.state.snapshot?.offers ?? [];
+  const exact = offers.find((o) => o.offerId === ref);
+  if (exact) return exact;
+  const pre = offers.filter((o) => o.offerId.startsWith(ref));
+  if (pre.length === 1) return pre[0];
+  throw new AgentError('OFFER_NOT_FOUND', `No offer "${ref}" is known to you. Known: ${offers.map((o) => o.offerId).join(', ') || 'none'}. (You only see offers you proposed or were named in.)`);
+}
+
+/** Is chat open in this status? Counting and post-counting always; the campaign only when messaging.opensAt = campaign. */
+function chatOpen(cfg: MapConfig, status: string | undefined): boolean {
+  return status === 'counting' || status === 'postCounting' || (status === 'campaign' && cfg.messaging.opensAt === 'campaign');
+}
+
+/** Preset party options with the party (of another player) that holds each one, or null when free. */
+function partyOptions(s: AgentSession) {
+  const others = s.players().filter((p) => p.playerId !== s.client.me && p.party && p.status !== 'rejected');
+  const takenBy = (pred: (p: PartyIdentity) => boolean) => others.find((p) => pred(p.party as PartyIdentity))?.party?.name ?? null;
+  return {
+    colours: PARTY_COLOURS.map((c) => ({ hex: c.hex, label: c.label, taken_by: takenBy((p) => p.colour.toLowerCase() === c.hex.toLowerCase()) })),
+    symbols: PARTY_SYMBOLS.map((c) => ({ id: c.id, label: c.label, taken_by: takenBy((p) => p.symbol === c.id) })),
+    avatars: AVATARS.map((a) => ({ id: a.id, label: a.label, taken_by: takenBy((p) => p.avatar === a.id) })),
+  };
+}
+
+const CLASH_FIELD = { NAME_TAKEN: 'name', COLOUR_TAKEN: 'colour', SYMBOL_TAKEN: 'symbol', AVATAR_TAKEN: 'avatar' } as const;
+type ClashCode = keyof typeof CLASH_FIELD;
+
+function clashError(s: AgentSession, e: AgentError): AgentError {
+  const o = partyOptions(s);
+  const list = (rows: { label: string; taken_by: string | null; hex?: string; id?: string }[], key: 'hex' | 'id') => rows.filter((r) => !r.taken_by).map((r) => `${r.label} (${r[key]})`).join(', ') || 'none';
+  return new AgentError(e.code, `${e.message} Free colours: ${list(o.colours, 'hex')}. Free symbols: ${list(o.symbols, 'id')}. Free avatars: ${list(o.avatars, 'id')}.`,
+    'Call set_party again with free options from this list (or pass auto_pick:true to let the tool choose free colour/symbol/avatar). The name must be chosen by you.');
+}
+
 // ------------------------------------------------------------------ schemas
 const seatRef = z.union([z.number().int(), z.string().min(1)]).describe('Seat id (1..N) or seat name, e.g. 17 or "Delhi West"');
 const actionType = z.enum(['rally', 'roadshow']);
@@ -133,7 +169,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'wait_for_admission',
-    description: 'Wait until the host admits or declines your join request. Returns status "admitted", "declined" or "pending" (timeout: call again).',
+    description: 'Wait until the host admits or declines your join request. Returns status "admitted", "declined" or "pending" (timeout_s max 120, default 30; on pending call again).',
     schema: z.object({ timeout_s: z.number().min(1).max(120).default(30).describe('Seconds to wait (max 120, default 30; call again on pending)') }),
     readOnly: true,
     async run(s, i) {
@@ -176,14 +212,10 @@ export const ACTIONS: ActionDef[] = [
     async run(s) {
       needJoined(s);
       await s.client.refreshLobby().catch(() => undefined);
-      const others = s.players().filter((p) => p.playerId !== s.client.me && p.party && p.status !== 'rejected');
-      const takenBy = (pred: (p: PartyIdentity) => boolean) => others.find((p) => pred(p.party as PartyIdentity))?.party?.name;
       const mine = s.players().find((p) => p.playerId === s.client.me)?.party ?? null;
       return {
         your_party: mine,
-        colours: PARTY_COLOURS.map((c) => ({ hex: c.hex, label: c.label, taken_by: takenBy((p) => p.colour.toLowerCase() === c.hex.toLowerCase()) ?? null })),
-        symbols: PARTY_SYMBOLS.map((c) => ({ id: c.id, label: c.label, taken_by: takenBy((p) => p.symbol === c.id) ?? null })),
-        avatars: AVATARS.map((a) => ({ id: a.id, label: a.label, taken_by: takenBy((p) => p.avatar === a.id) ?? null })),
+        ...partyOptions(s),
         note: 'Party name, colour, symbol and avatar must each be unique in the game, and all four are required to start.',
       };
     },
@@ -191,27 +223,45 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'set_party',
-    description: 'Choose (or change, until the game starts) your party identity: name (2-30 chars), colour (hex like "#1F5FBF" or label like "Blue"), symbol (id or label) and avatar (id or label). ALL FOUR are required (the host cannot start the game until every player has an avatar) and each must be unique among players. Use list_party_options first to see what is free.',
+    description: 'Choose (or change, until the game starts) your party identity: name (2-30 chars), colour (hex like "#1F5FBF" or label like "Blue"), symbol (id or label) and avatar (id or label). ALL FOUR are required (the host cannot start the game until every player has an avatar) and each must be unique among players. Use list_party_options first to see what is free. If another player grabbed your colour/symbol/avatar/name first you get NAME_TAKEN / COLOUR_TAKEN / SYMBOL_TAKEN / AVATAR_TAKEN with the list of FREE options; pass auto_pick:true to retry automatically (up to 3 times) with the first free colour/symbol/avatar (the name is never changed).',
     schema: z.object({
       name: z.string().min(2).max(30).describe('Party name, unique in the game'),
       colour: z.string().min(1).describe('Colour hex or label, from list_party_options'),
       symbol: z.string().min(1).describe('Symbol id or label, from list_party_options'),
       avatar: z.string().min(1).describe('Avatar id or label, from list_party_options (required, unique)'),
+      auto_pick: z.boolean().default(false).describe('On a colour/symbol/avatar clash retry up to 3 times with the first free option (never changes the name)'),
     }),
     async run(s, i) {
       needAdmitted(s);
       const colour = resolveColour(PARTY_COLOURS, i.colour);
       const symbol = resolveOption(PARTY_SYMBOLS, i.symbol, 'symbol');
       const avatar = resolveOption(AVATARS, i.avatar, 'avatar');
-      const party: PartyIdentity = { name: i.name.trim(), colour: colour.hex, symbol: symbol.id, avatar: avatar.id };
-      await s.client.setParty(party);
-      return { ok: true, party, hint: 'Party saved. Wait for the host to start the game (wait_for_events types ["status"]), then get_state.' };
+      let party: PartyIdentity = { name: i.name.trim(), colour: colour.hex, symbol: symbol.id, avatar: avatar.id };
+      const autoPicked: Record<string, string> = {};
+      for (let attempt = 0; ; attempt++) {
+        try {
+          await s.client.setParty(party);
+          break;
+        } catch (e) {
+          if (!(e instanceof AgentError) || !(e.code in CLASH_FIELD)) throw e;
+          await s.client.refreshLobby().catch(() => undefined);
+          const field = CLASH_FIELD[e.code as ClashCode];
+          if (!i.auto_pick || field === 'name' || attempt >= 3) throw clashError(s, e);
+          const o = partyOptions(s);
+          const free = (field === 'colour' ? o.colours.filter((x) => !x.taken_by).map((x) => x.hex) : field === 'symbol' ? o.symbols.filter((x) => !x.taken_by).map((x) => x.id) : o.avatars.filter((x) => !x.taken_by).map((x) => x.id));
+          const pick = free.find((x) => x !== party[field]);
+          if (pick === undefined) throw clashError(s, e);
+          party = { ...party, [field]: pick };
+          autoPicked[field] = pick;
+        }
+      }
+      return { ok: true, party, ...(Object.keys(autoPicked).length ? { auto_picked: autoPicked } : {}), hint: 'Party saved. Wait for the host to start the game (wait_for_events types ["status"]), then get_state.' };
     },
   }),
 
   def({
     name: 'get_state',
-    description: 'Compact summary for decision making: game status, seconds left (whole campaign, current polling phase, counting, post-counting; server-clock corrected), phase number, YOUR budget and the current prices (rally, roadshow, reports), how many actions you took, which polling phases are closed, all players (party, kind, status), public rally-news counts, the live tally during counting, open coalition offers involving you, the government and the result, plus "advice" with the suggested next step. Cheap: call it whenever unsure.',
+    description: 'Compact summary for decision making: game status, stage (lobby|campaign|counting|postCounting|finished) with stage_left_s (seconds to the next phase close / campaign end / counting end / post-counting end), plus seconds left for the whole campaign, current polling phase, counting_ends_in_s and post_counting_ends_in_s (server-clock corrected), phase number, YOUR budget and the current prices (rally, roadshow, reports), how many actions you took, which polling phases are closed, all players (party, kind, status), public rally-news counts, the live `tally` during counting, open coalition offers involving you, the government and the result, plus "advice" with the suggested next step. Cheap: call it whenever unsure.',
     schema: z.object({}),
     readOnly: true,
     async run(s) {
@@ -375,7 +425,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'wait_for_events',
-    description: 'Long-poll for game events instead of polling get_state in a loop. Returns new events after since_cursor (default: after the events you already received from this tool) or an empty list after timeout_s (max 60). Event types: news (a rally), phaseClosed, seatUpdate (counting declarations; excluded by default, ask for it via types), chat, offer, government, result, status, players, report, error. Also returns next_cursor and a tiny state hint.',
+    description: 'Long-poll for game events instead of polling get_state in a loop. Returns new events after since_cursor (default: after the events you already received from this tool) or an empty list after timeout_s (timeout_s max 60, default 25; call again on timeout). `types` filters (e.g. ["status"] or ["chat","offer"]; a bare comma-separated string also works). limit max 200. Event types: news (a rally), phaseClosed, seatUpdate (counting declarations; excluded by default, ask for it via types), chat, offer, government, result, status, players, report, error. Also returns next_cursor and a tiny state hint.',
     schema: z.object({
       since_cursor: z.number().int().min(0).optional().describe('Cursor from the previous call; omit to continue where this tool left off'),
       timeout_s: z.number().min(0).max(60).default(25),
@@ -402,7 +452,8 @@ export const ACTIONS: ActionDef[] = [
           status: st.snapshot?.status ?? null,
           connection: st.link,
           budget: st.priv ? st.priv.budget : null,
-          phase_left_s: tl && st.snapshot?.status === 'campaign' && cur >= 0 ? secs(tl.phaseCloses[cur] - now) : null,
+          ...stageInfo(st.snapshot?.status, tl, now),
+          phase_left_s: tl && st.snapshot?.status === 'campaign' && cur >= 0 ? secs(tl.phaseCloses[cur] - now) : stageInfo(st.snapshot?.status, tl, now).stage_left_s,
         },
       };
     },
@@ -410,7 +461,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'chat',
-    description: 'Send a chat message (counting and post-counting phases, only in games with 3+ players). By default the game has ONE group chat that everyone in the game reads: just give `text` (`to` is optional and ignored). In games configured for private threads, `to` = list of recipient party names or ids (or ["all"] for everyone else) and only you and the recipients see it.',
+    description: 'Send a chat message (chat opens at campaign start (configurable), stays open through counting and post-counting; only in games with 3+ players). By default the game has ONE group chat that everyone in the game reads: just give `text` (`to` is optional and ignored). In games configured for private threads, `to` = list of recipient party names or ids (or ["all"] for everyone else) and only you and the recipients see it.',
     schema: z.object({
       to: z.array(z.string().min(1)).min(1).optional().describe('Recipients (party names / ids, or ["all"]); optional, default = everyone else'),
       text: z.string().min(1).max(500),
@@ -421,7 +472,7 @@ export const ACTIONS: ActionDef[] = [
       const status = st.snapshot?.status;
       const contenders = s.players().filter((p) => ['active', 'disconnected', 'eliminated'].includes(p.status));
       if (contenders.length < 3) throw new AgentError('NEGOTIATION_DISABLED', 'With 2 players there is no chat.');
-      if (status !== 'counting' && status !== 'postCounting') throw new AgentError('WRONG_PHASE', 'Chat opens when counting starts.');
+      if (!chatOpen(s.cfg(), status)) throw new AgentError('WRONG_PHASE', s.cfg().messaging.opensAt === 'campaign' ? 'Chat opens when the campaign starts.' : 'Chat opens when counting starts.');
       const others = contenders.filter((p) => p.playerId !== s.client.me && p.status !== 'eliminated');
       const ids = new Set<string>();
       for (const ref of i.to ?? ['all']) {
@@ -449,7 +500,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'propose_government',
-    description: 'Propose a coalition government (counting / post-counting, 3+ players). YOU are the Prime Minister. portfolios maps portfolio id -> list of party names (or player ids): e.g. {"DPM":["Blue Wave","Green Front"],"HOME":["Blue Wave"],"FINANCE":["Green Front"]}. PM defaults to you. Portfolio ids: PM, DPM (max 2), HOME, DEFENCE, FINANCE, EXTERNAL, SPEAKER (1 each). Every named player must accept (respond_offer); the government is confirmed automatically once all accepted AND the members\' WON seats reach the majority. `partners` optionally lists extra parties whose acceptance is required even without a portfolio. A new proposal supersedes your previous one.',
+    description: 'Propose a coalition government (counting / post-counting, 3+ players). YOU are the Prime Minister. portfolios maps portfolio id -> list of party names (or player ids): e.g. {"DPM":["Blue Wave","Green Front"],"HOME":["Blue Wave"],"FINANCE":["Green Front"]}. PM defaults to you. Portfolio ids: PM, DPM (max 2), HOME, DEFENCE, FINANCE, EXTERNAL, SPEAKER (1 each). Every named player must accept (respond_offer). A government is confirmed ONLY once every seat is declared (the end of counting) and the members\' WON seats then reach the majority; the game then ends immediately with the result (during counting accepted offers just wait). A government can never include every party: at least one party must stay out (INVALID_GOVERNMENT otherwise). Offers are private (only the proposer and the named parties see them). `partners` optionally lists extra parties whose acceptance is required even without a portfolio. A new proposal supersedes your previous one.',
     schema: z.object({
       portfolios: z.record(z.union([z.string(), z.array(z.string())])).describe('Portfolio id -> party name or list of party names'),
       partners: z.array(z.string()).optional(),
@@ -478,13 +529,11 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'respond_offer',
-    description: 'Accept or decline a coalition offer addressed to you (offer_id from list_offers / an "offer" event). Accepting commits you to that offer only (it withdraws any earlier acceptance). Declining kills the offer.',
+    description: 'Accept or decline a coalition offer addressed to you (offer_id from list_offers / an "offer" event). Accepting commits you to that offer only (it withdraws any earlier acceptance); the government is confirmed only once every seat is declared (end of counting) and then the game ends immediately. Declining kills the whole offer (declined_by shows who). offer_id may be a unique prefix.',
     schema: z.object({ offer_id: z.string().min(1), accept: z.boolean() }),
     async run(s, i) {
       needAdmitted(s);
-      const offers = s.client.state.snapshot?.offers ?? [];
-      const offer = offers.find((o) => o.offerId === i.offer_id) ?? (offers.filter((o) => o.offerId.startsWith(i.offer_id)).length === 1 ? offers.find((o) => o.offerId.startsWith(i.offer_id)) : undefined);
-      if (!offer) throw new AgentError('OFFER_NOT_FOUND', `No offer "${i.offer_id}" is known to you. Known: ${offers.map((o) => o.offerId).join(', ') || 'none'}.`);
+      const offer = resolveOffer(s, i.offer_id);
       const me = s.client.me as string;
       if (offer.proposer === me) throw new AgentError('INVALID_INPUT', 'You proposed this offer; use withdraw_offer to cancel it.');
       if (i.accept && offer.accepted.includes(me)) return { ok: true, note: 'You had already accepted this offer.', offer: offerView(s, offer) };
@@ -496,13 +545,19 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'withdraw_offer',
-    description: 'Withdraw a coalition offer that YOU proposed.',
-    schema: z.object({ offer_id: z.string().min(1) }),
+    description: 'Withdraw a coalition offer that YOU proposed. offer_id is optional: without it your newest open/accepted offer is withdrawn (OFFER_NOT_FOUND when you have none); a unique id prefix works too.',
+    schema: z.object({ offer_id: z.string().min(1).optional().describe('Offer id or unique prefix; default = your newest open/accepted offer') }),
     async run(s, i) {
       needAdmitted(s);
-      const offers = s.client.state.snapshot?.offers ?? [];
-      const offer = offers.find((o) => o.offerId === i.offer_id);
-      if (!offer) throw new AgentError('OFFER_NOT_FOUND', `No offer "${i.offer_id}" is known to you.`);
+      const me = s.client.me as string;
+      let offer: CoalitionOffer;
+      if (i.offer_id) offer = resolveOffer(s, i.offer_id);
+      else {
+        const mine = (s.client.state.snapshot?.offers ?? []).filter((o) => o.proposer === me && (o.status === 'open' || o.status === 'accepted'));
+        if (!mine.length) throw new AgentError('OFFER_NOT_FOUND', 'You have no open or accepted offer to withdraw.');
+        offer = mine.reduce((a, b) => (b.createdAt >= a.createdAt ? b : a));
+      }
+      if (offer.proposer !== me) throw new AgentError('INVALID_INPUT', 'You can only withdraw an offer you proposed (use respond_offer to decline one addressed to you).');
       const r = await s.client.withdrawOffer(offer.offerId);
       return { ok: true, offer: offerView(s, r) };
     },
@@ -510,7 +565,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'list_offers',
-    description: 'List all coalition offers you proposed or were offered, with status (open, accepted, declined, withdrawn, superseded, formed), who accepted and who is still awaited.',
+    description: 'List the coalition offers you proposed or were named in (offers are private: you never see other parties\' offers), with status (open, accepted, declined, withdrawn, superseded, formed), who accepted, who is still awaited (open/accepted only), declined_by / superseded_by, and a note. A government is confirmed only once every seat is declared (end of counting); the game then ends immediately.',
     schema: z.object({ only_active: z.boolean().default(false).describe('Hide declined / withdrawn / superseded offers') }),
     readOnly: true,
     async run(s, i) {
@@ -598,7 +653,7 @@ export async function executeAction(s: AgentSession, name: string, rawInput: unk
   if (!a) {
     return { ok: false, error: toErrorInfo(new AgentError('UNKNOWN_ACTION', `Unknown action "${name}". Valid: ${ACTIONS.map((x) => x.name).join(', ')}.`)) };
   }
-  const parsed = a.schema.safeParse(rawInput ?? {});
+  const parsed = a.schema.safeParse(coerceArrays(a.schema, rawInput ?? {}));
   if (!parsed.success) {
     const msg = parsed.error.issues.map((i) => `${i.path.join('.') || '(input)'}: ${i.message}`).join('; ');
     return { ok: false, error: toErrorInfo(new AgentError('INVALID_INPUT', `Invalid input for ${name}: ${msg}`, `Expected fields: ${describeFields(a)}`)) };
@@ -609,6 +664,35 @@ export async function executeAction(s: AgentSession, name: string, rawInput: unk
     if (!(e instanceof AgentError)) console.error(`[hung-parliament] action ${name} crashed:`, e);
     return { ok: false, error: toErrorInfo(e) };
   }
+}
+
+const unwrapZod = (t: any): any => {
+  while (t?._def && ['ZodOptional', 'ZodDefault', 'ZodNullable'].includes(t._def.typeName)) t = t._def.innerType;
+  return t;
+};
+
+/** "a,b" / "[a, b]" / '["a","b"]' -> ["a","b"] */
+export function splitList(v: string): string[] {
+  return v.trim().replace(/^\[/, '').replace(/\]$/, '').split(',').map((x) => x.trim().replace(/^["'`]+|["'`]+$/g, '').trim()).filter(Boolean);
+}
+
+/**
+ * Shells and key=value arguments deliver arrays as bare strings (types=status, to=all, partners=a,b): turn a string for an
+ * array-typed field into an array BEFORE validation. (Deliberately not z.preprocess: schema.ts has no ZodEffects support.)
+ */
+export function coerceArrays(schema: z.ZodObject<z.ZodRawShape>, raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+  const out: Record<string, unknown> = { ...(raw as Record<string, unknown>) };
+  for (const [k, t] of Object.entries(schema.shape)) {
+    const v = out[k];
+    if (typeof v !== 'string') continue;
+    const arr = unwrapZod(t);
+    if (arr?._def?.typeName !== 'ZodArray') continue;
+    if (unwrapZod(arr._def.type)?._def?.typeName === 'ZodObject') {
+      try { const j = JSON.parse(v); if (Array.isArray(j)) out[k] = j; } catch { /* leave it for the validator */ }
+    } else out[k] = splitList(v);
+  }
+  return out;
 }
 
 function describeFields(a: ActionDef): string {

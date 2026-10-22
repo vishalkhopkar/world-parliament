@@ -195,4 +195,8 @@ export interface CoalitionOffer {
   accepted: PlayerId[];
   status: OfferStatus;
   createdAt: number;
+  /** Set when status = 'declined': the partner who declined (declining kills the whole offer). */
+  declinedBy?: PlayerId;
+  /** Set when status = 'superseded' by a new proposal of the same proposer: the id of that new offer. */
+  supersededBy?: string;
 }

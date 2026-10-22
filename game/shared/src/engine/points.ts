@@ -4,6 +4,15 @@ import type {
   CoalitionOffer, FinalResult, Government, PlayerId, PointsBreakdown, PortfolioAssignment, SeatTally,
 } from '../types';
 
+/**
+ * A government must leave at least one party out: true when some contender (a non-eliminated party) is NOT a member.
+ * Members that are not contenders (eliminated players) cover nobody. With no contenders there is nobody to leave out.
+ */
+export function leavesPartyOut(memberIds: readonly PlayerId[], contenderIds: readonly PlayerId[]): boolean {
+  const members = new Set(memberIds);
+  return contenderIds.some((c) => !members.has(c));
+}
+
 /** Checks: exactly one PM, portfolio limits from cfg, no unknown ids, members' seats >= majority. Error text or null. */
 export function validateGovernment(
   portfolios: PortfolioAssignment, tally: SeatTally, cfg: MapConfig, seatCount: number,

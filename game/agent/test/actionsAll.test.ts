@@ -270,10 +270,10 @@ describe('wait_for_events', () => {
 
 describe('chat / get_chat', () => {
   const counting = { status: 'counting' as const };
-  it('needs 3+ players and the counting phase; the order of the checks is stable', async () => {
+  it('needs 3+ players and an open chat window (not the lobby); the order of the checks is stable', async () => {
     const two = session({ ...counting, players: players().slice(0, 2).map((p, i) => (i === 1 ? { ...p, playerId: 'me' } : p)) });
     expect((await err(two.s, 'chat', { to: ['Party Asha'], text: 'hi' })).code).toBe('NEGOTIATION_DISABLED');
-    const early = session({ status: 'campaign' });
+    const early = session({ status: 'lobby' });
     expect((await err(early.s, 'chat', { to: ['Party Asha'], text: 'hi' })).code).toBe('WRONG_PHASE');
     expect(early.calls.chat).toBeUndefined();
   });
@@ -293,7 +293,7 @@ describe('chat / get_chat', () => {
   it.each([
     [{ to: ['Party Claude'], text: 'me' }, 'INVALID_INPUT'], [{ to: ['me'], text: 'me' }, 'INVALID_INPUT'], [{ to: ['Nobody'], text: 'x' }, 'UNKNOWN_PLAYER'],
     [{ to: [], text: 'x' }, 'INVALID_INPUT'], [{ to: ['Party Asha'], text: '' }, 'INVALID_INPUT'], [{ to: ['Party Asha'], text: 'x'.repeat(501) }, 'INVALID_INPUT'],
-    [{ to: 'Party Asha', text: 'x' }, 'INVALID_INPUT'],
+    [{ to: 5, text: 'x' }, 'INVALID_INPUT'],
   ])('%j -> %s', async (args, code) => {
     const { s, calls } = session(counting);
     expect((await err(s, 'chat', args)).code).toBe(code);

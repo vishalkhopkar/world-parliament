@@ -91,7 +91,7 @@ async function setParty(page: Page, name: string, colour: string, symbol: string
 
 async function main() {
   mkdirSync(SHOTS, { recursive: true });
-  for (const f of ['01-home', '02-lobby-admin', '03-party', '04-lobby-ready', '05-campaign-admin', '06-campaign-b-report', '07-campaign-c-seat-report', '08-counting', '09-offer', '10-government', '11-result-admin', '12-result-c']) rmSync(path.join(SHOTS, f + '.png'), { force: true });
+  for (const f of ['01-home', '02-lobby-admin', '03-party', '04-lobby-ready', '05-campaign-admin', '06-campaign-b-report', '07-campaign-c-seat-report', '08-counting', '09-offer', '09a-offer-everyone-blocked', '10-government', '11-result-admin', '12-result-c']) rmSync(path.join(SHOTS, f + '.png'), { force: true });
   if (!existsSync(CHROME)) throw new Error('Chrome not found at ' + CHROME + ' (set CHROME_PATH)');
   for (const p of [API_PORT, WEB_PORT]) if (!(await portFree(p))) throw new Error(`port ${p} is already in use; stop that server first`);
 
@@ -234,6 +234,13 @@ async function main() {
     await see(C, 'My actions (1)');
     log('Chitra reloaded and rejoined');
 
+    // campaign-phase chat: the ONE group chat is open from the campaign start (messaging.opensAt = campaign); everybody reads it
+    for (const p of [A, B, C]) await p.getByRole('heading', { name: 'Group chat' }).first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => problems.push('the group chat card is missing during the campaign'));
+    await B.getByPlaceholder('Message everyone').fill('Campaign hello from Blue Anchor');
+    await B.getByRole('button', { name: 'Send', exact: true }).click();
+    await see(B, 'Campaign hello from Blue Anchor'); await see(A, 'Campaign hello from Blue Anchor'); await see(C, 'Campaign hello from Blue Anchor');
+    log('campaign group chat ok');
+
     // ---- counting
     for (const p of [A, B, C]) await see(p, 'Counting ends in', 60000);
     log('counting');
@@ -249,31 +256,54 @@ async function main() {
     await see(C, 'Shall we talk portfolios?');
     if (!(await chatCard(C).getByText('Blue Anchor').count())) problems.push('group chat does not name the sender by party');
 
-    // Lotus Front proposes a government with both others
-    await A.locator('.pf', { hasText: 'Deputy Prime Minister' }).locator('select').first().selectOption({ label: 'Blue Anchor' });
-    await A.locator('.pf', { hasText: 'Home' }).locator('select').first().selectOption({ label: 'Green Leaf' });
+    // Lotus Front proposes a government. Designer's rule: a government can never include every party.
+    const dpm = A.locator('.pf', { hasText: 'Deputy Prime Minister' }).locator('select').first();
+    const home = A.locator('.pf', { hasText: 'Home' }).locator('select').first();
     const send = btn(A, 'Send offer');
     await send.waitFor();
-    for (let i = 0; i < 60 && (await send.isDisabled()); i++) await sleep(500);
+    // 1) everybody in: the UI blocks it (Send disabled + explanation) BEFORE the valid offer is sent
+    await dpm.selectOption({ label: 'Blue Anchor' });
+    await home.selectOption({ label: 'Green Leaf' });
+    await see(A, 'At least one party must stay out of the government.', 10000);
+    if (!(await send.isDisabled())) problems.push('Send offer should be disabled when every party is in the government');
+    await shot(A, '09a-offer-everyone-blocked');
+    // 2) wait until every seat is declared (a government is only confirmed then), then invite the partner that gives a majority; the other party stays in opposition
+    await see(B, /500 of 500 seats declared/, 60000);
+    await home.selectOption({ value: '' });
+    let partner = 'Blue Anchor';
+    const combinedGood = async () => A.locator('.combined.good').count().then(n => n > 0);
+    if (!(await combinedGood())) {
+      partner = 'Green Leaf';
+      await dpm.selectOption({ label: 'Green Leaf' });
+      if (!(await combinedGood())) problems.push('neither Blue Anchor nor Green Leaf gives Lotus Front a majority; the offer cannot be confirmed');
+    }
+    const outName = partner === 'Blue Anchor' ? 'Green Leaf' : 'Blue Anchor';
+    log(`Lotus Front proposes with ${partner}; ${outName} stays out`);
+    for (let i = 0; i < 20 && (await send.isDisabled()); i++) await sleep(250);
     await send.click();
-    await see(B, /Lotus Front proposes/); await see(C, /Lotus Front proposes/);
+    const [PP, OO] = partner === 'Blue Anchor' ? [B, C] : [C, B];
+    await see(PP, /Lotus Front proposes/);
+    await sleep(500);
+    if (await OO.getByText(/Lotus Front proposes/).count()) problems.push(`${outName} sees an offer it is not part of (offers are private)`);
     for (const pg of [A, B, C]) for (const nick of ['Asha', 'Ben', 'Chitra']) {
       const txt = await pg.locator('section.card', { has: pg.getByRole('heading', { name: 'Group chat' }) }).innerText();
       if (txt.includes(nick)) problems.push(`nickname ${nick} shown in chat card`);
     }
-    await shot(B, '09-offer');
-    await btn(B, 'Accept').first().click();
-    await btn(C, 'Accept').first().click();
-    for (const p of [A, B, C]) await see(p, 'Government formed', 30000);
-    await shot(A, '10-government');
-    log('government formed');
+    await shot(PP, '09-offer');
+    // all seats are declared, so accepting confirms the government and the game finishes at once: the Result screen replaces the Counting screen
+    await btn(PP, 'Accept').first().click();
+    log('offer accepted');
 
     // ---- result
-    for (const p of [A, B, C]) await see(p, 'Coalition government', 60000);
+    for (const p of [A, B, C]) await see(p, 'Coalition government', 30000);
+    log('result screen shown right after the acceptance');
     await see(A, 'Points');
     const rows = await A.locator('table.points tbody tr').count();
     if (rows !== 3) problems.push(`points table has ${rows} rows, expected 3`);
     await see(A, /Winner/);
+    // the party that was left out of the government scores the opposition points (0)
+    const outRow = (await (partner === 'Blue Anchor' ? C : B).locator('table.points tbody tr', { hasText: outName }).first().innerText()).replace(/\s+/g, ' ');
+    log('left-out party row:', outRow);
     if ((await A.locator('table.points .party-avatar img').count()) !== 3) problems.push('result table should show 3 avatars');
     await shot(A, '11-result-admin');
     await shot(C, '12-result-c');

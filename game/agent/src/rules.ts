@@ -55,9 +55,12 @@ export function rulesValues(cfg: MapConfig, opts: RenderOptions = {}): Record<st
     PLAYERS_MAX: String(cfg.players.max),
     SEATS: String(n),
     MAJORITY: String(majorityOf(n)),
-    CHAT_RULE: cfg.messaging.mode === 'group'
+    CHAT_RULE: (cfg.messaging.mode === 'group'
       ? '**Group chat**: `chat {text}` posts to ONE common chat that everyone in the game reads (the `to` list is ignored). Read what others wrote with `get_chat` or `wait_for_events`.'
-      : '**Private chat**: `chat {to:[names], text}` to one or more players. Only you and the recipients see it. Read replies with `get_chat` or `wait_for_events`.',
+      : '**Private chat**: `chat {to:[names], text}` to one or more players. Only you and the recipients see it. Read replies with `get_chat` or `wait_for_events`.')
+      + (cfg.messaging.opensAt === 'campaign'
+        ? ' Chat opens at the start of the campaign (not only at counting) and stays open until the end of the game.'
+        : ' Chat opens when counting starts and stays open until the end of the game.'),
     CURRENCY: cfg.currency.name,
     SYM: cfg.currency.symbol,
     PHASES_MIN: String(cfg.phases.min),

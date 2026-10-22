@@ -1,8 +1,8 @@
 // Every WebSocket action x every game status x every player status: the expected outcome is written down as a rule
 // (oracle below), not copied from the implementation. A failing row means either the rule or the service is wrong.
 import { describe, expect, it } from 'vitest';
-import type { ClientMessage, ErrorCode, PlayerStatus } from '@hp/shared';
-import { Ctx, driveTo } from './helpers';
+import type { ClientMessage, ErrorCode, MapConfig, PlayerStatus } from '@hp/shared';
+import { Ctx, TEST_CFG, driveTo } from './helpers';
 
 type GameStatus = 'lobby' | 'campaign' | 'counting' | 'postCounting' | 'finished' | 'abandoned';
 type Outcome = ErrorCode | 'OK';
@@ -10,8 +10,8 @@ type Outcome = ErrorCode | 'OK';
 const GAME_STATUSES: GameStatus[] = ['lobby', 'campaign', 'counting', 'postCounting', 'finished', 'abandoned'];
 const PLAYER_STATUSES: PlayerStatus[] = ['active', 'eliminated', 'pending', 'rejected'];
 
-async function build(gs: GameStatus, n = 4): Promise<Ctx> {
-  const c = new Ctx();
+async function build(gs: GameStatus, n = 4, cfg?: MapConfig): Promise<Ctx> {
+  const c = new Ctx(cfg ? { cfg } : {});
   if (gs === 'lobby') {
     await c.lobby(n, 3);
     for (const p of c.p) await c.svc.connect(c.gameId, p.token, p.conn);
@@ -156,4 +156,27 @@ describe('every ErrorCode of the contract is either reachable or documented as u
     const src = readFileSync(fileURLToPath(new URL('../src/core/gameService.ts', import.meta.url)), 'utf8');
     expect(src).not.toContain("'RATE_LIMITED'"); // if this fails, RATE_LIMITED became reachable: add a test for it in errorCodes.test.ts
   });
+});
+
+/** chat with messaging.opensAt = 'campaign': open from the campaign until the game ends; then membership as above. */
+function chatFromCampaignRule(gs: GameStatus, ps: PlayerStatus): Outcome {
+  if (!live(gs) && gs !== 'campaign') return 'WRONG_PHASE';
+  return ps === 'pending' || ps === 'rejected' ? 'FORBIDDEN' : 'OK';
+}
+
+describe('chat matrix with messaging.opensAt = campaign (4 players)', () => {
+  const cfg: MapConfig = { ...TEST_CFG, messaging: { mode: 'individual', opensAt: 'campaign' } };
+  for (const gs of GAME_STATUSES) {
+    for (const ps of PLAYER_STATUSES) {
+      it(`game ${gs}, player ${ps}`, async () => {
+        const c = await build(gs, 4, cfg);
+        if (ps !== 'active') await c.repo.updatePlayer(c.gameId, c.p[1].playerId, { status: ps });
+        expect(await outcome(c, 1, { action: 'chat', to: [c.p[2].playerId], text: 'hello' })).toBe(chatFromCampaignRule(gs, ps));
+        // proposals stay counting-only whatever the chat window
+        if (gs === 'campaign' && ps === 'active') {
+          expect(await outcome(c, 1, { action: 'proposeGovernment', portfolios: { PM: [c.p[1].playerId] } })).toBe('WRONG_PHASE');
+        }
+      });
+    }
+  }
 });

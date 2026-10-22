@@ -93,18 +93,20 @@ Every action adds **effect** for you in seats. Effects are additive: ten roadsho
 - **3+ players**: this is where the game gets interesting. Nobody has to win outright: if there is a hung parliament, the largest party does **not**
   win automatically; whoever builds a government that scores best wins.
 
-## 8. Negotiation (only with 3 or more players), during counting and post-counting
+## 8. Chat and negotiation (only with 3 or more players)
 - {{CHAT_RULE}}
-- **Coalition offers**: `propose_government {portfolios}`. **You (the proposer) are always the Prime Minister.** Portfolios:
+- **Coalition offers** (`propose_government`, `respond_offer`; only during counting and post-counting): `propose_government {portfolios}`. **You (the proposer) are always the Prime Minister.** Portfolios:
 
 {{PORTFOLIO_TABLE}}
 
   Every named player is a *partner* who must accept. Players can be given one or several portfolios; a party holds a place in the government if it holds any portfolio.
 - Partners answer with `respond_offer {offer_id, accept}`. The proposer can `withdraw_offer`. You can have one live proposal at a time (a new one supersedes your old one) and accept only
   one offer at a time (accepting a new one withdraws your earlier acceptance).
-- **A government is confirmed when** all partners accepted **and** the member parties' **WON** seats (confirmed, not just "leading") together reach the
-  majority of {{MAJORITY}}. Until then an accepted offer waits, and it is confirmed automatically as results come in. **The first confirmed government wins the formation race**;
+- **A government is confirmed only once every seat is declared** (the end of counting) **and** all partners accepted **and** the member parties' **WON** seats (confirmed, not just "leading") together reach the
+  majority of {{MAJORITY}}. During counting an accepted offer just waits; at the end of counting it is confirmed automatically and **the game then ends immediately with the result**. If several offers qualify, the first confirmed one wins;
   other offers are cancelled.
+- **A government can never include every party: at least one party must stay out of it.** An offer in which every other party is a member is rejected (`INVALID_GOVERNMENT`). The largest party may be left out; that is allowed.
+- **Offers are private**: you only see offers you proposed or were named in (`list_offers`). Declining kills the whole offer (`declined_by` says who); a newer proposal from the same proposer supersedes the older one (`superseded_by`).
 - A party that already has a majority and does **not** negotiate is the clear winner. If it brings others in, points decide.
 - After counting there is a **post-counting phase** of about {{POST_MIN}} minutes with the exact seat counts, to finish negotiating.
   **If nobody has formed a government by the end, EVERYONE loses.**
@@ -137,10 +139,13 @@ Every action adds **effect** for you in seats. Effects are additive: ten roadsho
    because prices rise.
 10. **Counting is a second game.** Watch leads and wins. Start talking early: say who you would back as PM, ask for portfolios. Remember: the government needs members whose
     *won* seats reach {{MAJORITY}}, nobody gets points from opposition, and **no government means everyone loses**, so do not hold out forever.
-11. If you hold a majority and want a clear win, simply do **not** negotiate. If you are far from a majority, aim to be the PM of a coalition or a valued partner.
+11. **Agree one government early in the group chat.** Offers wait for the last seat and then confirm automatically, so use the whole counting time to settle who is PM and who gets which portfolio, then send one clean offer.
+12. If you hold a majority and want a clear win, simply do **not** negotiate. If you are far from a majority, aim to be the PM of a coalition or a valued partner.
 
 ## 12. Tool cheat-sheet (the CLI uses the same action names)
 `get_rules`, `join_game`, `wait_for_admission`, `get_lobby`, `list_party_options`, `set_party`, `get_state`, `list_seats`, `get_seat`, `campaign`, `campaign_batch`,
 `buy_report`, `get_news`, `wait_for_events`, `chat`, `get_chat`, `propose_government`, `respond_offer`, `withdraw_offer`, `list_offers`, `leave_game`.
+Caps: `wait_for_events` `timeout_s` max 60 (default 25) and `limit` max 200; `wait_for_admission` `timeout_s` max 120; `list_seats` `limit` max 100; `campaign_batch` max 50 actions per call.
+`withdraw_offer` needs no id (it withdraws your newest open offer). In the CLI an array can be a bare string: `types=status`, `types=chat,offer`, `partners=a,b`.
 Everywhere a player is needed you pass a party name (case-insensitive) or an id; nicknames are not used after you have a party; everywhere a seat is needed, a seat id or seat name.
 Errors come back as text: `ERROR <CODE>: message` plus a hint. Read the hint; it says what to do next.

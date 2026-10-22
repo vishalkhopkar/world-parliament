@@ -1,11 +1,12 @@
 // CLI for agents that only have a shell. Same actions as the MCP tools (they come from the same table, via the daemon).
-//   npx tsx agent/src/cli.ts start  --name Claude1 [--server http://localhost:8787]   # background daemon, returns immediately
-//   npx tsx agent/src/cli.ts get_rules --name Claude1
-//   npx tsx agent/src/cli.ts join_game --name Claude1 '{"join_code":"ABC123","nickname":"Claude"}'
-//   npx tsx agent/src/cli.ts campaign  --name Claude1 type=rally seat=17        # key=value also works (no JSON quoting pains)
-//   npx tsx agent/src/cli.ts actions [--name Claude1]                           # list actions + input schemas
-//   npx tsx agent/src/cli.ts stop --name Claude1 | list
-// From any directory (e.g. the repo root): node game/agent/bin/cli.mjs <same arguments>
+// From the repo root (works from any directory):
+//   node game/agent/bin/cli.mjs start  --name Claude1 [--server http://localhost:8787]   # background daemon, returns immediately
+//   node game/agent/bin/cli.mjs get_rules --name Claude1
+//   node game/agent/bin/cli.mjs join_game --name Claude1 '{"join_code":"ABC123","nickname":"Claude"}'
+//   node game/agent/bin/cli.mjs campaign  --name Claude1 type=rally seat=17        # key=value also works (no JSON quoting pains)
+//   node game/agent/bin/cli.mjs wait_for_events --name Claude1 types=status,chat   # bare strings are accepted for array fields
+//   node game/agent/bin/cli.mjs actions [--name Claude1]                           # list actions + input schemas
+//   node game/agent/bin/cli.mjs stop --name Claude1 | list
 // Kept dependency-light (node builtins only) so each call costs little more than the tsx start-up.
 import { spawn } from 'node:child_process';
 import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, unlinkSync } from 'node:fs';
@@ -33,6 +34,12 @@ export function parseArgsLenient(text: string): unknown {
   }).join(',') + ']');
   return JSON.parse(t);
 }
+
+/** Shell command prefix agents should use (from the repo root). */
+export const CLI_CMD = 'node game/agent/bin/cli.mjs';
+
+/** The `next` hint printed by `start`. */
+export const nextHint = (name: string): string => `${CLI_CMD} get_rules --name ${name}   (then join_game with the code the human gives you)`;
 
 export interface Parsed { command: string; name: string; server?: string; ws?: string; args: Record<string, unknown> }
 
@@ -107,7 +114,7 @@ async function start(p: Parsed): Promise<void> {
     if (info && (await alive(info))) {
       out(JSON.stringify({
         ok: true, name: p.name, port: info.port, pid: info.pid, server: info.server,
-        next: `npx tsx agent/src/cli.ts get_rules --name ${p.name}   (then join_game with the code the human gives you)`,
+        next: nextHint(p.name),
       }));
       return;
     }
@@ -145,7 +152,7 @@ export async function main(): Promise<void> {
     case '':
     case 'help':
     case '--help':
-      out('Usage: cli.ts start|stop|list|actions|<action> --name <name> [json | key=value ...]\nRun "cli.ts actions" for the list of actions.');
+      out('Usage: node game/agent/bin/cli.mjs start|stop|list|actions|<action> --name <name> [json | key=value ...]\nRun "actions" for the list of actions.');
       return;
     case 'start': return start(p);
     case 'stop': return stop(p);
@@ -164,7 +171,7 @@ export async function main(): Promise<void> {
   }
   const info = readInfo(p.name);
   if (!(await alive(info))) {
-    fail('DAEMON', `No running daemon named "${p.name}".`, `Start one: npx tsx agent/src/cli.ts start --name ${p.name}`, 2);
+    fail('DAEMON', `No running daemon named "${p.name}".`, `Start one: ${CLI_CMD} start --name ${p.name}`, 2);
   }
   let r: any;
   try {

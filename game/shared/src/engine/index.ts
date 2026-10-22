@@ -8,4 +8,4 @@ export { buildKernels, timeMultiplier, computeEffects, seatShares, haversineKm }
 export { buildTimeline, countingMsFor, phaseOfSeat, postCountingMsFor } from './schedule';
 export { pollSeats, removePlayerFromResults, tallySeats } from './votes';
 export { analystPrice, analystReport } from './analyst';
-export { validateGovernment, governmentFromOffer, majorityGovernment, finalResult } from './points';
+export { validateGovernment, leavesPartyOut, governmentFromOffer, majorityGovernment, finalResult } from './points';

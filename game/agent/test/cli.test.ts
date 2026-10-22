@@ -1,5 +1,6 @@
 // CLI + daemon test: start a real background daemon, call actions through it, stop it.
 import { execFile } from 'node:child_process';
+import { WORLD_CONFIG } from '@hp/shared';
 import { existsSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -61,7 +62,7 @@ describe('CLI + daemon', () => {
     const rules = await cli(['get_rules', '--name', NAME]);
     expect(rules.code).toBe(0);
     expect(rules.stdout).toContain('HUNG PARLIAMENT');
-    expect(rules.stdout).toContain('W₹50,000');
+    expect(rules.stdout).toContain(`${WORLD_CONFIG.currency.symbol}50,000`);
 
     const human = await new Human(base).create('Asha', 1);
     const t1 = Date.now();

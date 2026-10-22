@@ -32,7 +32,8 @@ Rules source of truth: `../FEATURE REQUIREMENTS.docx`. Technical plan: see CLAUD
 
 ## Next (not started)
 - Deploy to AWS dev stage (needs the user's AWS credentials; `cdk bootstrap` + `cdk deploy -c stage=dev`), then run e2e/bots.ts against it.
-- Designer decisions pending: R1/R3/R5 (docx comment), early finish once a government forms, chat history on reconnect, disconnect-after-polling rule.
+- Designer decisions pending: R1/R3/R5 (docx comment), disconnect-after-polling rule.
+- Settled (21 Oct 2026): a government is confirmed only once every seat is declared (or on acceptance later in post-counting) and the game then finishes at once; a government can never include every party; chat is one group chat open from the campaign start (flag `messaging.opensAt`, `messaging.mode`); offers stay private. e2e (bots.ts, browser.ts, README) updated; not yet re-run.
 - Small UI: disable campaign buttons during the 5 s start lead-in.
 | H DynamoRepo/AWS adapter tests with in-memory DDB fake | agent H | done — server suite 172 tests; fixed 3 aws/ bugs (report SK collision, broadcast to pending, schedule Conflict); residual risks listed in progress/agent-H.md |
 | R Repo restructure: `maps/` + `game/` | agent R | done (2026-10-20) — site/build/data/output moved to `maps/world-500/{site,source}`; map id `world` → `world-500` everywhere; generic map registry (`npm run gen:maps`, MAP_MANIFESTS / GAME_PACKAGES, `configForMap`); web serves/copies `/maps/<id>/...`; CDK Web stack no longer deploys separate map data; workflows retargeted. See progress/agent-R.md |

@@ -52,6 +52,12 @@ Flow: Map over `phaseClosesIso` (concurrency 1, 1-based `phase` = index+1): Wait
 Then loop `count-reveal {gameId}` -> must return `{done: boolean, nextAtIso: string}`; while not done, Wait until `nextAtIso` and repeat.
 Then Wait until `postCountingEndIso` -> `finalise {gameId}`. Task retries: 2 with backoff; any failure -> `finalise {gameId, error: true}`.
 `finalise` may also be invoked early by the server and must be idempotent. `countingEndIso` is currently unused by the machine.
+Games usually end BEFORE `postCountingEndIso`: a negotiated government is confirmed once every seat is declared (at the last
+`count-reveal` or on a later acceptance over the WebSocket) and the server finishes the game at once. The execution then simply
+sits in `WaitPostCountingEnd` and the final `finalise` is a no-op (the result already exists). This is deliberate: a Standard
+workflow is billed per state transition, not for waiting, and stopping it early would need `states:StopExecution` plus the
+execution ARN in the ws-message Lambda for no user-visible gain. (The local `TimerScheduler` does stop waiting: it polls
+`GameService.isFinished` every second.)
 
 ## One-time AWS setup (needed before the GitHub deploy workflow can work)
 Run these once from your own machine, with admin credentials for the target AWS account.

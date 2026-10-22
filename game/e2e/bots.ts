@@ -234,8 +234,17 @@ async function drainScenario(bot: Bot) {
 /** Bot 1: buys a seat report and a global report and sanity-checks them; also tries things that are not allowed yet. */
 async function analystScenario(bot: Bot) {
   await sleep(timeline.campaignStart + (timeline.campaignEnd - timeline.campaignStart) * 0.3 - Date.now());
-  let r = await bot.request({ action: 'chat', to: bots.filter(b => b !== bot).map(b => b.playerId), text: 'too early' }, m => m.type === 'chat');
-  check(bot.err(r) === 'WRONG_PHASE', `${bot.name}: chat during the campaign should be WRONG_PHASE, got ${r.type === 'error' ? r.error : r.type}`);
+  // messaging.opensAt = campaign (default): the group chat is already open; 2 players never get a chat
+  const chatFromCampaign = CFG.messaging.opensAt === 'campaign';
+  const cText = 'campaign chat ' + SEED;
+  const from0 = bots.map(b => b.msgs.length);
+  let r = await bot.request({ action: 'chat', to: bots.filter(b => b !== bot).map(b => b.playerId), text: cText }, m => m.type === 'chat' && m.message.text === cText);
+  if (N === 2) check(bot.err(r) === 'NEGOTIATION_DISABLED', `${bot.name}: 2 players: campaign chat should be NEGOTIATION_DISABLED, got ${r.type === 'error' ? r.error : r.type}`);
+  else if (chatFromCampaign) {
+    check(r.type === 'chat', `${bot.name}: campaign chat should be allowed (messaging.opensAt=campaign), got ${bot.err(r)}`);
+    await sleep(400);
+    bots.forEach((b, i) => { if (b !== bot && b.idx !== 2) check(b.msgs.slice(from0[i]).some(m => m.type === 'chat' && m.message.text === cText), `${b.name}: campaign group chat message not received`); });
+  } else check(bot.err(r) === 'WRONG_PHASE', `${bot.name}: chat during the campaign should be WRONG_PHASE (messaging.opensAt=counting), got ${r.type === 'error' ? r.error : r.type}`);
   r = await bot.request({ action: 'proposeGovernment', portfolios: { PM: [bot.playerId] } }, m => m.type === 'offer');
   check(bot.err(r) === 'WRONG_PHASE', `${bot.name}: proposeGovernment during the campaign should be WRONG_PHASE, got ${r.type === 'error' ? r.error : r.type}`);
 
@@ -478,16 +487,40 @@ async function main() {
     return;
   }
 
-  // ---- coalition: smallest group (>= 2 parties, fewer than all if possible) with a majority of WON seats
+  // ---- coalition: smallest group (>= 2 parties, and ALWAYS fewer than all: at least one party stays out) with a majority of WON seats
   const need = majorityOf(PKG.seatCount);
+  const allPortfolios = (): Record<string, string[]> => {
+    const o: Record<string, string[]> = { PM: [bots[0].playerId] };
+    const ds = CFG.points.portfolios.filter(p => p.id !== 'PM');
+    bots.slice(1).forEach((p, i) => { const d = ds[i % ds.length]; o[d.id] = [...(o[d.id] ?? []), p.playerId].slice(0, d.max); });
+    return o;
+  };
+  // rule: a government can never include every party (nobody can negotiate with everybody)
+  const everyone = await bots[0].request({ action: 'proposeGovernment', portfolios: allPortfolios() }, m => m.type === 'offer');
+  check(bot_err(everyone) === 'INVALID_GOVERNMENT', `an all-parties proposal should be INVALID_GOVERNMENT, got ${everyone.type === 'error' ? everyone.error : everyone.type}`);
+  check(everyone.type === 'error' && /stay out/i.test(everyone.message ?? ''), 'all-parties rejection should say that at least one party must stay out');
   let best: Bot[] | null = null;
   for (let mask = 1; mask < (1 << N); mask++) {
     const group = bots.filter((_, i) => mask & (1 << i));
-    if (group.length < 2) continue;
+    if (group.length < 2 || group.length >= N) continue;
     if (group.reduce((s, b) => s + winsOf(b.playerId), 0) < need) continue;
     if (!best || group.length < best.length || (group.length === best.length && group.reduce((s, b) => s + winsOf(b.playerId), 0) < best.reduce((s, b) => s + winsOf(b.playerId), 0))) best = group;
   }
-  must(best, 'no coalition of two or more parties reaches a majority');
+  if (!best) {
+    // the only majority group is everyone (or none exists): no valid government can form
+    log('no valid coalition (a majority needs every party): expecting no government');
+    await sleep(500);
+    for (const b of bots) check(!b.msgs.some(m => m.type === 'government'), `${b.name}: a government formed although none was possible`);
+    const resultsNone: FinalResult[] = [];
+    for (const b of bots) {
+      const m = await b.waitFor(x => x.type === 'result', { ms: Math.max(15000, timeline.postCountingEnd - Date.now() + 15000), what: 'result' });
+      if (m.type === 'result') resultsNone.push(m.result);
+    }
+    check(resultsNone.every(x => JSON.stringify(x) === JSON.stringify(resultsNone[0])), 'all players must receive the same result');
+    check(resultsNone[0].outcome !== 'coalition', `no coalition was possible, outcome ${resultsNone[0].outcome}`);
+    for (const b of bots) for (const v of b.violations) check(false, 'hidden info: ' + v);
+    return;
+  }
   const coalition: Bot[] = [...best].sort((a, z) => winsOf(z.playerId) - winsOf(a.playerId));
   const pm = coalition[0], partners = coalition.slice(1);
   const opposition = bots.filter(b => !coalition.includes(b));
@@ -524,21 +557,25 @@ async function main() {
     const ar = await p.request({ action: 'respondOffer', offerId: offer2, accept: true }, m => m.type === 'offer' && m.offer.offerId === offer2 && m.offer.accepted.includes(p.playerId));
     check(ar.type === 'offer', `${p.name}: accept refused: ${bot_err(ar)}`);
   }
-  const govMsg = await pm.waitFor(m => m.type === 'government', { from: fromO[pm.idx], ms: 10000, what: 'government' });
+  // the government is confirmed because every seat is already declared; the game then finishes at once
+  const govMsg = await pm.waitFor(m => m.type === 'government', { from: fromO[pm.idx], ms: 15000, what: 'government' });
   if (govMsg.type === 'government') {
     const g = govMsg.government;
     check(g.pm === pm.playerId && g.viaNegotiation === true, 'government PM / viaNegotiation');
     check(new Set(g.members).size === coalition.length && coalition.every(b => g.members.includes(b.playerId)), 'government members should be exactly the coalition');
   }
   check(offerOf(pm, offer2)?.status === 'formed', 'offer 2 should end as formed');
+  // the game is over: further proposals are WRONG_PHASE, withdrawing is OFFER_NOT_FOUND
   const again = await pm.request({ action: 'proposeGovernment', portfolios }, m => m.type === 'offer' && m.offer.offerId !== offer1 && m.offer.offerId !== offer2);
-  check(bot_err(again) === 'ALREADY_COMMITTED', `proposing after a government exists should be ALREADY_COMMITTED, got ${again.type === 'error' ? again.error : again.type}`);
+  check(bot_err(again) === 'WRONG_PHASE', `proposing after the game finished should be WRONG_PHASE, got ${again.type === 'error' ? again.error : again.type}`);
+  const wd = await pm.request({ action: 'withdrawOffer', offerId: offer2 } as ClientMessage, m => m.type === 'offer');
+  check(bot_err(wd) === 'OFFER_NOT_FOUND', `withdrawing after the game finished should be OFFER_NOT_FOUND, got ${wd.type === 'error' ? wd.error : wd.type}`);
 
-  // ---- result
+  // ---- result: announced immediately after the government (no waiting for postCountingEnd)
   log('waiting for the result ...');
   const results: FinalResult[] = [];
   for (const b of bots) {
-    const m = await b.waitFor(x => x.type === 'result', { ms: Math.max(15000, timeline.postCountingEnd - Date.now() + 15000), what: 'result' });
+    const m = await b.waitFor(x => x.type === 'result', { from: fromO[b.idx], ms: 15000, what: 'result (immediately after the government)' });
     if (m.type === 'result') results.push(m.result);
   }
   const R = results[0];

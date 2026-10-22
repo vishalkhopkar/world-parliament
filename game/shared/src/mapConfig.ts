@@ -54,6 +54,8 @@ export interface PriceCurve {
 
 /** 'group' = one common chat, every message readable by everybody; 'individual' = private threads. */
 export type MessagingMode = 'group' | 'individual';
+/** When the chat opens: at the start of the campaign, or only once counting has started. */
+export type ChatOpensAt = 'campaign' | 'counting';
 
 export interface CountingParams {
   /** No seat is confirmed ('won') before this fraction of the counting time; confirmations are then spread up to the end. */
@@ -119,7 +121,7 @@ export interface MapConfig {
   counting: CountingParams;
   players: { min: number; max: number };
   /** Chat between players during counting / post-counting: one group chat everybody reads, or private threads. */
-  messaging: { mode: MessagingMode };
+  messaging: { mode: MessagingMode; opensAt: ChatOpensAt };
   /** Browser connection behaviour. */
   connection: {
     /** Milliseconds between automatic reconnect attempts while the link is down (min 1000). */
@@ -166,6 +168,7 @@ export function validateConfig(cfg: MapConfig): void {
   num('analyst.globalReport.end', cfg.analyst?.globalReport?.end);
   num('randomSwing', cfg.randomSwing);
   if (cfg.messaging?.mode !== 'group' && cfg.messaging?.mode !== 'individual') bad('messaging.mode', `must be "group" or "individual" (got ${String(cfg.messaging?.mode)})`);
+  if (cfg.messaging?.opensAt !== 'campaign' && cfg.messaging?.opensAt !== 'counting') bad('messaging.opensAt', `must be "campaign" or "counting" (got ${String(cfg.messaging?.opensAt)})`);
   num('connection.retryMs', cfg.connection?.retryMs, 999, true);
   num('durations.countingMs', cfg.durations?.countingMs, 0, true);
   num('durations.countingMsTwoPlayers', cfg.durations?.countingMsTwoPlayers, 0, true);

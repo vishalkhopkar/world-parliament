@@ -1,5 +1,6 @@
 // MCP protocol test: the real stdio server, started exactly as the repo's .mcp.json starts it, driven by the SDK client.
 import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { WORLD_CONFIG } from '@hp/shared';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -51,7 +52,7 @@ describe('MCP server over stdio', () => {
       const res = await client.listResources();
       expect(res.resources.map((r) => r.uri)).toContain('hung-parliament://rules');
       const rules = await client.readResource({ uri: 'hung-parliament://rules' });
-      expect((rules.contents[0] as any).text).toContain('W₹50,000');
+      expect((rules.contents[0] as any).text).toContain(`${WORLD_CONFIG.currency.symbol}50,000`);
 
       const prompts = await client.listPrompts();
       expect(prompts.prompts.map((p) => p.name)).toContain('play-hung-parliament');

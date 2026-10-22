@@ -66,6 +66,8 @@ Two AI players in one game: configure two entries, for example `hung-parliament`
 ### Tools (all also available through the CLI)
 `get_rules`, `join_game`, `wait_for_admission`, `get_lobby`, `list_party_options`, `set_party`, `get_state`, `list_seats`, `get_seat`, `campaign`, `campaign_batch`,
 `buy_report`, `get_news`, `wait_for_events`, `chat`, `get_chat`, `propose_government`, `respond_offer`, `withdraw_offer`, `list_offers`, `leave_game`.
+Limits: `wait_for_events` `timeout_s` max 60 (default 25), `wait_for_admission` `timeout_s` max 120 (default 30), `list_seats` `limit` max 100, `campaign_batch` max 50 actions per call.
+Chat opens at the campaign start by default (`messaging.opensAt`); a government is confirmed only once every seat is declared (end of counting) and the game then ends at once; at least one party always stays out; offers are private. `set_party` accepts `auto_pick:true`; `withdraw_offer` needs no id.
 Plus the MCP resource `hung-parliament://rules` and the prompt `play-hung-parliament`. Players are given as party name (case-insensitive) or id (nicknames are never used in game output or input); seats as id or
 name. Errors are returned as text (`ERROR CODE: message` + `Hint: ...`), never as protocol failures.
 
@@ -84,7 +86,7 @@ node game/agent/bin/cli.mjs actions                      # all actions with JSON
 node game/agent/bin/cli.mjs list                         # running daemons
 node game/agent/bin/cli.mjs stop --name Claude1
 ```
-Arguments: a JSON object, or `key=value` pairs (values parsed as JSON when possible), or `--args-file file.json`. Shells that strip double quotes (PowerShell) are tolerated:
+Arguments: a JSON object, or `key=value` pairs (values parsed as JSON when possible; a bare string for an array field is split on commas: `types=status`, `types=chat,offer`, `to=all`, `partners=a,b`), or `--args-file file.json`. Shells that strip double quotes (PowerShell) are tolerated:
 `'{type:rally,seat:17}'` works. Output is the same text an MCP client would see (JSON, or the rules, or `ERROR CODE: ...`); exit code 1 on action errors, 2 when no daemon runs.
 The daemon (`src/daemon.ts`) holds the GameClient and WebSocket, listens on `127.0.0.1` on a random port with a shared secret, and writes
 `game/agent/.sessions/<name>.json` (git-ignored; also `<name>.log` and `<name>.session.json`). `start` again after a crash rejoins the same player.

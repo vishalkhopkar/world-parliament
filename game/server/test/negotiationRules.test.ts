@@ -1,6 +1,6 @@
 // Elimination / grace period and negotiation (chat, offers, government) rules, including the 2-player rule.
 import { describe, expect, it } from 'vitest';
-import { validateGovernment } from '@hp/shared';
+import { governmentFromOffer, validateGovernment } from '@hp/shared';
 import type { ServerMessage } from '@hp/shared';
 import { Ctx, driveTo, lineMap, pollAll, setResults } from './helpers';
 
@@ -230,7 +230,8 @@ describe('2-player rule (no chat, no offers: a majority wins, an exact tie is a 
     const c = await new Ctx().started(3, 1);
     await driveTo(c, 'counting');
     await c.svc.eliminate(c.gameId, c.p[2].playerId);
-    await c.send(0, { action: 'proposeGovernment', portfolios: { PM: [c.p[0].playerId], HOME: [c.p[1].playerId] } });
+    // (a PM-only proposal: with 2 parties left, a coalition of both would leave nobody out)
+    await c.send(0, { action: 'proposeGovernment', portfolios: { PM: [c.p[0].playerId] } });
     expect(errs(c, 0)).toHaveLength(0);
     expect(await offers(c)).toHaveLength(1);
   });
@@ -359,20 +360,33 @@ describe('government formation', () => {
     expect((await c.repo.getOffer(c.gameId, o1.offerId))!.status).toBe('formed');
   });
 
-  it('after a government exists nobody can propose, respond or be confused by a stale accepted offer (ALREADY_COMMITTED / OFFER_NOT_FOUND)', async () => {
+  it('after a government has formed the game is over: nobody can propose or respond (WRONG_PHASE), a formed offer cannot be withdrawn', async () => {
     const c = await new Ctx().started(4, 1);
     await split(c);
     await c.send(0, { action: 'proposeGovernment', portfolios: { PM: [c.p[0].playerId], HOME: [c.p[3].playerId] } });
     const o = (await offers(c))[0];
     await c.send(3, { action: 'respondOffer', offerId: o.offerId, accept: true });
-    await reveal(c); // seats are declared won -> the accepted offer is confirmed
+    await reveal(c); // every seat is declared won -> the accepted offer is confirmed and the game ends
     expect(await c.repo.getGovernment(c.gameId)).not.toBeNull();
+    expect((await c.game()).status).toBe('finished');
+    await c.send(1, { action: 'proposeGovernment', portfolios: { PM: [c.p[1].playerId] } });
+    expect(errs(c, 1).pop()!.error).toBe('WRONG_PHASE');
+    await c.send(3, { action: 'respondOffer', offerId: o.offerId, accept: false });
+    expect(errs(c, 3).pop()!.error).toBe('WRONG_PHASE');
+    await c.send(0, { action: 'withdrawOffer', offerId: o.offerId });
+    expect(errs(c, 0).pop()!.error).toBe('OFFER_NOT_FOUND'); // offer is 'formed'
+  });
+
+  it('a government stored but the game not finished yet (a concurrent request in that window) -> ALREADY_COMMITTED', async () => {
+    const c = await new Ctx().started(4, 1);
+    await split(c);
+    await c.send(0, { action: 'proposeGovernment', portfolios: { PM: [c.p[0].playerId], HOME: [c.p[3].playerId] } });
+    const o = (await offers(c))[0];
+    await c.repo.putGovernmentIfAbsent(c.gameId, governmentFromOffer(o, c.clock.now()));
     await c.send(1, { action: 'proposeGovernment', portfolios: { PM: [c.p[1].playerId] } });
     expect(errs(c, 1).pop()!.error).toBe('ALREADY_COMMITTED');
-    await c.send(3, { action: 'respondOffer', offerId: o.offerId, accept: false });
-    expect(errs(c, 3).pop()!.error).toBe('OFFER_NOT_FOUND'); // offer is 'formed'
-    await c.send(0, { action: 'withdrawOffer', offerId: o.offerId });
-    expect(errs(c, 0).pop()!.error).toBe('OFFER_NOT_FOUND');
+    await c.send(3, { action: 'respondOffer', offerId: o.offerId, accept: true });
+    expect(errs(c, 3).pop()!.error).toBe('ALREADY_COMMITTED');
   });
 
   it('accepting twice is harmless; declining removes your acceptance; malformed responses are BAD_REQUEST', async () => {

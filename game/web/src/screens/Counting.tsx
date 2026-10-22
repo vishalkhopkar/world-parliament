@@ -76,7 +76,7 @@ export function Counting() {
     <div className="game">
       <SeatShareHint />
       <div className="hud">
-        <div className="hud-item"><span>{counting ? 'Counting ends in' : snap.government ? 'Final result in' : 'Government must form within'}</span><strong>{formatClock(left)}</strong></div>
+        <div className="hud-item"><span>{counting ? 'Counting ends in' : snap.government && snap.status === 'postCounting' ? 'Final result in' : 'Government must form within'}</span><strong>{formatClock(left)}</strong></div>
         <div className="hud-item wide"><TallyBar snap={snap} /></div>
       </div>
       <div className="game-body">

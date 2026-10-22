@@ -1,7 +1,7 @@
 // MOCK backend: simulates the whole game in the browser. Every message is a ServerMessage from protocol.ts,
 // so replacing this with the real REST + WebSocket transport requires no UI changes.
 // Tunables via URL query: ?campaign=120&counting=60&post=120 (seconds). Defaults: 120 / 60 / 120.
-import { AVATARS, DEFAULT_MAP_ID, MAP_MANIFESTS, PARTY_COLOURS, majorityOf } from '@hp/shared';
+import { AVATARS, DEFAULT_MAP_ID, MAP_MANIFESTS, PARTY_COLOURS, leavesPartyOut, majorityOf } from '@hp/shared';
 import type {
   MapConfig, Action, AdmissionRequest, AdmitRequest, AnalystReport, ClientMessage, CoalitionOffer, CountTally,
   CreateGameRequest, CreateGameResponse, ErrorCode, FinalResult, GameId, GameMapPackage, GameSnapshot,
@@ -409,7 +409,8 @@ export class MockTransport implements Transport {
 
   // ---- chat
   private handleChat(g: MockGame, msg: Msg<'chat'>, err: ErrFn) {
-    if (g.status !== 'counting' && g.status !== 'postCounting') return err('WRONG_PHASE', 'Chat opens when counting starts');
+    const early = g.status === 'campaign' && g.cfg.messaging.opensAt === 'campaign';
+    if (!early && g.status !== 'counting' && g.status !== 'postCounting') return err('WRONG_PHASE', 'Chat opens when ' + (g.cfg.messaging.opensAt === 'campaign' ? 'the campaign' : 'counting') + ' starts');
     if (this.noNegotiation(g)) return err('NEGOTIATION_DISABLED', '2-player game: no chat');
     const group = g.cfg.messaging.mode === 'group';
     const everyone = [...g.players.values()].filter(p => p.pub.status !== 'pending' && p.pub.status !== 'rejected').map(p => p.pub.playerId).filter(id => id !== g.me);
@@ -442,12 +443,13 @@ export class MockTransport implements Transport {
       holders.forEach(h => { if (g.players.get(h)?.pub.status === 'active') members.add(h); });
     }
     (msg.partners ?? []).forEach(p => { if (g.players.get(p)?.pub.status === 'active') members.add(p); });
+    if (!leavesPartyOut([...members], this.activePlayers(g).map(p => p.pub.playerId))) return err('INVALID_GOVERNMENT', 'At least one party must stay out of the government');
     const combined = [...members].reduce((s, id) => s + this.seatsOf(g, id), 0);
     const maj = majorityOf(g.cfg.seatCount);
     if (combined < maj) return err('INVALID_GOVERNMENT', `Combined seats ${combined} are below the majority mark ${maj}`);
-    g.offers.filter(o => o.proposer === g.me && o.status === 'open').forEach(o => { o.status = 'superseded'; this.emit({ type: 'offer', offer: o }); });
     const partners = [...members].filter(id => id !== g.me);
     const offer: CoalitionOffer = { offerId: uid(), proposer: g.me, portfolios: pf, partners, accepted: [], status: 'open', createdAt: this.now() };
+    g.offers.filter(o => o.proposer === g.me && o.status === 'open').forEach(o => { o.status = 'superseded'; o.supersededBy = offer.offerId; this.emit({ type: 'offer', offer: o }); });
     g.offers.push(offer);
     this.emit({ type: 'offer', offer });
     for (const id of partners) {
@@ -456,7 +458,7 @@ export class MockTransport implements Transport {
       this.later(() => {
         if (offer.status !== 'open') return;
         if (Math.random() < (holds ? 0.8 : 0.4)) { offer.accepted.push(id); this.checkFormed(g, offer); }
-        else { offer.status = 'declined'; this.emit({ type: 'offer', offer }); }
+        else { offer.status = 'declined'; offer.declinedBy = id; this.emit({ type: 'offer', offer }); }
       }, rnd(2000, 5000));
     }
   }
@@ -464,7 +466,7 @@ export class MockTransport implements Transport {
     const o = g.offers.find(x => x.offerId === msg.offerId);
     if (!o || o.status !== 'open' || !o.partners.includes(g.me)) return err('OFFER_NOT_FOUND', 'That offer is no longer open');
     if (g.government) return err('ALREADY_COMMITTED', 'A government is already formed');
-    if (!msg.accept) { o.status = 'declined'; this.emit({ type: 'offer', offer: o }); return; }
+    if (!msg.accept) { o.status = 'declined'; o.declinedBy = g.me; this.emit({ type: 'offer', offer: o }); return; }
     if (!o.accepted.includes(g.me)) o.accepted.push(g.me);
     for (const id of o.partners) {
       if (id === g.me || o.accepted.includes(id) || !g.players.get(id)?.bot) continue;
@@ -475,14 +477,27 @@ export class MockTransport implements Transport {
     }
     this.checkFormed(g, o);
   }
+  /** All partners accepted: the offer waits as 'accepted'; the government is confirmed only once every seat is declared. */
   private checkFormed(g: MockGame, o: CoalitionOffer) {
     if (o.status !== 'open' || g.government) return;
     if (!o.partners.every(p => o.accepted.includes(p))) { this.emit({ type: 'offer', offer: o }); return; }
+    o.status = 'accepted';
+    this.emit({ type: 'offer', offer: o });
+    if (g.status === 'postCounting') this.confirmAccepted(g);
+  }
+  /** Confirms an accepted offer whose members hold a majority of WON seats (all seats are declared) and finishes the game. */
+  private confirmAccepted(g: MockGame): boolean {
+    if (g.result || g.government) return false;
+    const maj = majorityOf(g.cfg.seatCount);
+    const o = g.offers.find(x => x.status === 'accepted' && [x.proposer, ...x.partners].reduce((s, id) => s + (g.tally?.wins[id] ?? 0), 0) >= maj);
+    if (!o) return false;
     o.status = 'formed';
-    g.offers.filter(x => x !== o && x.status === 'open').forEach(x => { x.status = 'superseded'; this.emit({ type: 'offer', offer: x }); });
+    g.offers.filter(x => x !== o && (x.status === 'open' || x.status === 'accepted')).forEach(x => { x.status = 'superseded'; x.supersededBy = o.offerId; this.emit({ type: 'offer', offer: x }); });
     g.government = { pm: o.proposer, members: [o.proposer, ...o.partners], portfolios: o.portfolios, formedAt: this.now(), viaNegotiation: true };
     this.emit({ type: 'offer', offer: o });
     this.emit({ type: 'government', government: g.government });
+    this.finish(g, 'coalition');
+    return true;
   }
   private botOffer(g: MockGame) {
     const act = this.activePlayers(g);
@@ -519,7 +534,7 @@ export class MockTransport implements Transport {
       if (g.status === 'counting' && now >= t.countingEnd) this.endCounting(g);
       if (g.status === 'counting' && !g.botOfferSent && now > t.campaignEnd + (t.countingEnd - t.campaignEnd) * 0.45) { g.botOfferSent = true; this.botOffer(g); }
       if (g.status === 'postCounting' && !g.result) {
-        if (g.government && now >= g.government.formedAt + 4000) this.finish(g, 'coalition');
+        if (this.confirmAccepted(g)) { /* finished */ }
         else if (now >= t.postCountingEnd) this.finish(g, 'noGovernment');
       }
     }
@@ -599,6 +614,7 @@ export class MockTransport implements Transport {
     const wins = Object.entries(g.tally!.wins).sort((a, b) => b[1] - a[1]);
     if (wins[0][1] >= majorityOf(g.cfg.seatCount) && !g.government) this.finish(g, 'majority');
     else if (wins.length > 1 && wins[0][1] === wins[1][1]) this.finish(g, 'draw');
+    else this.confirmAccepted(g);
   }
   private finish(g: MockGame, outcome: FinalResult['outcome']) {
     const wins = g.tally!.wins;

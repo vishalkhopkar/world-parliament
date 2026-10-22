@@ -12,7 +12,7 @@ export const TEST_CFG: MapConfig = {
   seatCount: 8,
   budget: 100_000,
   // the long-standing private-thread chat tests run in 'individual' mode; groupChat.test.ts covers the default (group)
-  messaging: { mode: 'individual' },
+  messaging: { mode: 'individual', opensAt: 'counting' },
   costs: { rally: 1000, roadshow: 300 },
   analyst: { ...WORLD_CONFIG.analyst, seatReport: { start: 100, end: 300 }, globalReport: { start: 500, end: 1000 }, delayMs: 1000 },
   effects: {

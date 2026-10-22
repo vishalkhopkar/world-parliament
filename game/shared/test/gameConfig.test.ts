@@ -66,8 +66,12 @@ describe('game.properties is the source of the game constants', () => {
   });
 
   it('messaging is one group chat everybody can read by default (the flag allows private threads)', () => {
-    expect(WORLD_CONFIG.messaging).toEqual({ mode: props.get('messaging.mode') });
+    expect(WORLD_CONFIG.messaging).toEqual({ mode: props.get('messaging.mode'), opensAt: props.get('messaging.opensAt') });
     expect(WORLD_CONFIG.messaging.mode).toBe('group');
+  });
+
+  it('chat opens at the start of the campaign by default (the flag allows counting start)', () => {
+    expect(WORLD_CONFIG.messaging.opensAt).toBe('campaign');
   });
 
   it('every map without its own entry shares the file values', () => {
@@ -146,6 +150,19 @@ describe('gen-config rejects a bad properties file', () => {
     expect(r.ok).toBe(false);
     expect(r.err).toContain('messaging.mode');
   }, 30_000);
+  it.each(['campaign', 'counting'])('accepts messaging.opensAt=%s', (v) => {
+    expect(run(propsText.replace(/^messaging\.opensAt=.*$/m, `messaging.opensAt=${v}`)).ok).toBe(true);
+  }, 30_000);
+  it.each(['lobby', 'CAMPAIGN', ''])('rejects messaging.opensAt=%j', (v) => {
+    const r = run(propsText.replace(/^messaging\.opensAt=.*$/m, `messaging.opensAt=${v}`));
+    expect(r.ok).toBe(false);
+    expect(r.err).toContain('messaging.opensAt');
+  }, 30_000);
+  it('rejects a missing messaging.opensAt', () => {
+    const r = run(propsText.replace(/^messaging\.opensAt=.*$/m, ''));
+    expect(r.ok).toBe(false);
+    expect(r.err).toContain('messaging.opensAt');
+  }, 30_000);
   it('rejects a missing messaging.mode', () => {
     const r = run(propsText.replace(/^messaging\.mode=.*$/m, ''));
     expect(r.ok).toBe(false);
@@ -163,7 +180,8 @@ describe('validateConfig', () => {
     expect(() => validateConfig({ ...WORLD_CONFIG, budget: NaN })).toThrow(/budget/);
     expect(() => validateConfig({ ...WORLD_CONFIG, connection: { retryMs: 200 } })).toThrow(/connection.retryMs/);
     expect(() => validateConfig({ ...WORLD_CONFIG, costs: { rally: -1, roadshow: 1 } })).toThrow(/costs.rally/);
-    expect(() => validateConfig({ ...WORLD_CONFIG, messaging: { mode: 'threads' } } as never)).toThrow(/messaging.mode/);
+    expect(() => validateConfig({ ...WORLD_CONFIG, messaging: { ...WORLD_CONFIG.messaging, mode: 'threads' } } as never)).toThrow(/messaging.mode/);
+    expect(() => validateConfig({ ...WORLD_CONFIG, messaging: { ...WORLD_CONFIG.messaging, opensAt: 'lobby' } } as never)).toThrow(/messaging.opensAt/);
     const counting = (over: object) => ({ ...WORLD_CONFIG, counting: { ...WORLD_CONFIG.counting, ...over } });
     expect(() => validateConfig(counting({ pieRefreshMs: 100 }))).toThrow(/counting.pieRefreshMs/);
     expect(() => validateConfig(counting({ panelDisplayMs: 0 }))).toThrow(/counting.panelDisplayMs/);

@@ -119,6 +119,7 @@ describe('TimerScheduler (fake timers)', () => {
       countReveal: vi.fn(async () => { calls.push(`reveal@${Date.now()}`); const done = Date.now() >= T0 + 3000; return { done, nextAtMs: done ? Date.now() : Date.now() + 500 }; }),
       finalise: vi.fn(async (_g: string, opts?: { error?: boolean }) => { calls.push(`finalise${opts?.error ? '(error)' : ''}@${Date.now()}`); }),
       graceCheck: vi.fn(async (_g: string, p: string) => { calls.push(`grace-${p}@${Date.now()}`); }),
+      isFinished: vi.fn(async () => false), // never finishes early here (governmentTiming.test.ts covers the early stop)
     };
     return { svc, calls };
   };

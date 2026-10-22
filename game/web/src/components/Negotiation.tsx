@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { majorityOf } from '@hp/shared';
+import { leavesPartyOut, majorityOf } from '@hp/shared';
 import type { CoalitionOffer, GameSnapshot, PlayerId, PortfolioAssignment } from '@hp/shared';
 import { useStore } from '../state/store';
 import { useMapConfig } from '../state/mapConfig';
@@ -98,6 +98,20 @@ function seatsOf(snap: GameSnapshot, id: PlayerId) {
   return (snap.tally?.wins[id] ?? 0) + (snap.tally?.leads[id] ?? 0);
 }
 
+/** The party with the most seats (wins + leads) among the players still in the game, or undefined. */
+function largestParty(snap: GameSnapshot): PlayerId | undefined {
+  const live = snap.players.filter(p => p.status === 'active' || p.status === 'disconnected');
+  let best: PlayerId | undefined;
+  for (const p of live) if (best === undefined || seatsOf(snap, p.playerId) > seatsOf(snap, best)) best = p.playerId;
+  return best;
+}
+
+function LargestLeftOut({ snap, members }: { snap: GameSnapshot; members: PlayerId[] }) {
+  const big = largestParty(snap);
+  if (!big || members.includes(big)) return null;
+  return <div className="hint muted">Largest party {playerName(snap.players, big)} is left out of this offer</div>;
+}
+
 function OfferView({ o, snap, me }: { o: CoalitionOffer; snap: GameSnapshot; me: PlayerId }) {
   const cfg = useMapConfig();
   const portfolios = cfg.points.portfolios;
@@ -120,6 +134,9 @@ function OfferView({ o, snap, me }: { o: CoalitionOffer; snap: GameSnapshot; me:
       <div className="hint">Seats {combined} / majority {maj}. Accepted: {o.accepted.length}/{o.partners.length}
         {o.accepted.length > 0 && <> ({o.accepted.map(id => playerName(snap.players, id)).join(', ')})</>}
       </div>
+      {o.status === 'declined' && o.declinedBy && <div className="hint">Declined by {playerName(snap.players, o.declinedBy)}</div>}
+      {o.status === 'superseded' && o.supersededBy && <div className="hint">Replaced by a newer offer</div>}
+      <LargestLeftOut snap={snap} members={members} />
       {o.status === 'open' && mineIncoming && !iAccepted && (
         <div className="actions">
           <button className="btn primary sm" onClick={() => respondOffer(o.offerId, true)}>Accept</button>
@@ -127,7 +144,7 @@ function OfferView({ o, snap, me }: { o: CoalitionOffer; snap: GameSnapshot; me:
         </div>
       )}
       {o.status === 'open' && mineIncoming && iAccepted && <div className="hint">You accepted. Waiting for the others.</div>}
-      {o.status === 'accepted' && <div className="hint">Everyone accepted. The government is confirmed once its WON seats reach the majority.</div>}
+      {o.status === 'accepted' && <div className="hint">Everyone accepted. The government is confirmed once ALL seats are declared, if its members hold a majority of WON seats.</div>}
       {(o.status === 'open' || o.status === 'accepted') && !mineIncoming && (
         <div className="actions"><button className="btn ghost sm" onClick={() => withdrawOffer(o.offerId)}>Withdraw</button></div>
       )}
@@ -156,7 +173,9 @@ function OfferBuilder({ snap, me }: { snap: GameSnapshot; me: PlayerId }) {
   const total = seatCountOf(snap.tally?.total, cfg.seatCount);
   const maj = majorityOf(total);
   const combined = members.reduce((s, id) => s + seatsOf(snap, id), 0);
-  const ok = partners.length > 0 && combined >= maj;
+  const contenders = others.map(p => p.playerId);
+  const everyoneIn = partners.length > 0 && !leavesPartyOut(members, [me, ...contenders]);
+  const ok = partners.length > 0 && !everyoneIn && combined >= maj;
 
   return (
     <Card title="Propose a government (you are PM)">
@@ -186,7 +205,8 @@ function OfferBuilder({ snap, me }: { snap: GameSnapshot; me: PlayerId }) {
         <small className="muted"> ({members.map(id => `${playerName(snap.players, id)} ${seatsOf(snap, id)}`).join(' + ')})</small>
       </div>
       <button className="btn primary" disabled={!ok} onClick={() => proposeGovernment(portfolios, extra)}>Send offer</button>
-      {!ok && <p className="hint">{partners.length === 0 ? 'Add at least one partner.' : 'Not enough seats for a majority yet.'}</p>}
+      <LargestLeftOut snap={snap} members={members} />
+      {!ok && <p className="hint">{partners.length === 0 ? 'Add at least one partner.' : everyoneIn ? 'At least one party must stay out of the government.' : 'Not enough seats for a majority yet.'}</p>}
     </Card>
   );
 }

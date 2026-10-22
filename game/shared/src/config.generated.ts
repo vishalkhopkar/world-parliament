@@ -134,6 +134,7 @@ export const GAME_CONFIG_VALUES = {
     "symbol": "₩"
   },
   "messaging": {
-    "mode": "group"
+    "mode": "group",
+    "opensAt": "campaign"
   }
 };

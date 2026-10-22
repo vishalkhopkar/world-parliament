@@ -4,8 +4,8 @@ import { WORLD_CONFIG } from '@hp/shared';
 import type { ChatMessage, ServerMessage } from '@hp/shared';
 import { Ctx, TEST_CFG, driveTo } from './helpers';
 
-const group = () => new Ctx({ cfg: { ...TEST_CFG, messaging: { mode: 'group' } } });
-const individual = () => new Ctx({ cfg: { ...TEST_CFG, messaging: { mode: 'individual' } } });
+const group = () => new Ctx({ cfg: { ...TEST_CFG, messaging: { mode: 'group', opensAt: 'counting' } } });
+const individual = () => new Ctx({ cfg: { ...TEST_CFG, messaging: { mode: 'individual', opensAt: 'counting' } } });
 const errs = (c: Ctx, i: number) => c.notifier.to(c.p[i].playerId, 'error') as { error: string }[];
 const chats = (c: Ctx, i: number) => c.notifier.to(c.p[i].playerId, 'chat') as Extract<ServerMessage, { type: 'chat' }>[];
 const hello = async (c: Ctx, i: number) => {

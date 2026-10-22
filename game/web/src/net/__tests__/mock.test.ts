@@ -66,3 +66,87 @@ describe('mock transport avatars / AI / map', () => {
     await expect(t.start(r.gameId, r.token)).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 });
+
+// ---- coalition rules (poking the private game state to reach counting without waiting for the timers)
+type Poke = { g: { status: string; tally: unknown; offers: Array<Record<string, unknown>>; government: unknown; result: unknown; players: Map<string, { pub: { status: string }; bot: boolean }>; me: string; timeline: { postCountingEnd: number } | null } };
+async function inGame() {
+  t = new MockTransport();
+  const { r } = await lobbyOf(t);
+  const got: Array<Record<string, unknown>> = [];
+  t.connect(r.gameId, r.token, m => got.push(m as never));
+  const g = (t as unknown as Poke).g;
+  const act = [...g.players.values()].filter(p => p.pub.status === 'active');
+  const ids = [...g.players.entries()].filter(([, p]) => p.pub.status === 'active').map(([id]) => id);
+  const wins = Object.fromEntries(ids.map((id, i) => [id, i === 0 ? 300 : 100]));
+  g.tally = { wins, leads: Object.fromEntries(ids.map(id => [id, 0])), declared: 500, total: 500 };
+  return { g, got, ids, act };
+}
+const settle = () => new Promise(res => setTimeout(res, 60));
+
+describe('mock transport coalition rules', () => {
+  it('rejects an offer that includes every party', async () => {
+    const { g, got, ids } = await inGame();
+    g.status = 'counting';
+    t.send({ action: 'proposeGovernment', portfolios: {}, partners: ids.filter(i => i !== g.me) } as never);
+    await settle();
+    const e = got.find(m => m.type === 'error');
+    expect(e?.error).toBe('INVALID_GOVERNMENT');
+    expect(String(e?.message)).toMatch(/stay out/);
+  });
+
+  it('an accepted offer waits during counting; the government is confirmed at the end of counting and the game finishes', async () => {
+    const { g, got, ids } = await inGame();
+    g.status = 'counting';
+    g.timeline = { ...g.timeline!, postCountingEnd: Date.now() + 1e6 };
+    const partner = ids.find(i => i !== g.me)!;
+    // make me + partner a majority of won seats
+    (g.tally as { wins: Record<string, number> }).wins = Object.fromEntries(ids.map(i => [i, i === g.me ? 220 : i === partner ? 200 : 20]));
+    t.send({ action: 'proposeGovernment', portfolios: {}, partners: [partner] } as never);
+    await settle();
+    const offer = g.offers[0];
+    expect(offer.status).toBe('open');
+    t.send({ action: 'respondOffer', offerId: offer.offerId, accept: true } as never); // not a partner: no effect
+    offer.accepted = [partner];
+    (t as unknown as { checkFormed(g: unknown, o: unknown): void }).checkFormed(g, offer);
+    expect(offer.status).toBe('accepted');
+    expect(g.government).toBeNull();
+    expect(g.status).toBe('counting');
+    (t as unknown as { endCounting(g: unknown): void }).endCounting(g);
+    expect(offer.status).toBe('formed');
+    expect(g.status).toBe('finished');
+    expect((g.result as { outcome: string }).outcome).toBe('coalition');
+    void got;
+  });
+
+  it('sets declinedBy on decline and supersededBy when a newer offer replaces an open one', async () => {
+    const { g, ids } = await inGame();
+    g.status = 'counting';
+    const others = ids.filter(i => i !== g.me);
+    t.send({ action: 'proposeGovernment', portfolios: {}, partners: [others[0]] } as never);
+    t.send({ action: 'proposeGovernment', portfolios: {}, partners: [others[0]] } as never);
+    await settle();
+    expect(g.offers).toHaveLength(2);
+    expect(g.offers[0].status).toBe('superseded');
+    expect(g.offers[0].supersededBy).toBe(g.offers[1].offerId);
+    // a decline by me on an incoming offer
+    const inc = { offerId: 'x', proposer: others[0], portfolios: { PM: [others[0]] }, partners: [g.me], accepted: [], status: 'open', createdAt: 1 };
+    g.offers.push(inc);
+    t.send({ action: 'respondOffer', offerId: 'x', accept: false } as never);
+    expect(inc.status).toBe('declined');
+    expect((inc as Record<string, unknown>).declinedBy).toBe(g.me);
+  });
+
+  it('chat is refused in the campaign unless messaging.opensAt is campaign', async () => {
+    const { g, got } = await inGame();
+    g.status = 'campaign';
+    (g as unknown as { cfg: { messaging: { opensAt: string } } }).cfg = { ...(g as never as { cfg: object }).cfg, messaging: { mode: 'group', opensAt: 'counting' } } as never;
+    t.send({ action: 'chat', to: [], text: 'hi' } as never);
+    await settle();
+    expect(got.find(m => m.type === 'error')?.error).toBe('WRONG_PHASE');
+    got.length = 0;
+    (g as unknown as { cfg: { messaging: { opensAt: string } } }).cfg.messaging.opensAt = 'campaign';
+    t.send({ action: 'chat', to: [], text: 'hi' } as never);
+    await settle();
+    expect(got.find(m => m.type === 'chat')).toBeTruthy();
+  });
+});

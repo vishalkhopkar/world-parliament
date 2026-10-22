@@ -154,8 +154,9 @@ describe('coalition', () => {
     expect(await c.repo.listOffers(c.gameId)).toHaveLength(0);
   });
 
-  it('forms only when the members have a majority of WON seats; stays accepted until then', async () => {
-    const c = await new Ctx().started(3, 3);
+  it('forms only once every seat is declared (members hold a majority of WON seats); stays accepted until then', async () => {
+    // 4 players: player 3 stays out of the government (at least one party must) and wins no seat
+    const c = await new Ctx().started(4, 3);
     for (let s = 1; s <= 8; s++) await c.send(s % 3, { action: 'campaign', type: 'rally', seat: s });
     await startCounting(c);
     await c.send(0, { action: 'proposeGovernment', portfolios: allThree(c) });
@@ -170,25 +171,31 @@ describe('coalition', () => {
     // everyone accepted, but no seat has been declared won yet
     expect((await c.repo.getOffer(c.gameId, offer.offerId))!.status).toBe('accepted');
     expect(await c.repo.getGovernment(c.gameId)).toBeNull();
-    // run the count: confirmed automatically as soon as the won seats reach the majority (5 of 8)
+    // run the count: confirmed automatically once EVERY seat is declared (not as soon as the won seats reach 5 of 8)
     let r = await c.svc.countReveal(c.gameId);
-    let govAtWins = -1;
+    let govAtDeclared = -1;
     while (!r.done) {
       c.clock.set(r.nextAtMs);
       r = await c.svc.countReveal(c.gameId);
       const gov = await c.repo.getGovernment(c.gameId);
-      if (gov && govAtWins < 0) {
+      if (gov && govAtDeclared < 0) {
         const ups = c.notifier.to(c.p[0].playerId, 'seatUpdate') as any[];
-        govAtWins = ups[ups.length - 1].tally.wins ? Object.values(ups[ups.length - 1].tally.wins as Record<string, number>).reduce((a, b) => a + b, 0) : 0;
+        govAtDeclared = ups[ups.length - 1].tally.declared;
+      } else if (!gov) {
+        expect((await c.repo.getOffer(c.gameId, offer.offerId))!.status).toBe('accepted');
       }
     }
     const gov = await c.repo.getGovernment(c.gameId);
     expect(gov).not.toBeNull();
     expect(gov!.pm).toBe(c.p[0].playerId);
     expect(gov!.viaNegotiation).toBe(true);
-    expect(govAtWins).toBeGreaterThanOrEqual(majorityOf(8));
+    expect(govAtDeclared).toBe(8);
     expect((await c.repo.getOffer(c.gameId, offer.offerId))!.status).toBe('formed');
     expect(c.notifier.to(c.p[2].playerId, 'government')).toHaveLength(1);
+    // ...and the game ends at once
+    expect((await c.game()).status).toBe('finished');
+    expect(c.notifier.to(c.p[3].playerId, 'result')).toHaveLength(1);
+    expect(majorityOf(8)).toBe(5);
   });
 
   it('a coalition without a majority of seats is never confirmed', async () => {
@@ -261,12 +268,15 @@ describe('coalition', () => {
     const gov = await c.repo.getGovernment(c.gameId);
     expect(gov!.pm).toBe(c.p[1].playerId);
     expect(c.notifier.to(c.p[0].playerId, 'government')).toHaveLength(1);
+    // the government ended the game exactly once
+    expect((await c.game()).status).toBe('finished');
+    expect(c.notifier.to(c.p[0].playerId, 'result')).toHaveLength(1);
     // the repo primitive: second write loses
     expect(await c.repo.putGovernmentIfAbsent(c.gameId, majorityGovernment(c.p[2].playerId, c.cfg, 1))).toBe(false);
     expect((await c.repo.getGovernment(c.gameId))!.pm).toBe(c.p[1].playerId);
-    // no more offers once a government exists
+    // no more offers once the government has formed: the game is over
     await c.send(2, { action: 'proposeGovernment', portfolios: { PM: [c.p[2].playerId] } });
-    expect(c.lastError(2)?.error).toBe('ALREADY_COMMITTED');
+    expect(c.lastError(2)?.error).toBe('WRONG_PHASE');
   });
 });
 

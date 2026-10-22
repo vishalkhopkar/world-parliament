@@ -9,6 +9,8 @@ export class TimerScheduler implements Scheduler {
   private graces = new Map<string, NodeJS.Timeout>();
   private stopped = false;
   private n = 0;
+  /** How often the post-counting wait asks whether the game has already finished. */
+  static readonly POLL_MS = 1000;
 
   constructor(private readonly clock: Clock) {}
 
@@ -43,9 +45,15 @@ export class TimerScheduler implements Scheduler {
           await this.sleepUntil(r.nextAtMs);
           if (this.stopped) return;
         }
-        await this.sleepUntil(timeline.postCountingEnd);
+        // A government that forms in post-counting finishes the game at once: stop waiting as soon as that happens
+        // (checked in slices of at most POLL_MS), otherwise finalise at postCountingEnd.
+        while (this.clock.now() < timeline.postCountingEnd) {
+          if (this.stopped) return;
+          if (await this.svc.isFinished(gameId)) break;
+          await this.sleepUntil(Math.min(timeline.postCountingEnd, this.clock.now() + TimerScheduler.POLL_MS));
+        }
         if (this.stopped) return;
-        await this.svc.finalise(gameId);
+        await this.svc.finalise(gameId); // idempotent: a no-op when the game already finished
       } catch (e) {
         console.error(`[lifecycle ${gameId}] failed`, e);
         await this.svc.finalise(gameId, { error: true }).catch((e2) => console.error('finalise(error) failed', e2));

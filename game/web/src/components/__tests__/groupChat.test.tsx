@@ -10,8 +10,8 @@ import { chat } from '../../net/client';
 import { Chat } from '../Negotiation';
 import { useStore } from '../../state/store';
 
-MAP_CONFIGS['fake-group'] = { ...WORLD_CONFIG, mapId: 'fake-group', messaging: { mode: 'group' } };
-MAP_CONFIGS['fake-individual'] = { ...WORLD_CONFIG, mapId: 'fake-individual', messaging: { mode: 'individual' } };
+MAP_CONFIGS['fake-group'] = { ...WORLD_CONFIG, mapId: 'fake-group', messaging: { mode: 'group', opensAt: 'counting' } };
+MAP_CONFIGS['fake-individual'] = { ...WORLD_CONFIG, mapId: 'fake-individual', messaging: { mode: 'individual', opensAt: 'counting' } };
 
 const players: PlayerPublic[] = [
   { playerId: 'a', nickname: 'Asha', isAdmin: true, status: 'active', party: { name: 'Lotus Front', colour: '#E8710A', symbol: 'sun' } },

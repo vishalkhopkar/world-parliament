@@ -1,7 +1,7 @@
 // Compact, name-based views of game data for LLMs (ids replaced by party names / seat names, times by seconds).
 import { analystPrice, majorityOf } from '@hp/shared';
 import type {
-  AnalystReport, ChatMessage, CoalitionOffer, FinalResult, Government, PlayerPublic, PortfolioAssignment, SeatDeclaration,
+  AnalystReport, ChatMessage, CoalitionOffer, FinalResult, GameTimeline, Government, PlayerPublic, PortfolioAssignment, SeatDeclaration,
 } from '@hp/shared';
 import { admissionOf } from './state';
 import type { AgentEvent } from './state';
@@ -10,6 +10,24 @@ import type { SeatDirectory } from './resolve';
 
 export const round1 = (n: number): number => Math.round(n * 10) / 10;
 const secs = (ms: number): number => Math.max(0, Math.round(ms / 1000));
+
+export type Stage = 'lobby' | 'campaign' | 'counting' | 'postCounting' | 'finished';
+
+/** Which stage the game is in and the seconds until the NEXT milestone of that stage (null in the lobby, 0 when finished). */
+export function stageInfo(status: string | undefined, tl: GameTimeline | null | undefined, now: number): { stage: Stage; stage_left_s: number | null } {
+  const stage = (['lobby', 'campaign', 'counting', 'postCounting', 'finished'].includes(status ?? '') ? status : 'lobby') as Stage;
+  if (!tl) return { stage, stage_left_s: stage === 'finished' ? 0 : null };
+  switch (stage) {
+    case 'campaign': {
+      const next = tl.phaseCloses.find((x) => x > now);
+      return { stage, stage_left_s: secs((next ?? tl.campaignEnd) - now) };
+    }
+    case 'counting': return { stage, stage_left_s: secs(tl.countingEnd - now) };
+    case 'postCounting': return { stage, stage_left_s: secs(tl.postCountingEnd - now) };
+    case 'finished': return { stage, stage_left_s: 0 };
+    default: return { stage, stage_left_s: null };
+  }
+}
 
 export function playerView(s: AgentSession, p: PlayerPublic) {
   return {
@@ -46,16 +64,61 @@ export function winsByName(s: AgentSession): Record<string, { leads: number; win
   const t = s.client.state.snapshot?.tally;
   const out: Record<string, { leads: number; wins: number }> = {};
   const ids = new Set([...(t ? [...Object.keys(t.leads), ...Object.keys(t.wins)] : []), ...s.players().filter((p) => ['active', 'disconnected'].includes(p.status)).map((p) => p.playerId)]);
-  for (const id of ids) out[who(s, id)] = { leads: t?.leads[id] ?? 0, wins: t?.wins[id] ?? 0 };
+  for (const id of ids) {
+    const name = who(s, id);
+    // party names are unique; only party-less players (nickname fallback) could collide
+    out[name in out ? `${name} [${id}]` : name] = { leads: t?.leads[id] ?? 0, wins: t?.wins[id] ?? 0 };
+  }
   return out;
 }
 
+/** The unique party id with the most seats (wins; leads when nobody has won one yet), or null (nothing yet / a tie). */
+export function largestParty(s: AgentSession): string | null {
+  const t = s.client.state.snapshot?.tally;
+  if (!t) return null;
+  for (const m of [t.wins, t.leads]) {
+    const rows = Object.entries(m).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
+    if (!rows.length) continue;
+    return rows.length > 1 && rows[1][1] === rows[0][1] ? null : rows[0][0];
+  }
+  return null;
+}
+
+export const leftOutHint = (s: AgentSession, id: string): string => `${who(s, id)} is the largest party but is left out; that is allowed (only points and a majority of won seats matter).`;
+
 export function offerView(s: AgentSession, o: CoalitionOffer) {
-  const wins = s.client.state.snapshot?.tally?.wins ?? {};
+  const tally = s.client.state.snapshot?.tally;
+  const wins = tally?.wins ?? {};
+  const leads = tally?.leads ?? {};
   const members = [...new Set([o.proposer, ...o.partners, ...Object.values(o.portfolios).flat()])];
+  const live = o.status === 'open' || o.status === 'accepted';
   const memberSeats = members.reduce((a, m) => a + (wins[m] ?? 0), 0);
+  const memberLeads = members.reduce((a, m) => a + (leads[m] ?? 0), 0);
   const need = majorityOf(s.cfg().seatCount);
   const me = s.client.me;
+  const big = live ? largestParty(s) : null;
+  const leftOut = big !== null && !members.includes(big) ? ` ${leftOutHint(s, big)}` : '';
+  let note: string | undefined;
+  switch (o.status) {
+    case 'accepted':
+      note = `Everyone accepted. The government is confirmed only once every seat is declared (end of counting) and the members' WON seats then reach ${need} (now ${memberSeats}); the game then ends immediately with the result. Until then the offer just waits.${leftOut}`;
+      break;
+    case 'open':
+      note = `Waiting for the partners to accept. Even when all accept, it is confirmed only once every seat is declared (end of counting).${leftOut}`;
+      break;
+    case 'declined':
+      note = `declined by ${o.declinedBy ? who(s, o.declinedBy) : 'a partner'}: declining kills the whole offer, propose again.`;
+      break;
+    case 'withdrawn':
+      note = 'Withdrawn by the proposer. It is dead; propose or accept another offer.';
+      break;
+    case 'superseded':
+      note = `Superseded by a newer offer from the same proposer${o.supersededBy ? ` (superseded_by ${o.supersededBy})` : ''}: accept the new offer instead.`;
+      break;
+    case 'formed':
+      note = 'This offer became the government (confirmed at the end of counting).';
+      break;
+  }
   return {
     offer_id: o.offerId,
     status: o.status,
@@ -63,14 +126,14 @@ export function offerView(s: AgentSession, o: CoalitionOffer) {
     portfolios: portfoliosView(s, o.portfolios),
     partners: namesOf(s, o.partners),
     accepted: namesOf(s, o.accepted),
-    waiting_for: namesOf(s, o.partners.filter((p) => !o.accepted.includes(p))),
+    waiting_for: live ? namesOf(s, o.partners.filter((p) => !o.accepted.includes(p))) : [],
+    ...(o.declinedBy ? { declined_by: who(s, o.declinedBy) } : {}),
+    ...(o.supersededBy ? { superseded_by: o.supersededBy } : {}),
     you_are_proposer: o.proposer === me,
     you_accepted: me !== null && o.accepted.includes(me),
-    members_won_seats_so_far: memberSeats,
+    ...(live ? { members_won_seats_so_far: memberSeats, members_leading_seats: memberLeads } : {}),
     majority_needed: need,
-    note: o.status === 'accepted'
-      ? (memberSeats >= need ? 'Everyone accepted and the members hold a majority of WON seats: the government is confirmed automatically.' : `Everyone accepted. It will be confirmed automatically once the members' WON seats reach ${need} (now ${memberSeats}).`)
-      : o.status === 'open' ? 'Waiting for the partners to accept.' : undefined,
+    note,
   };
 }
 
@@ -89,9 +152,9 @@ export function resultView(s: AgentSession, r: FinalResult) {
     outcome: r.outcome,
     meaning: ({
       majority: 'One party had a majority and did not negotiate: clear winner.',
-      coalition: 'A coalition government formed; the member with the most points wins.',
+      coalition: 'A coalition government was confirmed once every seat was declared (end of counting); the member with the most points wins. At least one party always stays out of a government.',
       draw: 'Exact tie between two players: draw.',
-      noGovernment: 'Nobody formed a government in time: everyone loses.',
+      noGovernment: 'Nobody had a confirmed government when the time ran out: everyone loses.',
     } as Record<string, string>)[r.outcome],
     winners: r.winners.map((w) => who(s, w, true)),
     you_won: me !== null && r.winners.includes(me),
@@ -124,7 +187,8 @@ export function declarationView(s: AgentSession, d: SeatDeclaration, dir: SeatDi
 }
 
 export function chatView(s: AgentSession, m: ChatMessage) {
-  return { id: m.id, from: who(s, m.from), to: namesOf(s, m.to), text: m.text, time: new Date(m.ts).toISOString().slice(11, 19) + 'Z', you_sent: m.from === s.client.me };
+  const group = s.cfg().messaging.mode === 'group';
+  return { id: m.id, from: who(s, m.from), to: group ? 'everyone' : namesOf(s, m.to), text: m.text, time: new Date(m.ts).toISOString().slice(11, 19) + 'Z', you_sent: m.from === s.client.me };
 }
 
 /** Human-friendly rendering of one logged event. */
@@ -191,8 +255,9 @@ export function stateView(s: AgentSession, dir: SeatDirectory | null) {
       polling_phases_total: phases,
       current_phase_left_s: phaseIdx !== null ? secs(tl.phaseCloses[phaseIdx] - now) : 0,
       phase_deadlines_in_s: tl.phaseCloses.map((t) => secs(t - now)),
-      counting_left_s: secs(tl.countingEnd - now),
-      post_counting_left_s: secs(tl.postCountingEnd - now),
+      ...stageInfo(status, tl, now),
+      counting_ends_in_s: secs(tl.countingEnd - now),
+      post_counting_ends_in_s: secs(tl.postCountingEnd - now),
     };
     out.polled_phases = [...st.polledPhases].sort((a, b) => a - b).map((p) => p + 1);
     if (dir && snap) {
@@ -246,9 +311,17 @@ export function stateView(s: AgentSession, dir: SeatDirectory | null) {
       else advice.push('Your budget is spent. Use get_news / wait_for_events to follow the game; negotiation starts at counting.');
     }
   } else if (status === 'counting' || status === 'postCounting') {
-    if (snap?.government) advice.push('A government has been formed. Wait for the result.');
-    else if (nPlayers < 3) advice.push('2-player game: no chat or coalitions. Wait for the result.');
-    else advice.push('Negotiate: chat with others, propose_government (you are the PM) or respond_offer. A government is confirmed once its members\' WON seats reach the majority. No government by the deadline = everyone loses.');
+    if (snap?.government) {
+      advice.push('A government has been formed. Wait for the result.');
+      const big = largestParty(s);
+      if (big && !snap.government.members.includes(big)) advice.push(leftOutHint(s, big));
+    } else if (nPlayers < 3) advice.push('2-player game: no chat or coalitions. Wait for the result.');
+    else {
+      advice.push('Negotiate: chat with others, propose_government (you are the PM) or respond_offer. A government is confirmed only once every seat is declared (the end of counting) and its members\' WON seats then reach the majority; the game then ends immediately with the result. Accepted offers just wait until then. A government can never include every party: at least one party must stay out. Offers are private: you only see offers you proposed or were named in. No confirmed government at the end = everyone loses.');
+      const big = largestParty(s);
+      const inLive = (snap?.offers ?? []).some((o) => (o.status === 'open' || o.status === 'accepted') && [o.proposer, ...o.partners, ...Object.values(o.portfolios).flat()].includes(big ?? ''));
+      if (big && !inLive) advice.push(leftOutHint(s, big));
+    }
   } else if (status === 'finished') advice.push(snap?.result ? 'The game is over. Report the result to the human.' : 'The game is finished.');
   out.advice = advice;
   return out;

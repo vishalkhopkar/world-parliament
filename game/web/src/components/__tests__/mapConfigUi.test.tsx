@@ -43,8 +43,8 @@ describe('seat panel costs follow the current map', () => {
   });
   it('uses the world costs for the world map', () => {
     modal(WORLD_CONFIG.mapId);
-    expect(costOf('Rally')).toBe('W₹ 2,000');
-    expect(costOf('Roadshow')).toBe('W₹ 400');
+    expect(costOf('Rally')).toBe(`${WORLD_CONFIG.currency.symbol} 2,000`); // the symbol comes from game.properties
+    expect(costOf('Roadshow')).toBe(`${WORLD_CONFIG.currency.symbol} 400`);
   });
   it("disables an action the budget cannot cover at that map's price", () => {
     modal(FAKE_MAP_ID, 4_000); // 4,000: enough for the world rally (2,000) but not for the fake one (5,000)

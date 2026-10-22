@@ -21,7 +21,14 @@ The scripts can also be run by hand (below). Both run from `game/` with `npx tsx
 
 Connects N scripted clients to a **running** server over REST + WebSocket and asserts the rules and the hidden-information
 invariants (no budget/roadshow/report data of others, overspending and polled-seat actions rejected, every seat declared,
-points = `finalResult` rules, opposition scores 0, group chat, offers only to participants, reconnect restores state).
+points = `finalResult` rules, opposition scores 0, reconnect restores state, offers only to participants).
+
+Government flow it checks (3+ players): the one group chat is open from the campaign start (2 players: `NEGOTIATION_DISABLED`);
+proposals are `WRONG_PHASE` before counting; an all-parties government is rejected with `INVALID_GOVERNMENT` ("At least one party must stay out");
+the bots then wait until every seat is declared, form the smallest majority coalition that leaves at least one party out (if only
+an everyone-coalition would reach a majority they assert that no government forms), and the government is confirmed on acceptance
+and the game finishes at once: `government` then `result` arrive immediately (no waiting for the end of post-counting); later
+`proposeGovernment` is `WRONG_PHASE`, `withdrawOffer` is `OFFER_NOT_FOUND`; the left-out parties score the opposition points.
 
 ```bash
 # terminal 1: local server with a short game (campaign 45 s, counting 20 s, post-counting 15 s)
@@ -45,7 +52,7 @@ costs and points come from `WORLD_CONFIG`, so run it against a server using the 
 
 Starts its own dev server (:8787, short timings) and Vite (:5173) as child processes, opens three headless-Chrome contexts
 and plays a game through the UI with `?server=local` (create / join / admit / party / start, rallies, roadshows, reports,
-page reload rejoin, counting, group chat, coalition offer + accept, result). Only the processes it started are killed.
+page reload rejoin, campaign-phase group chat, counting, an all-parties offer blocked by the UI (Send disabled + "At least one party must stay out of the government."), a two-party coalition offer (the third party stays in opposition) once every seat is declared, accept, and the Result screen ("Coalition government") that replaces the Counting screen at once). Only the processes it started are killed.
 
 ```bash
 cd game
@@ -54,7 +61,7 @@ VERBOSE=1 npx tsx e2e/browser.ts  # also print server / vite output
 CHROME_PATH="C:/Program Files/Google/Chrome/Application/chrome.exe" npx tsx e2e/browser.ts
 ```
 
-Screenshots go to `e2e/shots/` (git-ignored): `01-home`, `02-lobby-admin`, ... `11-result-admin`, `12-result-c`;
+Screenshots go to `e2e/shots/` (git-ignored): `01-home`, `02-lobby-admin`, ... `09a-offer-everyone-blocked`, `09-offer`, `11-result-admin`, `12-result-c` (there is no longer a "Government formed" shot: the game finishes immediately);
 `fail-A/B/C.png` are written when a step fails.
 
 ## Web app against a server by hand

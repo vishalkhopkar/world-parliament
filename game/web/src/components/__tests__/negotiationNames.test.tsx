@@ -12,7 +12,7 @@ const players: PlayerPublic[] = [
 ];
 
 // the private-thread UI is the 'individual' messaging mode (the default is one group chat, see groupChat.test.tsx)
-MAP_CONFIGS['names-individual'] = { ...WORLD_CONFIG, mapId: 'names-individual', messaging: { mode: 'individual' } };
+MAP_CONFIGS['names-individual'] = { ...WORLD_CONFIG, mapId: 'names-individual', messaging: { mode: 'individual', opensAt: 'counting' } };
 
 describe('private chat shows party names, never nicknames', () => {
   it('chips, placeholder, thread label and sender use the party name', () => {

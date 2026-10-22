@@ -20,7 +20,7 @@ const HINTS: Partial<Record<AgentErrorCode, string>> = {
   SEAT_POLLED: 'Voting in that seat has already closed. Use list_seats with open_only=true to find seats you can still campaign in.',
   TOO_LATE: 'The campaign (or that phase) is over.',
   RATE_LIMITED: 'Slow down a little and retry.',
-  INVALID_GOVERNMENT: 'The coalition proposal is invalid: the PM must be you, portfolio limits apply (DPM max 2, others 1), only active players, and members must together hold a majority of WON seats before the government is confirmed.',
+  INVALID_GOVERNMENT: 'The coalition proposal is invalid: the PM must be you, portfolio limits apply (DPM max 2, others 1), only active players, and at least one party must stay out of the government (a government can never include every party). Members must together hold a majority of WON seats; it is confirmed only once every seat is declared (end of counting).',
   OFFER_NOT_FOUND: 'No such open offer. Call list_offers for current offer ids and their status.',
   ALREADY_COMMITTED: 'A government has already been formed; negotiation is over.',
   NOT_ENOUGH_PLAYERS: 'The game needs more players before it can start (that is the host\'s job).',
@@ -31,14 +31,14 @@ const HINTS: Partial<Record<AgentErrorCode, string>> = {
   UNKNOWN_PLAYER: 'Use a party name or player id exactly as listed by get_lobby / get_state.',
   UNKNOWN_SEAT: 'Use a seat id (1..N) or a seat name as listed by list_seats (query=... searches by name).',
   UNKNOWN_OPTION: 'Call list_party_options to see valid colours, symbols and avatars.',
-  INVALID_INPUT: 'Fix the input and try again. `cli.ts actions` / the tool schema lists the expected fields.',
+  INVALID_INPUT: 'Fix the input and try again. `node game/agent/bin/cli.mjs actions` / the tool schema lists the expected fields.',
   NO_CONNECTION: 'The live connection to the game server is down (it reconnects automatically for up to 90 s). Retry in a few seconds.',
   TIMEOUT: 'The server did not answer in time. Call get_state to see whether the action took effect before retrying.',
   NO_CONFIRMATION: 'The server accepted the message but sent no confirmation. Call get_state / list_offers to check.',
   NO_MAP: 'The map package for this game could not be loaded, so seat names are unavailable. Use numeric seat ids. (Set HP_GAME_PACKAGE to the game.json path.)',
   NOT_ADMITTED: 'The host has not admitted you yet. Call wait_for_admission.',
   UNKNOWN_ACTION: 'Run the "actions" command (CLI) or list the MCP tools to see valid action names.',
-  DAEMON: 'The background daemon is not running. Start it with: npx tsx agent/src/cli.ts start --name <name>',
+  DAEMON: 'The background daemon is not running. Start it with: node game/agent/bin/cli.mjs start --name <name>',
 };
 
 export class AgentError extends Error {

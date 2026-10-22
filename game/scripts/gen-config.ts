@@ -44,7 +44,7 @@ const NUMBER_KEYS = [
   'counting.panelRunnerUpPercent', 'counting.panelOtherPercent',
   'points.seatMultiplier', 'points.governmentFloor', 'points.opposition',
 ];
-const STRING_KEYS = ['currency.name', 'currency.symbol', 'messaging.mode'];
+const STRING_KEYS = ['currency.name', 'currency.symbol', 'messaging.mode', 'messaging.opensAt'];
 const PORTFOLIO_FIELDS: Record<string, Kind> = { id: 'string', label: 'string', points: 'number', max: 'number' };
 
 const errors: string[] = [];
@@ -105,6 +105,7 @@ if (!errors.length) {
   rule(val('phases.default') >= val('phases.min') && val('phases.default') <= val('phases.max'), 'phases.default must be within min..max');
   rule(val('durations.countingMs') > 0 && val('durations.countingMsTwoPlayers') > 0 && val('durations.countingStepMs') > 0, 'durations.countingMs / countingMsTwoPlayers / countingStepMs must be > 0');
   rule(['group', 'individual'].includes(val('messaging.mode') as unknown as string), 'messaging.mode must be "group" or "individual"');
+  rule(['campaign', 'counting'].includes(val('messaging.opensAt') as unknown as string), 'messaging.opensAt must be "campaign" or "counting"');
   rule(val('connection.retryMs') >= 1000, 'connection.retryMs must be >= 1000 (ms between browser reconnect attempts)');
   rule(val('counting.winStartFraction') > 0 && val('counting.winStartFraction') <= 1, 'counting.winStartFraction must be in (0, 1]');
   rule(val('counting.allLeadsByFraction') > 0 && val('counting.allLeadsByFraction') <= val('counting.winStartFraction'), 'counting.allLeadsByFraction must be in (0, winStartFraction]');

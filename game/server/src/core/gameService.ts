@@ -1,7 +1,7 @@
 // All game logic. Depends only on the interfaces in ./types (no AWS SDK imports).
 import {
   AVATARS, DEFAULT_MAP_ID, PARTY_COLOURS, PARTY_SYMBOLS, analystPrice, analystReport, buildTimeline, computeEffects, countingMsFor, postCountingMsFor, createRng,
-  finalResult, governmentFromOffer, majorityGovernment, majorityOf, phaseOfSeat, pollSeats,
+  finalResult, governmentFromOffer, leavesPartyOut, majorityGovernment, majorityOf, phaseOfSeat, pollSeats,
   removePlayerFromResults, validateGovernment,
 } from '@hp/shared';
 import type {
@@ -433,7 +433,7 @@ export class GameService {
   /** The conversation this player may read (everything in group mode, only own threads otherwise), oldest first, bounded. */
   private async chatHistoryFor(player: PlayerRecord): Promise<ChatMessage[]> {
     const game = await this.repo.getGame(player.gameId);
-    if (!game || (game.status !== 'counting' && game.status !== 'postCounting' && game.status !== 'finished')) return [];
+    if (!game || (game.status !== 'campaign' && game.status !== 'counting' && game.status !== 'postCounting' && game.status !== 'finished')) return [];
     const group = this.loadMap(game.mapId).cfg.messaging.mode === 'group';
     const all = (await this.repo.listChat(player.gameId)).sort((a, b) => a.ts - b.ts);
     const mine = group ? all : all.filter((m) => m.from === player.playerId || m.to.includes(player.playerId));
@@ -799,7 +799,7 @@ export class GameService {
     const tally = fullTally(results);
     // everything is declared now: make sure a pending accepted offer sees the full tally
     if (!early) {
-      await this.evaluateOffers(gameId, tally);
+      await this.formGovernment(gameId, tally);
     }
     let government = await this.repo.getGovernment(gameId);
     let newGovernment = false;
@@ -848,13 +848,19 @@ export class GameService {
 
   async chat(player: PlayerRecord, to: unknown, text: unknown): Promise<void> {
     const game = await this.loadGame(player.gameId);
-    if (game.status !== 'counting' && game.status !== 'postCounting') throw new GameError('WRONG_PHASE', 'Chat opens when counting starts');
+    const { messaging } = this.loadMap(game.mapId).cfg;
+    // messaging.opensAt: the chat opens with the campaign or with counting; it closes when the game ends
+    const open = game.status === 'counting' || game.status === 'postCounting' || (game.status === 'campaign' && messaging.opensAt === 'campaign');
+    if (!open) {
+      if (game.status === 'finished' || game.status === 'abandoned') throw new GameError('WRONG_PHASE', 'The game is over: the chat is closed');
+      throw new GameError('WRONG_PHASE', messaging.opensAt === 'campaign' ? 'Chat opens when the campaign starts' : 'Chat opens when counting starts');
+    }
     await this.requireNegotiationAllowed(game.gameId);
     if (!MEMBER.has(player.status)) throw new GameError('FORBIDDEN', 'You are not part of this game');
     const body = cleanText(text, 1, 500, 'Message');
     const players = await this.repo.listPlayers(player.gameId);
     let recipients: string[];
-    if (this.loadMap(game.mapId).cfg.messaging.mode === 'group') {
+    if (messaging.mode === 'group') {
       // one common chat: everybody else in the game (eliminated players included) reads it; `to` is ignored
       recipients = players.filter((p) => MEMBER.has(p.status) && p.playerId !== player.playerId).map((p) => p.playerId);
     } else {
@@ -892,11 +898,15 @@ export class GameService {
     if (!CONTENDER.has(player.status)) throw new GameError('FORBIDDEN', 'You are not an active player');
   }
 
-  /** Drop `player`'s commitment to every other open offer (their own offers are superseded, acceptances removed). */
-  private async uncommit(gameId: string, playerId: PlayerId, except?: string): Promise<void> {
+  /**
+   * Drop `player`'s commitment to every other open offer (their own offers are superseded, acceptances removed).
+   * `supersededBy` = the id of the player's new proposal, recorded on (and announced with) their superseded offers.
+   */
+  private async uncommit(gameId: string, playerId: PlayerId, except?: string, supersededBy?: string): Promise<void> {
     for (const o of await this.repo.listOffers(gameId)) {
       if (o.offerId === except || (o.status !== 'open' && o.status !== 'accepted')) continue;
       if (o.proposer === playerId) {
+        if (supersededBy) o.supersededBy = supersededBy;
         await this.setOfferStatus(gameId, o, 'superseded');
       } else if (o.accepted.includes(playerId)) {
         o.accepted = o.accepted.filter((x) => x !== playerId);
@@ -940,9 +950,14 @@ export class GameService {
       extra = partnersIn as string[];
     }
     const partners = uniq([...members, ...extra]).filter((x) => x !== me.playerId);
-    await this.uncommit(game.gameId, me.playerId);
+    // designer's rule: no everyone-in government, at least one party still in the game must stay out
+    if (!leavesPartyOut([me.playerId, ...partners], [...valid])) {
+      throw new GameError('INVALID_GOVERNMENT', 'At least one party must stay out of the government: leave out at least one of the other parties');
+    }
+    const offerId = newId(5);
+    await this.uncommit(game.gameId, me.playerId, undefined, offerId);
     const offer: CoalitionOffer = {
-      offerId: newId(5), proposer: me.playerId, portfolios, partners, accepted: [],
+      offerId, proposer: me.playerId, portfolios, partners, accepted: [],
       status: partners.length === 0 ? 'accepted' : 'open', createdAt: this.now(),
     };
     await this.repo.putOffer(game.gameId, offer);
@@ -962,6 +977,7 @@ export class GameService {
     if (await this.repo.getGovernment(game.gameId)) throw new GameError('ALREADY_COMMITTED', 'A government has already been formed');
     if (!accept) {
       offer.accepted = offer.accepted.filter((x) => x !== me.playerId);
+      offer.declinedBy = me.playerId;
       await this.setOfferStatus(game.gameId, offer, 'declined');
       return;
     }
@@ -987,26 +1003,50 @@ export class GameService {
   }
 
   /**
-   * Confirm the first accepted offer whose members' WON seats reach the majority (validateGovernment against the tally of
-   * seats declared 'won' so far). Offers stay 'accepted' until then. The GOVT item is written with attribute_not_exists,
-   * so only the first confirmed government wins even with concurrent invocations.
+   * Designer's rule: a negotiated government is confirmed only once EVERY seat has been declared, and the game then ends at
+   * once. Until then accepted offers simply stay 'accepted'. Once the count is complete, the oldest accepted offer whose
+   * members' seats reach the majority (and that leaves at least one remaining party out) is confirmed, and the game is
+   * finished (result + 'finished' status). Idempotent; the GOVT item is written with attribute_not_exists, so only the
+   * first confirmed government wins even with concurrent invocations.
    */
-  async evaluateOffers(gameId: string, tallyOverride?: Record<PlayerId, number>): Promise<void> {
+  async evaluateOffers(gameId: string): Promise<void> {
+    if (await this.formGovernment(gameId)) await this.finishGame(gameId, false);
+  }
+
+  /** True once the game is over (or unknown): the local scheduler stops waiting for postCountingEnd. */
+  async isFinished(gameId: string): Promise<boolean> {
     const game = await this.repo.getGame(gameId);
-    if (!game || (game.status !== 'counting' && game.status !== 'postCounting')) return;
-    if (await this.repo.getGovernment(gameId)) return;
+    return !game || game.status === 'finished';
+  }
+
+  /**
+   * Confirm the first qualifying accepted offer (see evaluateOffers) without finishing the game. `fullTally` is the
+   * finishGame path (every seat decided); otherwise nothing happens before the count plan is fully revealed.
+   * Returns true when THIS call stored the government.
+   */
+  private async formGovernment(gameId: string, fullTallyIn?: Record<PlayerId, number>): Promise<boolean> {
+    const game = await this.repo.getGame(gameId);
+    if (!game || (game.status !== 'counting' && game.status !== 'postCounting')) return false;
+    if (await this.repo.getGovernment(gameId)) return false;
+    let wins = fullTallyIn;
+    if (!wins) {
+      const plan = await this.repo.getCountPlan(gameId);
+      if (!plan || game.revealedStep < plan.steps) return false; // seats are still being declared
+      wins = await this.knownWins(game);
+    }
     const offers = (await this.repo.listOffers(gameId)).filter((o) => o.status === 'accepted').sort((a, b) => a.createdAt - b.createdAt);
-    if (!offers.length) return;
+    if (!offers.length) return false;
     const { cfg } = this.loadMap(game.mapId);
-    const wins = tallyOverride ?? (await this.knownWins(game));
     const players = await this.repo.listPlayers(gameId);
-    const alive = new Set(players.filter((p) => CONTENDER.has(p.status)).map((p) => p.playerId));
+    const contenders = players.filter((p) => CONTENDER.has(p.status)).map((p) => p.playerId);
+    const alive = new Set(contenders);
     for (const o of offers) {
       const members = uniq(Object.values(o.portfolios).flat().concat(o.proposer, o.partners));
       if (members.some((m) => !alive.has(m))) continue;
+      if (!leavesPartyOut(members, contenders)) continue; // e.g. everybody else was eliminated after it was made
       if (validateGovernment(o.portfolios, wins, cfg, cfg.seatCount) !== null) continue;
       const gov = governmentFromOffer(o, this.now());
-      if (!(await this.repo.putGovernmentIfAbsent(gameId, gov))) return; // somebody else was first
+      if (!(await this.repo.putGovernmentIfAbsent(gameId, gov))) return false; // somebody else was first
       await this.setOfferStatus(gameId, o, 'formed');
       for (const other of await this.repo.listOffers(gameId)) {
         if (other.offerId !== o.offerId && (other.status === 'open' || other.status === 'accepted')) {
@@ -1014,7 +1054,8 @@ export class GameService {
         }
       }
       await this.d.notifier.broadcast(gameId, { type: 'government', government: gov });
-      return;
+      return true;
     }
+    return false;
   }
 }

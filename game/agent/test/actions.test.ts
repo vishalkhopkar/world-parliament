@@ -242,9 +242,9 @@ describe('rules rendering', () => {
   it('the template has no unrendered placeholders and numbers come from the config', () => {
     const text = renderRules(cfg);
     expect(text).not.toMatch(/\{\{/);
-    expect(text).toContain('W₹50,000');
-    expect(text).toContain('W₹2,000');
-    expect(text).toContain('W₹400');
+    expect(text).toContain(`${WORLD_CONFIG.currency.symbol}50,000`);
+    expect(text).toContain(`${WORLD_CONFIG.currency.symbol}2,000`);
+    expect(text).toContain(`${WORLD_CONFIG.currency.symbol}400`);
     expect(text).toContain('251 seats');
     expect(text).toContain('500 parliament seats');
     expect(text).toContain('| `PM` | Prime Minister | 100 | 1 |');
@@ -262,10 +262,10 @@ describe('rules rendering', () => {
   it('follows config changes (nothing hard-coded)', () => {
     const changed = { ...cfg, seatCount: 543, budget: 30_000, costs: { rally: 3_000, roadshow: 500 } };
     const text = renderRules(changed);
-    expect(text).toContain('W₹3,000');
+    expect(text).toContain(`${WORLD_CONFIG.currency.symbol}3,000`);
     expect(text).toContain('272 seats');
     expect(text).toContain('543 parliament seats');
-    expect(text).not.toContain('W₹50,000');
+    expect(text).not.toContain(`${WORLD_CONFIG.currency.symbol}50,000`);
     const v = rulesValues(changed);
     expect(v.MAX_RALLIES).toBe('10');
     expect(v.MAX_ROADSHOWS).toBe('60');
@@ -276,11 +276,11 @@ describe('rules rendering', () => {
   });
 
   it('the chat paragraph follows messaging.mode: one group chat everybody reads, or private threads', () => {
-    const group = renderRules({ ...cfg, messaging: { mode: 'group' } });
+    const group = renderRules({ ...cfg, messaging: { mode: 'group', opensAt: 'counting' } });
     expect(group).toMatch(/group chat/i);
     expect(group).toMatch(/everyone in the game reads/i);
     expect(group).not.toMatch(/Only you and the recipients see it/);
-    const threads = renderRules({ ...cfg, messaging: { mode: 'individual' } });
+    const threads = renderRules({ ...cfg, messaging: { mode: 'individual', opensAt: 'counting' } });
     expect(threads).toMatch(/Only you and the recipients see it/);
     expect(threads).not.toMatch(/everyone in the game reads/i);
     expect(group).not.toContain('{{');

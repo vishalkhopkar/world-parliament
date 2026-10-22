@@ -1,6 +1,6 @@
 // REST router (core/http.ts) + permissions + one reachable path for every ErrorCode (and its HTTP status).
 import { describe, expect, it, vi } from 'vitest';
-import { AVATARS, PARTY_COLOURS, PARTY_SYMBOLS } from '@hp/shared';
+import { AVATARS, PARTY_COLOURS, PARTY_SYMBOLS, majorityGovernment } from '@hp/shared';
 import type { ClientMessage, ErrorCode } from '@hp/shared';
 import { handleRest } from '../src/core/http';
 import type { RestResponse } from '../src/core/http';
@@ -365,10 +365,10 @@ describe('each ErrorCode has a reachable path and its HTTP status', () => {
     INVALID_GOVERNMENT: async () => { const c = await new Ctx().started(3, 1); await driveTo(c, 'counting'); return ws(c, 0, { action: 'proposeGovernment', portfolios: { PM: [c.p[1].playerId] } }); },
     OFFER_NOT_FOUND: async () => { const c = await new Ctx().started(3, 1); await driveTo(c, 'counting'); return ws(c, 1, { action: 'respondOffer', offerId: 'nope', accept: true }); },
     ALREADY_COMMITTED: async () => {
+      // a formed government ends the game at once (later requests get WRONG_PHASE): this is the short window in between
       const c = await new Ctx().started(3, 1);
-      for (let s = 1; s <= 8; s++) await c.send(0, { action: 'campaign', type: 'rally', seat: s });
       await driveTo(c, 'postCounting');
-      await c.send(0, { action: 'proposeGovernment', portfolios: { PM: [c.p[0].playerId] } });
+      await c.repo.putGovernmentIfAbsent(c.gameId, majorityGovernment(c.p[0].playerId, c.cfg, c.clock.now()));
       return ws(c, 1, { action: 'proposeGovernment', portfolios: { PM: [c.p[1].playerId] } });
     },
     NOT_ENOUGH_PLAYERS: async () => { const c = await new Ctx().lobby(1); return c.svc.start(c.gameId, c.p[0].token).then(() => undefined, (e: GameError) => e.code); },
