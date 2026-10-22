@@ -42,11 +42,12 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); delete (HTMLElement.prototype as { clientHeight?: number }).clientHeight; });
 
+const D = FAKE_CONFIG.counting.panelDisplayMs; // configured display time (game.properties)
 const run = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms); });
 const cards = (c: HTMLElement) => c.querySelectorAll('.rp');
 
 describe('ResultPanels timing', () => {
-  it('slot k first shows at k x stagger and then refreshes on its own 3000 ms clock', async () => {
+  it('slot k first shows at k x stagger and then refreshes on its own panelDisplayMs clock', async () => {
     const { container } = render(<ResultPanels />);
     expect(cards(container)).toHaveLength(0);
     await run(0);
@@ -58,13 +59,13 @@ describe('ResultPanels timing', () => {
     await run(500);
     expect(cards(container)).toHaveLength(3); // 650 px column -> 3 panels
     expect(peek.fn).toHaveBeenCalledTimes(3);
-    await run(1999); // t = 2999
+    await run(D - 1001); // t = D - 1
     expect(peek.fn).toHaveBeenCalledTimes(3);
-    await run(1); // 3000: slot 0 again
+    await run(1); // t = D: slot 0 again
     expect(peek.fn).toHaveBeenCalledTimes(4);
-    await run(500); // 3500: slot 1
+    await run(500); // D + 500: slot 1
     expect(peek.fn).toHaveBeenCalledTimes(5);
-    await run(500); // 4000: slot 2
+    await run(500); // D + 1000: slot 2
     expect(peek.fn).toHaveBeenCalledTimes(6);
     expect(cards(container)).toHaveLength(3);
   });
@@ -101,13 +102,13 @@ describe('ResultPanels content', () => {
     await run(1010); // all three slots have their first card
     const s = useStore.getState().snapshot!;
     act(() => useStore.setState({ snapshot: { ...s, seats: { ...s.seats, 3: { seat: 3, status: 'leading', playerId: 'p2' } } } }));
-    await run(2000); // t = 3010: // slot 0 refreshes: LEADS for the new seat 3 (leader p2)
+    await run(D - 1000); // t = D + 10: slot 0 refreshes: LEADS for the new seat 3 (leader p2)
     const first = cards(container)[0] as HTMLElement;
     expect(first).toHaveAttribute('data-kind', 'LEADS');
     expect(first).toHaveTextContent('Western');
     expect(first).toHaveTextContent('BEN COLE');
     expect(first).toHaveTextContent('Blue Front');
-    await run(500); // slot 1 (3500): the companion TRAILS of seat 3
+    await run(500); // slot 1 (D + 500): the companion TRAILS of seat 3
     const second = cards(container)[1] as HTMLElement;
     expect(second).toHaveAttribute('data-kind', 'TRAILS');
     expect(second).toHaveTextContent('Western');
@@ -118,7 +119,7 @@ describe('ResultPanels content', () => {
     await run(1010); // all three slots have their first card
     const s = useStore.getState().snapshot!;
     act(() => useStore.setState({ snapshot: { ...s, seats: { ...s.seats, 1: { seat: 1, status: 'won', playerId: 'p1' } } } }));
-    await run(2000); // t = 3010:
+    await run(D - 1000); // t = D + 10:
     expect((cards(container)[0] as HTMLElement).dataset.kind).toBe('WON');
     await run(500);
     expect((cards(container)[1] as HTMLElement).dataset.kind).toBe('LOST');
