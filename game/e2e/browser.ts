@@ -240,16 +240,14 @@ async function main() {
     await B.waitForFunction(() => /\d+ of 500 seats declared/.test(document.body.innerText) && !/^0 of/.test(document.querySelector('.tally-foot')?.textContent ?? '0 of'), undefined, { timeout: 30000 });
     await shot(B, '08-counting');
 
-    // chat: Blue Anchor -> Lotus Front only (party names, never nicknames)
-    const chatCard = (p: Page) => p.locator('section.card', { has: p.getByRole('heading', { name: 'Private chat' }) });
-    await chatCard(B).locator('.btn-chip', { hasText: 'Lotus Front' }).first().click();
-    await B.getByPlaceholder(/Message Lotus Front/).fill('Shall we talk portfolios?');
+    // chat: ONE group chat (messaging.mode = group, the default): what Blue Anchor writes, everybody reads (party names, never nicknames)
+    const chatCard = (p: Page) => p.locator('section.card', { has: p.getByRole('heading', { name: 'Group chat' }) });
+    await B.getByPlaceholder('Message everyone').fill('Shall we talk portfolios?');
     await B.getByRole('button', { name: 'Send', exact: true }).click();
     await see(B, 'Shall we talk portfolios?');
-    await chatCard(A).locator('.btn-chip', { hasText: 'Blue Anchor' }).first().click();
     await see(A, 'Shall we talk portfolios?');
-    await chatCard(C).locator('.btn-chip', { hasText: 'Blue Anchor' }).first().click();
-    if (await C.getByText('Shall we talk portfolios?').count()) problems.push('Chitra can read a private chat');
+    await see(C, 'Shall we talk portfolios?');
+    if (!(await chatCard(C).getByText('Blue Anchor').count())) problems.push('group chat does not name the sender by party');
 
     // Lotus Front proposes a government with both others
     await A.locator('.pf', { hasText: 'Deputy Prime Minister' }).locator('select').first().selectOption({ label: 'Blue Anchor' });
@@ -260,7 +258,7 @@ async function main() {
     await send.click();
     await see(B, /Lotus Front proposes/); await see(C, /Lotus Front proposes/);
     for (const pg of [A, B, C]) for (const nick of ['Asha', 'Ben', 'Chitra']) {
-      const txt = await pg.locator('section.card', { has: pg.getByRole('heading', { name: 'Private chat' }) }).innerText();
+      const txt = await pg.locator('section.card', { has: pg.getByRole('heading', { name: 'Group chat' }) }).innerText();
       if (txt.includes(nick)) problems.push(`nickname ${nick} shown in chat card`);
     }
     await shot(B, '09-offer');

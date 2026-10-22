@@ -411,10 +411,14 @@ export class MockTransport implements Transport {
   private handleChat(g: MockGame, msg: Msg<'chat'>, err: ErrFn) {
     if (g.status !== 'counting' && g.status !== 'postCounting') return err('WRONG_PHASE', 'Chat opens when counting starts');
     if (this.noNegotiation(g)) return err('NEGOTIATION_DISABLED', '2-player game: no chat');
-    const to = msg.to.filter(id => g.players.has(id) && id !== g.me);
+    const group = g.cfg.messaging.mode === 'group';
+    const everyone = [...g.players.values()].filter(p => p.pub.status !== 'pending' && p.pub.status !== 'rejected').map(p => p.pub.playerId).filter(id => id !== g.me);
+    const to = group ? everyone : (msg.to ?? []).filter(id => g.players.has(id) && id !== g.me);
     if (!to.length || !msg.text.trim()) return err('BAD_REQUEST', 'Pick recipients and write something');
     this.emit({ type: 'chat', message: { id: uid(), from: g.me, to, text: msg.text.trim().slice(0, 500), ts: this.now() } });
-    for (const id of to) {
+    // group chat: one random bot answers everybody; threads: every bot recipient answers
+    const repliers = group ? [pick(to.filter(id => g.players.get(id)!.bot))].filter(Boolean) : to;
+    for (const id of repliers) {
       if (!g.players.get(id)!.bot) continue;
       this.later(() => this.emit({
         type: 'chat', message: { id: uid(), from: id, to: [g.me, ...to.filter(x => x !== id)], text: pick(BOT_REPLIES), ts: this.now() },

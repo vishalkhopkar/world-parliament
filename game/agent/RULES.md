@@ -94,7 +94,7 @@ Every action adds **effect** for you in seats. Effects are additive: ten roadsho
   win automatically; whoever builds a government that scores best wins.
 
 ## 8. Negotiation (only with 3 or more players), during counting and post-counting
-- **Private chat**: `chat {to:[names], text}` to one or more players. Only you and the recipients see it. Read replies with `get_chat` or `wait_for_events`.
+- {{CHAT_RULE}}
 - **Coalition offers**: `propose_government {portfolios}`. **You (the proposer) are always the Prime Minister.** Portfolios:
 
 {{PORTFOLIO_TABLE}}

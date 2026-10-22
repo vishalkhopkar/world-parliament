@@ -13,6 +13,18 @@ const snap = (over: Partial<GameSnapshot> = {}): GameSnapshot => ({
 const priv = (over: Partial<PrivateState> = {}): PrivateState => ({ you: 'me', budget: 1000, myActions: [], myReports: [], ...over });
 const hello = (over: Partial<GameSnapshot> = {}, serverTime = 5000): ServerMessage => ({ type: 'hello', serverTime, snapshot: snap(over), private: priv() });
 
+describe('chat history in hello', () => {
+  const msg = (id: string, ts: number) => ({ id, from: 'h', to: ['me'], text: id, ts });
+  it('a hello with history replaces the chat log (a restarted daemon or reconnect keeps the conversation); without one it is kept', () => {
+    const st = newState();
+    applyMessage(st, { type: 'chat', message: msg('live', 1) }, 1000);
+    applyMessage(st, { ...(hello() as object), chat: [msg('a', 5), msg('b', 6)] } as ServerMessage, 1000);
+    expect(st.chat.map((m) => m.id)).toEqual(['a', 'b']);
+    applyMessage(st, hello(), 1000);
+    expect(st.chat.map((m) => m.id)).toEqual(['a', 'b']);
+  });
+});
+
 describe('EventLog', () => {
   it('assigns monotonically increasing cursors starting at 1', () => {
     const log = new EventLog();

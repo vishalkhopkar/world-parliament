@@ -21,7 +21,7 @@ The scripts can also be run by hand (below). Both run from `game/` with `npx tsx
 
 Connects N scripted clients to a **running** server over REST + WebSocket and asserts the rules and the hidden-information
 invariants (no budget/roadshow/report data of others, overspending and polled-seat actions rejected, every seat declared,
-points = `finalResult` rules, opposition scores 0, private chat, offers only to participants, reconnect restores state).
+points = `finalResult` rules, opposition scores 0, group chat, offers only to participants, reconnect restores state).
 
 ```bash
 # terminal 1: local server with a short game (campaign 45 s, counting 20 s, post-counting 15 s)
@@ -45,7 +45,7 @@ costs and points come from `WORLD_CONFIG`, so run it against a server using the 
 
 Starts its own dev server (:8787, short timings) and Vite (:5173) as child processes, opens three headless-Chrome contexts
 and plays a game through the UI with `?server=local` (create / join / admit / party / start, rallies, roadshows, reports,
-page reload rejoin, counting, private chat, coalition offer + accept, result). Only the processes it started are killed.
+page reload rejoin, counting, group chat, coalition offer + accept, result). Only the processes it started are killed.
 
 ```bash
 cd game

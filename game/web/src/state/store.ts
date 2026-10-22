@@ -77,7 +77,7 @@ export const useStore = create<State>((set, get) => ({
     const { snapshot: snap, priv } = get();
     switch (m.type) {
       case 'hello':
-        set({ snapshot: m.snapshot, priv: m.private, clockOffset: m.serverTime - Date.now() });
+        set({ snapshot: m.snapshot, priv: m.private, clockOffset: m.serverTime - Date.now(), ...(m.chat ? { chat: m.chat } : {}) });
         break;
       case 'pong':
         set({ clockOffset: m.serverTime - (Date.now() + m.clientTime) / 2 });

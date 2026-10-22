@@ -131,6 +131,7 @@ export function applyMessage(st: ClientState, m: ServerMessage, localNow: number
       st.priv = m.private;
       st.serverOffsetMs = m.serverTime - localNow;
       st.polledPhases = new Set(m.snapshot.polledPhases);
+      if (m.chat) st.chat = m.chat; // the conversation so far (kept across a reconnect)
       return [];
     case 'pong':
       // clientTime is the local send time: assume symmetric latency

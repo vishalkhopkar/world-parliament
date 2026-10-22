@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { majorityOf } from '@hp/shared';
 import type { CoalitionOffer, GameSnapshot, PlayerId, PortfolioAssignment } from '@hp/shared';
 import { useStore } from '../state/store';
@@ -12,6 +12,40 @@ const key = (ids: PlayerId[]) => [...ids].sort().join('|');
 
 // ---------------------------------------------------------------- chat
 export function Chat({ snap, me }: { snap: GameSnapshot; me: PlayerId }) {
+  const cfg = useMapConfig();
+  return cfg.messaging.mode === 'group' ? <GroupChat snap={snap} me={me} /> : <ThreadChat snap={snap} me={me} />;
+}
+
+/** One common chat: every message of the game is shown to everyone (messaging.mode = group, the default). */
+function GroupChat({ snap, me }: { snap: GameSnapshot; me: PlayerId }) {
+  const messages = useStore(s => s.chat);
+  const others = snap.players.filter(p => p.playerId !== me && (p.status === 'active' || p.status === 'disconnected')).map(p => p.playerId);
+  const [text, setText] = useState('');
+  const log = useRef<HTMLDivElement>(null);
+  useEffect(() => { const el = log.current; if (el) el.scrollTop = el.scrollHeight; }, [messages.length]);
+  const send = () => { if (!text.trim()) return; chat(others, text.trim()); setText(''); };
+  return (
+    <Card title="Group chat">
+      <div className="chat-log" ref={log}>
+        {messages.length === 0 ? <p className="hint">No messages yet. Everyone in the game reads this chat.</p> :
+          messages.map(c => (
+            <div key={c.id} className={'msg' + (c.from === me ? ' mine' : '')}>
+              <small><b>{c.from === me ? 'You' : playerName(snap.players, c.from)}</b> · {formatTime(c.ts)}</small>
+              <div>{c.text}</div>
+            </div>
+          ))}
+      </div>
+      <div className="row">
+        <input className="input" value={text} placeholder="Message everyone"
+          onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') send(); }} maxLength={500} />
+        <button className="btn primary sm" disabled={!text.trim()} onClick={send}>Send</button>
+      </div>
+    </Card>
+  );
+}
+
+/** Private threads between the players picked as recipients (messaging.mode = individual). */
+function ThreadChat({ snap, me }: { snap: GameSnapshot; me: PlayerId }) {
   const messages = useStore(s => s.chat);
   const others = snap.players.filter(p => p.playerId !== me && (p.status === 'active' || p.status === 'disconnected'));
   const [to, setTo] = useState<PlayerId[]>([]);

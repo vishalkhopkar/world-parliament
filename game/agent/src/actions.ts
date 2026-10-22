@@ -410,9 +410,9 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'chat',
-    description: 'Send a private chat message (counting and post-counting phases, only in games with 3+ players). `to` = list of recipient party names or ids (or ["all"] for everyone else). Only you and the recipients see it.',
+    description: 'Send a chat message (counting and post-counting phases, only in games with 3+ players). By default the game has ONE group chat that everyone in the game reads: just give `text` (`to` is optional and ignored). In games configured for private threads, `to` = list of recipient party names or ids (or ["all"] for everyone else) and only you and the recipients see it.',
     schema: z.object({
-      to: z.array(z.string().min(1)).min(1).describe('Recipients: party names / ids, or ["all"]'),
+      to: z.array(z.string().min(1)).min(1).optional().describe('Recipients (party names / ids, or ["all"]); optional, default = everyone else'),
       text: z.string().min(1).max(500),
     }),
     async run(s, i) {
@@ -424,7 +424,7 @@ export const ACTIONS: ActionDef[] = [
       if (status !== 'counting' && status !== 'postCounting') throw new AgentError('WRONG_PHASE', 'Chat opens when counting starts.');
       const others = contenders.filter((p) => p.playerId !== s.client.me && p.status !== 'eliminated');
       const ids = new Set<string>();
-      for (const ref of i.to) {
+      for (const ref of i.to ?? ['all']) {
         if (/^(all|everyone|everybody)$/i.test(ref.trim())) others.forEach((p) => ids.add(p.playerId));
         else ids.add(resolvePlayer(contenders, ref, s.client.me).playerId);
       }
@@ -437,7 +437,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'get_chat',
-    description: 'Read private chat messages sent to or by you. Use since_cursor (next_cursor from the last call) to read only new ones.',
+    description: 'Read the chat messages you can see (the whole group chat by default, or the private threads you are part of). Use since_cursor (next_cursor from the last call) to read only new ones.',
     schema: z.object({ since_cursor: z.number().int().min(0).default(0).describe('Number of messages already read') }),
     readOnly: true,
     async run(s, i) {

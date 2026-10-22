@@ -131,6 +131,9 @@ export const GAME_CONFIG_VALUES = {
   },
   "currency": {
     "name": "World Rupee",
-    "symbol": "W₹"
+    "symbol": "₩"
+  },
+  "messaging": {
+    "mode": "group"
   }
 };

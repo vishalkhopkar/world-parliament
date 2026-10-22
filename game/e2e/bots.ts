@@ -393,7 +393,7 @@ async function main() {
   check(polledAll.length === PKG.seatCount && new Set(polledAll).size === PKG.seatCount, 'phaseClosed seats must cover every seat exactly once');
   log('counting started');
 
-  // chat: private between the named recipients only
+  // chat: one group chat everybody reads
   const [b0, b1] = bots;
   if (N === 2) {
     // designer's rule: no negotiation in a 2-player game
@@ -403,19 +403,19 @@ async function main() {
     check(bot_err(pr) === 'NEGOTIATION_DISABLED', `2 players: proposeGovernment should be NEGOTIATION_DISABLED, got ${pr.type === 'error' ? pr.error : pr.type}`);
     log('2 players: chat and proposeGovernment rejected with NEGOTIATION_DISABLED');
   } else {
-  const unk = await b0.request({ action: 'chat', to: ['nobody'], text: 'hi' }, m => m.type === 'chat');
-  check(bot_err(unk) === 'BAD_REQUEST', `chat to an unknown player should be BAD_REQUEST, got ${unk.type === 'error' ? unk.error : unk.type}`);
+  // messaging.mode = group (the default): ONE chat everybody reads; `to` is only a hint and is ignored
   const from1 = bots.map(b => b.msgs.length);
-  const text = 'secret ' + SEED;
+  const text = 'open to all ' + SEED;
   const c = await b0.request({ action: 'chat', to: [b1.playerId], text }, m => m.type === 'chat' && m.message.text === text);
   check(c.type === 'chat', 'chat refused: ' + bot_err(c));
-  await b1.waitFor(m => m.type === 'chat' && m.message.text === text, { from: from1[1], what: 'chat delivery' });
+  await Promise.all(bots.slice(1).map((b, i) => b.waitFor(m => m.type === 'chat' && m.message.text === text, { from: from1[i + 1], what: 'chat delivery' })));
   await sleep(300);
   bots.forEach((b, i) => {
     const got = b.msgs.slice(from1[i]).some(m => m.type === 'chat' && m.message.text === text);
-    check(got === (i <= 1), `${b.name}: chat visibility wrong (got=${got}, expected ${i <= 1})`);
+    check(got, `${b.name}: group chat message not received`);
   });
-  await b1.request({ action: 'chat', to: bots.filter(b => b !== b1).map(b => b.playerId), text: 'hello all' }, m => m.type === 'chat' && m.message.text === 'hello all');
+  const noTo = await b1.request({ action: 'chat', text: 'hello all' } as ClientMessage, m => m.type === 'chat' && m.message.text === 'hello all');
+  check(noTo.type === 'chat', 'chat without recipients refused: ' + bot_err(noTo));
   log('chat ok');
 
   // invalid governments are refused while counting

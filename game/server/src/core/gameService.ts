@@ -423,7 +423,29 @@ export class GameService {
       type: 'hello', serverTime: this.now(),
       snapshot,
       private: await this.privateState(player.gameId, player.playerId),
+      chat: await this.chatHistoryFor(player),
     };
+  }
+
+  /** A hello must stay well under the 128 KB WebSocket frame limit: at most this many characters of chat history (newest kept). */
+  private static readonly HELLO_CHAT_BUDGET = 12_000;
+
+  /** The conversation this player may read (everything in group mode, only own threads otherwise), oldest first, bounded. */
+  private async chatHistoryFor(player: PlayerRecord): Promise<ChatMessage[]> {
+    const game = await this.repo.getGame(player.gameId);
+    if (!game || (game.status !== 'counting' && game.status !== 'postCounting' && game.status !== 'finished')) return [];
+    const group = this.loadMap(game.mapId).cfg.messaging.mode === 'group';
+    const all = (await this.repo.listChat(player.gameId)).sort((a, b) => a.ts - b.ts);
+    const mine = group ? all : all.filter((m) => m.from === player.playerId || m.to.includes(player.playerId));
+    const out: ChatMessage[] = [];
+    let size = 2;
+    for (let i = mine.length - 1; i >= 0; i--) {
+      const m: ChatMessage = { id: mine[i].id, from: mine[i].from, to: mine[i].to, text: mine[i].text, ts: mine[i].ts };
+      size += JSON.stringify(m).length + 1;
+      if (size > GameService.HELLO_CHAT_BUDGET) break;
+      out.unshift(m);
+    }
+    return out;
   }
 
   async privateState(gameId: string, playerId: PlayerId): Promise<PrivateState> {
@@ -830,13 +852,19 @@ export class GameService {
     await this.requireNegotiationAllowed(game.gameId);
     if (!MEMBER.has(player.status)) throw new GameError('FORBIDDEN', 'You are not part of this game');
     const body = cleanText(text, 1, 500, 'Message');
-    if (!Array.isArray(to) || to.length === 0 || to.some((x) => typeof x !== 'string')) throw new GameError('BAD_REQUEST', 'Choose at least one recipient');
-    const recipients = uniq(to as string[]).filter((id) => id !== player.playerId);
-    if (!recipients.length) throw new GameError('BAD_REQUEST', 'Choose at least one other player');
     const players = await this.repo.listPlayers(player.gameId);
-    for (const r of recipients) {
-      const rp = players.find((p) => p.playerId === r);
-      if (!rp || !MEMBER.has(rp.status)) throw new GameError('BAD_REQUEST', 'Unknown recipient');
+    let recipients: string[];
+    if (this.loadMap(game.mapId).cfg.messaging.mode === 'group') {
+      // one common chat: everybody else in the game (eliminated players included) reads it; `to` is ignored
+      recipients = players.filter((p) => MEMBER.has(p.status) && p.playerId !== player.playerId).map((p) => p.playerId);
+    } else {
+      if (!Array.isArray(to) || to.length === 0 || to.some((x) => typeof x !== 'string')) throw new GameError('BAD_REQUEST', 'Choose at least one recipient');
+      recipients = uniq(to as string[]).filter((id) => id !== player.playerId);
+      if (!recipients.length) throw new GameError('BAD_REQUEST', 'Choose at least one other player');
+      for (const r of recipients) {
+        const rp = players.find((p) => p.playerId === r);
+        if (!rp || !MEMBER.has(rp.status)) throw new GameError('BAD_REQUEST', 'Unknown recipient');
+      }
     }
     const message: ChatMessage = { id: newId(6), from: player.playerId, to: recipients, text: body, ts: this.now() };
     await this.repo.addChat(player.gameId, message);

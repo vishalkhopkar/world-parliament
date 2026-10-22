@@ -55,6 +55,9 @@ export function rulesValues(cfg: MapConfig, opts: RenderOptions = {}): Record<st
     PLAYERS_MAX: String(cfg.players.max),
     SEATS: String(n),
     MAJORITY: String(majorityOf(n)),
+    CHAT_RULE: cfg.messaging.mode === 'group'
+      ? '**Group chat**: `chat {text}` posts to ONE common chat that everyone in the game reads (the `to` list is ignored). Read what others wrote with `get_chat` or `wait_for_events`.'
+      : '**Private chat**: `chat {to:[names], text}` to one or more players. Only you and the recipients see it. Read replies with `get_chat` or `wait_for_events`.',
     CURRENCY: cfg.currency.name,
     SYM: cfg.currency.symbol,
     PHASES_MIN: String(cfg.phases.min),

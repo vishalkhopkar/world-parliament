@@ -70,7 +70,8 @@ export type ClientMessage =
   | { action: 'buyReport'; scope: ReportScope; seat?: SeatId }
   /** Counting phase onwards: the vote shares (and candidate names) of a seat that already has a lead or a result. Answered with 'seatShares'. */
   | { action: 'peekSeat'; seat: SeatId }
-  | { action: 'chat'; to: PlayerId[]; text: string }                       // counting & post-counting only
+  /** Counting & post-counting only. `to` picks the recipients in 'individual' mode; in 'group' mode (default) everybody reads it and `to` is ignored. */
+  | { action: 'chat'; to?: PlayerId[]; text: string }
   | { action: 'proposeGovernment'; portfolios: PortfolioAssignment; partners?: PlayerId[] }
   | { action: 'respondOffer'; offerId: string; accept: boolean }
   | { action: 'withdrawOffer'; offerId: string };
@@ -136,7 +137,8 @@ export interface SeatSharesMessage {
 }
 
 export type ServerMessage =
-  | { type: 'hello'; serverTime: number; snapshot: GameSnapshot; private: PrivateState }
+  /** `chat` = the conversation so far that this player may read (newest messages, bounded), so a reconnect keeps it. */
+  | { type: 'hello'; serverTime: number; snapshot: GameSnapshot; private: PrivateState; chat?: ChatMessage[] }
   | { type: 'pong'; clientTime: number; serverTime: number }
   | { type: 'private'; private: PrivateState }
   | { type: 'status'; status: GameStatus; timeline: GameTimeline | null }

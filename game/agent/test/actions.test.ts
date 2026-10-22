@@ -273,6 +273,17 @@ describe('rules rendering', () => {
 
   it('fails loudly on an unknown placeholder', () => {
     expect(() => renderRules(cfg, {}, 'x {{NOPE}}')).toThrow(/NOPE/);
+  });
+
+  it('the chat paragraph follows messaging.mode: one group chat everybody reads, or private threads', () => {
+    const group = renderRules({ ...cfg, messaging: { mode: 'group' } });
+    expect(group).toMatch(/group chat/i);
+    expect(group).toMatch(/everyone in the game reads/i);
+    expect(group).not.toMatch(/Only you and the recipients see it/);
+    const threads = renderRules({ ...cfg, messaging: { mode: 'individual' } });
+    expect(threads).toMatch(/Only you and the recipients see it/);
+    expect(threads).not.toMatch(/everyone in the game reads/i);
+    expect(group).not.toContain('{{');
     expect(rulesTemplate().length).toBeGreaterThan(3000);
   });
 

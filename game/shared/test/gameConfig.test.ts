@@ -65,6 +65,11 @@ describe('game.properties is the source of the game constants', () => {
     expect([c.panelRunnerUpPercent, c.panelOtherPercent]).toEqual([75, 25]);
   });
 
+  it('messaging is one group chat everybody can read by default (the flag allows private threads)', () => {
+    expect(WORLD_CONFIG.messaging).toEqual({ mode: props.get('messaging.mode') });
+    expect(WORLD_CONFIG.messaging.mode).toBe('group');
+  });
+
   it('every map without its own entry shares the file values', () => {
     const c = configForMap('some-new-map', 123);
     expect(c.mapId).toBe('some-new-map');
@@ -133,6 +138,19 @@ describe('gen-config rejects a bad properties file', () => {
     expect(r.ok).toBe(false);
     expect(r.err).toContain(`counting.${k}`);
   }, 30_000);
+  it.each(['group', 'individual'])('accepts messaging.mode=%s', (mode) => {
+    expect(run(propsText.replace(/^messaging\.mode=.*$/m, `messaging.mode=${mode}`)).ok).toBe(true);
+  }, 30_000);
+  it.each(['threads', 'GROUP', ''])('rejects messaging.mode=%j', (mode) => {
+    const r = run(propsText.replace(/^messaging\.mode=.*$/m, `messaging.mode=${mode}`));
+    expect(r.ok).toBe(false);
+    expect(r.err).toContain('messaging.mode');
+  }, 30_000);
+  it('rejects a missing messaging.mode', () => {
+    const r = run(propsText.replace(/^messaging\.mode=.*$/m, ''));
+    expect(r.ok).toBe(false);
+    expect(r.err).toContain('messaging.mode');
+  }, 30_000);
   it('rejects a negative first-mover bonus', () => {
     const r = run(propsText.replace(/^effects\.firstMover\.rally=.*$/m, 'effects.firstMover.rally=-1'));
     expect(r.ok).toBe(false);
@@ -145,6 +163,7 @@ describe('validateConfig', () => {
     expect(() => validateConfig({ ...WORLD_CONFIG, budget: NaN })).toThrow(/budget/);
     expect(() => validateConfig({ ...WORLD_CONFIG, connection: { retryMs: 200 } })).toThrow(/connection.retryMs/);
     expect(() => validateConfig({ ...WORLD_CONFIG, costs: { rally: -1, roadshow: 1 } })).toThrow(/costs.rally/);
+    expect(() => validateConfig({ ...WORLD_CONFIG, messaging: { mode: 'threads' } } as never)).toThrow(/messaging.mode/);
     const counting = (over: object) => ({ ...WORLD_CONFIG, counting: { ...WORLD_CONFIG.counting, ...over } });
     expect(() => validateConfig(counting({ pieRefreshMs: 100 }))).toThrow(/counting.pieRefreshMs/);
     expect(() => validateConfig(counting({ panelDisplayMs: 0 }))).toThrow(/counting.panelDisplayMs/);

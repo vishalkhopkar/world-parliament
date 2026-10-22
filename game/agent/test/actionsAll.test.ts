@@ -293,11 +293,19 @@ describe('chat / get_chat', () => {
   it.each([
     [{ to: ['Party Claude'], text: 'me' }, 'INVALID_INPUT'], [{ to: ['me'], text: 'me' }, 'INVALID_INPUT'], [{ to: ['Nobody'], text: 'x' }, 'UNKNOWN_PLAYER'],
     [{ to: [], text: 'x' }, 'INVALID_INPUT'], [{ to: ['Party Asha'], text: '' }, 'INVALID_INPUT'], [{ to: ['Party Asha'], text: 'x'.repeat(501) }, 'INVALID_INPUT'],
-    [{ to: 'Party Asha', text: 'x' }, 'INVALID_INPUT'], [{ text: 'x' }, 'INVALID_INPUT'],
+    [{ to: 'Party Asha', text: 'x' }, 'INVALID_INPUT'],
   ])('%j -> %s', async (args, code) => {
     const { s, calls } = session(counting);
     expect((await err(s, 'chat', args)).code).toBe(code);
     expect(calls.chat).toBeUndefined();
+  });
+  it('`to` is optional: without it the message goes to every other living player (group chat)', async () => {
+    const ps = players();
+    ps[3] = { ...ps[3], status: 'eliminated' };
+    const { s, calls } = session({ ...counting, players: ps });
+    await ok(s, 'chat', { text: 'to the whole table' });
+    expect((calls.chat[0][0] as string[]).sort()).toEqual(['c', 'h']);
+    expect(calls.chat[0][1]).toBe('to the whole table');
   });
   it('get_chat returns everything from the cursor and the next cursor', async () => {
     const { s } = session(counting);

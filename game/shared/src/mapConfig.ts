@@ -52,6 +52,9 @@ export interface PriceCurve {
   end: number;
 }
 
+/** 'group' = one common chat, every message readable by everybody; 'individual' = private threads. */
+export type MessagingMode = 'group' | 'individual';
+
 export interface CountingParams {
   /** No seat is confirmed ('won') before this fraction of the counting time; confirmations are then spread up to the end. */
   winStartFraction: number;
@@ -115,6 +118,8 @@ export interface MapConfig {
   /** How the count is revealed: noisy leads first, confirmed wins only late. All fractions are of the counting time. */
   counting: CountingParams;
   players: { min: number; max: number };
+  /** Chat between players during counting / post-counting: one group chat everybody reads, or private threads. */
+  messaging: { mode: MessagingMode };
   /** Browser connection behaviour. */
   connection: {
     /** Milliseconds between automatic reconnect attempts while the link is down (min 1000). */
@@ -160,6 +165,7 @@ export function validateConfig(cfg: MapConfig): void {
   num('analyst.globalReport.start', cfg.analyst?.globalReport?.start);
   num('analyst.globalReport.end', cfg.analyst?.globalReport?.end);
   num('randomSwing', cfg.randomSwing);
+  if (cfg.messaging?.mode !== 'group' && cfg.messaging?.mode !== 'individual') bad('messaging.mode', `must be "group" or "individual" (got ${String(cfg.messaging?.mode)})`);
   num('connection.retryMs', cfg.connection?.retryMs, 999, true);
   num('durations.countingMs', cfg.durations?.countingMs, 0, true);
   num('durations.countingMsTwoPlayers', cfg.durations?.countingMsTwoPlayers, 0, true);
@@ -186,6 +192,8 @@ export const WORLD_CONFIG: MapConfig = {
   mapId: 'world-500',
   seatCount: 500,
   ...GAME_CONFIG_VALUES,
+  // the generated file types the mode as a plain string; validateConfig below checks it
+  messaging: GAME_CONFIG_VALUES.messaging as MapConfig['messaging'],
 };
 validateConfig(WORLD_CONFIG);
 

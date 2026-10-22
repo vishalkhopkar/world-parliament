@@ -391,7 +391,7 @@ export class GameClient {
     );
   }
 
-  async chat(to: PlayerId[], text: string): Promise<ChatMessage> {
+  async chat(to: PlayerId[] | undefined, text: string): Promise<ChatMessage> {
     const me = this.state.me;
     return this.request<ChatMessage>({ action: 'chat', to, text },
       (m) => (m.type === 'chat' && m.message.from === me && m.message.text.trim() === text.trim() ? m.message : undefined));

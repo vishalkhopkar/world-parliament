@@ -156,7 +156,10 @@ describe('AI agents join and play through the action table', () => {
     const gotChat = await call(B, 'wait_for_events', { timeout_s: 5, types: ['chat'] });
     expect(gotChat.events[0].text).toMatch(/government/);
     expect(gotChat.events[0].from).toBe('Blue Wave');
-    expect(gotChat.events[0].to).toEqual(['Green Deal']);
+    // default messaging.mode = group: the message goes to everybody else in the game (`to` was only a hint)
+    expect(gotChat.events[0].to).toContain('Green Deal');
+    expect(gotChat.events[0].to).not.toContain('Blue Wave');
+    expect(gotChat.events[0].to.length).toBeGreaterThanOrEqual(2);
     const chats = await call(B, 'get_chat', {});
     expect(chats.messages.length).toBe(1);
     expect((await callErr(A, 'chat', { to: ['nobody'], text: 'hi' })).code).toBe('UNKNOWN_PLAYER');
