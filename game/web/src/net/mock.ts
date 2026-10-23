@@ -132,7 +132,19 @@ export class MockTransport implements Transport {
       myActions: g.actions.filter(a => a.playerId === g.me).map(a => ({ type: a.type, seat: a.seat, ts: a.ts })),
       myReports: [...g.myReports],
       committed: this.committed(g),
+      reputation: this.reputation(g),
     };
+  }
+  /** Offline stand-in for the server's reputation view (no spill-over or time multiplier): own actions at their seat, scaled and rounded. */
+  private reputation(g: MockGame): Record<SeatId, number> {
+    const out: Record<SeatId, number> = {};
+    const { rally, roadshow } = g.cfg.effects;
+    for (const a of g.actions) {
+      if (a.playerId !== g.me) continue;
+      const raw = a.type === 'rally' ? rally.local + rally.global : roadshow.local;
+      out[a.seat] = (out[a.seat] ?? 0) + Math.round(raw * g.cfg.display.reputationScale);
+    }
+    return out;
   }
   /** Offline demo of committed voters: a strong seat with weaker bands in the seats that follow it (ids are roughly geographic). */
   private committed(g: MockGame): CommittedView[] {
@@ -351,7 +363,7 @@ export class MockTransport implements Transport {
     me.budget -= cost;
     const a: Action = { id: uid(), playerId: g.me, type: msg.type, seat: msg.seat, ts: this.now() };
     g.actions.push(a);
-    this.emit({ type: 'actionAck', clientRef: msg.clientRef, ok: true, budget: me.budget });
+    this.emit({ type: 'actionAck', clientRef: msg.clientRef, ok: true, budget: me.budget, reputation: this.reputation(g) });
     this.emit({ type: 'private', private: this.priv(g) });
     if (msg.type === 'rally') this.publishRally(g, a);
   }

@@ -376,6 +376,7 @@ export const ACTIONS: ActionDef[] = [
           return { id: n, name: dir.name(n), km: o ? Math.round(haversineKm(seat.lon, seat.lat, o.lon, o.lat)) : null, polled: np === undefined ? null : s.phaseClosed(np) };
         }),
         my_committed_voters: ownCommitted ? { committed: committedLabel(ownCommitted), band: ownCommitted.band, level: ownCommitted.level, note: 'Private band figure; the final votes can differ (influence and chance).' } : null,
+        my_reputation: priv?.reputation?.[seat.id] ?? 0,
         my_actions_here: { rallies: mine.filter((a) => a.type === 'rally').length, roadshows: mine.filter((a) => a.type === 'roadshow').length },
         public_rallies_here_by_party: rallies,
         my_seat_reports: (priv?.myReports ?? []).filter((r) => r.scope === 'seat' && r.seat === seat.id).map((r) => reportView(s, r, dir)),

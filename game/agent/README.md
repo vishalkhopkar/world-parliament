@@ -40,6 +40,7 @@ Then tell Claude: *"Play HUNG PARLIAMENT. The join code is ABC123."* (or use the
 Every party starts with committed voters in a patch of seats (see `get_rules`, section 6a). You see only your own: `get_state` has a `committed` summary
 (`total`, `by_level` HIGH/MEDIUM/LOW, and the `seats` list with `committed: "~30% (HIGH)"`), `get_seat` has `my_committed_voters` (null when none), and
 `list_seats` rows carry `committed` on your committed seats (filter: `committed_only: true`). The figure is the band, not the final vote.
+Your own reputation among swing voters (never a rival's) is `get_seat` -> `my_reputation`, a whole number (0 until you act there, only grows).
 
 ## Connect Codex CLI
 ```bash

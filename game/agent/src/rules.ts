@@ -98,6 +98,7 @@ export function rulesValues(cfg: MapConfig, opts: RenderOptions = {}): Record<st
     NOISE_PCT: String(Math.round(cfg.analyst.noise * 100)),
     INFLUENCE_PCT: String(cfg.voting.influenceMaxPercent),
     RANDOM_PCT: String(cfg.voting.randomMaxPercent),
+    REPUTATION_SCALE: String(cfg.display.reputationScale),
     SEAT_CAP_PCT: String(cfg.committed.seatMaxPercent),
     COMMITTED_SEATS: String(cfg.committed.bands.reduce((a, b) => a + b.seats, 0)),
     COMMITTED_BAND_COUNT: String(cfg.committed.bands.length),

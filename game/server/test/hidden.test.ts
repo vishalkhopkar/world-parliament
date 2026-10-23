@@ -67,6 +67,11 @@ describe('hidden information', () => {
             expect(['actionAck', 'report', 'hello', 'private']).toContain(m.type);
             if (m.type === 'hello') expect(path[0]).toBe('private');
           }
+          // own rounded reputation: only on the owner's private state / ack
+          if (k === 'reputation') {
+            expect(['actionAck', 'hello', 'private']).toContain(m.type);
+            if (m.type === 'hello') expect(path[0]).toBe('private');
+          }
           // effect totals never appear
           expect(['effect', 'effects', 'roadshows', 'tokenHash', 'token']).not.toContain(k as string);
         });

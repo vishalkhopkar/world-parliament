@@ -1,6 +1,6 @@
 // Wire protocol between browser and backend.
 // REST (API Gateway HTTP API) for lobby; WebSocket (API Gateway WebSocket API) for everything live.
-// Rule: the server never sends hidden information (roadshows, effect totals, other players' budgets).
+// Rule: the server never sends hidden information (roadshows, effect totals, other players' budgets). The one exception: a player's OWN rounded reputation (PrivateState.reputation, actionAck.reputation).
 
 import type {
   ActionType, AnalystReport, CoalitionOffer, FinalResult, GameId, GameStatus, GameTimeline,
@@ -89,6 +89,11 @@ export interface PrivateState {
    * (shown as "~30%"), never the value after influence. Missing/empty before the player's bands are dealt.
    */
   committed?: CommittedView[];
+  /**
+   * Own reputation among swing voters only (never another party's): seat -> round(effect x display.reputationScale),
+   * zeros omitted (missing = 0). Whole numbers; raw effect totals are never sent.
+   */
+  reputation?: Record<SeatId, number>;
 }
 
 export interface CommittedView { seat: SeatId; band: number; percent: number; level: CommittedLevel }
@@ -152,7 +157,7 @@ export type ServerMessage =
   | { type: 'status'; status: GameStatus; timeline: GameTimeline | null }
   | { type: 'players'; players: PlayerPublic[] }
   | { type: 'news'; item: NewsItem }
-  | { type: 'actionAck'; clientRef?: string; ok: true; budget: number }
+  | { type: 'actionAck'; clientRef?: string; ok: true; budget: number; reputation?: Record<SeatId, number> }
   | { type: 'report'; report: AnalystReport; budget: number }
   | { type: 'phaseClosed'; phase: number; seats: SeatId[] }
   | { type: 'seatUpdate'; declaration: SeatDeclaration; tally: CountTally }

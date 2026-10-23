@@ -20,4 +20,7 @@
 .pulse{vector-effect:non-scaling-stroke}
 .seat.blurred{filter:url(#hp-blur);opacity:.5}
 .seat-labels{pointer-events:none}
+.seat-badges{pointer-events:none}
+.seat-badge circle{stroke:#fff;stroke-width:1.5;opacity:.95}
+.seat-badge text{text-anchor:middle;font:700 12px system-ui,sans-serif;font-variant-numeric:tabular-nums}
 .seat-label{fill:#2b2a22;fill-opacity:.3;font-family:var(--serif);font-weight:700;text-anchor:middle;dominant-baseline:central;pointer-events:none;user-select:none}

@@ -94,7 +94,7 @@ export const useStore = create<State>((set, get) => ({
         // the server sends only the new budget; add the action to our own list (its clientRef tells us which one it was)
         const a = m.clientRef ? pendingActions.get(m.clientRef) : undefined;
         if (m.clientRef) pendingActions.delete(m.clientRef);
-        if (priv) set({ priv: { ...priv, budget: m.budget, myActions: a ? [...priv.myActions, { ...a, ts: Date.now() + get().clockOffset }] : priv.myActions } });
+        if (priv) set({ priv: { ...priv, budget: m.budget, reputation: m.reputation ?? priv.reputation, myActions: a ? [...priv.myActions, { ...a, ts: Date.now() + get().clockOffset }] : priv.myActions } });
         break;
       }
       case 'report':

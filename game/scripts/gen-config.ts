@@ -34,7 +34,7 @@ const NUMBER_KEYS = [
   'effects.roadshow.decay.halfDistanceKm', 'effects.roadshow.decay.maxKm', 'effects.roadshow.decay.capRatio',
   'effects.firstMover.rally', 'effects.firstMover.roadshow',
   'timeMultiplier.start', 'timeMultiplier.end',
-  'committed.seatMaxPercent', 'voting.influenceMaxPercent', 'voting.randomMaxPercent',
+  'committed.seatMaxPercent', 'voting.influenceMaxPercent', 'voting.randomMaxPercent', 'display.reputationScale',
   'phases.min', 'phases.max', 'phases.default', 'players.min', 'players.max',
   'durations.campaignMs', 'durations.countingMs', 'durations.countingMsTwoPlayers', 'durations.countingStepMs',
   'durations.postCountingMs', 'durations.postCountingMsTwoPlayers', 'durations.graceMs',
@@ -106,6 +106,7 @@ const val = (k: string): number => k.split('.').reduce((o: any, p) => o?.[p], va
 const rule = (ok: boolean, msg: string) => { if (!ok) errors.push(msg); };
 if (!errors.length) {
   rule(val('budget') > 0, 'budget must be > 0');
+  rule(val('display.reputationScale') > 0, 'display.reputationScale must be > 0');
   for (const k of ['costs.rally', 'costs.roadshow']) rule(val(k) > 0, `${k} must be > 0`);
   for (const k of ['effects.firstMover.rally', 'effects.firstMover.roadshow']) rule(val(k) >= 0, `${k} must be >= 0`);
   rule(val('players.min') >= 2 && val('players.max') >= val('players.min'), 'players: need 2 <= min <= max');

@@ -14,6 +14,15 @@ import { selectMapId, useStore } from '../state/store';
 const DETAIL_K = 4;
 const NEUTRAL = '#d3d0c6';
 
+/** Number colour on a badge: white on dark party colours, near-black on light ones. */
+export function badgeInk(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return '#fff';
+  const n = parseInt(m[1], 16);
+  const lum = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return lum > 0.6 ? '#1b1b1b' : '#fff';
+}
+
 export interface SeatMapProps {
   /** seat -> colour (won/leading seats). Missing = neutral grey. */
   fills?: Record<SeatId, string>;
@@ -27,6 +36,8 @@ export interface SeatMapProps {
   blurred?: ReadonlySet<SeatId>;
   /** faint text drawn at a seat's centre (e.g. its polling phase); shown once the seat is big enough on screen. */
   labels?: Record<SeatId, string>;
+  /** party-coloured circle with a number at a seat's centre (e.g. own reputation); constant screen size, hidden while the seat is tiny. */
+  badges?: Record<SeatId, { text: string; colour: string }>;
   selectedSeat?: SeatId | null;
   onSeatClick?: (seat: SeatId) => void;
   /** Change `key` to fire a flash on `seat` (e.g. a rally just happened). */
@@ -87,6 +98,7 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
     const blurStd = blur.append('feGaussianBlur').attr('stdDeviation', 2);
     const gSeats = gZoom.append('g');
     const gLabels = gZoom.append('g').attr('class', 'seat-labels');
+    const gBadges = gZoom.append('g').attr('class', 'seat-badges');
     const gHits = gZoom.append('g');
     const gFx = gZoom.append('g').attr('class', 'fx');
     const hl = gZoom.append('path').attr('class', 'hl').style('display', 'none');
@@ -127,6 +139,7 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
     function placeLabels() {
       gLabels.selectAll<SVGTextElement, Lab>('text')
         .attr('font-size', 13 / kNow)
+        .attr('y', d => d.y - (propsRef.current.badges ? 18 / kNow : 0)) // make room for the badge
         .style('display', d => (d.size * kNow >= 24 ? null : 'none'));
     }
     function drawLabels() {
@@ -140,6 +153,33 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
       gLabels.selectAll<SVGTextElement, Lab>('text').data(labs, d => d.id).join('text')
         .attr('class', 'seat-label').attr('x', d => d.x).attr('y', d => d.y).text(d => d.text);
       placeLabels();
+    }
+
+    // badges: circle + number, constant on-screen size, hidden while the seat is too small to hold one
+    type Bad = { id: SeatId; text: string; colour: string; x: number; y: number; size: number };
+    const BADGE_R = 11;
+    function placeBadges() {
+      gBadges.selectAll<SVGGElement, Bad>('g.seat-badge')
+        .attr('transform', d => `translate(${d.x},${d.y}) scale(${1 / kNow})`)
+        .style('display', d => (d.size * kNow >= 24 ? null : 'none'));
+    }
+    function drawBadges() {
+      const badges = propsRef.current.badges ?? {};
+      const bads: Bad[] = [];
+      for (const id of Object.keys(badges).map(Number)) {
+        const f = featById.get(id), c = f && centre(id); if (!f || !c) continue;
+        const b = path.bounds(f);
+        bads.push({ id, ...badges[id], x: c[0], y: c[1], size: Math.max(b[1][0] - b[0][0], b[1][1] - b[0][1]) });
+      }
+      const g = gBadges.selectAll<SVGGElement, Bad>('g.seat-badge').data(bads, d => d.id).join(enter => {
+        const e = enter.append('g').attr('class', 'seat-badge');
+        e.append('circle').attr('r', BADGE_R);
+        e.append('text').attr('dy', '0.35em');
+        return e;
+      });
+      g.select('circle').attr('fill', d => d.colour);
+      g.select('text').attr('fill', d => badgeInk(d.colour)).text(d => d.text);
+      placeBadges();
     }
 
     function onMove(e: MouseEvent) {
@@ -161,7 +201,7 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
           .on('click', (_e, d) => click(d.properties.seat)),
         update => update, exit => exit.remove(),
       ).attr('d', path);
-      style(); drawLabels();
+      style(); drawLabels(); drawBadges();
     }
 
     function buildHits() {
@@ -202,7 +242,7 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
           Math.hypot(se.clientX - dragStart[0], se.clientY - dragStart[1]) > 3) svg.classed('dragging', true);
       gHits.selectAll('circle').attr('r', 7 / t.k);
       blurStd.attr('stdDeviation', 2.5 / t.k);
-      placeLabels();
+      placeLabels(); placeBadges();
       hatch.attr('patternTransform', `scale(${1 / t.k})`);
       if (t.k / baseT.k > DETAIL_K && !detail && !detailLoading) void loadDetail();
     }
@@ -232,7 +272,7 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
     };
 
     api.current = {
-      update: () => { style(); drawLabels(); },
+      update: () => { style(); drawLabels(); drawBadges(); },
       pulse: p => {
         const c = centre(p.seat); if (!c) return;
         const col = p.colour ?? '#e0476a';
@@ -277,8 +317,8 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
   }, [mapId]);
 
   // ---- prop updates: restyle only, never re-render paths
-  const { fills, leading, dimmed, blurred, labels, selectedSeat, names, fillStyle } = props;
-  useEffect(() => { api.current?.update(); }, [fills, leading, dimmed, blurred, labels, selectedSeat, names, fillStyle]);
+  const { fills, leading, dimmed, blurred, labels, badges, selectedSeat, names, fillStyle } = props;
+  useEffect(() => { api.current?.update(); }, [fills, leading, dimmed, blurred, labels, badges, selectedSeat, names, fillStyle]);
   const pulseKey = props.pulse?.key;
   useEffect(() => { if (propsRef.current.pulse) api.current?.pulse(propsRef.current.pulse); }, [pulseKey]);
 

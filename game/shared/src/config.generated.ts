@@ -84,6 +84,9 @@ export const GAME_CONFIG_VALUES = {
     "influenceMaxPercent": 40,
     "randomMaxPercent": 5
   },
+  "display": {
+    "reputationScale": 10
+  },
   "phases": {
     "min": 1,
     "max": 5,

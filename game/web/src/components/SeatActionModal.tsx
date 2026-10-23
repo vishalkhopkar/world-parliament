@@ -66,6 +66,7 @@ export function SeatActionModal({ seat, snap, priv, now, phaseOf, polled, onClos
         <h3 className="sam-title">{seatName(names, seat)}</h3>
         <p className="sam-sub">Seat {seat}{phase !== undefined ? ` · Polls in phase ${phase + 1}` : ''}</p>
         {committed && <p className="sam-committed">Committed voters: ~{committed.percent}% · {committed.level}</p>}
+        <p className="sam-reputation">Reputation {priv.reputation?.[seat] ?? 0} among swing voters</p>
         {isPolled ? (
           <p className="sam-closed">Polling here is closed</p>
         ) : (

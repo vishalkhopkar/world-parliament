@@ -84,6 +84,7 @@ When a seat's phase closes, its votes are made up in four steps, and the party w
 3. **Randomness.** A random 0 to {{RANDOM_PCT}}% of the *uncommitted* voters vote for random parties in random amounts.
 4. **Reputation.** All remaining voters are split between parties in proportion to their campaign effect in the seat (rallies and roadshows, with spill-over, the global rally effect, first-mover bonus and time bonus,
    section 3). Where nobody has any effect they are split at random.
+   You see your OWN reputation per seat (never a rival's) as a whole number: your effect x {{REPUTATION_SCALE}}, rounded (`get_seat` -> `my_reputation`; 0 until you act there; it only grows). The browser shows the same number on the map and in the seat panel.
 Every seat always has a winner. So a seat is not about being far ahead; it is about having more votes than every single rival. Crowded seats (many rallies nearby from several parties)
 split the reputation voters into small shares; neglected seats can be won cheaply.
 

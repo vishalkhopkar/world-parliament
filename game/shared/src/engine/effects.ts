@@ -156,3 +156,18 @@ export function seatShares(effects: Effects, kernels: Kernels, seat: SeatId): Re
   for (const [p, v] of effects) out[p] = v[i] / total;
   return out;
 }
+
+/**
+ * What a player is shown of their OWN reputation: round(effect x cfg.display.reputationScale) per seat, whole numbers,
+ * zeros left out (the client treats a missing seat as 0). Pass only that player's vector; never send another party's.
+ */
+export function reputationView(effects: Float64Array | undefined, kernels: Kernels, cfg: MapConfig): Record<SeatId, number> {
+  const out: Record<SeatId, number> = {};
+  if (!effects) return out;
+  const scale = cfg.display.reputationScale;
+  for (let i = 0; i < kernels.n; i++) {
+    const v = Math.round(effects[i] * scale);
+    if (v !== 0) out[kernels.seatIds[i]] = v;
+  }
+  return out;
+}

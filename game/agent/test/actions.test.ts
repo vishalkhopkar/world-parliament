@@ -249,6 +249,17 @@ describe('read-only views', () => {
     expect(only.rows.map((r: any) => r.id).sort()).toEqual([2, 3, 4]);
   });
 
+  it('get_seat exposes only the own reputation (0 when none), and the rules explain it', async () => {
+    const { s } = fakeSession();
+    expect(((await executeAction(s, 'get_seat', { seat: 2 })) as any).data.my_reputation).toBe(0);
+    s.client.state.priv!.reputation = { 2: 30 };
+    expect(((await executeAction(s, 'get_seat', { seat: 2 })) as any).data.my_reputation).toBe(30);
+    expect(((await executeAction(s, 'get_seat', { seat: 3 })) as any).data.my_reputation).toBe(0);
+    const text = renderRules(WORLD_CONFIG);
+    expect(text).toContain('my_reputation');
+    expect(text).not.toContain('{{');
+  });
+
   it('rules text describes the committed-voter vote model with live numbers', () => {
     const text = renderRules(WORLD_CONFIG);
     expect(text).toContain('Committed voters');

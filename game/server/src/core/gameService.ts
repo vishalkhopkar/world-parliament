@@ -1,6 +1,6 @@
 // All game logic. Depends only on the interfaces in ./types (no AWS SDK imports).
 import {
-  AVATARS, DEFAULT_MAP_ID, PARTY_COLOURS, PARTY_SYMBOLS, analystPrice, analystReport, buildTimeline, committedMatrix, committedView, dealCommitted, computeEffects, countingMsFor, postCountingMsFor, createRng,
+  AVATARS, DEFAULT_MAP_ID, PARTY_COLOURS, PARTY_SYMBOLS, analystPrice, analystReport, buildTimeline, committedMatrix, committedView, dealCommitted, computeEffects, reputationView, countingMsFor, postCountingMsFor, createRng,
   finalResult, governmentFromOffer, leavesPartyOut, majorityGovernment, majorityOf, phaseOfSeat, pollSeats,
   removePlayerFromResults, validateGovernment,
 } from '@hp/shared';
@@ -484,6 +484,16 @@ export class GameService {
     return out;
   }
 
+  /** The player's own reputation per seat, rounded for display (the only effect figure that ever leaves the server). */
+  private async reputationFor(game: GameRecord, playerId: PlayerId, actions?: Action[]): Promise<Record<SeatId, number>> {
+    if (!game.timeline) return {};
+    const { cfg, map, kernels } = this.loadMap(game.mapId);
+    const players = await this.repo.listPlayers(game.gameId);
+    const exclude = new Set(players.filter((p) => p.status === 'eliminated').map((p) => p.playerId));
+    const effects = computeEffects(actions ?? await this.repo.listActions(game.gameId), kernels, cfg, game.timeline, map, game.phases, { exclude });
+    return reputationView(effects.get(playerId), kernels, cfg);
+  }
+
   async privateState(gameId: string, playerId: PlayerId): Promise<PrivateState> {
     const p = await this.repo.getPlayer(gameId, playerId);
     const actions = await this.repo.listActions(gameId);
@@ -494,6 +504,7 @@ export class GameService {
       you: playerId,
       budget: p?.budget ?? 0,
       committed: cfg ? committedView(p?.committed, cfg) : [],
+      reputation: game ? await this.reputationFor(game, playerId, actions) : {},
       myActions: actions.filter((a) => a.playerId === playerId).map((a) => ({ type: a.type, seat: a.seat, ts: a.ts })),
       myReports: reports.sort((a, b) => a.ts - b.ts).map((r) => r.report),
     };
@@ -564,6 +575,7 @@ export class GameService {
       const after = await this.repo.getPlayer(game.gameId, me.playerId);
       await this.d.notifier.sendToPlayer(game.gameId, me.playerId, {
         type: 'actionAck', ...(clientRef ? { clientRef } : {}), ok: true, budget: after ? after.budget : me.budget - cost,
+        reputation: await this.reputationFor(game, me.playerId),
       });
       if (type === 'rally') {
         await this.d.notifier.broadcast(game.gameId, { type: 'news', item: { playerId: me.playerId, seat, ts: now } });

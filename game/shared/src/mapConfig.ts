@@ -131,6 +131,8 @@ export interface MapConfig {
   committed: CommittedConfig;
   /** How a seat's votes are made up: committed, influence, randomness, then reputation. */
   voting: VotingConfig;
+  /** What players see: a party's own reputation in a seat is shown as round(engine reputation x reputationScale). */
+  display: { reputationScale: number };
   phases: { min: number; max: number; default: number };
   durations: {
     campaignMs: number;
@@ -200,6 +202,7 @@ export function validateConfig(cfg: MapConfig): void {
   pct('committed.seatMaxPercent', cfg.committed?.seatMaxPercent);
   pct('voting.influenceMaxPercent', cfg.voting?.influenceMaxPercent);
   pct('voting.randomMaxPercent', cfg.voting?.randomMaxPercent);
+  num('display.reputationScale', cfg.display?.reputationScale, 0, true);
   if (!Array.isArray(cfg.committed?.bands)) bad('committed.bands', 'must be a list');
   cfg.committed.bands.forEach((b, i) => {
     pct(`committed.bands.${i + 1}.percent`, b?.percent);

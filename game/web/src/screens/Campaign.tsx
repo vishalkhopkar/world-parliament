@@ -70,6 +70,15 @@ export function Campaign() {
     return Object.keys(all).length ? all : undefined;
   }, [priv?.committed, myColour, polled]);
 
+  // own reputation among swing voters: a badge on every seat (0 until something happens there), in the party colour
+  const reputation = priv?.reputation;
+  const badgeSeats = useMemo(() => (pkg ? pkg.seats.map(s => s.id) : Object.keys(reputation ?? {}).map(Number)), [pkg, reputation]);
+  const badges = useMemo(() => {
+    const out: Record<number, { text: string; colour: string }> = {};
+    for (const id of badgeSeats) out[id] = { text: String(reputation?.[id] ?? 0), colour: myColour };
+    return out;
+  }, [badgeSeats, reputation, myColour]);
+
   if (!snap || !priv) return <div className="page"><p className="hint">Connecting…</p></div>;
 
   // chat opens at the campaign start when the map says so; with fewer than 3 players there is no chat at all
@@ -80,7 +89,7 @@ export function Campaign() {
       <CampaignHud snap={snap} priv={priv} now={now} />
       <div className="game-body">
         <div className="map-col">
-          <SeatMap ref={mapRef} names={names} centres={centres} dimmed={polled} fills={committedFill} fillStyle={committedFill ? 'committed' : undefined} blurred={blurred} labels={labels} selectedSeat={selected} onSeatClick={selectSeat} pulse={pulse} />
+          <SeatMap ref={mapRef} names={names} centres={centres} dimmed={polled} fills={committedFill} fillStyle={committedFill ? 'committed' : undefined} blurred={blurred} labels={labels} badges={badges} selectedSeat={selected} onSeatClick={selectSeat} pulse={pulse} />
           {selected != null && (
             <SeatActionModal seat={selected} snap={snap} priv={priv} now={now} phaseOf={phaseOf} polled={polled} onClose={closeModal} />
           )}
