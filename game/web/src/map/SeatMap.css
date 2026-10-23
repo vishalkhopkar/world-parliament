@@ -20,6 +20,7 @@
 .pulse{vector-effect:non-scaling-stroke}
 .seat.blurred{filter:url(#hp-blur);opacity:.5}
 .seat-labels{pointer-events:none}
+.map-hint{position:absolute;top:10px;left:50%;transform:translateX(-50%);max-width:calc(100% - 100px);text-align:center;background:var(--green-deep);color:var(--ivory);border:1px solid var(--gold);border-radius:6px;padding:5px 12px;font-size:13px;font-weight:600;pointer-events:none;box-shadow:0 2px 8px rgba(40,30,0,.3)}
 .seat-badges{pointer-events:none}
 .seat-badge circle{stroke:#fff;stroke-width:1.5;opacity:.95}
 .seat-badge text{text-anchor:middle;font:700 12px system-ui,sans-serif;font-variant-numeric:tabular-nums}

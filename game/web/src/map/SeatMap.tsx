@@ -12,6 +12,8 @@ import { coarseTopoUrl, detailTopoUrl, loadTopo, manifestFor } from './mapData';
 import { selectMapId, useStore } from '../state/store';
 
 const DETAIL_K = 4;
+/** Badges (e.g. reputation) only show once zoomed in this many times past the fitted view; the whole-world view stays uncluttered. */
+const BADGE_MIN_ZOOM = 3;
 const NEUTRAL = '#d3d0c6';
 
 /** Number colour on a badge: white on dark party colours, near-black on light ones. */
@@ -74,6 +76,7 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
   propsRef.current = props;
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [zoomedIn, setZoomedIn] = useState(false); // zoomed far enough for badges
   // the map of the current game (store), never a hard-coded one; `props.mapId` overrides it
   const storeMapId = useStore(selectMapId);
   const mapId = props.mapId ?? storeMapId ?? DEFAULT_MAP_ID;
@@ -111,6 +114,7 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
     let features: SeatFeature[] = [];
     const featById = new Map<SeatId, SeatFeature>();
     let detail = false, detailLoading = false;
+    let badgesShown = false;
     let W = 0, H = 0, kNow = 1, dragStart: [number, number] | null = null;
     let baseT = d3.zoomIdentity;
     let bounds: [[number, number], [number, number]] = [[0, 0], [1, 1]];
@@ -139,7 +143,7 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
     function placeLabels() {
       gLabels.selectAll<SVGTextElement, Lab>('text')
         .attr('font-size', 13 / kNow)
-        .attr('y', d => d.y - (propsRef.current.badges ? 18 / kNow : 0)) // make room for the badge
+        .attr('y', d => d.y - (badgesShown && propsRef.current.badges ? 18 / kNow : 0)) // make room for the badge
         .style('display', d => (d.size * kNow >= 24 ? null : 'none'));
     }
     function drawLabels() {
@@ -161,7 +165,7 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
     function placeBadges() {
       gBadges.selectAll<SVGGElement, Bad>('g.seat-badge')
         .attr('transform', d => `translate(${d.x},${d.y}) scale(${1 / kNow})`)
-        .style('display', d => (d.size * kNow >= 24 ? null : 'none'));
+        .style('display', d => (badgesShown && d.size * kNow >= 24 ? null : 'none'));
     }
     function drawBadges() {
       const badges = propsRef.current.badges ?? {};
@@ -242,6 +246,8 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
           Math.hypot(se.clientX - dragStart[0], se.clientY - dragStart[1]) > 3) svg.classed('dragging', true);
       gHits.selectAll('circle').attr('r', 7 / t.k);
       blurStd.attr('stdDeviation', 2.5 / t.k);
+      const on = kNow / baseT.k >= BADGE_MIN_ZOOM;
+      if (on !== badgesShown) { badgesShown = on; setZoomedIn(on); }
       placeLabels(); placeBadges();
       hatch.attr('patternTransform', `scale(${1 / t.k})`);
       if (t.k / baseT.k > DETAIL_K && !detail && !detailLoading) void loadDetail();
@@ -331,6 +337,7 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
         <button title="Zoom out" onClick={() => api.current?.zoomBy(1 / 1.8)}>&minus;</button>
         <button title="Reset view" onClick={() => api.current?.reset()}>&#8962;</button>
       </div>
+      {props.badges && !zoomedIn && !loading && !failed && <div className="map-hint">Zoom in to see reputation among swing voters at every seat</div>}
       {loading && <div className="map-loading">Loading map…</div>}
       {failed && <div className="map-loading">Could not load the map data.</div>}
     </div>
