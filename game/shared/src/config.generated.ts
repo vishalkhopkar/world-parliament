@@ -20,16 +20,16 @@ export const GAME_CONFIG_VALUES = {
   },
   "effects": {
     "rally": {
-      "local": 1,
-      "global": 0.01,
+      "local": 3,
+      "global": 0.1,
       "decay": {
-        "halfDistanceKm": 150,
-        "maxKm": 800,
+        "halfDistanceKm": 1000,
+        "maxKm": 3000,
         "capRatio": 0.5
       }
     },
     "roadshow": {
-      "local": 3,
+      "local": 4,
       "decay": {
         "halfDistanceKm": 40,
         "maxKm": 200,
@@ -37,13 +37,13 @@ export const GAME_CONFIG_VALUES = {
       }
     },
     "firstMover": {
-      "rally": 0.5,
-      "roadshow": 1.5
+      "rally": 0.2,
+      "roadshow": 0.2
     }
   },
   "timeMultiplier": {
     "start": 1,
-    "end": 1
+    "end": 1.05
   },
   "committed": {
     "seatMaxPercent": 60,
