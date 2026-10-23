@@ -29,8 +29,8 @@ describe('world', () => {
 });
 
 describe('strategies', () => {
-  it('registry: every default-pool strategy exists and there are 18 strategies', () => {
-    expect(Object.keys(STRATEGIES)).toHaveLength(18);
+  it('registry: every default-pool strategy exists and there are 19 strategies', () => {
+    expect(Object.keys(STRATEGIES)).toHaveLength(19);
     for (const s of DEFAULT_POOL) expect(STRATEGIES[s]).toBeTypeOf('function');
   });
 
@@ -93,6 +93,24 @@ describe('metrics helpers', () => {
     const table = fieldTable(agg, 2, 500, WORLD_CONFIG.budget);
     expect(table).toContain('RALLY');
     expect(table).toContain('ROADSHOW');
+  });
+});
+
+describe('committed voters and balance metrics', () => {
+  it('every game deals committed voters; seat balance metrics are consistent', () => {
+    const agg = new Agg();
+    for (let g = 0; g < 3; g++) agg.add(runGame(w, ['PATCH', 'RALLY', 'ROADSHOW'], 3, 'bal' + g));
+    expect(agg.bal.seats).toBe(1500);
+    expect(agg.bal.medianMargin).toBeGreaterThanOrEqual(0);
+    expect(agg.bal.under10Pct).toBeLessThanOrEqual(100);
+    expect(agg.bal.line()).toContain('median margin');
+  });
+  it('turning the committed bands, influence and randomness off removes the committed layer (old rules)', () => {
+    const off = JSON.parse(JSON.stringify(WORLD_CONFIG));
+    off.committed.bands.forEach((b: { percent: number }) => { b.percent = 0; });
+    const w0 = buildWorld(loadMap(), off);
+    const r = runGame(w0, ['ROADSHOW', 'RALLY'], 2, 'old');
+    expect(r.seatsDecided).toBe(500);
   });
 });
 

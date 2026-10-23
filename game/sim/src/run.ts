@@ -1,12 +1,14 @@
 // Balance simulator for HUNG PARLIAMENT. Usage (from game/sim):
 //   npx tsx src/run.ts --mode field --games 200 --players 2,3,5,10 --phases 1,3,5
+// Overrides use dotted paths, arrays by 0-based index: --set committed.bands.0.percent=0 --set voting.influenceMaxPercent=0.
+// Field mode also prints the seat-balance metrics (landslides >80%, median margin, margin <10 pts).
 // Modes: field (random strategy mix), h2h (2-player matrix), lone, mix (rally-share sweep), checks (analytic), full.
 import fs from 'node:fs';
 import { WORLD_CONFIG, createRng, haversineKm } from '@hp/shared';
 import type { MapConfig } from '@hp/shared';
 import { DEFAULT_POOL, STRATEGIES } from './bots';
 import { runGame } from './game';
-import { Agg, StratAgg, fieldTable, pad, padR, pct } from './metrics';
+import { Agg, Balance, StratAgg, fieldTable, pad, padR, pct } from './metrics';
 import { buildWorld, loadMap } from './world';
 import type { World } from './world';
 
@@ -66,6 +68,7 @@ function sample<T>(rng: () => number, pool: T[], m: number): T[] {
 
 function modeField(w: World, args: Args, out: Record<string, unknown>) {
   for (const P of args.players) {
+    const balP = new Balance();
     for (const k of args.phases) {
       const agg = new Agg();
       const rng = createRng(`${args.seed}:field:${P}:${k}`);
@@ -80,8 +83,13 @@ function modeField(w: World, args: Args, out: Record<string, unknown>) {
       log(`\n== FIELD  players=${P} phases=${k} games=${args.games}  (random strategy per seat of the table)  ${(agg.ms / agg.games).toFixed(1)} ms/game`);
       log(fieldTable(agg, P, w.cfg.seatCount, w.cfg.budget));
       log(`pure-c seats ${pct(agg.pureC / agg.games / w.cfg.seatCount)}   c-only winner == actual winner ${pct(agg.cMatch / agg.games / w.cfg.seatCount)}   actions rejected (frozen seat) ${agg.rejected}`);
-      out[`field_${P}_${k}`] = summarise(agg, P, w);
+      log(agg.bal.line());
+      balP.merge(agg.bal);
+      out[`field_${P}_${k}`] = { ...summarise(agg, P, w), over80Pct: agg.bal.over80Pct, medianMargin: agg.bal.medianMargin, under10Pct: agg.bal.under10Pct };
     }
+    log(`
+== BALANCE players=${P} (all phases ${args.phases.join(',')}): ${balP.line()}`);
+    out[`balance_${P}`] = { over80Pct: balP.over80Pct, medianMargin: balP.medianMargin, under10Pct: balP.under10Pct, seats: balP.seats };
   }
 }
 
@@ -250,7 +258,7 @@ function modeChecks(w: World, args: Args, out: Record<string, unknown>) {
   const cs = c.costs.roadshow;
   log(`seat report ${c.analyst.seatReport.start.toLocaleString()} -> ${c.analyst.seatReport.end.toLocaleString()} = ${(c.analyst.seatReport.start / cs).toFixed(1)} -> ${(c.analyst.seatReport.end / cs).toFixed(1)} roadshows (end/start ${(c.analyst.seatReport.end / c.analyst.seatReport.start).toFixed(2)})`);
   log(`global report ${c.analyst.globalReport.start.toLocaleString()} -> ${c.analyst.globalReport.end.toLocaleString()} = ${(c.analyst.globalReport.start / cs).toFixed(1)} -> ${(c.analyst.globalReport.end / cs).toFixed(1)} roadshows (end/start ${(c.analyst.globalReport.end / c.analyst.globalReport.start).toFixed(2)})`);
-  log(`noise (share std / relative seats std) ${c.analyst.noise}; randomSwing ${c.randomSwing}`);
+  log(`noise (share std / relative seats std) ${c.analyst.noise}; random voters up to ${c.voting.randomMaxPercent}% of the uncommitted; influence up to ${c.voting.influenceMaxPercent}% of committed; committed bands ${c.committed.bands.map((b) => `${b.percent}%x${b.seats}`).join(' ')} (seat cap ${c.committed.seatMaxPercent}%)`);
 
   // spill-over profile
   const kern = w.kernels;

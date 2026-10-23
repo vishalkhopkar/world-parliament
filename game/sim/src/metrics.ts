@@ -16,7 +16,40 @@ export class StratAgg {
   rejected = 0;
 }
 
+/** Seat-balance metrics over all polled seats: landslides (> 80% share), margin of victory (winner - runner-up share). */
+export class Balance {
+  seats = 0;
+  over80 = 0;
+  under10 = 0;
+  /** histogram of margins in 0.1-point bins (0..100 points) */
+  hist = new Array<number>(1001).fill(0);
+  add(r: GameResult) {
+    for (let i = 0; i < r.margins.length; i++) {
+      this.seats++;
+      if (r.topShares[i] > 0.8) this.over80++;
+      if (r.margins[i] < 0.1) this.under10++;
+      this.hist[Math.min(1000, Math.round(r.margins[i] * 1000))]++;
+    }
+  }
+  merge(o: Balance) {
+    this.seats += o.seats; this.over80 += o.over80; this.under10 += o.under10;
+    for (let i = 0; i < this.hist.length; i++) this.hist[i] += o.hist[i];
+  }
+  /** median margin in share points (0..100) */
+  get medianMargin(): number {
+    let acc = 0;
+    for (let i = 0; i < this.hist.length; i++) { acc += this.hist[i]; if (acc >= this.seats / 2) return i / 10; }
+    return 0;
+  }
+  get over80Pct(): number { return this.seats ? (100 * this.over80) / this.seats : 0; }
+  get under10Pct(): number { return this.seats ? (100 * this.under10) / this.seats : 0; }
+  line(): string {
+    return `balance: seats won with >80% share ${this.over80Pct.toFixed(1)}%   median margin ${this.medianMargin.toFixed(1)} pts   seats with margin <10 pts ${this.under10Pct.toFixed(1)}%   (${this.seats} seats)`;
+  }
+}
+
 export class Agg {
+  bal = new Balance();
   by = new Map<string, StratAgg>();
   games = 0;
   ms = 0;
@@ -26,6 +59,7 @@ export class Agg {
   rejected = 0;
   add(r: GameResult) {
     this.games++;
+    this.bal.add(r);
     this.ms += r.ms;
     this.pureC += r.pureC;
     this.cMatch += r.cWinnerMatches;

@@ -1,0 +1,108 @@
+ok first let us define committed voters per party and their percentage for every game
+
+## committed voter categories
+
+## HIGH BAND
+
+1: 30% (highest)
+2: 25%
+3: 20%
+
+## MEDIUM BAND
+4: 15%
+5: 10%
+
+## LOW BAND
+6: 5%
+7: 0%
+
+## 2 players
+
+Per player:
+
+Band 1: 5 seats
+Band 2: 7 seats
+Band 3: 10 seats
+Band 4: 15 seats
+Band 5: 20 seats
+Band 6: 30 seats
+Band 7: 50 seats
+
+total 137 seats with at least some committed voters per party
+we will keep all these values configurable
+these can have overlap
+
+## How to decide which seats?
+
+Pick the band 1 5 seats first.
+
+Select 1 seat at random anywhere in the world.
+Ths seat and its 4 peripheral (neighbouring) would become the 5 band 1 seats.
+
+for ex. the seat chosen at random is America Isthmus (467)
+
+now we need to do a breadth first search from there and assign remaining seats in band 5
+and other bands
+
+
+for ex. the 5 band 1 seats could be 467 (itself), 466, 465, 487, 486
+7 seats of band 2: 458, 457, 485, 494, 493, 496, 468
+and so on...
+
+make sure that seats which are entirely made of islands who don't have a land border
+with any other seat are also considered in this by modifying the adjacency graph
+accordingly.
+
+or use another distance based algorithm if u have one
+
+from seat 467, in this way you would cover entire americas, some parts of europe, asia, etc.
+
+Let the core seats (the very first seat that you select be distinct)
+for every player. From then on, let the algorithm take its course in assigning bands.
+
+Therefore, even in case of 10 players; these 10 core band 1 seats could be for ex.
+
+1. America Isthmus
+2. Cape of good hope
+3. Chambal
+4. Australia East
+5. Luoyang
+6. Tokyo
+7. Manchester
+8. Balkans East
+9. Kongu Nadu
+10. Khorasan
+
+just make sure:
+
+multiple breadth first search trees for multiple players (each player has 1 tree)
+may hit the same seat; which is fine.
+
+That is because 1 seat may have 30% committed voters to party A, 5% to B, 5% to C, etc.
+
+this overlap is unavoidable especially when there are many players.
+
+Therefore, you could use parallel threads for doing this BFS - 1 thread per player. i.e. 1 thread per BFS tree.
+Once you have the core seats.
+
+## How to represent these bands?
+
+As mentioned, for colour coding:
+
+HIGH: bands 1, 2, 3
+MEDIUM: 4, 5
+LOW: 6, 7
+
+Whatever colour your party has:
+
+The darkest shade will be assigned to HIGH band seats
+then 1 shade lower to MEDIUM
+and the faintest shade to LOW
+
+when the user clicks on a seat, if the seat has committed voters of their party,
+that percentage will be shown along with the band category (HIGH, MEDIUM, LOW)
+
+## Implementation
+
+Use subagents to do this
+Check which model/effort do u need (sonnet, high/medium, etc.)

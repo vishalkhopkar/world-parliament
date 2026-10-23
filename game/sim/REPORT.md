@@ -1,5 +1,43 @@
 # Simulator report: world map tuning
 
+## 2026-10-23: committed voters, influence and randomness
+
+New vote model (see `FEATURE REQUIREMENTS.docx`, "Committed voters"): each party gets a committed patch (6 bands, 87 seats: 30% x5, 25% x7, 20% x10, 15% x15, 10% x20, 5% x30, seat cap 60%), dealt sequentially at game start by a breadth-first walk from a random core seat; votes = committed + influence (extra 0..40% of the committed voters) + randomness (0..5% of the uncommitted voters to random parties) + the rest split by reputation (effect ratio, random where nobody has any). The old `randomSwing` is gone.
+
+**What changed in the sim:** `game.ts` deals committed sets per game (seeded `<seed>:deal`), builds the matrix and passes it to `pollSeats` and `analystReport`. Bots get their own private patch (`ctx.ownCommitted(i)`, factory arg `own`). New strategy `PATCH` (30% of the budget on greedy rallies near its core seat, roadshows on its own patch seats from the weakest band outwards, then the nearest seats). `--verify` still passes (max effect diff 8.9e-16). Field mode prints the new balance metrics per cell and per player count (`== BALANCE players=P`). `--set` already handles array indices: `--set committed.bands.0.percent=0` (0-based).
+
+**Run:** `npx tsx src/run.ts --mode full` (seed `hp`, 200 games per cell, random strategy per seat from the default pool incl. PATCH, phases 1/3/5 pooled, 300,000 seats per player count).
+"Before" = the same run with all six band percents, `voting.influenceMaxPercent` and `voting.randomMaxPercent` set to 0 (pure reputation voting, no swing). This approximates the old rules; the old `randomSwing` itself no longer exists so it cannot be reproduced exactly.
+
+### Seat balance, before vs after
+| Players | Seats won with > 80% share (before -> after) | Median margin, winner minus runner-up (before -> after) | Seats with margin < 10 pts (before -> after) |
+|---|---|---|---|
+| 2 | 54.5% -> 50.9% | 68.8 -> 61.3 pts | 12.0% -> 11.8% |
+| 3 | 38.8% -> 32.3% | 44.5 -> 38.5 pts | 17.9% -> 18.2% |
+| 5 | 30.4% -> 19.5% | 28.4 -> 24.9 pts | 20.5% -> 23.4% |
+| 10 | 12.1% -> 3.5% | 17.4 -> 14.2 pts | 23.4% -> 35.7% |
+
+Reading: committed voters cut landslides most at high player counts (10 players: 12% -> 3.5%) and make more seats close (margin < 10 pts: 23% -> 36%). With 2 players the effect is small because the global rally effect still decides most seats; 50% of seats are still won with > 80%. Margins stay large for 2-3 players.
+
+### Strategy seat share after the change (3 polling phases; seats% of 500, win% = sole most seats; fair win = 100/players)
+| Strategy | 2p seats% / win% | 3p | 5p | 10p |
+|---|---|---|---|---|
+| RALLY_EARLY | 70.3 / 100 | 49.0 / 91.1 | 27.3 / 71.1 | 8.7 / 1.5 |
+| RALLY | 63.8 / 81.1 | 45.1 / 75.0 | 24.7 / 49.6 | 7.6 / 2.0 |
+| CLUSTER | 58.3 / 66.7 | 39.3 / 50.0 | 19.4 / 21.0 | 9.1 / 5.1 |
+| ADAPTIVE | 49.9 / 52.4 | 31.6 / 30.0 | 16.5 / 3.9 | 7.4 / 0.0 |
+| LATE | 43.4 / 27.9 | 26.6 / 9.4 | 15.9 / 0.0 | 8.4 / 0.5 |
+| PATCH (new) | 37.0 / 24.5 | 24.3 / 10.9 | 17.2 / 2.7 | 12.9 / 35.6 |
+| ROADSHOW | 34.9 / 15.6 | 26.4 / 4.1 | 21.0 / 10.1 | 14.1 / 43.0 |
+| SNIPER | 32.4 / 2.9 | 23.5 / 0.0 | 17.6 / 2.4 | 10.6 / 9.0 |
+
+Before (same cells): RALLY_EARLY 70.8/100, 50.3/91.1, 29.2/73.3, 9.3/4.3; ROADSHOW 35.0/15.6, 26.6/4.1, 21.2/5.3, 15.8/62.5; PATCH 37.2/24.5, 24.3/14.1, 16.4/4.4, 11.7/7.8.
+
+### Does one strategy dominate?
+- The ranking is essentially unchanged by the committed layer: all-rally (`RALLY_EARLY`, then `RALLY`) still dominates at 2 to 5 players (100% / 91% / 71% win at 2/3/5 players; fair is 50/33/20%), and the roadshow-heavy strategies (`ROADSHOW`, `PATCH`) win at 10 players. This is the pre-existing pattern (see the sections below) and was not caused by this change; the committed layer did not fix it. It also was not re-tuned after the 20 Oct budget doubling and first-mover change, so the RALLY_EARLY dominance at 2-5 players is worth a separate look.
+- With 10 players the change made it more even: ROADSHOW win share fell from 62.5% to 43% (fair 10%), because a roadshow-only spread no longer wins unopposed seats once committed voters and randomness hold ~15-20% of each patch seat. The new `PATCH` strategy rose from 7.8% to 35.6% win at 10 players, so a patch-focused roadshow plan is now as good as plain ROADSHOW there, but it is weaker than all-rally at 2-5 players. `PATCH` is only a modest heuristic, not an optimised strategy.
+- Committed voters are worth defending mostly in big games; in small games the global rally effect still outweighs a base of ~15% of the voters in 87 seats.
+
 Produced by Agent E (19 Oct 2026) with `game/sim`. The values now live in `game/config/game.properties` (read by `WORLD_CONFIG`).
 
 > **Update 20 Oct 2026:** the budget was doubled and all money amounts were rescaled to round numbers (÷10,000: budget W₹50,000, rally 2,000, roadshow 400, seat report 800→1,800, global 2,800→6,200), and a first mover's advantage was added (`effects.firstMover.*`, +0.5 rally / +1.5 roadshow). The tables below are the ORIGINAL tuning run (W₹ in crore, no first mover, budget 100 crore) and have NOT been re-run; re-run `npx tsx src/run.ts --mode full` before trusting the balance.

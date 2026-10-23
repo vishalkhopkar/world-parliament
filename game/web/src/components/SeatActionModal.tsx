@@ -32,6 +32,7 @@ export function SeatActionModal({ seat, snap, priv, now, phaseOf, polled, onClos
   const isPolled = polled.has(seat);
   const phase = phaseOf?.get(seat);
   const started = !snap.timeline || now >= snap.timeline.campaignStart;
+  const committed = priv.committed?.find(c => c.seat === seat);
   const reportPrice = curvePrice(cfg.analyst.seatReport, snap, now);
 
   useEffect(() => {
@@ -64,6 +65,7 @@ export function SeatActionModal({ seat, snap, priv, now, phaseOf, polled, onClos
         <button className="sam-x" aria-label="Close" onClick={onClose}>×</button>
         <h3 className="sam-title">{seatName(names, seat)}</h3>
         <p className="sam-sub">Seat {seat}{phase !== undefined ? ` · Polls in phase ${phase + 1}` : ''}</p>
+        {committed && <p className="sam-committed">Committed voters: ~{committed.percent}% · {committed.level}</p>}
         {isPolled ? (
           <p className="sam-closed">Polling here is closed</p>
         ) : (

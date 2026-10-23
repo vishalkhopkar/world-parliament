@@ -103,19 +103,18 @@ describe('the reveal over time', () => {
     expect((await c.game()).status).toBe('postCounting');
   });
 
-  it('seats with no winner are never declared; the others still finish on the last step', async () => {
+  it('every seat has a winner (committed voters), so all are declared by the last step', async () => {
     const c = await new Ctx().started(2, 1);
     await c.send(0, { action: 'campaign', type: 'roadshow', seat: 8 }); // only seat 8 has any effect
     const plan = await pollAndGetPlan(c);
     c.notifier.clear();
     c.clock.set(plan.startMs + (plan.steps - 1) * plan.intervalMs);
     await c.svc.countReveal(c.gameId);
-    expect((c.notifier.to(c.p[1].playerId, 'seatUpdate') as Update[]).filter((u) => u.declaration.status === 'won')).toHaveLength(0);
     c.clock.set(plan.startMs + plan.steps * plan.intervalMs);
     await c.svc.countReveal(c.gameId);
     const ups = c.notifier.to(c.p[1].playerId, 'seatUpdate') as Update[];
-    expect(new Set(ups.map((u) => u.declaration.seat))).toEqual(new Set([8]));
-    expect(ups[ups.length - 1].declaration).toMatchObject({ seat: 8, status: 'won' });
+    expect(new Set(ups.map((u) => u.declaration.seat))).toEqual(new Set([1, 2, 3, 4, 5, 6, 7, 8]));
+    expect(ups[ups.length - 1].declaration.status).toBe('won');
   });
 
   it('every snapshot (late joiner / reconnect) equals the deterministic state at the revealed step', async () => {

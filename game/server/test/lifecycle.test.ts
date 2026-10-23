@@ -101,15 +101,15 @@ describe('phaseClose', () => {
     }
   });
 
-  it('seats nobody campaigned in end with winner null and are never declared', async () => {
+  it('seats nobody campaigned in still get a winner (committed voters + randomness) and are declared', async () => {
     const c = await new Ctx().started(2, 1);
     await c.send(0, { action: 'campaign', type: 'roadshow', seat: 8 }); // far from everything else
     await c.runCampaignToCountingEnd();
     const res = await c.repo.listSeatResults(c.gameId);
-    // roadshow in seat 8 only reaches seat 8; every other seat is empty (no rally, no global effect)
-    expect(res.filter((r) => r.winner === null).map((r) => r.seat)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    // roadshow in seat 8 only reaches seat 8, yet no seat is left without a winner
+    expect(res.filter((r) => r.winner === null)).toEqual([]);
     const declared = new Set(upd(c, 1).map((m) => m.declaration.seat));
-    expect([...declared]).toEqual([8]);
+    expect([...declared].sort()).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
   });
 
   it('players eliminated before a phase closes do not take seats (their actions are excluded)', async () => {
@@ -184,7 +184,10 @@ describe('countReveal', () => {
     c.clock.set(plan.startMs + plan.steps * plan.intervalMs);
     c.notifier.clear();
     await Promise.all([c.svc.countReveal(c.gameId), c.svc.countReveal(c.gameId), c.svc.countReveal(c.gameId)]);
-    expect(upd(c, 1)).toHaveLength(16); // 8 seats x (leading + won), not 3x
+    const u = upd(c, 1).map((m) => `${m.declaration.seat}:${m.declaration.status}:${m.declaration.playerId}`);
+    u.forEach((k, i) => { if (i) expect(k).not.toBe(u[i - 1]); }); // never the same announcement twice in a row (not 3x)
+    expect(u.filter((k) => k.split(':')[1] === 'won')).toHaveLength(8);
+    expect(new Set(upd(c, 1).map((m) => m.declaration.seat)).size).toBe(8);
   });
 
   it('nextAtMs is the start of the next step and the game moves to postCounting only after the last step', async () => {
@@ -362,13 +365,13 @@ describe('who wins: majority = floor(N/2)+1 for odd and even seat counts', () =>
     expect((await c.repo.getResult(c.gameId))!.outcome).toBe('draw');
   });
 
-  it('nobody wins any seat (nobody campaigned) -> noGovernment, or draw with exactly 2 players (0 = 0)', async () => {
-    const three = await new Ctx().started(3, 1);
-    await driveTo(three, 'finished');
-    expect((await three.repo.getResult(three.gameId))!.outcome).toBe('noGovernment');
-    const two = await new Ctx().started(2, 1);
-    await driveTo(two, 'finished');
-    expect((await two.repo.getResult(two.gameId))!.outcome).toBe('draw');
+  it('nobody campaigned: committed voters still decide every seat, so there is always a winner', async () => {
+    for (const n of [3, 2]) {
+      const c = await new Ctx().started(n, 1);
+      await driveTo(c, 'finished');
+      const res = await c.repo.listSeatResults(c.gameId);
+      expect(res.every((r) => r.winner !== null)).toBe(true);
+    }
   });
 
   it('points are whole numbers and the opposition scores 0', async () => {

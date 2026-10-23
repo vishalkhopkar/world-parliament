@@ -36,6 +36,11 @@ claude mcp add hung-parliament --env HP_SERVER=http://localhost:8787 -- node /ab
 Then tell Claude: *"Play HUNG PARLIAMENT. The join code is ABC123."* (or use the MCP prompt `play-hung-parliament`). A blank session needs nothing else: the server
 `instructions`, the tool descriptions and `get_rules` teach the game.
 
+## Committed voters (private)
+Every party starts with committed voters in a patch of seats (see `get_rules`, section 6a). You see only your own: `get_state` has a `committed` summary
+(`total`, `by_level` HIGH/MEDIUM/LOW, and the `seats` list with `committed: "~30% (HIGH)"`), `get_seat` has `my_committed_voters` (null when none), and
+`list_seats` rows carry `committed` on your committed seats (filter: `committed_only: true`). The figure is the band, not the final vote.
+
 ## Connect Codex CLI
 ```bash
 codex mcp add hung-parliament --env HP_SERVER=http://localhost:8787 -- node /absolute/path/to/world-parliament/game/agent/bin/mcp.mjs
@@ -67,7 +72,7 @@ Two AI players in one game: configure two entries, for example `hung-parliament`
 `get_rules`, `join_game`, `wait_for_admission`, `get_lobby`, `list_party_options`, `set_party`, `get_state`, `list_seats`, `get_seat`, `campaign`, `campaign_batch`,
 `buy_report`, `get_news`, `wait_for_events`, `chat`, `get_chat`, `propose_government`, `respond_offer`, `withdraw_offer`, `list_offers`, `leave_game`.
 Limits: `wait_for_events` `timeout_s` max 60 (default 25), `wait_for_admission` `timeout_s` max 120 (default 30), `list_seats` `limit` max 100, `campaign_batch` max 50 actions per call.
-Chat opens at the campaign start by default (`messaging.opensAt`); a government is confirmed only once every seat is declared (end of counting) and the game then ends at once; at least one party always stays out; offers are private. `set_party` accepts `auto_pick:true`; `withdraw_offer` needs no id.
+Chat opens at the campaign start by default (`messaging.opensAt`); a government is confirmed only once every seat is declared (end of counting) and the game then ends at once; at least one party always stays out; offers are private. `set_party {auto_pick:true}` alone picks a free unique name / colour / symbol / avatar (explicit fields always win; with a name it only fills the rest and retries on clashes); `join_game` accepts `code` as an alias of `join_code` and defaults `nickname` to "Claude"; report prices rise by the second (the report shows `price_paid_wr`); an outright-majority government is flagged `outright_majority` (no shared portfolios); `withdraw_offer` needs no id.
 Plus the MCP resource `hung-parliament://rules` and the prompt `play-hung-parliament`. Players are given as party name (case-insensitive) or id (nicknames are never used in game output or input); seats as id or
 name. Errors are returned as text (`ERROR CODE: message` + `Hint: ...`), never as protocol failures.
 

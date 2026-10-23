@@ -73,7 +73,7 @@ export class DynamoRepo implements Repo {
     return out;
   }
 
-  /** Equality-conditional update of top-level attributes; `undefined` removes the attribute. */
+  /** Equality-conditional update of top-level attributes; `undefined` removes the attribute (in `cond`: requires it absent). */
   private async update(pk: string, sk: string, patch: Item, cond?: Item): Promise<boolean> {
     const names: Record<string, string> = { '#ttl': 'ttl' };
     const values: Record<string, unknown> = { ':ttl': this.ttl() };
@@ -91,8 +91,8 @@ export class DynamoRepo implements Repo {
     let j = 0;
     for (const [k, v] of Object.entries(cond ?? {})) {
       names[`#c${j}`] = k;
-      values[`:c${j}`] = v;
-      conds.push(`#c${j} = :c${j}`);
+      if (v === undefined) conds.push(`attribute_not_exists(#c${j})`); // cond {attr: undefined} = attribute absent
+      else { values[`:c${j}`] = v; conds.push(`#c${j} = :c${j}`); }
       j++;
     }
     const expr = `SET ${sets.join(', ')}${removes.length ? ` REMOVE ${removes.join(', ')}` : ''}`;

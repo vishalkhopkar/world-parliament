@@ -1,6 +1,6 @@
 // All game logic. Depends only on the interfaces in ./types (no AWS SDK imports).
 import {
-  AVATARS, DEFAULT_MAP_ID, PARTY_COLOURS, PARTY_SYMBOLS, analystPrice, analystReport, buildTimeline, computeEffects, countingMsFor, postCountingMsFor, createRng,
+  AVATARS, DEFAULT_MAP_ID, PARTY_COLOURS, PARTY_SYMBOLS, analystPrice, analystReport, buildTimeline, committedMatrix, committedView, dealCommitted, computeEffects, countingMsFor, postCountingMsFor, createRng,
   finalResult, governmentFromOffer, leavesPartyOut, majorityGovernment, majorityOf, phaseOfSeat, pollSeats,
   removePlayerFromResults, validateGovernment,
 } from '@hp/shared';
@@ -73,6 +73,38 @@ export class GameService {
     const m = this.d.maps(mapId);
     if (!m) throw new GameError('BAD_REQUEST', `Unknown map: ${mapId}`);
     return m;
+  }
+
+  /**
+   * Deal this player's committed voters once (idempotent), against the sets already dealt to the other contenders so the
+   * per-seat cap sees them. `committedSeq` is bumped under a condition first, so concurrent deals retry on a fresh view.
+   * Every successful bump is followed by one player's `committed` write: a view with fewer dealt players than committedSeq
+   * catches another deal between its two writes, so wait for it (bounded, in case that deal died in between).
+   */
+  private async dealCommittedFor(gameId: string, playerId: PlayerId): Promise<void> {
+    for (let attempt = 0, waits = 0; attempt < 10; attempt++) {
+      const game = await this.loadGame(gameId);
+      const me = await this.repo.getPlayer(gameId, playerId);
+      if (!me || me.committed || game.status !== 'lobby') return;
+      const { map, cfg, kernels } = this.loadMap(game.mapId);
+      const players = await this.repo.listPlayers(gameId);
+      if (players.filter((p) => p.committed).length < (game.committedSeq ?? 0) && waits++ < 20) {
+        await new Promise((r) => setTimeout(r, 25));
+        attempt--;
+        continue;
+      }
+      const others = players.filter((p) => p.playerId !== playerId && CONTENDER.has(p.status) && p.committed).map((p) => p.committed!);
+      const seq = game.committedSeq;
+      const rng = createRng(`${gameId}:committed:${playerId}:${seq ?? 0}`);
+      // a map with fewer seats than players (tests, tiny maps): cores may then repeat, so only the per-seat cap applies
+      const set = others.length >= kernels.n
+        ? dealCommitted(map, kernels, cfg, others.map((o) => ({ ...o, core: -1 })), rng)
+        : dealCommitted(map, kernels, cfg, others, rng);
+      if (!(await this.repo.updateGame(gameId, { committedSeq: (seq ?? 0) + 1 }, { status: 'lobby', committedSeq: seq }))) continue;
+      await this.repo.updatePlayer(gameId, playerId, { committed: set });
+      return;
+    }
+    throw new GameError('INTERNAL', 'Could not deal committed voters');
   }
 
   private async loadGame(gameId: string): Promise<GameRecord> {
@@ -157,6 +189,7 @@ export class GameService {
       gameId, playerId, nickname, tokenHash: hashToken(token), isAdmin: true, status: 'active', budget: 0, joinedAt: now,
     };
     await this.repo.createGame(game, admin);
+    await this.dealCommittedFor(gameId, playerId);
     return { gameId, joinCode, playerId, token };
   }
 
@@ -209,6 +242,7 @@ export class GameService {
       const { cfg } = this.loadMap(game.mapId);
       if (players.filter((p) => CONTENDER.has(p.status)).length >= cfg.players.max) throw new GameError('GAME_FULL', 'The game is full');
       await this.repo.updatePlayer(gameId, target.playerId, { status: 'active' });
+      await this.dealCommittedFor(gameId, target.playerId);
     } else {
       await this.repo.updatePlayer(gameId, target.playerId, { status: 'rejected', party: undefined });
       await this.rejectConnection(gameId, target);
@@ -283,6 +317,8 @@ export class GameService {
     for (const p of active) this.validateParty(p.party as PartyIdentity, p.playerId, active);
     // Candidate columns are dealt once, here, when the roster is final (so there is nothing to race over): a random
     // permutation of the map's columns, one per active player. Never sent to clients.
+    // Safety net: anyone still without committed voters is dealt now (must precede the status flip: deals need the lobby).
+    for (const p of active) if (!p.committed) await this.dealCommittedFor(gameId, p.playerId);
     const columns = dealCandidateColumns(active.length, cfg.players.max);
     await Promise.all(active.map((p, i) => this.repo.updatePlayer(gameId, p.playerId, { candidateColumn: columns[i] })));
 
@@ -452,9 +488,12 @@ export class GameService {
     const p = await this.repo.getPlayer(gameId, playerId);
     const actions = await this.repo.listActions(gameId);
     const reports = await this.repo.listReports(gameId, playerId);
+    const game = await this.repo.getGame(gameId);
+    const cfg = game ? this.loadMap(game.mapId).cfg : undefined;
     return {
       you: playerId,
       budget: p?.budget ?? 0,
+      committed: cfg ? committedView(p?.committed, cfg) : [],
       myActions: actions.filter((a) => a.playerId === playerId).map((a) => ({ type: a.type, seat: a.seat, ts: a.ts })),
       myReports: reports.sort((a, b) => a.ts - b.ts).map((r) => r.report),
     };
@@ -561,9 +600,11 @@ export class GameService {
       const decided = await this.repo.listSeatResults(game.gameId);
       const prev = await this.repo.listReports(game.gameId, me.playerId);
       const rng = createRng(`${game.gameId}:analyst:${me.playerId}:${prev.length}`);
+      const contenders = players.filter((p) => CONTENDER.has(p.status));
+      const committed = committedMatrix(contenders.filter((p) => p.committed).map((p) => [p.playerId, p.committed!] as const), kernels, cfg);
       const report = analystReport(
-        effects, kernels, cfg, scope, scope === 'seat' ? (seat as number) : undefined, decided,
-        players.filter((p) => CONTENDER.has(p.status)).map((p) => p.playerId), asOf, now, price, rng,
+        effects, committed, kernels, cfg, scope, scope === 'seat' ? (seat as number) : undefined, decided,
+        contenders.map((p) => p.playerId), asOf, now, price, rng,
       );
       const res = await this.repo.addReport(game.gameId, me.playerId, price, { playerId: me.playerId, ts: now, report }, game.closedPhases);
       if (res === 'conflict') continue;
@@ -627,7 +668,9 @@ export class GameService {
       const effects = computeEffects(actions, kernels, cfg, game.timeline, map, game.phases, {
         upTo: game.timeline.phaseCloses[phaseIndex], exclude,
       });
-      let results = pollSeats(effects, kernels, cfg, seats, phaseIndex, createRng(`${gameId}:poll:${phaseIndex}`));
+      const voters = this.sortedPlayers(players).filter((p) => CONTENDER.has(p.status));
+      const committed = committedMatrix(voters.filter((p) => p.committed).map((p) => [p.playerId, p.committed!] as const), kernels, cfg);
+      let results = pollSeats(effects, committed, voters.map((p) => p.playerId), kernels, cfg, seats, phaseIndex, createRng(`${gameId}:poll:${phaseIndex}`));
       await this.repo.putSeatResults(gameId, results);
       // A player eliminated while we were polling must not keep seats.
       players = await this.repo.listPlayers(gameId);

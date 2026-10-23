@@ -80,6 +80,18 @@ export interface PlayerPublic {
   status: PlayerStatus;
 }
 
+// ---------------------------------------------------------------- committed voters
+
+/** One seat with committed voters of a party: `band` is 1-based into MapConfig.committed.bands. */
+export interface CommittedSeat { seat: SeatId; band: number }
+
+/**
+ * A party's committed voters: the core seat (distinct per party) and every seat of its bands in walk order (band 1 first).
+ * Dealt once when the player is admitted (the host: when the game is created). Server-internal except for the owner's own
+ * view (PrivateState.committed).
+ */
+export interface CommittedSet { core: SeatId; seats: CommittedSeat[] }
+
 // ---------------------------------------------------------------- game lifecycle
 
 export type GameStatus = 'lobby' | 'campaign' | 'counting' | 'postCounting' | 'finished' | 'abandoned';

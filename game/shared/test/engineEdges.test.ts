@@ -10,7 +10,7 @@ import {
 import type { Action, CoalitionOffer, Effects, Government, SeatResult } from '../src';
 import { decay } from '../src/engine/effects';
 import { gaussian } from '../src/engine/rng';
-import { T0, TEST_CFG, act, testMap } from './helpers';
+import { NO_COMMITTED, PURE_CFG, T0, TEST_CFG, act, testMap } from './helpers';
 
 const cfg = TEST_CFG;
 const map = testMap();
@@ -287,41 +287,44 @@ describe('pollSeats properties', () => {
   };
   it.each([2, 3, 5, 10])('%i players: every polled seat has a winner among the players with the maximal share, shares sum to 1 and are in [0,1]', (n) => {
     const e = eff(n);
-    const res = pollSeats(e, kernels, cfg, [1, 2, 3, 4, 5, 6, 7, 8], 0, createRng('p' + n));
+    const res = pollSeats(e, NO_COMMITTED, Array.from({ length: n }, (_, p) => `P${p}`), kernels, cfg, [1, 2, 3, 4, 5, 6, 7, 8], 0, createRng('p' + n));
     for (const r of res) {
-      if (r.winner === null) { expect(r.shares).toEqual({}); continue; }
+      expect(r.winner).not.toBeNull();
+      expect(Object.keys(r.shares)).toHaveLength(n);
       const vals = Object.values(r.shares);
       expect(vals.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 10);
       for (const v of vals) { expect(v).toBeGreaterThanOrEqual(0); expect(v).toBeLessThanOrEqual(1); }
-      expect(r.shares[r.winner]).toBeCloseTo(Math.max(...vals), 10);
+      expect(r.shares[r.winner as string]).toBeCloseTo(Math.max(...vals), 10);
     }
   });
-  it('zero swing gives exactly the raw shares', () => {
+  it('without influence and random voters the shares are exactly the reputation split', () => {
     const e = eff(3);
-    const res = pollSeats(e, kernels, { ...cfg, randomSwing: 0 }, [1, 2, 3], 0, createRng('z'));
+    const res = pollSeats(e, NO_COMMITTED, ['P0', 'P1', 'P2'], kernels, PURE_CFG, [1, 2, 3], 0, createRng('z'));
     for (const r of res) for (const [p, v] of Object.entries(r.shares)) expect(v).toBeCloseTo(seatShares(e, kernels, r.seat)[p], 12);
   });
   it('unknown seats come back as winner null; the phase number is copied; polling does not mutate the effects', () => {
     const e = eff(2);
     const copy = new Map([...e].map(([k, v]) => [k, Float64Array.from(v)]));
-    const res = pollSeats(e, kernels, cfg, [1, 999], 4, createRng('u'));
+    const res = pollSeats(e, NO_COMMITTED, ['P0', 'P1'], kernels, cfg, [1, 999], 4, createRng('u'));
     expect(res[1]).toEqual({ seat: 999, phase: 4, winner: null, shares: {} });
     expect(res[0].phase).toBe(4);
     for (const [k, v] of e) expect(Array.from(v)).toEqual(Array.from(copy.get(k) as Float64Array));
   });
-  it('polling nothing or polling with no effects is fine', () => {
-    expect(pollSeats(eff(2), kernels, cfg, [], 0, createRng('e'))).toEqual([]);
-    const res = pollSeats(new Map(), kernels, cfg, [1, 2], 0, createRng('e'));
-    expect(res.every((r) => r.winner === null)).toBe(true);
+  it('polling nothing is fine; with no effects every seat still has a winner (random voters); with no players there is none', () => {
+    expect(pollSeats(eff(2), NO_COMMITTED, ['P0', 'P1'], kernels, cfg, [], 0, createRng('e'))).toEqual([]);
+    const res = pollSeats(new Map(), NO_COMMITTED, ['P0', 'P1'], kernels, cfg, [1, 2], 0, createRng('e'));
+    expect(res.every((r) => r.winner !== null)).toBe(true);
+    for (const r of res) expect(Object.values(r.shares).reduce((a, b) => a + b, 0)).toBeCloseTo(1, 12);
+    expect(pollSeats(new Map(), NO_COMMITTED, [], kernels, cfg, [1, 2], 0, createRng('e')).every((r) => r.winner === null)).toBe(true);
   });
-  it('a clear leader always wins whatever the seed (swing is small)', () => {
+  it('a clear leader always wins whatever the seed (random voters are at most 5%)', () => {
     const e: Effects = new Map([['A', Float64Array.from([10, 10, 10, 10, 10, 10, 10, 10])], ['B', Float64Array.from([1, 1, 1, 1, 1, 1, 1, 1])]]);
-    for (let s = 0; s < 200; s++) for (const r of pollSeats(e, kernels, cfg, [1, 2, 3], 0, createRng('seed' + s))) expect(r.winner).toBe('A');
+    for (let s = 0; s < 200; s++) for (const r of pollSeats(e, NO_COMMITTED, ['A', 'B'], kernels, cfg, [1, 2, 3], 0, createRng('seed' + s))) expect(r.winner).toBe('A');
   });
   it('a dead heat is decided at random but only among the leaders, over many seeds both win', () => {
     const e: Effects = new Map([['A', Float64Array.from(Array(8).fill(1))], ['B', Float64Array.from(Array(8).fill(1))], ['C', Float64Array.from(Array(8).fill(0.1))]]);
     const wins = { A: 0, B: 0, C: 0 } as Record<string, number>;
-    for (let s = 0; s < 400; s++) wins[pollSeats(e, kernels, { ...cfg, randomSwing: 0 }, [1], 0, createRng('t' + s))[0].winner as string]++;
+    for (let s = 0; s < 400; s++) wins[pollSeats(e, NO_COMMITTED, ['A', 'B', 'C'], kernels, PURE_CFG, [1], 0, createRng('t' + s))[0].winner as string]++;
     expect(wins.C).toBe(0);
     expect(wins.A).toBeGreaterThan(120);
     expect(wins.B).toBeGreaterThan(120);
@@ -370,7 +373,7 @@ describe('removePlayerFromResults / tallySeats', () => {
 describe('analyst corner cases', () => {
   const tl = buildTimeline(cfg, 1, T0);
   const players = ['A', 'B', 'C'];
-  const noiseless = { ...cfg, analyst: { ...cfg.analyst, noise: 0 } };
+  const noiseless = { ...PURE_CFG, analyst: { ...cfg.analyst, noise: 0 } };
   it('price: whole numbers everywhere, never decreasing over the campaign, flat when start = end, zero-length campaign uses the end price', () => {
     for (const scope of ['seat', 'global'] as const) {
       let prev = 0;
@@ -387,46 +390,47 @@ describe('analyst corner cases', () => {
   });
   it('seat report errors: missing seat, unknown seat', () => {
     const e: Effects = new Map();
-    expect(() => analystReport(e, kernels, cfg, 'seat', undefined, [], players, 0, 1, 1, createRng('x'))).toThrow(/requires a seat/);
-    expect(() => analystReport(e, kernels, cfg, 'seat', 999, [], players, 0, 1, 1, createRng('x'))).toThrow(/unknown seat/);
+    expect(() => analystReport(e, NO_COMMITTED, kernels, cfg, 'seat', undefined, [], players, 0, 1, 1, createRng('x'))).toThrow(/requires a seat/);
+    expect(() => analystReport(e, NO_COMMITTED, kernels, cfg, 'seat', 999, [], players, 0, 1, 1, createRng('x'))).toThrow(/unknown seat/);
   });
   it('noise-free seat report: ranks follow the true shares; tied players are ranked by their order in `players`', () => {
     const e: Effects = new Map([['A', Float64Array.from(Array(8).fill(2))], ['B', Float64Array.from(Array(8).fill(2))], ['C', Float64Array.from(Array(8).fill(1))]]);
-    const r = analystReport(e, kernels, noiseless, 'seat', 1, [], players, 0, 1, 7, createRng('x'));
+    const r = analystReport(e, NO_COMMITTED, kernels, noiseless, 'seat', 1, [], players, 0, 1, 7, createRng('x'));
     expect(r.entries.map((x) => x.playerId)).toEqual(['A', 'B', 'C']);
     expect(r.entries.map((x) => x.rank)).toEqual([1, 2, 3]);
     expect(r.entries[0].estimate).toBeCloseTo(0.4, 12);
     expect(r.entries[2].estimate).toBeCloseTo(0.2, 12);
-    const flipped = analystReport(e, kernels, noiseless, 'seat', 1, [], ['B', 'A', 'C'], 0, 1, 7, createRng('x'));
+    const flipped = analystReport(e, NO_COMMITTED, kernels, noiseless, 'seat', 1, [], ['B', 'A', 'C'], 0, 1, 7, createRng('x'));
     expect(flipped.entries.map((x) => x.playerId)).toEqual(['B', 'A', 'C']);
   });
   it('report estimates are clamped to [0,1] even with enormous noise; margin equals noise * factor', () => {
     const e: Effects = new Map([['A', Float64Array.from(Array(8).fill(1))]]);
     const wild = { ...cfg, analyst: { ...cfg.analyst, noise: 5, marginFactor: 2 } };
     for (let s = 0; s < 50; s++) {
-      const r = analystReport(e, kernels, wild, 'seat', 1, [], ['A', 'B'], 0, 1, 1, createRng('w' + s));
+      const r = analystReport(e, NO_COMMITTED, kernels, wild, 'seat', 1, [], ['A', 'B'], 0, 1, 1, createRng('w' + s));
       for (const x of r.entries) { expect(x.estimate).toBeGreaterThanOrEqual(0); expect(x.estimate).toBeLessThanOrEqual(1); expect(x.margin).toBe(10); }
     }
   });
   it('global report: decided seats count for their winners exactly, players outside `players` are ignored, estimates are whole and >= 0', () => {
     const decided: SeatResult[] = [{ seat: 1, phase: 0, winner: 'A', shares: { A: 1 } }, { seat: 2, phase: 0, winner: 'Z', shares: { Z: 1 } }, { seat: 3, phase: 0, winner: null, shares: {} }];
-    const e: Effects = new Map();
-    const r = analystReport(e, kernels, noiseless, 'global', undefined, decided, players, 0, 1, 1, createRng('g'));
+    const e: Effects = new Map([['B', Float64Array.from(Array(8).fill(1))]]); // B leads the 5 open seats
+    const r = analystReport(e, NO_COMMITTED, kernels, noiseless, 'global', undefined, decided, players, 0, 1, 1, createRng('g'));
     const byP = Object.fromEntries(r.entries.map((x) => [x.playerId, x.estimate]));
-    expect(byP).toEqual({ A: 1, B: 0, C: 0 });
+    expect(byP).toEqual({ A: 1, B: 5, C: 0 });
     for (const x of r.entries) { expect(Number.isInteger(x.estimate)).toBe(true); expect(x.margin).toBeGreaterThanOrEqual(1); }
   });
-  it('global report with open seats: the player with the highest effect in a seat gets it, nobody gets seats without any effect', () => {
+  it('global report with open seats: the player with the highest effect in a seat gets it, seats without any effect go to the first player', () => {
     const v = (arr: number[]) => Float64Array.from(arr);
     const e: Effects = new Map([['A', v([5, 0, 0, 0, 0, 0, 0, 0])], ['B', v([1, 0, 3, 0, 0, 0, 0, 0])]]);
-    const r = analystReport(e, kernels, noiseless, 'global', undefined, [], players, 0, 1, 1, createRng('g'));
+    const r = analystReport(e, NO_COMMITTED, kernels, noiseless, 'global', undefined, [], players, 0, 1, 1, createRng('g'));
     const byP = Object.fromEntries(r.entries.map((x) => [x.playerId, x.estimate]));
-    expect(byP).toEqual({ A: 1, B: 1, C: 0 });
+    // seat 1 -> A (5 vs 1), seat 3 -> B, the other six seats have no reputation: equal split, tie -> first player A
+    expect(byP).toEqual({ A: 7, B: 1, C: 0 });
   });
   it('the report copies asOf / purchasedAt / price and is a pure function of its inputs and rng', () => {
     const e: Effects = new Map([['A', Float64Array.from(Array(8).fill(1))]]);
-    const a = analystReport(e, kernels, cfg, 'seat', 2, [], players, 111, 222, 333, createRng('same'));
-    const b = analystReport(e, kernels, cfg, 'seat', 2, [], players, 111, 222, 333, createRng('same'));
+    const a = analystReport(e, NO_COMMITTED, kernels, cfg, 'seat', 2, [], players, 111, 222, 333, createRng('same'));
+    const b = analystReport(e, NO_COMMITTED, kernels, cfg, 'seat', 2, [], players, 111, 222, 333, createRng('same'));
     expect(a).toEqual(b);
     expect(a).toMatchObject({ scope: 'seat', seat: 2, asOf: 111, purchasedAt: 222, price: 333 });
   });

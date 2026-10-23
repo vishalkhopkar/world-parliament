@@ -49,6 +49,11 @@ export function rulesValues(cfg: MapConfig, opts: RenderOptions = {}): Record<st
     '  |---|---|---|---|',
     ...cfg.points.portfolios.map((p) => `  | \`${p.id}\` | ${p.label} | ${p.points} | ${p.max} |`),
   ].join('\n');
+  const bandTable = [
+    '  | Band | Committed share of the seat | Seats | Level |',
+    '  |---|---|---|---|',
+    ...cfg.committed.bands.map((b, i) => `  | ${i + 1} | ~${b.percent}% | ${b.seats} | ${b.level} |`),
+  ].join('\n');
   return {
     MAP_NAME: opts.mapName ?? cfg.mapId,
     PLAYERS_MIN: String(cfg.players.min),
@@ -91,7 +96,12 @@ export function rulesValues(cfg: MapConfig, opts: RenderOptions = {}): Record<st
     TM_END: trim(cfg.timeMultiplier.end),
     REPORT_DELAY_S: String(Math.round(cfg.analyst.delayMs / 1000)),
     NOISE_PCT: String(Math.round(cfg.analyst.noise * 100)),
-    SWING_PCT: String(Math.round(cfg.randomSwing * 100)),
+    INFLUENCE_PCT: String(cfg.voting.influenceMaxPercent),
+    RANDOM_PCT: String(cfg.voting.randomMaxPercent),
+    SEAT_CAP_PCT: String(cfg.committed.seatMaxPercent),
+    COMMITTED_SEATS: String(cfg.committed.bands.reduce((a, b) => a + b.seats, 0)),
+    COMMITTED_BAND_COUNT: String(cfg.committed.bands.length),
+    COMMITTED_TABLE: bandTable,
     CAMPAIGN_MIN: minutes(campaignMs),
     COUNTING_MIN: minutes(countingMs),
     COUNTING_MIN_2P: minutes(cfg.durations.countingMsTwoPlayers),

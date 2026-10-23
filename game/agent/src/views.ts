@@ -1,7 +1,7 @@
 // Compact, name-based views of game data for LLMs (ids replaced by party names / seat names, times by seconds).
 import { analystPrice, majorityOf } from '@hp/shared';
 import type {
-  AnalystReport, ChatMessage, CoalitionOffer, FinalResult, GameTimeline, Government, PlayerPublic, PortfolioAssignment, SeatDeclaration,
+  AnalystReport, ChatMessage, CommittedView, CoalitionOffer, FinalResult, GameTimeline, Government, PlayerPublic, PortfolioAssignment, SeatDeclaration,
 } from '@hp/shared';
 import { admissionOf } from './state';
 import type { AgentEvent } from './state';
@@ -10,6 +10,18 @@ import type { SeatDirectory } from './resolve';
 
 export const round1 = (n: number): number => Math.round(n * 10) / 10;
 const secs = (ms: number): number => Math.max(0, Math.round(ms / 1000));
+
+/**
+ * The player's budget. The server grants it at the campaign start and sends the status event BEFORE the private update,
+ * so for a moment the lobby-time 0 is still in the state (state.budgetPending): that is a gap, not an empty purse, so report
+ * the configured budget until the real number arrives.
+ */
+export function currentBudget(s: AgentSession): number | null {
+  const priv = s.client.state.priv;
+  if (!priv) return null;
+  if (priv.budget === 0 && s.client.state.budgetPending && s.client.state.snapshot?.status === 'campaign') return s.cfg().budget;
+  return priv.budget;
+}
 
 export type Stage = 'lobby' | 'campaign' | 'counting' | 'postCounting' | 'finished';
 
@@ -143,6 +155,10 @@ export function governmentView(s: AgentSession, g: Government) {
     members: g.members.map((m) => who(s, m, true)),
     portfolios: portfoliosView(s, g.portfolios),
     via_negotiation: g.viaNegotiation,
+    outright_majority: !g.viaNegotiation,
+    ...(g.viaNegotiation ? {} : {
+      note: 'Outright majority: this party won a majority of seats on its own and did not negotiate, so no portfolios were shared. It holds every portfolio itself (both Deputy Prime Minister slots included); the repeated names are not a coalition.',
+    }),
   };
 }
 
@@ -151,7 +167,7 @@ export function resultView(s: AgentSession, r: FinalResult) {
   return {
     outcome: r.outcome,
     meaning: ({
-      majority: 'One party had a majority and did not negotiate: clear winner.',
+      majority: 'Outright majority: one party won a majority of seats on its own and did not negotiate, so no portfolios were shared: clear winner.',
       coalition: 'A coalition government was confirmed once every seat was declared (end of counting); the member with the most points wins. At least one party always stays out of a government.',
       draw: 'Exact tie between two players: draw.',
       noGovernment: 'Nobody had a confirmed government when the time ran out: everyone loses.',
@@ -210,6 +226,23 @@ export function eventView(s: AgentSession, e: AgentEvent, dir: SeatDirectory | n
   }
 }
 
+// ------------------------------------------------------------------ committed voters (own only)
+/** "~30% (HIGH)": the band figure, never the value after influence. */
+export const committedLabel = (c: CommittedView): string => `~${c.percent}% (${c.level})`;
+
+/** Summary of the player's own committed seats: counts per level plus the list (seat, name, band label). */
+export function committedSummary(s: AgentSession, dir: SeatDirectory | null) {
+  const list = s.client.state.priv?.committed ?? [];
+  const by_level: Record<string, number> = {};
+  for (const c of list) by_level[c.level] = (by_level[c.level] ?? 0) + 1;
+  return {
+    total: list.length,
+    by_level,
+    seats: list.map((c) => ({ seat: c.seat, name: dir?.name(c.seat) ?? `Seat ${c.seat}`, committed: committedLabel(c), band: c.band })),
+    note: 'Your committed voters (private). They are a base to defend and extend; the % is the band figure, the votes you finally get there can differ (influence and chance).',
+  };
+}
+
 // ------------------------------------------------------------------ get_state
 export function stateView(s: AgentSession, dir: SeatDirectory | null) {
   const c = s.client;
@@ -225,7 +258,7 @@ export function stateView(s: AgentSession, dir: SeatDirectory | null) {
   const admission = admissionOf(st);
   const mine = s.players().find((p) => p.playerId === c.me);
   const priv = st.priv;
-  const budget = priv?.budget ?? 0;
+  const budget = currentBudget(s) ?? 0;
   const out: Record<string, unknown> = {
     joined: true,
     game_id: c.session.gameId,
@@ -278,9 +311,11 @@ export function stateView(s: AgentSession, dir: SeatDirectory | null) {
       rallies_affordable: Math.floor(budget / cost.rally),
       roadshows_affordable: Math.floor(budget / cost.roadshow),
       ...(prices ? { seat_report_price_now_wr: prices.seat, global_report_price_now_wr: prices.global } : {}),
+      report_price_note: 'Report prices rise as the campaign goes on, by the second: the price you pay is the one at the moment the server handles your purchase, so it can be slightly higher than the price shown here.',
       currency: cfg.currency.symbol,
     };
     const rallies = priv.myActions.filter((a) => a.type === 'rally').length;
+    out.committed = committedSummary(s, dir);
     out.my_actions = { rallies, roadshows: priv.myActions.length - rallies, reports_bought: priv.myReports.length };
   }
 

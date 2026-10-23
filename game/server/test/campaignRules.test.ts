@@ -236,12 +236,12 @@ describe('analyst reports', () => {
     await c.send(0, { action: 'buyReport', scope: 'seat', seat: 4 });
     const fresh = (c.notifier.to(c.p[0].playerId, 'report')[0] as Extract<ServerMessage, { type: 'report' }>).report;
     expect(fresh.asOf).toBe(c.clock.now() - c.cfg.analyst.delayMs);
-    // nobody had any effect at asOf: the estimate for player 1 is pure noise around 0
-    expect(fresh.entries.find((e) => e.playerId === c.p[1].playerId)!.estimate).toBeLessThan(0.5);
+    // nobody had any effect at asOf: player 1 only has what its committed voters / noise give it
+    const before = fresh.entries.find((e) => e.playerId === c.p[1].playerId)!.estimate;
     c.clock.advance(c.cfg.analyst.delayMs + 1000);
     await c.send(0, { action: 'buyReport', scope: 'seat', seat: 4 });
     const later = (c.notifier.to(c.p[0].playerId, 'report')[1] as Extract<ServerMessage, { type: 'report' }>).report;
-    expect(later.entries.find((e) => e.playerId === c.p[1].playerId)!.estimate).toBeGreaterThan(0.5); // now the rally is old enough to show
+    expect(later.entries.find((e) => e.playerId === c.p[1].playerId)!.estimate).toBeGreaterThan(Math.max(0.5, before)); // now the rally is old enough to show
   });
 
   it('a report only lists players still in the game (eliminated players are not shown)', async () => {

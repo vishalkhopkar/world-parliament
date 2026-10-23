@@ -48,7 +48,7 @@ describe('performance smoke (500 seats, 5000 actions)', () => {
     const dt = performance.now() - t;
     console.log(`computeEffects: ${dt.toFixed(0)} ms`);
     expect(dt).toBeLessThan(2000);
-    const res = pollSeats(e, k, cfg, ids, 0, createRng('poll'));
+    const res = pollSeats(e, new Map(), players, k, cfg, ids, 0, createRng('poll'));
     const tally = tallySeats(res);
     expect(Object.values(tally).reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(500);
     expect(Math.abs(Object.values(seatShares(e, k, 7)).reduce((a, b) => a + b, 0) - 1)).toBeLessThan(1e-9);

@@ -2,7 +2,7 @@
 import type {
   Action, AnalystReport, CoalitionOffer, ErrorCode, FinalResult, GameMapPackage, GameStatus, GameTimeline,
   Government, MapConfig, PartyIdentity, PlayerId, PlayerKind, PlayerStatus, ServerMessage, SeatId, SeatResult, ChatMessage,
-  Kernels,
+  Kernels, CommittedSet,
 } from '@hp/shared';
 
 export interface GameRecord {
@@ -21,6 +21,8 @@ export interface GameRecord {
   revealedStep: number;
   /** Set when the result has been written (idempotent finalise). */
   finalised?: boolean;
+  /** Committed-voter deals so far: bumped (with a condition on the old value) by every deal, so two deals never interleave. */
+  committedSeq?: number;
 }
 
 export interface PlayerRecord {
@@ -34,6 +36,8 @@ export interface PlayerRecord {
   status: PlayerStatus;
   /** 0-based candidates.csv column this party draws its candidates from. Server-internal: set once at game start, never sent to clients. */
   candidateColumn?: number;
+  /** This party's committed voters (dealt at admission). Server-internal; only the owner sees their own (PrivateState.committed). */
+  committed?: CommittedSet;
   party?: PartyIdentity;
   budget: number;
   joinedAt: number;

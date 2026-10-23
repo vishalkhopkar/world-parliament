@@ -85,3 +85,23 @@ describe('offer builder follows the current map', () => {
     expect(within(card).queryByText(/Minister of Magic/)).toBeNull();
   });
 });
+
+describe('seat panel committed voters', () => {
+  const open = (seat: number, committed?: PrivateState['committed']) => {
+    const s = snap(WORLD_CONFIG.mapId);
+    useStore.setState({ me: 'p1', gameId: 'g', snapshot: s, names: {} });
+    render(<SeatActionModal seat={seat} snap={s} priv={{ ...priv, committed }} now={1} phaseOf={null} polled={new Set()} onClose={() => undefined} />);
+  };
+  it('shows the band percent and level for a committed seat', () => {
+    open(1, [{ seat: 1, band: 3, percent: 30, level: 'HIGH' }]);
+    expect(screen.getByText(/Committed voters: ~30%/)).toHaveTextContent('HIGH');
+  });
+  it('shows nothing for a seat without bands', () => {
+    open(2, [{ seat: 1, band: 3, percent: 30, level: 'HIGH' }]);
+    expect(screen.queryByText(/Committed voters/)).toBeNull();
+  });
+  it('shows nothing when the player has no committed list', () => {
+    open(1);
+    expect(screen.queryByText(/Committed voters/)).toBeNull();
+  });
+});

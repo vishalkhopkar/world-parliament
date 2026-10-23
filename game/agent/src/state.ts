@@ -95,12 +95,14 @@ export interface ClientState {
   polledPhases: Set<number>;
   /** clientRef -> what that campaign message was (so an actionAck can extend myActions). */
   pendingActions: Map<string, { type: ActionType; seat: SeatId }>;
+  /** The campaign started but the server's budget update (sent right after the status event) has not arrived yet. */
+  budgetPending: boolean;
 }
 
 export function newState(): ClientState {
   return {
     gameId: null, me: null, joinCode: null, nickname: null, lobby: null, snapshot: null, priv: null, chat: [],
-    serverOffsetMs: 0, link: 'idle', polledPhases: new Set(), pendingActions: new Map(),
+    serverOffsetMs: 0, link: 'idle', polledPhases: new Set(), pendingActions: new Map(), budgetPending: false,
   };
 }
 
@@ -129,6 +131,7 @@ export function applyMessage(st: ClientState, m: ServerMessage, localNow: number
     case 'hello':
       st.snapshot = m.snapshot;
       st.priv = m.private;
+      st.budgetPending = false;
       st.serverOffsetMs = m.serverTime - localNow;
       st.polledPhases = new Set(m.snapshot.polledPhases);
       if (m.chat) st.chat = m.chat; // the conversation so far (kept across a reconnect)
@@ -139,8 +142,10 @@ export function applyMessage(st: ClientState, m: ServerMessage, localNow: number
       return [];
     case 'private':
       st.priv = m.private;
+      st.budgetPending = false;
       return [];
     case 'status':
+      if (m.status === 'campaign' && snap?.status !== 'campaign' && st.priv && st.priv.budget === 0) st.budgetPending = true;
       if (snap) st.snapshot = { ...snap, status: m.status, timeline: m.timeline };
       return [ev('status', { status: m.status, timeline: m.timeline })];
     case 'players':
@@ -150,6 +155,7 @@ export function applyMessage(st: ClientState, m: ServerMessage, localNow: number
       if (snap) st.snapshot = { ...snap, news: [...snap.news, m.item] };
       return [ev('news', { item: m.item })];
     case 'actionAck': {
+      st.budgetPending = false;
       const a = m.clientRef ? st.pendingActions.get(m.clientRef) : undefined;
       if (m.clientRef) st.pendingActions.delete(m.clientRef);
       if (st.priv) {
@@ -161,6 +167,7 @@ export function applyMessage(st: ClientState, m: ServerMessage, localNow: number
       return [];
     }
     case 'report':
+      st.budgetPending = false;
       if (st.priv) st.priv = { ...st.priv, budget: m.budget, myReports: [...st.priv.myReports, m.report] };
       return [ev('report', { report: m.report, budget: m.budget })];
     case 'phaseClosed':

@@ -1,3 +1,4 @@
+import type { Committed } from '../src/engine/types';
 import type { MapConfig } from '../src/mapConfig';
 import { WORLD_CONFIG } from '../src/mapConfig';
 import type { Action, GameMapPackage, GameMapSeat } from '../src/types';
@@ -14,8 +15,13 @@ export const TEST_CFG: MapConfig = {
     firstMover: { rally: 0, roadshow: 0 }, // off in the base test config; firstMover.test.ts turns it on
   },
   timeMultiplier: { start: 1.0, end: 1.2 },
-  randomSwing: 0.02,
 };
+
+/** No committed voters anywhere. */
+export const NO_COMMITTED: Committed = new Map();
+
+/** TEST_CFG without influence and random voters: shares are the pure reputation split (the old ratio rule). */
+export const PURE_CFG: MapConfig = { ...TEST_CFG, voting: { influenceMaxPercent: 0, randomMaxPercent: 0 } };
 
 function seat(id: number, lon: number, lat: number, neighbours: number[] = []): GameMapSeat {
   return { id, lon, lat, x: lon, y: lat, neighbours };

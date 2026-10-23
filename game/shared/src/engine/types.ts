@@ -16,7 +16,10 @@ export interface Kernels {
   distanceKm: Float32Array;
 }
 
-/** Per-player effect vectors: effects.get(playerId)[seatIndex]. */
+/** Per-player committed-voter fractions (0..1, the band figure): committed.get(playerId)[seatIndex]. Missing player = 0 everywhere. */
+export type Committed = Map<PlayerId, Float64Array>;
+
+/** Per-player effect vectors (= reputation): effects.get(playerId)[seatIndex]. */
 export type Effects = Map<PlayerId, Float64Array>;
 
 export interface EffectOptions {

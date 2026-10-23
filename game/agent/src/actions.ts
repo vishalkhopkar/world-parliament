@@ -1,7 +1,7 @@
 // THE action table. The MCP server (mcp.ts) and the CLI/daemon (cli.ts, daemon.ts) both execute actions only through this
 // table, so they can never diverge. Each action: name, LLM-facing description, zod input schema, handler on an AgentSession.
 import { analystPrice, AVATARS, haversineKm, majorityOf, PARTY_COLOURS, PARTY_SYMBOLS } from '@hp/shared';
-import type { ActionType, CoalitionOffer, MapConfig, PartyIdentity, PortfolioAssignment, SeatId } from '@hp/shared';
+import type { ActionType, CoalitionOffer, CommittedView, MapConfig, PartyIdentity, PortfolioAssignment, SeatId } from '@hp/shared';
 import { z } from 'zod';
 import { AgentError, toErrorInfo } from './errors';
 import type { ErrorInfo } from './errors';
@@ -11,7 +11,7 @@ import type { AgentSession } from './session';
 import { EVENT_TYPES, admissionOf } from './state';
 import type { EventType } from './state';
 import {
-  chatView, eventView, governmentView, offerView, playerView, reportView, round1, stageInfo, stateView, who, winsByName,
+  chatView, committedLabel, currentBudget, eventView, governmentView, offerView, playerView, reportView, round1, stageInfo, stateView, who, winsByName,
 } from './views';
 
 export interface ActionDef<S extends z.ZodObject<z.ZodRawShape> = z.ZodObject<z.ZodRawShape>> {
@@ -81,7 +81,7 @@ function precheckSeat(s: AgentSession, seatId: SeatId, phaseOf: Map<SeatId, numb
 
 function budgetView(s: AgentSession) {
   const cfg = s.cfg();
-  const b = s.client.state.priv?.budget ?? 0;
+  const b = currentBudget(s) ?? 0;
   return {
     budget_wr: b,
     rallies_affordable: Math.floor(b / cfg.costs.rally),
@@ -122,7 +122,7 @@ function clashError(s: AgentSession, e: AgentError): AgentError {
   const o = partyOptions(s);
   const list = (rows: { label: string; taken_by: string | null; hex?: string; id?: string }[], key: 'hex' | 'id') => rows.filter((r) => !r.taken_by).map((r) => `${r.label} (${r[key]})`).join(', ') || 'none';
   return new AgentError(e.code, `${e.message} Free colours: ${list(o.colours, 'hex')}. Free symbols: ${list(o.symbols, 'id')}. Free avatars: ${list(o.avatars, 'id')}.`,
-    'Call set_party again with free options from this list (or pass auto_pick:true to let the tool choose free colour/symbol/avatar). The name must be chosen by you.');
+    'Call set_party again with free options from this list (or pass auto_pick:true to let the tool choose free colour/symbol/avatar; give your own name or it is chosen too).');
 }
 
 // ------------------------------------------------------------------ schemas
@@ -152,11 +152,14 @@ export const ACTIONS: ActionDef[] = [
     name: 'join_game',
     description: 'Ask to join a game created by a human, using the join code the human gave you (6 letters/digits). You join as an AI player. The host must admit you (status "pending" until then). You can NOT create or start games. Next: wait_for_admission.',
     schema: z.object({
-      join_code: z.string().min(3).describe('The join code shown in the host\'s lobby'),
-      nickname: z.string().min(1).max(24).describe('Your join name (max 24 characters), e.g. "Claude"; shown only to the host until you set a party'),
+      join_code: z.string().min(3).optional().describe("The join code shown in the host's lobby (alias: code)"),
+      code: z.string().min(3).optional().describe('Alias of join_code'),
+      nickname: z.string().min(1).max(24).default('Claude').describe('Your join name (max 24 characters, default "Claude"); shown only to the host until you set a party'),
     }),
     async run(s, i) {
-      const sess = await s.client.join(i.join_code, i.nickname);
+      const joinCode = i.join_code ?? i.code;
+      if (!joinCode) throw new AgentError('INVALID_INPUT', 'join_code is required (the code the human host gives you; "code" works too).');
+      const sess = await s.client.join(joinCode, i.nickname);
       s.persist();
       return {
         status: 'pending',
@@ -223,21 +226,43 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'set_party',
-    description: 'Choose (or change, until the game starts) your party identity: name (2-30 chars), colour (hex like "#1F5FBF" or label like "Blue"), symbol (id or label) and avatar (id or label). ALL FOUR are required (the host cannot start the game until every player has an avatar) and each must be unique among players. Use list_party_options first to see what is free. If another player grabbed your colour/symbol/avatar/name first you get NAME_TAKEN / COLOUR_TAKEN / SYMBOL_TAKEN / AVATAR_TAKEN with the list of FREE options; pass auto_pick:true to retry automatically (up to 3 times) with the first free colour/symbol/avatar (the name is never changed).',
+    description: 'Choose (or change, until the game starts) your party identity: name (2-30 chars), colour (hex like "#1F5FBF" or label like "Blue"), symbol (id or label) and avatar (id or label). ALL FOUR are required unless auto_pick:true (the host cannot start the game until every player has an avatar) and each must be unique among players. Use list_party_options first to see what is free. If another player grabbed your colour/symbol/avatar/name first you get NAME_TAKEN / COLOUR_TAKEN / SYMBOL_TAKEN / AVATAR_TAKEN with the list of FREE options; pass auto_pick:true to fill in anything you leave out (even all four: set_party {auto_pick:true}) and to retry automatically (up to 3 times) with the next free option (a name you gave is never changed; with auto_pick:true and no name, a free name like "Blue Alliance" is chosen).',
     schema: z.object({
-      name: z.string().min(2).max(30).describe('Party name, unique in the game'),
-      colour: z.string().min(1).describe('Colour hex or label, from list_party_options'),
-      symbol: z.string().min(1).describe('Symbol id or label, from list_party_options'),
-      avatar: z.string().min(1).describe('Avatar id or label, from list_party_options (required, unique)'),
-      auto_pick: z.boolean().default(false).describe('On a colour/symbol/avatar clash retry up to 3 times with the first free option (never changes the name)'),
+      name: z.string().min(2).max(30).optional().describe('Party name, unique in the game (required unless auto_pick:true)'),
+      colour: z.string().min(1).optional().describe('Colour hex or label, from list_party_options (required unless auto_pick:true)'),
+      symbol: z.string().min(1).optional().describe('Symbol id or label, from list_party_options (required unless auto_pick:true)'),
+      avatar: z.string().min(1).optional().describe('Avatar id or label, from list_party_options (required unless auto_pick:true; unique)'),
+      auto_pick: z.boolean().default(false).describe('Fill in whatever you leave out with a free unique name / colour / symbol / avatar (fields you give always win), and on a clash retry up to 3 times with the next free option'),
     }),
     async run(s, i) {
       needAdmitted(s);
-      const colour = resolveColour(PARTY_COLOURS, i.colour);
-      const symbol = resolveOption(PARTY_SYMBOLS, i.symbol, 'symbol');
-      const avatar = resolveOption(AVATARS, i.avatar, 'avatar');
-      let party: PartyIdentity = { name: i.name.trim(), colour: colour.hex, symbol: symbol.id, avatar: avatar.id };
+      if (!i.auto_pick) {
+        const missing = (['name', 'colour', 'symbol', 'avatar'] as const).filter((k) => !i[k]);
+        if (missing.length) throw new AgentError('INVALID_INPUT', `set_party needs ${missing.join(', ')} (all four of name, colour, symbol, avatar are required).`, 'Pass them, or pass auto_pick:true to let the tool choose free ones.');
+      }
       const autoPicked: Record<string, string> = {};
+      const o0 = partyOptions(s);
+      const mine = s.players().find((p) => p.playerId === s.client.me)?.party ?? null;
+      const free = <T extends { taken_by: string | null }>(rows: T[]) => rows.filter((x) => !x.taken_by);
+      const takenNames = new Set(s.players().filter((p) => p.playerId !== s.client.me && p.party && p.status !== 'rejected').map((p) => p.party!.name.trim().toLowerCase()));
+      const nameFor = (colourHex: string, skip: Set<string>): string => {
+        const label = PARTY_COLOURS.find((c) => c.hex.toLowerCase() === colourHex.toLowerCase())?.label ?? 'Independent';
+        for (let n = 1; ; n++) {
+          const cand = n === 1 ? `${label} Alliance` : `${label} Alliance ${n}`;
+          if (!takenNames.has(cand.toLowerCase()) && !skip.has(cand)) return cand;
+        }
+      };
+      const colourHex = i.colour ? resolveColour(PARTY_COLOURS, i.colour).hex : (mine?.colour ?? free(o0.colours)[0]?.hex ?? PARTY_COLOURS[0].hex);
+      const symbolId = i.symbol ? resolveOption(PARTY_SYMBOLS, i.symbol, 'symbol').id : (mine?.symbol ?? free(o0.symbols)[0]?.id ?? PARTY_SYMBOLS[0].id);
+      const avatarId = i.avatar ? resolveOption(AVATARS, i.avatar, 'avatar').id : (mine?.avatar ?? free(o0.avatars)[0]?.id ?? AVATARS[0].id);
+      if (!i.colour) autoPicked.colour = colourHex;
+      if (!i.symbol) autoPicked.symbol = symbolId;
+      if (!i.avatar) autoPicked.avatar = avatarId;
+      const nameAuto = !i.name;
+      const triedNames = new Set<string>();
+      let name = i.name ? i.name.trim() : (mine?.name ?? nameFor(colourHex, triedNames));
+      if (nameAuto) autoPicked.name = name;
+      let party: PartyIdentity = { name, colour: colourHex, symbol: symbolId, avatar: avatarId };
       for (let attempt = 0; ; attempt++) {
         try {
           await s.client.setParty(party);
@@ -246,10 +271,17 @@ export const ACTIONS: ActionDef[] = [
           if (!(e instanceof AgentError) || !(e.code in CLASH_FIELD)) throw e;
           await s.client.refreshLobby().catch(() => undefined);
           const field = CLASH_FIELD[e.code as ClashCode];
-          if (!i.auto_pick || field === 'name' || attempt >= 3) throw clashError(s, e);
+          if (!i.auto_pick || (field === 'name' && !nameAuto) || attempt >= 3) throw clashError(s, e);
+          if (field === 'name') {
+            triedNames.add(party.name);
+            name = nameFor(party.colour, triedNames);
+            party = { ...party, name };
+            autoPicked.name = name;
+            continue;
+          }
           const o = partyOptions(s);
-          const free = (field === 'colour' ? o.colours.filter((x) => !x.taken_by).map((x) => x.hex) : field === 'symbol' ? o.symbols.filter((x) => !x.taken_by).map((x) => x.id) : o.avatars.filter((x) => !x.taken_by).map((x) => x.id));
-          const pick = free.find((x) => x !== party[field]);
+          const frees = (field === 'colour' ? o.colours.filter((x) => !x.taken_by).map((x) => x.hex) : field === 'symbol' ? o.symbols.filter((x) => !x.taken_by).map((x) => x.id) : o.avatars.filter((x) => !x.taken_by).map((x) => x.id));
+          const pick = frees.find((x) => x !== party[field]);
           if (pick === undefined) throw clashError(s, e);
           party = { ...party, [field]: pick };
           autoPicked[field] = pick;
@@ -261,7 +293,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'get_state',
-    description: 'Compact summary for decision making: game status, stage (lobby|campaign|counting|postCounting|finished) with stage_left_s (seconds to the next phase close / campaign end / counting end / post-counting end), plus seconds left for the whole campaign, current polling phase, counting_ends_in_s and post_counting_ends_in_s (server-clock corrected), phase number, YOUR budget and the current prices (rally, roadshow, reports), how many actions you took, which polling phases are closed, all players (party, kind, status), public rally-news counts, the live `tally` during counting, open coalition offers involving you, the government and the result, plus "advice" with the suggested next step. Cheap: call it whenever unsure.',
+    description: 'Compact summary for decision making: game status, stage (lobby|campaign|counting|postCounting|finished) with stage_left_s (seconds to the next phase close / campaign end / counting end / post-counting end), plus seconds left for the whole campaign, current polling phase, counting_ends_in_s and post_counting_ends_in_s (server-clock corrected), phase number, YOUR budget and the current prices (rally, roadshow, reports), how many actions you took, which polling phases are closed, all players (party, kind, status), public rally-news counts, your committed seats (`committed`: counts per level and the list), the live `tally` during counting, open coalition offers involving you, the government and the result, plus "advice" with the suggested next step. Cheap: call it whenever unsure.',
     schema: z.object({}),
     readOnly: true,
     async run(s) {
@@ -272,10 +304,11 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'list_seats',
-    description: 'List seats as compact rows {id, name, phase (1-based polling phase), polled (closed = frozen), lon, lat, neighbours (count)}. Filters: phase, open_only (only seats you can still campaign in), query (name substring, accent-insensitive), near_seat_id (seat id or name; rows sorted by distance and include km). limit max 100.',
+    description: 'List seats as compact rows {id, name, phase (1-based polling phase), polled (closed = frozen), lon, lat, neighbours (count), committed (your own committed voters there as "~30% (HIGH)", only on seats where you have some)}. Filters: phase, committed_only (only seats where you have committed voters), open_only (only seats you can still campaign in), query (name substring, accent-insensitive), near_seat_id (seat id or name; rows sorted by distance and include km). limit max 100.',
     schema: z.object({
       phase: z.number().int().min(1).max(5).optional().describe('Only seats polled in this polling phase (1-based)'),
       open_only: z.boolean().default(false).describe('Only seats whose polling has not closed yet'),
+      committed_only: z.boolean().default(false).describe('Only seats where you have committed voters'),
       query: z.string().optional().describe('Name search, e.g. "delhi"'),
       near_seat_id: seatRef.optional().describe('Sort by distance from this seat (id or name) and show km'),
       limit: z.number().int().min(1).max(100).default(30),
@@ -289,6 +322,8 @@ export const ACTIONS: ActionDef[] = [
       let seats = i.query ? dir.search(i.query) : dir.all();
       if (i.phase !== undefined) seats = seats.filter((x) => pm.get(x.id) === i.phase! - 1);
       if (i.open_only) seats = seats.filter((x) => { const p = pm.get(x.id); return p !== undefined && !s.phaseClosed(p); });
+      const mineCommitted = new Map((s.client.state.priv?.committed ?? []).map((c) => [c.seat, c] as const));
+      if (i.committed_only) seats = seats.filter((x) => mineCommitted.has(x.id));
       let km = new Map<SeatId, number>();
       let anchorName: string | undefined;
       if (i.near_seat_id !== undefined) {
@@ -305,6 +340,7 @@ export const ACTIONS: ActionDef[] = [
           id: x.id, name: x.name, phase: p === undefined ? null : p + 1, polled: p === undefined ? null : s.phaseClosed(p),
           lon: round1(x.lon * 10) / 10, lat: round1(x.lat * 10) / 10, neighbours: x.neighbours.length,
           ...(km.has(x.id) ? { km: km.get(x.id) } : {}),
+          ...(mineCommitted.has(x.id) ? { committed: committedLabel(mineCommitted.get(x.id) as CommittedView) } : {}),
         };
       });
       return { total, offset: i.offset, returned: rows.length, ...(anchorName ? { near: anchorName } : {}), rows, ...(i.offset + rows.length < total ? { next_offset: i.offset + rows.length } : {}) };
@@ -313,7 +349,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'get_seat',
-    description: 'Details of one seat (id or name): polling phase and time until it closes, centre, neighbouring seats (with names and distance), how many rallies/roadshows YOU did there, public rally news held there (by party), and your analyst reports for it.',
+    description: 'Details of one seat (id or name): polling phase and time until it closes, centre, neighbouring seats (with names and distance), how many rallies/roadshows YOU did there, public rally news held there (by party), and your own committed voters there (e.g. "~30% (HIGH)"), and your analyst reports for it.',
     schema: z.object({ seat: seatRef }),
     readOnly: true,
     async run(s, i) {
@@ -326,6 +362,7 @@ export const ACTIONS: ActionDef[] = [
       const priv = s.client.state.priv;
       const tl = snap?.timeline;
       const mine = priv?.myActions.filter((a) => a.seat === seat.id) ?? [];
+      const ownCommitted = priv?.committed?.find((c) => c.seat === seat.id);
       const rallies: Record<string, number> = {};
       for (const n of snap?.news ?? []) if (n.seat === seat.id) rallies[who(s, n.playerId)] = (rallies[who(s, n.playerId)] ?? 0) + 1;
       return {
@@ -338,6 +375,7 @@ export const ACTIONS: ActionDef[] = [
           const np = pm.get(n);
           return { id: n, name: dir.name(n), km: o ? Math.round(haversineKm(seat.lon, seat.lat, o.lon, o.lat)) : null, polled: np === undefined ? null : s.phaseClosed(np) };
         }),
+        my_committed_voters: ownCommitted ? { committed: committedLabel(ownCommitted), band: ownCommitted.band, level: ownCommitted.level, note: 'Private band figure; the final votes can differ (influence and chance).' } : null,
         my_actions_here: { rallies: mine.filter((a) => a.type === 'rally').length, roadshows: mine.filter((a) => a.type === 'roadshow').length },
         public_rallies_here_by_party: rallies,
         my_seat_reports: (priv?.myReports ?? []).filter((r) => r.scope === 'seat' && r.seat === seat.id).map((r) => reportView(s, r, dir)),
@@ -373,7 +411,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'buy_report',
-    description: 'Buy an analyst report. scope "seat" (needs seat id or name): ranks and estimated vote shares in that seat. scope "global": estimated seat counts per party (dearer). Reports show the position ~30 s ago and are noisy; prices rise during the campaign. Returns the report (estimate +- margin, asOf) and your new budget.',
+    description: 'Buy an analyst report. scope "seat" (needs seat id or name): ranks and estimated vote shares in that seat. scope "global": estimated seat counts per party (dearer). Reports show the position ~30 s ago and are noisy; prices rise during the campaign, by the second, so the quoted price may rise slightly before the server handles your purchase: the report shows the price actually paid (price_paid_wr) and get_state shows the current price. Returns the report (estimate +- margin, asOf) and your new budget.',
     schema: z.object({
       scope: z.enum(['seat', 'global']),
       seat: seatRef.optional().describe('Required for scope "seat"'),
@@ -391,11 +429,16 @@ export const ACTIONS: ActionDef[] = [
         if (e) throw e;
       }
       const price = analystPrice(cfg, i.scope, snap.timeline!, s.client.serverNow());
-      const have = s.client.state.priv?.budget ?? 0;
+      const have = currentBudget(s) ?? 0;
       if (have < price) throw new AgentError('INSUFFICIENT_FUNDS', `A ${i.scope} report costs about ${WR(cfg, price)} now but you have ${WR(cfg, have)}.`);
       const r = await s.client.buyReport(i.scope, seatId);
       dir = await s.seatsOrNull();
-      return { report: reportView(s, r.report, dir), ...budgetView(s) };
+      return {
+        report: reportView(s, r.report, dir),
+        price_paid_wr: r.report.price,
+        price_note: `Report prices rise by the second; you paid ${WR(cfg, r.report.price)} (about ${WR(cfg, price)} was quoted when you asked). The price now is slightly higher: see get_state budget.${i.scope}_report_price_now_wr.`,
+        ...budgetView(s),
+      };
     },
   }),
 
@@ -451,7 +494,7 @@ export const ACTIONS: ActionDef[] = [
         hint_state: {
           status: st.snapshot?.status ?? null,
           connection: st.link,
-          budget: st.priv ? st.priv.budget : null,
+          budget: currentBudget(s),
           ...stageInfo(st.snapshot?.status, tl, now),
           phase_left_s: tl && st.snapshot?.status === 'campaign' && cur >= 0 ? secs(tl.phaseCloses[cur] - now) : stageInfo(st.snapshot?.status, tl, now).stage_left_s,
         },
@@ -605,7 +648,7 @@ async function runCampaign(s: AgentSession, list: { type: ActionType; seat: numb
   const cfg = s.cfg();
   const dir = await s.seatsOrNull();
   const phaseOf = dir ? s.phaseMap(dir) : null;
-  let budget = s.client.state.priv?.budget ?? 0;
+  let budget = currentBudget(s) ?? 0;
   const results: CampaignRow[] = [];
   const toSend: { idx: number; type: ActionType; seat: number }[] = [];
   list.forEach((a, index) => {

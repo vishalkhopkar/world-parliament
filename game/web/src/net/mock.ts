@@ -1,9 +1,9 @@
 // MOCK backend: simulates the whole game in the browser. Every message is a ServerMessage from protocol.ts,
 // so replacing this with the real REST + WebSocket transport requires no UI changes.
 // Tunables via URL query: ?campaign=120&counting=60&post=120 (seconds). Defaults: 120 / 60 / 120.
-import { AVATARS, DEFAULT_MAP_ID, MAP_MANIFESTS, PARTY_COLOURS, leavesPartyOut, majorityOf } from '@hp/shared';
+import { AVATARS, DEFAULT_MAP_ID, MAP_MANIFESTS, PARTY_COLOURS, WORLD_CONFIG, leavesPartyOut, majorityOf } from '@hp/shared';
 import type {
-  MapConfig, Action, AdmissionRequest, AdmitRequest, AnalystReport, ClientMessage, CoalitionOffer, CountTally,
+  MapConfig, Action, AdmissionRequest, AdmitRequest, AnalystReport, ClientMessage, CoalitionOffer, CommittedView, CountTally,
   CreateGameRequest, CreateGameResponse, ErrorCode, FinalResult, GameId, GameMapPackage, GameSnapshot,
   GameStatus, GameTimeline, Government, JoinGameRequest, JoinGameResponse, LobbyView, NewsItem, PartyIdentity,
   PartyRequest, PlayerId, PlayerPublic, PointsBreakdown, PortfolioAssignment, PrivateState, SeatDeclaration,
@@ -131,7 +131,18 @@ export class MockTransport implements Transport {
       you: g.me, budget: g.players.get(g.me)!.budget,
       myActions: g.actions.filter(a => a.playerId === g.me).map(a => ({ type: a.type, seat: a.seat, ts: a.ts })),
       myReports: [...g.myReports],
+      committed: this.committed(g),
     };
+  }
+  /** Offline demo of committed voters: a strong seat with weaker bands in the seats that follow it (ids are roughly geographic). */
+  private committed(g: MockGame): CommittedView[] {
+    if (!g.seatIds.length) return [];
+    const at = Math.floor(g.seatIds.length / 3);
+    const bands = WORLD_CONFIG.committed.bands;
+    return bands.flatMap((b, i) => {
+      const seat = g.seatIds[at + i];
+      return seat === undefined ? [] : [{ seat, band: i + 1, percent: b.percent, level: b.level }];
+    });
   }
   private emitPlayers(g: MockGame) { this.emit({ type: 'players', players: this.publicPlayers(g) }); }
   private activePlayers(g: MockGame) { return [...g.players.values()].filter(p => p.pub.status === 'active'); }

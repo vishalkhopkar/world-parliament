@@ -1,9 +1,9 @@
 import {
-  analystPrice, analystReport, buildTimeline, computeEffects, createRng, majorityOf, pollSeats, tallySeats,
+  analystPrice, analystReport, buildTimeline, committedMatrix, computeEffects, createRng, dealCommitted, majorityOf, pollSeats, tallySeats,
 } from '@hp/shared';
-import type { AnalystReport, SeatResult } from '@hp/shared';
+import type { AnalystReport, CommittedSet, SeatResult } from '@hp/shared';
 import { STRATEGIES } from './bots';
-import type { Bot, BotCtx } from './bots';
+import type { Bot, BotCtx, OwnCommitted } from './bots';
 import { State } from './state';
 import type { World } from './world';
 
@@ -41,6 +41,9 @@ export interface GameResult {
   verifyDiff: number;
   /** winner player index per seat index (-1 = nobody) */
   winners: Int16Array;
+  /** per decided seat: winning vote share and margin (winner share - runner-up share), for the balance metrics */
+  topShares: number[];
+  margins: number[];
   ms: number;
 }
 
@@ -62,10 +65,20 @@ export function runGame(w: World, strategies: string[], k: number, seed: string,
   const phaseOf = w.phaseOf.get(k) as Int16Array;
   const campaignMs = cfg.durations.campaignMs;
 
+  // committed voters: dealt at game start, one player after another (as at admission), seeded per game
+  const dealRng = createRng(`${seed}:deal`);
+  const sets: CommittedSet[] = [];
+  for (let p = 0; p < P; p++) sets.push(dealCommitted(w.map, w.kernels, cfg, sets, dealRng));
+  const committed = committedMatrix(sets.map((s, p) => [playerIds[p], s] as [string, CommittedSet]), w.kernels, cfg);
+  const owns: OwnCommitted[] = sets.map((s, p) => ({
+    seats: s.seats.map((x) => w.kernels.index.get(x.seat) as number),
+    frac: committed.get(playerIds[p]) as Float64Array,
+  }));
+
   const bots: Bot[] = strategies.map((s, p) => {
     const f = STRATEGIES[s];
     if (!f) throw new Error(`unknown strategy ${s}`);
-    return f(w, k, cfg.budget, createRng(`${seed}:bot${p}`));
+    return f(w, k, cfg.budget, createRng(`${seed}:bot${p}`), owns[p]);
   });
 
   let nowMs = 0;
@@ -74,7 +87,7 @@ export function runGame(w: World, strategies: string[], k: number, seed: string,
   const pollPhase = (p: number) => {
     polled[p] = true;
     const eff = computeEffects(st.actions, w.kernels, cfg, timeline, w.map, k);
-    results.push(...pollSeats(eff, w.kernels, cfg, groups[p], p, pollRng));
+    results.push(...pollSeats(eff, committed, playerIds, w.kernels, cfg, groups[p], p, pollRng));
   };
 
   const makeCtx = (p: number): BotCtx => {
@@ -90,6 +103,7 @@ export function runGame(w: World, strategies: string[], k: number, seed: string,
       phaseOf: (i) => phaseOf[i],
       ownEff: (i) => st.eff[p][i],
       rivalPub: (i) => st.rivalPub(p, i),
+      ownCommitted: (i) => owns[p].frac[i],
       visited: (i) => st.visitedRoad[p][i] === 1 || st.rallied[p][i] === 1,
       rally(i) {
         if (budget[p] < cfg.costs.rally) return false;
@@ -110,7 +124,7 @@ export function runGame(w: World, strategies: string[], k: number, seed: string,
         budget[p] -= price; counts[p].rep++; counts[p].repSpend += price;
         const eff = computeEffects(st.actions, w.kernels, cfg, timeline, w.map, k, { upTo: ts - cfg.analyst.delayMs });
         const rep: AnalystReport = analystReport(
-          eff, w.kernels, cfg, scope, scope === 'seat' ? w.kernels.seatIds[i as number] : undefined,
+          eff, committed, w.kernels, cfg, scope, scope === 'seat' ? w.kernels.seatIds[i as number] : undefined,
           results, playerIds, ts - cfg.analyst.delayMs, ts, price, reportRng,
         );
         return rep;
@@ -152,6 +166,8 @@ export function runGame(w: World, strategies: string[], k: number, seed: string,
   const majority = majorityOf(cfg.seatCount);
   const voteSum = new Array<number>(P).fill(0);
   let decided = 0;
+  const topShares: number[] = [];
+  const margins: number[] = [];
   const loneSeats = new Array<number>(P).fill(0);
   const loneWins = new Array<number>(P).fill(0);
   let pureC = 0;
@@ -161,6 +177,9 @@ export function runGame(w: World, strategies: string[], k: number, seed: string,
     winnerOf.set(w.kernels.index.get(r.seat) as number, r.winner);
     if (r.winner === null) continue;
     decided++;
+    const sh = Object.values(r.shares).sort((a, b) => b - a);
+    topShares.push(sh[0] ?? 0);
+    margins.push((sh[0] ?? 0) - (sh[1] ?? 0));
     for (let p = 0; p < P; p++) voteSum[p] += r.shares[`P${p}`] ?? 0;
   }
   for (let i = 0; i < w.n; i++) {
@@ -198,5 +217,5 @@ export function runGame(w: World, strategies: string[], k: number, seed: string,
   }));
   const winners = new Int16Array(w.n).fill(-1);
   for (let i = 0; i < w.n; i++) { const wn = winnerOf.get(i); if (wn) winners[i] = Number(wn.slice(1)); }
-  return { players, winners, seatsDecided: decided, pureC, cOnlyWinnerSame: pureC, cWinnerMatches, verifyDiff, ms: performance.now() - t0 };
+  return { players, winners, seatsDecided: decided, pureC, cOnlyWinnerSame: pureC, cWinnerMatches, verifyDiff, topShares, margins, ms: performance.now() - t0 };
 }

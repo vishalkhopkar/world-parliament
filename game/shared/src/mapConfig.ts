@@ -52,6 +52,31 @@ export interface PriceCurve {
   end: number;
 }
 
+/** Colour shade / label group of a committed-voter band. */
+export type CommittedLevel = 'HIGH' | 'MEDIUM' | 'LOW';
+
+export interface CommittedBand {
+  /** Share of the seat's voters committed to the party, in % (30 = 30%). */
+  percent: number;
+  /** How many seats get this band (filled in band order by the breadth-first walk from the core seat). */
+  seats: number;
+  level: CommittedLevel;
+}
+
+export interface CommittedConfig {
+  /** Band 1 first (the core seat and its nearest seats), then band 2, ... */
+  bands: CommittedBand[];
+  /** A seat is skipped for a band that would take its committed total (all parties) above this %. */
+  seatMaxPercent: number;
+}
+
+export interface VotingConfig {
+  /** Each committed party brings extra voters: a random 0..this % of its committed voters (relative). */
+  influenceMaxPercent: number;
+  /** A random 0..this % of the uncommitted voters vote for random parties in random amounts. */
+  randomMaxPercent: number;
+}
+
 /** 'group' = one common chat, every message readable by everybody; 'individual' = private threads. */
 export type MessagingMode = 'group' | 'individual';
 /** When the chat opens: at the start of the campaign, or only once counting has started. */
@@ -102,8 +127,10 @@ export interface MapConfig {
     /** Margin of error shown to the player, as a multiple of the noise. */
     marginFactor: number;
   };
-  /** Small random swing applied to each seat's shares at polling (fraction, e.g. 0.02 = up to about +/-2% relative). */
-  randomSwing: number;
+  /** Committed voters per party (bands dealt around a core seat). */
+  committed: CommittedConfig;
+  /** How a seat's votes are made up: committed, influence, randomness, then reputation. */
+  voting: VotingConfig;
   phases: { min: number; max: number; default: number };
   durations: {
     campaignMs: number;
@@ -166,7 +193,19 @@ export function validateConfig(cfg: MapConfig): void {
   num('analyst.seatReport.end', cfg.analyst?.seatReport?.end);
   num('analyst.globalReport.start', cfg.analyst?.globalReport?.start);
   num('analyst.globalReport.end', cfg.analyst?.globalReport?.end);
-  num('randomSwing', cfg.randomSwing);
+  const pct = (key: string, v: unknown) => {
+    num(key, v);
+    if ((v as number) > 100) bad(key, `must be <= 100 (got ${String(v)})`);
+  };
+  pct('committed.seatMaxPercent', cfg.committed?.seatMaxPercent);
+  pct('voting.influenceMaxPercent', cfg.voting?.influenceMaxPercent);
+  pct('voting.randomMaxPercent', cfg.voting?.randomMaxPercent);
+  if (!Array.isArray(cfg.committed?.bands)) bad('committed.bands', 'must be a list');
+  cfg.committed.bands.forEach((b, i) => {
+    pct(`committed.bands.${i + 1}.percent`, b?.percent);
+    if (!Number.isInteger(b?.seats) || b.seats < 0) bad(`committed.bands.${i + 1}.seats`, `must be a whole number >= 0 (got ${String(b?.seats)})`);
+    if (b.level !== 'HIGH' && b.level !== 'MEDIUM' && b.level !== 'LOW') bad(`committed.bands.${i + 1}.level`, `must be HIGH, MEDIUM or LOW (got ${String(b.level)})`);
+  });
   if (cfg.messaging?.mode !== 'group' && cfg.messaging?.mode !== 'individual') bad('messaging.mode', `must be "group" or "individual" (got ${String(cfg.messaging?.mode)})`);
   if (cfg.messaging?.opensAt !== 'campaign' && cfg.messaging?.opensAt !== 'counting') bad('messaging.opensAt', `must be "campaign" or "counting" (got ${String(cfg.messaging?.opensAt)})`);
   num('connection.retryMs', cfg.connection?.retryMs, 999, true);
@@ -197,6 +236,7 @@ export const WORLD_CONFIG: MapConfig = {
   ...GAME_CONFIG_VALUES,
   // the generated file types the mode as a plain string; validateConfig below checks it
   messaging: GAME_CONFIG_VALUES.messaging as MapConfig['messaging'],
+  committed: GAME_CONFIG_VALUES.committed as MapConfig['committed'],
 };
 validateConfig(WORLD_CONFIG);
 

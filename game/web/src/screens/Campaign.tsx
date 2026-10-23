@@ -8,6 +8,7 @@ import { Chat } from '../components/Negotiation';
 import { useMapConfig } from '../state/mapConfig';
 import './game.css';
 import { colourHex, useSeatPhases, useServerNow } from '../lib';
+import { committedFills } from '../lib/committedShade';
 
 export function Campaign() {
   const snap = useStore(s => s.snapshot);
@@ -61,6 +62,14 @@ export function Campaign() {
     return { seat: pulseState.seat, key: pulseState.key, colour: colourHex(p?.party?.colour) };
   }, [pulseState, snap]);
 
+  // own committed voters: party colour, darker = stronger; polled seats are left out so they keep the polled hatch
+  const myColour = colourHex(snap?.players.find(p => p.playerId === priv?.you)?.party?.colour);
+  const committedFill = useMemo(() => {
+    const all = committedFills(priv?.committed, myColour);
+    for (const seat of polled) delete all[seat];
+    return Object.keys(all).length ? all : undefined;
+  }, [priv?.committed, myColour, polled]);
+
   if (!snap || !priv) return <div className="page"><p className="hint">Connecting…</p></div>;
 
   // chat opens at the campaign start when the map says so; with fewer than 3 players there is no chat at all
@@ -71,7 +80,7 @@ export function Campaign() {
       <CampaignHud snap={snap} priv={priv} now={now} />
       <div className="game-body">
         <div className="map-col">
-          <SeatMap ref={mapRef} names={names} centres={centres} dimmed={polled} blurred={blurred} labels={labels} selectedSeat={selected} onSeatClick={selectSeat} pulse={pulse} />
+          <SeatMap ref={mapRef} names={names} centres={centres} dimmed={polled} fills={committedFill} fillStyle={committedFill ? 'committed' : undefined} blurred={blurred} labels={labels} selectedSeat={selected} onSeatClick={selectSeat} pulse={pulse} />
           {selected != null && (
             <SeatActionModal seat={selected} snap={snap} priv={priv} now={now} phaseOf={phaseOf} polled={polled} onClose={closeModal} />
           )}

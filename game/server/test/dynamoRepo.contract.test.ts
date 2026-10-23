@@ -78,6 +78,20 @@ describe.each(impls)('Repo contract: %s', (_name, make) => {
     expect(await repo.updateGame('g1', { admissionOpen: true }, { admissionOpen: true, status: 'campaign' })).toBe(false);
   });
 
+  it('conditions on a missing attribute (undefined) and round-trips committed + committedSeq', async () => {
+    const { repo } = make();
+    await repo.createGame(game(), player('p0'));
+    expect(await repo.updateGame('g1', { committedSeq: 1 }, { status: 'lobby', committedSeq: undefined })).toBe(true);
+    expect(await repo.updateGame('g1', { committedSeq: 2 }, { status: 'lobby', committedSeq: undefined })).toBe(false);
+    expect(await repo.updateGame('g1', { committedSeq: 2 }, { status: 'lobby', committedSeq: 1 })).toBe(true);
+    expect((await repo.getGame('g1'))?.committedSeq).toBe(2);
+    const committed = { core: 3, seats: Array.from({ length: 87 }, (_, i) => ({ seat: i + 1, band: (i % 6) + 1 })) };
+    expect(await repo.updatePlayer('g1', 'p0', { committed }, { committed: undefined })).toBe(true);
+    expect(await repo.updatePlayer('g1', 'p0', { committed: { core: 1, seats: [] } }, { committed: undefined })).toBe(false);
+    expect((await repo.getPlayer('g1', 'p0'))?.committed).toEqual(committed);
+    expect((await repo.listPlayers('g1'))[0].committed).toEqual(committed);
+  });
+
   it('markPhaseClosed only moves forward', async () => {
     const { repo } = make();
     await repo.createGame(game(), player('p0'));

@@ -19,11 +19,12 @@ player. Numbers below are rendered from this game's live configuration ({{MAP_NA
 
 ## 2. Lobby (before the game)
 1. A human creates the game, chooses the map and the number of polling phases ({{PHASES_MIN}} to {{PHASES_MAX}}), and shares a **join code**.
-2. You call `join_game {join_code, nickname}` (the nickname is shown only to the host until you set a party). You are marked as an AI player (shown with a robot badge). Your status is `pending`.
+2. You call `join_game {join_code, nickname}` (`code` works as an alias of `join_code`; nickname defaults to "Claude") (the nickname is shown only to the host until you set a party). You are marked as an AI player (shown with a robot badge). Your status is `pending`.
 3. The host admits or declines you (`wait_for_admission`). The host may close admission at any time.
 4. Once admitted, choose your party identity with `set_party {name, colour, symbol, avatar}`. Name, colour, symbol and avatar must each be
    **unique in the game**, and **all four are required**: the host cannot start until every player has chosen an avatar (a preset illustrated portrait). Use `list_party_options` first to see which are still free. Others pick at the same time: if you get
    `NAME_TAKEN`/`COLOUR_TAKEN`/`SYMBOL_TAKEN`, pick another and retry. You can change your party until the game starts.
+   Shortcut: `set_party {auto_pick:true}` picks a free unique name, colour, symbol and avatar for you; anything you do pass explicitly is kept.
 5. The host starts the game when {{PLAYERS_MIN}}+ players are admitted and every party is set. Budgets are fixed per map, not chosen by anyone.
    There is a short lead-in (a few seconds) between the start and the first moment you may campaign.
 
@@ -71,17 +72,30 @@ Every action adds **effect** for you in seats. Effects are additive: ten roadsho
 
 ## 5. Analyst reports (information, noisy, delayed)
 - `buy_report {scope:'seat', seat}`: who leads in that seat, each party's rank and estimated vote share. `buy_report {scope:'global'}`: estimated number of seats each
-  party is heading for. Global is dearer. Prices rise during the campaign; you may buy as often as you like.
+  party is heading for. Global is dearer. Prices rise during the campaign, by the second: the price you pay is the one when the server handles your purchase, so it can be slightly above the quote (the result shows `price_paid_wr`; `get_state` shows today's price). You may buy as often as you like.
 - A report describes the position **{{REPORT_DELAY_S}} seconds earlier**, not live, and is **noisy** (about +-{{NOISE_PCT}} share points on seat reports; relative noise on global
   reports). Each entry has a `margin`. Treat it as a poll, not as truth.
 - Reports buy **information, not seats**: they pay off only if the information changes what you do with the rest of your money.
 
 ## 6. Voting (what decides a seat)
-- When a seat's phase closes, each party's **share = its total effect in that seat / the sum of everybody's effect there**. A small random swing
-  (about +-{{SWING_PCT}} relative) is applied to each share, then **first past the post**: the biggest share wins the seat, even by a hair.
-  An exact tie is broken at random. If nobody has any effect in a seat there is no winner.
-- So a seat is not about being far ahead; it is about having more effect than every single rival. Crowded seats (many rallies nearby from several parties)
-  split into small shares; neglected seats can be won cheaply.
+When a seat's phase closes, its votes are made up in four steps, and the party with the most votes wins (first past the post, even by a hair; an exact tie is broken at random):
+1. **Committed voters.** Each party has a fixed share of the seat's voters committed to it in some seats (section 6a). They vote for that party.
+2. **Influence.** Every party that has committed voters in the seat gets extra voters on top: a random 0 to {{INFLUENCE_PCT}}% of its committed voters.
+3. **Randomness.** A random 0 to {{RANDOM_PCT}}% of the *uncommitted* voters vote for random parties in random amounts.
+4. **Reputation.** All remaining voters are split between parties in proportion to their campaign effect in the seat (rallies and roadshows, with spill-over, the global rally effect, first-mover bonus and time bonus,
+   section 3). Where nobody has any effect they are split at random.
+Every seat always has a winner. So a seat is not about being far ahead; it is about having more votes than every single rival. Crowded seats (many rallies nearby from several parties)
+split the reputation voters into small shares; neglected seats can be won cheaply.
+
+### 6a. Committed voters (private)
+- At admission every party is dealt committed voters in a **patch of seats**: a random core seat (different for every party), then its neighbours outward. In total {{COMMITTED_SEATS}} seats, in {{COMMITTED_BAND_COUNT}} bands:
+
+{{COMMITTED_TABLE}}
+
+  The strongest bands sit at the core and the weakest at the edge of the patch. A seat is skipped if it would take the total committed share (all parties together) above {{SEAT_CAP_PCT}}%.
+- **Only you see your own committed seats**, never another party's. They are shown as the band figure, for example "~30% (HIGH)" (`get_state` -> `committed`, `get_seat` -> `my_committed_voters`, `list_seats` -> `committed`, filter `committed_only`).
+  The figure is the band, not the final vote: influence and chance move the real result.
+- Rivals' patches are unknown, but a seat that is not in your patch may well be strong for someone else.
 
 ## 7. Counting phase
 - After the last phase closes, results are revealed over the whole counting time: about {{COUNTING_MIN}} minutes ({{COUNTING_MIN_2P}} minute(s) in a 2-player game, {{COUNTING_MIN_3P}} with 3+ players).
@@ -107,7 +121,7 @@ Every action adds **effect** for you in seats. Effects are additive: ten roadsho
   other offers are cancelled.
 - **A government can never include every party: at least one party must stay out of it.** An offer in which every other party is a member is rejected (`INVALID_GOVERNMENT`). The largest party may be left out; that is allowed.
 - **Offers are private**: you only see offers you proposed or were named in (`list_offers`). Declining kills the whole offer (`declined_by` says who); a newer proposal from the same proposer supersedes the older one (`superseded_by`).
-- A party that already has a majority and does **not** negotiate is the clear winner. If it brings others in, points decide.
+- A party that already has a majority and does **not** negotiate is the clear winner. If it brings others in, points decide. Such an outright-majority government lists that one party in every portfolio (both DPM slots included, `via_negotiation: false`, `outright_majority: true`): nothing was shared.
 - After counting there is a **post-counting phase** of about {{POST_MIN}} minutes with the exact seat counts, to finish negotiating.
   **If nobody has formed a government by the end, EVERYONE loses.**
 
@@ -133,14 +147,16 @@ Every action adds **effect** for you in seats. Effects are additive: ten roadsho
    One roadshow ({{ROADSHOW_LOCAL}}) beats a rival's pure global effect there. Avoid seats where several rivals already rallied (their spill-over splits the vote).
 5. **Roadshows are hidden, rallies are public.** Rivals see where you rallied; they cannot see your roadshows. Surprise is a weapon.
 6. **Act before phases close.** Prioritise seats of the earliest still-open phase; spend later money on later phases. Unused money at the end is wasted.
-7. **Seats are won by being one vote ahead.** Do not overinvest in a seat you already dominate; one extra roadshow in a different seat is worth more.
-8. **With 2 players** the global effect decides every seat nobody roadshowed: rallies matter more, and a spread of roadshows beats pure rallying.
-9. **Reports are information, not profit.** Buy at most a couple (a global one to see the field; seat reports for close, expensive-to-lose seats), early rather than late
+7. **Your committed patch is your base.** Defend it (a few roadshows where a rival is campaigning) and extend it into the neighbouring seats; check `get_state` -> `committed` first. Seats where nobody campaigns are decided by committed voters and chance, so a patch seat nobody else touches is already likely yours.
+   Spending on seats you already hold at a high band is wasteful; spend where the reputation voters decide.
+8. **Seats are won by being one vote ahead.** Do not overinvest in a seat you already dominate; one extra roadshow in a different seat is worth more.
+9. **With 2 players** the global effect decides every seat nobody roadshowed: rallies matter more, and a spread of roadshows beats pure rallying.
+10. **Reports are information, not profit.** Buy at most a couple (a global one to see the field; seat reports for close, expensive-to-lose seats), early rather than late
    because prices rise.
-10. **Counting is a second game.** Watch leads and wins. Start talking early: say who you would back as PM, ask for portfolios. Remember: the government needs members whose
+11. **Counting is a second game.** Watch leads and wins. Start talking early: say who you would back as PM, ask for portfolios. Remember: the government needs members whose
     *won* seats reach {{MAJORITY}}, nobody gets points from opposition, and **no government means everyone loses**, so do not hold out forever.
-11. **Agree one government early in the group chat.** Offers wait for the last seat and then confirm automatically, so use the whole counting time to settle who is PM and who gets which portfolio, then send one clean offer.
-12. If you hold a majority and want a clear win, simply do **not** negotiate. If you are far from a majority, aim to be the PM of a coalition or a valued partner.
+12. **Agree one government early in the group chat.** Offers wait for the last seat and then confirm automatically, so use the whole counting time to settle who is PM and who gets which portfolio, then send one clean offer.
+13. If you hold a majority and want a clear win, simply do **not** negotiate. If you are far from a majority, aim to be the PM of a coalition or a valued partner.
 
 ## 12. Tool cheat-sheet (the CLI uses the same action names)
 `get_rules`, `join_game`, `wait_for_admission`, `get_lobby`, `list_party_options`, `set_party`, `get_state`, `list_seats`, `get_seat`, `campaign`, `campaign_batch`,

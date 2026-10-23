@@ -208,13 +208,13 @@ describe('elimination', () => {
     c.clock.set(c.timeline.phaseCloses[0]);
     await c.svc.phaseClose(c.gameId, 0);
     let res = await c.repo.listSeatResults(c.gameId);
-    expect(res.every((r) => r.winner === c.p[1].playerId)).toBe(true);
+    expect(res.some((r) => r.winner === c.p[1].playerId)).toBe(true); // every seat has a winner now (committed voters); p1 holds at least the one it rallied in
     await c.svc.disconnect(c.p[1].conn);
     c.clock.advance(c.cfg.durations.graceMs);
     await c.svc.graceCheck(c.gameId, c.p[1].playerId);
     expect((await c.repo.getPlayer(c.gameId, c.p[1].playerId))!.status).toBe('eliminated');
     res = await c.repo.listSeatResults(c.gameId);
-    expect(res.every((r) => r.winner === c.p[2].playerId)).toBe(true);
+    expect(res.every((r) => r.winner !== null && r.winner !== c.p[1].playerId)).toBe(true); // re-assigned to the others
     expect(res.every((r) => !(c.p[1].playerId in r.shares))).toBe(true);
   });
 

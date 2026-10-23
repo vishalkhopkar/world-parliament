@@ -21,6 +21,8 @@ export interface SeatMapProps {
   leading?: ReadonlySet<SeatId>;
   /** polled seats without a result: subtle hatch pattern. */
   dimmed?: ReadonlySet<SeatId>;
+  /** 'committed' = fills are the player's own committed-voter shades (not a result): no won/leading outline styles. */
+  fillStyle?: 'result' | 'committed';
   /** seats drawn blurred out (e.g. not polled in the current phase). */
   blurred?: ReadonlySet<SeatId>;
   /** faint text drawn at a seat's centre (e.g. its polling phase); shown once the seat is big enough on screen. */
@@ -107,10 +109,12 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
     function style() {
       const p = propsRef.current;
       const fills = p.fills ?? {};
+      const committed = p.fillStyle === 'committed';
       gSeats.selectAll<SVGPathElement, SeatFeature>('path.seat')
         .style('fill', d => fills[d.properties.seat] ?? (p.dimmed?.has(d.properties.seat) ? 'url(#hp-hatch)' : NEUTRAL))
-        .classed('leading', d => !!fills[d.properties.seat] && !!p.leading?.has(d.properties.seat))
-        .classed('won', d => !!fills[d.properties.seat] && !p.leading?.has(d.properties.seat))
+        .classed('leading', d => !committed && !!fills[d.properties.seat] && !!p.leading?.has(d.properties.seat))
+        .classed('won', d => !committed && !!fills[d.properties.seat] && !p.leading?.has(d.properties.seat))
+        .classed('committed', d => committed && !!fills[d.properties.seat])
         .classed('selected', d => d.properties.seat === p.selectedSeat)
         .classed('blurred', d => !!p.blurred?.has(d.properties.seat));
       const sf = p.selectedSeat != null ? featById.get(p.selectedSeat) : undefined;
@@ -273,8 +277,8 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
   }, [mapId]);
 
   // ---- prop updates: restyle only, never re-render paths
-  const { fills, leading, dimmed, blurred, labels, selectedSeat, names } = props;
-  useEffect(() => { api.current?.update(); }, [fills, leading, dimmed, blurred, labels, selectedSeat, names]);
+  const { fills, leading, dimmed, blurred, labels, selectedSeat, names, fillStyle } = props;
+  useEffect(() => { api.current?.update(); }, [fills, leading, dimmed, blurred, labels, selectedSeat, names, fillStyle]);
   const pulseKey = props.pulse?.key;
   useEffect(() => { if (propsRef.current.pulse) api.current?.pulse(propsRef.current.pulse); }, [pulseKey]);
 

@@ -23,7 +23,7 @@ const DRY = argv.includes('--dry');
 const CHECK = argv.includes('--check');
 
 type Kind = 'number' | 'string';
-/** Every key the game understands (portfolios are numbered: points.portfolios.<1..n>.<field>). */
+/** Every key the game understands (portfolios and committed-voter bands are numbered: points.portfolios.<1..n>.<field>, committed.bands.<1..n>.<field>). */
 const NUMBER_KEYS = [
   'budget', 'costs.rally', 'costs.roadshow',
   'analyst.seatReport.start', 'analyst.seatReport.end', 'analyst.globalReport.start', 'analyst.globalReport.end',
@@ -33,7 +33,8 @@ const NUMBER_KEYS = [
   'effects.roadshow.local',
   'effects.roadshow.decay.halfDistanceKm', 'effects.roadshow.decay.maxKm', 'effects.roadshow.decay.capRatio',
   'effects.firstMover.rally', 'effects.firstMover.roadshow',
-  'timeMultiplier.start', 'timeMultiplier.end', 'randomSwing',
+  'timeMultiplier.start', 'timeMultiplier.end',
+  'committed.seatMaxPercent', 'voting.influenceMaxPercent', 'voting.randomMaxPercent',
   'phases.min', 'phases.max', 'phases.default', 'players.min', 'players.max',
   'durations.campaignMs', 'durations.countingMs', 'durations.countingMsTwoPlayers', 'durations.countingStepMs',
   'durations.postCountingMs', 'durations.postCountingMsTwoPlayers', 'durations.graceMs',
@@ -46,6 +47,8 @@ const NUMBER_KEYS = [
 ];
 const STRING_KEYS = ['currency.name', 'currency.symbol', 'messaging.mode', 'messaging.opensAt'];
 const PORTFOLIO_FIELDS: Record<string, Kind> = { id: 'string', label: 'string', points: 'number', max: 'number' };
+const BAND_FIELDS: Record<string, Kind> = { percent: 'number', seats: 'number', level: 'string' };
+const BAND_LEVELS = ['HIGH', 'MEDIUM', 'LOW'];
 
 const errors: string[] = [];
 if (!fs.existsSync(file)) { console.error(`config file not found: ${file}`); process.exit(1); }
@@ -91,6 +94,11 @@ if (!portfolioNums.length) errors.push('no portfolios defined (points.portfolios
 portfolioNums.forEach((n, i) => { if (n !== i + 1) errors.push(`portfolios must be numbered 1..n without gaps (found ${n} at position ${i + 1})`); });
 values.points.portfolios = portfolioNums.map(n => Object.fromEntries(
   Object.entries(PORTFOLIO_FIELDS).map(([f, kind]) => [f, take(`points.portfolios.${n}.${f}`, kind)])));
+const bandNums = [...new Set([...raw.keys()].map(k => /^committed\.bands\.(\d+)\./.exec(k)?.[1]).filter((x): x is string => !!x))]
+  .map(Number).sort((a, b) => a - b);
+bandNums.forEach((n, i) => { if (n !== i + 1) errors.push(`committed bands must be numbered 1..n without gaps (found ${n} at position ${i + 1})`); });
+values.committed.bands = bandNums.map(n => Object.fromEntries(
+  Object.entries(BAND_FIELDS).map(([f, kind]) => [f, take(`committed.bands.${n}.${f}`, kind)])));
 for (const key of raw.keys()) if (!used.has(key)) errors.push(`line ${raw.get(key)!.line}: unknown key "${key}" (typo?)`);
 
 // Sanity rules (the same ones are re-checked at run time by validateConfig in shared/src/mapConfig.ts).
@@ -116,6 +124,13 @@ if (!errors.length) {
   rule(val('counting.panelStaggerMs') >= 0 && val('counting.panelStaggerMs') < val('counting.panelDisplayMs'), 'counting.panelStaggerMs must be >= 0 and shorter than counting.panelDisplayMs');
   for (const k of ['counting.panelRunnerUpPercent', 'counting.panelOtherPercent']) rule(val(k) >= 0 && val(k) <= 100, `${k} must be in 0..100`);
   rule(val('counting.panelRunnerUpPercent') + val('counting.panelOtherPercent') === 100, 'counting.panelOtherPercent + counting.panelRunnerUpPercent must add up to 100');
+  rule(val('committed.seatMaxPercent') >= 0 && val('committed.seatMaxPercent') <= 100, 'committed.seatMaxPercent must be in 0..100');
+  for (const k of ['voting.influenceMaxPercent', 'voting.randomMaxPercent']) rule(val(k) >= 0 && val(k) <= 100, `${k} must be in 0..100`);
+  values.committed.bands.forEach((b: { percent: number; seats: number; level: string }, i: number) => {
+    rule(b.percent >= 0 && b.percent <= 100, `committed.bands.${i + 1}.percent must be in 0..100`);
+    rule(Number.isInteger(b.seats) && b.seats >= 0, `committed.bands.${i + 1}.seats must be a whole number >= 0`);
+    rule(BAND_LEVELS.includes(b.level), `committed.bands.${i + 1}.level must be one of ${BAND_LEVELS.join(' / ')}`);
+  });
   rule(val('analyst.seatReport.end') >=val('analyst.seatReport.start') && val('analyst.globalReport.end') >= val('analyst.globalReport.start'), 'analyst report end price must be >= start price');
 }
 if (errors.length) { console.error(`config FAILED (${path.relative(gameDir, file)}):\n  ` + errors.join('\n  ')); process.exit(1); }
@@ -132,4 +147,4 @@ if (CHECK) {
 } else if (!DRY) {
   fs.writeFileSync(out, text);
 }
-console.log(`gen-config: ${raw.size} keys from ${path.relative(gameDir, file)} (${portfolioNums.length} portfolios)`);
+console.log(`gen-config: ${raw.size} keys from ${path.relative(gameDir, file)} (${portfolioNums.length} portfolios, ${bandNums.length} committed-voter bands)`);

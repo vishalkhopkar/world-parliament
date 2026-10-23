@@ -4,6 +4,7 @@
 .map.dragging,.map.dragging *{cursor:grabbing !important}
 .seat{fill:#d3d0c6;stroke:var(--seat-stroke);stroke-width:.6px;vector-effect:non-scaling-stroke;cursor:pointer}
 .seat.won{stroke:rgba(0,0,0,.55)}
+.seat.committed{stroke:rgba(0,0,0,.35)}
 .seat.leading{fill-opacity:.55;stroke-dasharray:3 2;stroke:rgba(0,0,0,.65)}
 .seat.selected{stroke:var(--hover-stroke);stroke-width:1.8px}
 .seat.flash{animation:flash .9s ease-out}

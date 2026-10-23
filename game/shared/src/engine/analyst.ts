@@ -3,7 +3,8 @@ import type {
   AnalystReport, GameTimeline, PlayerId, ReportEntry, ReportScope, SeatId, SeatResult,
 } from '../types';
 import { gaussian } from './rng';
-import type { Effects, Kernels, Rng } from './types';
+import { expectedShareArray } from './votes';
+import type { Committed, Effects, Kernels, Rng } from './types';
 
 /** Price of a report bought at ts (linear price curve over the campaign, whole number). */
 export function analystPrice(cfg: MapConfig, scope: ReportScope, timeline: GameTimeline, ts: number): number {
@@ -20,14 +21,15 @@ function rankEntries(players: PlayerId[], estimate: Map<PlayerId, number>, margi
 }
 
 /**
- * Noisy report built from `effects` (the caller computes them with upTo = purchase time - delayMs).
- * seat scope: share + gaussian noise (std = cfg.analyst.noise), clamped to [0,1]; margin = noise * marginFactor.
- * global scope: seats the player would win if the open seats were polled now (argmax, no swing; ties go to the
- * earlier player in `players`) plus final winners of `decided` seats, noised by relative noise, rounded;
+ * Noisy report built from `effects` (the caller computes them with upTo = purchase time - delayMs) and the parties'
+ * committed voters. Shares are the EXPECTED shares of the vote model (expectedSeatShares: random draws at their means).
+ * seat scope: expected share + gaussian noise (std = cfg.analyst.noise), clamped to [0,1]; margin = noise * marginFactor.
+ * global scope: seats the player would win if the open seats were polled now (argmax of the expected shares; ties go to the
+ * earlier player in `players`; every open seat counts when there are players) plus final winners of `decided` seats, noised by relative noise, rounded;
  * margin = max(1, round(estimate * noise * marginFactor)).
  */
 export function analystReport(
-  effects: Effects, kernels: Kernels, cfg: MapConfig, scope: ReportScope, seat: SeatId | undefined,
+  effects: Effects, committed: Committed, kernels: Kernels, cfg: MapConfig, scope: ReportScope, seat: SeatId | undefined,
   decided: SeatResult[], players: PlayerId[], asOf: number, purchasedAt: number, price: number, rng: Rng,
 ): AnalystReport {
   const { noise, marginFactor } = cfg.analyst;
@@ -37,11 +39,10 @@ export function analystReport(
     if (seat === undefined) throw new Error('seat report requires a seat');
     const i = kernels.index.get(seat);
     if (i === undefined) throw new Error(`unknown seat ${seat}`);
-    let total = 0;
-    for (const v of effects.values()) total += v[i];
-    for (const p of players) {
-      const v = effects.get(p);
-      const share = total > 0 && v ? v[i] / total : 0;
+    const shares = expectedShareArray(effects, committed, players, kernels, cfg, i);
+    for (let k = 0; k < players.length; k++) {
+      const share = shares[k] ?? 0;
+      const p = players[k];
       const noisy = share + noise * gaussian(rng);
       estimate.set(p, Math.min(1, Math.max(0, noisy)));
     }
@@ -55,15 +56,12 @@ export function analystReport(
     decidedSeats.add(r.seat);
     if (r.winner !== null && counts.has(r.winner)) counts.set(r.winner, (counts.get(r.winner) as number) + 1);
   }
-  const vecs = players.map((p) => effects.get(p));
   for (let i = 0; i < kernels.n; i++) {
     if (decidedSeats.has(kernels.seatIds[i])) continue;
-    let best = 0;
+    const sh = expectedShareArray(effects, committed, players, kernels, cfg, i);
+    let best = -1;
     let bestK = -1;
-    for (let k = 0; k < players.length; k++) {
-      const v = vecs[k] ? (vecs[k] as Float64Array)[i] : 0;
-      if (v > best) { best = v; bestK = k; }
-    }
+    for (let k = 0; k < sh.length; k++) if (sh[k] > best) { best = sh[k]; bestK = k; }
     if (bestK >= 0) counts.set(players[bestK], (counts.get(players[bestK]) as number) + 1);
   }
   for (const p of players) {

@@ -23,6 +23,8 @@ export interface BotCtx {
   /** all other players' PUBLIC effect (rallies) at seat i */
   rivalPub(i: number): number;
   visited(i: number): boolean;
+  /** my own committed fraction of seat i's voters (0..1, private: only my own patch is known) */
+  ownCommitted(i: number): number;
   rally(i: number): boolean;
   roadshow(i: number): boolean;
   report(scope: 'seat' | 'global', i?: number): AnalystReport | null;
@@ -31,7 +33,9 @@ export interface BotCtx {
 }
 
 export interface Bot { name: string; tick(ctx: BotCtx): void }
-export type BotFactory = (w: World, k: number, budget: number, rng: Rng) => Bot;
+/** A bot's own committed patch (private): seat indices in walk order (core first) and the committed fraction per seat index. */
+export interface OwnCommitted { seats: number[]; frac: Float64Array }
+export type BotFactory = (w: World, k: number, budget: number, rng: Rng, own: OwnCommitted) => Bot;
 
 // ------------------------------------------------------------------ helpers
 
@@ -196,6 +200,34 @@ function clusterBot(name: string, fRally = 0.4, nSeeds = 10): BotFactory {
         }
       }
     });
+    return planBot(name, plan);
+  };
+}
+
+/**
+ * Patch-based: defends and extends its own committed patch. Rallies go to the greedy cluster inside the patch region (the
+ * seats nearest its core), roadshows to the patch seats with the lowest committed share first, then to the nearest seats around.
+ */
+function patchBot(name: string, fRally = 0.3): BotFactory {
+  return (w, k, B, rng, own) => {
+    const { nr, ns } = budgetSplit(B, w.cfg.costs.rally, w.cfg.costs.roadshow, fRally);
+    const core = own.seats[0] ?? Math.floor(rng() * w.n);
+    const region = [core, ...w.nearest(core, Math.max(120, ns))];
+    const ps = w.phaseSeats.get(k) as number[][];
+    const plan: Planned[] = [];
+    const used = new Set<number>();
+    const rp = perPhase(w, k, nr);
+    ps.forEach((g, p) => {
+      const inP = new Set(g);
+      const cand = region.filter((s) => inP.has(s)).slice(0, 60);
+      for (const s of greedyRallySeats(w, cand.length ? cand : g, rp[p], rng)) {
+        used.add(s);
+        plan.push({ frac: timeFor(w, k, s, 'spread', rng), type: 'rally', seat: s });
+      }
+    });
+    const patch = [...own.seats].sort((a, b) => own.frac[a] - own.frac[b]);
+    const order = [...patch, ...region.filter((s) => own.frac[s] === 0)].filter((s) => !used.has(s));
+    for (const s of order.slice(0, ns)) plan.push({ frac: timeFor(w, k, s, 'spread', rng), type: 'roadshow', seat: s });
     return planBot(name, plan);
   };
 }
@@ -387,6 +419,7 @@ export const STRATEGIES: Record<string, BotFactory> = {
   MIX50E: mixedBot('MIX50E', 0.5, 'spread', 'early'),
   MIX30_EARLYR: mixedBot('MIX30_EARLYR', 0.3, 'spread', 'early'),
   CLUSTER: clusterBot('CLUSTER'),
+  PATCH: patchBot('PATCH'),
   SNIPER: sniperBot('SNIPER'),
   LATE: mixedBot('LATE', 0.3, 'late'),
   ADAPTIVE: adaptiveBot('ADAPTIVE'),
@@ -394,4 +427,4 @@ export const STRATEGIES: Record<string, BotFactory> = {
   BLIND: adaptiveBot('BLIND', { seat: false, global: false, reserve: 0 }),
 };
 
-export const DEFAULT_POOL = ['RALLY', 'RALLY_EARLY', 'ROADSHOW', 'MIX30', 'MIX50', 'CLUSTER', 'SNIPER', 'LATE', 'ADAPTIVE'];
+export const DEFAULT_POOL = ['RALLY', 'RALLY_EARLY', 'ROADSHOW', 'MIX30', 'MIX50', 'CLUSTER', 'SNIPER', 'LATE', 'ADAPTIVE', 'PATCH'];

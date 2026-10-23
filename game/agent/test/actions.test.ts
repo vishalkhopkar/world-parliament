@@ -74,9 +74,10 @@ describe('action table', () => {
     expect(wait.safeParse({ types: ['bogus'] }).success).toBe(false);
     expect(ACTION_BY_NAME.get('wait_for_admission')!.schema.safeParse({ timeout_s: 121 }).success).toBe(false);
     expect(ACTION_BY_NAME.get('list_seats')!.schema.safeParse({ limit: 101 }).success).toBe(false);
-    expect(ACTION_BY_NAME.get('join_game')!.schema.safeParse({ join_code: 'ABC123' }).success).toBe(false);
+    expect(ACTION_BY_NAME.get('join_game')!.schema.safeParse({ join_code: 'ABC123' }).success).toBe(true); // nickname defaults
+    expect(ACTION_BY_NAME.get('join_game')!.schema.safeParse({ code: 'ABC123' }).success).toBe(true); // alias
     const party = ACTION_BY_NAME.get('set_party')!.schema;
-    expect(party.safeParse({ name: 'Blue', colour: 'blue', symbol: 'sun' }).success).toBe(false); // avatar required
+    expect(party.safeParse({ auto_pick: true }).success).toBe(true); // everything else is picked; without auto_pick the run step requires all four
     expect(party.safeParse({ name: 'Blue', colour: 'blue', symbol: 'sun', avatar: 'xi' }).success).toBe(true);
     expect(ACTION_BY_NAME.get('propose_government')!.schema.safeParse({ portfolios: { DPM: ['Blue Wave', 'Green Front'], HOME: 'Blue Wave' } }).success).toBe(true);
   });
@@ -224,6 +225,40 @@ describe('read-only views', () => {
     expect(near.data.rows.find((r: any) => r.id === 2)).toBeUndefined();
     const miss = formatResultText(await executeAction(s, 'list_seats', { near_seat_id: 'Atlantis' }));
     expect(miss).toMatch(/ERROR UNKNOWN_SEAT/);
+  });
+
+  it('exposes the own committed voters in get_state, list_seats and get_seat', async () => {
+    const { s } = fakeSession();
+    expect(((await executeAction(s, 'get_state', {})) as any).data.committed).toMatchObject({ total: 0, by_level: {}, seats: [] });
+    expect(((await executeAction(s, 'get_seat', { seat: 2 })) as any).data.my_committed_voters).toBeNull();
+    s.client.state.priv!.committed = [
+      { seat: 2, band: 1, percent: 30, level: 'HIGH' },
+      { seat: 3, band: 3, percent: 20, level: 'MEDIUM' },
+      { seat: 4, band: 4, percent: 15, level: 'MEDIUM' },
+    ];
+    const st = ((await executeAction(s, 'get_state', {})) as any).data.committed;
+    expect(st.total).toBe(3);
+    expect(st.by_level).toEqual({ HIGH: 1, MEDIUM: 2 });
+    expect(st.seats[0]).toMatchObject({ seat: 2, name: 'Delhi East', committed: '~30% (HIGH)' });
+    const seat = ((await executeAction(s, 'get_seat', { seat: 2 })) as any).data.my_committed_voters;
+    expect(seat).toMatchObject({ committed: '~30% (HIGH)', band: 1, level: 'HIGH' });
+    const all = ((await executeAction(s, 'list_seats', { limit: 100 })) as any).data.rows;
+    expect(all.find((r: any) => r.id === 2).committed).toBe('~30% (HIGH)');
+    expect(all.find((r: any) => r.id === 5)?.committed).toBeUndefined();
+    const only = ((await executeAction(s, 'list_seats', { committed_only: true })) as any).data;
+    expect(only.rows.map((r: any) => r.id).sort()).toEqual([2, 3, 4]);
+  });
+
+  it('rules text describes the committed-voter vote model with live numbers', () => {
+    const text = renderRules(WORLD_CONFIG);
+    expect(text).toContain('Committed voters');
+    expect(text).not.toContain('{{');
+    const b = WORLD_CONFIG.committed.bands[0];
+    expect(text).toContain(`${b.percent}%`);
+    expect(text).toContain(String(WORLD_CONFIG.committed.seatMaxPercent));
+    expect(text).toContain(String(WORLD_CONFIG.voting.influenceMaxPercent));
+    expect(text).toContain(String(WORLD_CONFIG.voting.randomMaxPercent));
+    expect(text).not.toMatch(/random swing/i);
   });
 
   it('get_seat returns neighbours with names and distances', async () => {

@@ -549,3 +549,83 @@ describe('error texts', () => {
     expect(toErrorInfo('a string')).toMatchObject({ code: 'INTERNAL', message: 'a string' });
   });
 });
+
+// ------------------------------------------------------------------ playtest fixes
+describe('playtest fixes', () => {
+  const push = (s: AgentSession, m: ServerMessage) => { for (const e of applyMessage(s.client.state, m, Date.now())) s.client.events.push(e.type, e.data, Date.now()); };
+
+  it('wait_for_events hint_state and get_state show the campaign budget even before the server private message arrives', async () => {
+    const { s } = session({ status: 'lobby', budget: 0 }); // lobby-time hello carried budget 0
+    push(s, { type: 'status', status: 'campaign', timeline: s.client.state.snapshot!.timeline! } as never); // status arrives BEFORE private
+    const w = await ok(s, 'wait_for_events', { timeout_s: 0 });
+    expect(w.hint_state.budget).toBe(cfg.budget);
+    expect((await ok(s, 'get_state')).budget.wr).toBe(cfg.budget);
+    // once the server tells us, the real number wins
+    push(s, { type: 'private', private: { you: 'me', budget: 1234, myActions: [], myReports: [] } } as never);
+    expect((await ok(s, 'wait_for_events', { timeout_s: 0 })).hint_state.budget).toBe(1234);
+  });
+  it('a genuinely empty budget stays 0', async () => {
+    const { s } = session({ status: 'campaign', budget: 0 });
+    expect((await ok(s, 'wait_for_events', { timeout_s: 0 })).hint_state.budget).toBe(0);
+  });
+
+  it('set_party with only auto_pick picks a free unique name, colour, symbol and avatar; explicit fields win', async () => {
+    const { s, calls } = session({ status: 'lobby' });
+    const r = await ok(s, 'set_party', { auto_pick: true });
+    const sent = calls.setParty[0][0] as any;
+    expect(sent.name.length).toBeGreaterThanOrEqual(2);
+    expect(['Party Asha', 'Party Codex', 'Party Dev']).not.toContain(sent.name);
+    for (const i of [0, 2, 3]) {
+      expect(sent.colour).not.toBe(PARTY_COLOURS[i].hex);
+      expect(sent.symbol).not.toBe(PARTY_SYMBOLS[i].id);
+      expect(sent.avatar).not.toBe(AVATARS[i].id);
+    }
+    expect(r.auto_picked).toMatchObject({ name: sent.name });
+    await ok(s, 'set_party', { auto_pick: true, name: 'Mine', colour: 'blue' });
+    const second = calls.setParty[1][0] as any;
+    expect(second.name).toBe('Mine');
+    expect(second.colour).toBe('#1F5FBF');
+  });
+  it('set_party without auto_pick still requires all four fields', async () => {
+    const { s, calls } = session({ status: 'lobby' });
+    const e = await err(s, 'set_party', { name: 'Blue', colour: 'blue', symbol: 'sun' });
+    expect(e.code).toBe('INVALID_INPUT');
+    expect(e.message).toMatch(/avatar/);
+    expect(calls.setParty).toBeUndefined();
+  });
+
+  it('join_game accepts code as an alias of join_code and defaults the nickname', async () => {
+    const { s, c } = session();
+    c.session = null as never;
+    (s as any).persist = () => undefined;
+    c.join = vi.fn(async () => ({ server: 'http://x', gameId: 'g', playerId: 'me', token: 't', nickname: 'Claude' })) as never;
+    await ok(s, 'join_game', { code: 'abc123', nickname: 'Bot' });
+    expect(c.join).toHaveBeenLastCalledWith('abc123', 'Bot');
+    await ok(s, 'join_game', { code: 'ABC123' });
+    expect(c.join).toHaveBeenLastCalledWith('ABC123', 'Claude');
+    expect((await err(s, 'join_game', { nickname: 'x' })).code).toBe('INVALID_INPUT');
+  });
+
+  it('a majority government is rendered as an outright majority with no shared portfolios', async () => {
+    const { s } = session({ status: 'finished' });
+    const gov = { pm: 'me', members: ['me'], portfolios: { PM: ['me'], DPM: ['me', 'me'], HOME: ['me'] }, viaNegotiation: false };
+    s.client.state.snapshot = { ...s.client.state.snapshot!, government: gov as never };
+    const st = await ok(s, 'get_state');
+    expect(st.government.outright_majority).toBe(true);
+    expect(st.government.note).toMatch(/outright majority/i);
+    expect(st.government.note).toMatch(/no portfolios (were )?shared/i);
+    const co = { ...gov, members: ['me', 'c'], portfolios: { PM: ['me'], DPM: ['me', 'c'] }, viaNegotiation: true };
+    s.client.state.snapshot = { ...s.client.state.snapshot!, government: co as never };
+    expect((await ok(s, 'get_state')).government.outright_majority).toBe(false);
+  });
+
+  it('buy_report says the quoted price may rise and shows the price paid; get_state shows the current price', async () => {
+    const { s, c } = session();
+    c.buyReport = vi.fn(async () => ({ report: { scope: 'global', asOf: 1, purchasedAt: 2, price: 777, entries: [] }, budget: 5 })) as never;
+    const r = await ok(s, 'buy_report', { scope: 'global' });
+    expect(r.price_paid_wr).toBe(777);
+    expect(r.price_note).toMatch(/rise/i);
+    expect(ACTION_BY_NAME.get('buy_report')!.description).toMatch(/quoted price may rise|may rise/i);
+    expect((await ok(s, 'get_state')).budget.report_price_note).toMatch(/rise/i);
+  });
+});

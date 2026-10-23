@@ -45,7 +45,45 @@ export const GAME_CONFIG_VALUES = {
     "start": 1,
     "end": 1
   },
-  "randomSwing": 0.02,
+  "committed": {
+    "seatMaxPercent": 60,
+    "bands": [
+      {
+        "percent": 30,
+        "seats": 5,
+        "level": "HIGH"
+      },
+      {
+        "percent": 25,
+        "seats": 7,
+        "level": "HIGH"
+      },
+      {
+        "percent": 20,
+        "seats": 10,
+        "level": "MEDIUM"
+      },
+      {
+        "percent": 15,
+        "seats": 15,
+        "level": "MEDIUM"
+      },
+      {
+        "percent": 10,
+        "seats": 20,
+        "level": "LOW"
+      },
+      {
+        "percent": 5,
+        "seats": 30,
+        "level": "LOW"
+      }
+    ]
+  },
+  "voting": {
+    "influenceMaxPercent": 40,
+    "randomMaxPercent": 5
+  },
   "phases": {
     "min": 1,
     "max": 5,

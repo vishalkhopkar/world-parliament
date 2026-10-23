@@ -6,6 +6,7 @@ import type {
   ActionType, AnalystReport, CoalitionOffer, FinalResult, GameId, GameStatus, GameTimeline,
   Government, PartyIdentity, PlayerId, PlayerPublic, PortfolioAssignment, ReportScope, SeatId, SeatTally,
 } from './types';
+import type { CommittedLevel } from './mapConfig';
 
 // ================================================================ REST (lobby)
 // Auth: every call except create/join sends header `Authorization: Bearer <playerToken>`.
@@ -83,7 +84,14 @@ export interface PrivateState {
   /** Own actions so far (players can see their own roadshows). */
   myActions: { type: ActionType; seat: SeatId; ts: number }[];
   myReports: AnalystReport[];
+  /**
+   * Own committed voters only (never another party's): one entry per seat with a band. `percent` is the band's figure
+   * (shown as "~30%"), never the value after influence. Missing/empty before the player's bands are dealt.
+   */
+  committed?: CommittedView[];
 }
+
+export interface CommittedView { seat: SeatId; band: number; percent: number; level: CommittedLevel }
 
 export interface GameSnapshot {
   gameId: GameId;
