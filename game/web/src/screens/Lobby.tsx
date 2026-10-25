@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { selectIsAdmin, selectMapId, selectMe, useStore } from '../state/store';
 import { manifestFor } from '../map/mapData';
 import { useMapConfig } from '../state/mapConfig';
 import { admit, refreshLobby, setAdmission, setPhases, start } from '../net/client';
+import { buildJoinLink, copyText } from '../net/share';
 import { AiBadge, Card, PartyBadge } from '../components/ui';
 import './Lobby.css';
 
@@ -22,6 +23,20 @@ export function Lobby() {
     return () => clearInterval(h);
   }, []);
 
+  const code = joinCode ?? lobby?.joinCode ?? '';
+  const [copied, setCopied] = useState<'code' | 'link' | 'fail' | null>(null);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(copiedTimer.current), []);
+  const copy = async (what: 'code' | 'link', text: string) => {
+    setCopied((await copyText(text)) ? what : 'fail');
+    clearTimeout(copiedTimer.current);
+    copiedTimer.current = setTimeout(() => setCopied(null), 1800);
+  };
+  const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+  const shareLink = async () => {
+    try { await navigator.share({ title: 'Join my HUNG PARLIAMENT game', url: buildJoinLink(code) }); } catch { /* cancelled */ }
+  };
+
   const players = snap?.players ?? lobby?.players ?? [];
   const active = players.filter(p => p.status === 'active');
   const pending = players.filter(p => p.status === 'pending');
@@ -34,9 +49,15 @@ export function Lobby() {
     <div className="page">
       <div className="grid-2 lobby-grid">
         <Card title="Join code">
-          <div className="big-code">{joinCode ?? lobby?.joinCode}</div>
-          <p className="hint">Share this code. Players ask to join and the admin lets them in.</p>
-          <button className="btn ghost sm" onClick={() => void navigator.clipboard?.writeText(joinCode ?? '')}>Copy code</button>
+          <div className="big-code">{code}</div>
+          <p className="hint">Share this code or the invite link. Players ask to join and the admin lets them in.</p>
+          <div className="share-actions">
+            <button className="btn ghost sm" onClick={() => void copy('code', code)}>
+              {copied === 'code' ? 'Copied!' : copied === 'fail' ? 'Copy failed – select the code above' : 'Copy code'}
+            </button>
+            <button className="btn ghost sm" onClick={() => void copy('link', buildJoinLink(code))}>{copied === 'link' ? 'Link copied!' : 'Copy invite link'}</button>
+            {canShare && <button className="btn ghost sm" onClick={() => void shareLink()}>Share</button>}
+          </div>
         </Card>
 
         <Card title="Game settings">

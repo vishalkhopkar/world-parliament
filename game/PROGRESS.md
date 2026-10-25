@@ -43,6 +43,10 @@ Rules source of truth: `../FEATURE REQUIREMENTS.docx`. Technical plan: see CLAUD
 
 ## Log
 
+### 2026-10-25 - Invite link + mobile-safe copy
+- Lobby "Copy code" now works on phones: `web/src/net/share.ts` `copyText` (async Clipboard API, then hidden-textarea `execCommand` fallback for http/iOS), "Copied!"/"Copy failed" feedback, and it copies the displayed code (was `''` when the store `joinCode` was null).
+- Invite link `…/?join=CODE` (`buildJoinLink`, keeps `server`/`mock`, drops `as`): "Copy invite link" + a "Share" button where `navigator.share` exists. Home prefills the code and shows an invite banner (nickname still required); `?join` is cleared after joining. `resumeSession` skips a saved game when the link is for a different one (the saved session is replaced on a successful join). Requirements docx updated (Game setup).
+
 ### 2026-10-25 - Gaussian spread, rally cooldown, new costs and display scale
 Rules are in `../FEATURE REQUIREMENTS.docx` (updated in the body); numbers in `config/game.properties`. Code, tests and UI for these rules are being changed by other agents, so check `git log` and their notes before relying on any of it.
 - **Spread (replaces the exponential half-distance decay).** x = distance between seat centres / `effects.distanceUnitKm` (100 km).

@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { LobbyView, PlayerPublic } from '@hp/shared';
 
 vi.mock('../../net/client', () => ({
@@ -56,6 +56,65 @@ describe('Lobby', () => {
     setup('world-500');
     render(<Lobby />);
     expect(screen.getByText('World – 500 seats')).toBeInTheDocument();
+  });
+
+  describe('sharing the game', () => {
+    const clip = (writeText: (t: string) => Promise<void>) => Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const setShare = (v: unknown) => Object.defineProperty(navigator, 'share', { value: v, configurable: true });
+    afterEach(() => { setShare(undefined); Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true }); });
+
+    it('Copy code copies the code and says so', async () => {
+      const writeText = vi.fn(async (_t: string) => undefined);
+      clip(writeText);
+      setup('world-500');
+      render(<Lobby />);
+      fireEvent.click(screen.getByRole('button', { name: 'Copy code' }));
+      expect(writeText).toHaveBeenCalledWith('HP1234');
+      expect(await screen.findByRole('button', { name: 'Copied!' })).toBeInTheDocument();
+    });
+
+    it('copies the code shown even when the stored joinCode is missing (lobby has it)', async () => {
+      const writeText = vi.fn(async (_t: string) => undefined);
+      clip(writeText);
+      setup('world-500');
+      useStore.setState({ joinCode: null });
+      render(<Lobby />);
+      fireEvent.click(screen.getByRole('button', { name: 'Copy code' }));
+      expect(writeText).toHaveBeenCalledWith('HP1234');
+    });
+
+    it('Copy invite link copies a join link for this game', async () => {
+      const writeText = vi.fn(async (_t: string) => undefined);
+      clip(writeText);
+      setup('world-500');
+      render(<Lobby />);
+      fireEvent.click(screen.getByRole('button', { name: 'Copy invite link' }));
+      const link = writeText.mock.calls[0][0] as string;
+      expect(new URL(link).searchParams.get('join')).toBe('HP1234');
+      expect(await screen.findByRole('button', { name: 'Link copied!' })).toBeInTheDocument();
+    });
+
+    it('tells the player when copying is impossible', async () => {
+      Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+      document.execCommand = vi.fn(() => false);
+      setup('world-500');
+      render(<Lobby />);
+      fireEvent.click(screen.getByRole('button', { name: 'Copy code' }));
+      expect(await screen.findByRole('button', { name: /Copy failed/ })).toBeInTheDocument();
+    });
+
+    it('offers the share sheet only where the browser has one', async () => {
+      setup('world-500');
+      const { unmount } = render(<Lobby />);
+      expect(screen.queryByRole('button', { name: 'Share' })).toBeNull();
+      unmount();
+      const share = vi.fn(async () => undefined);
+      setShare(share);
+      render(<Lobby />);
+      fireEvent.click(screen.getByRole('button', { name: 'Share' }));
+      expect(share).toHaveBeenCalledTimes(1);
+      expect(new URL((share.mock.calls[0] as unknown as [{ url: string }])[0].url).searchParams.get('join')).toBe('HP1234');
+    });
   });
 
   it('start needs an avatar for every player', () => {

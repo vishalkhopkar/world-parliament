@@ -36,6 +36,8 @@ h1,h2,h3{margin:0}
 .input.sm{padding:4px 6px;font-size:13px}
 .input:focus{outline:2px solid var(--gold);outline-offset:1px}
 .code-input{font-family:ui-monospace,Consolas,monospace;letter-spacing:.15em;text-transform:uppercase}
+.share-actions{display:flex;flex-wrap:wrap;gap:8px}
+.invite-banner{background:#e8f3ea;border:1px solid var(--green);color:var(--green);border-radius:10px;padding:10px 14px;margin:0 0 12px;font-size:14px}
 .big-code{font-family:ui-monospace,Consolas,monospace;font-size:clamp(28px,6vw,42px);letter-spacing:.18em;font-weight:700;color:var(--green);word-break:break-all}
 .toggle{display:flex;gap:8px;align-items:center;margin:8px 0;font-weight:600}
 .btn{border:1px solid var(--green);background:var(--ivory);color:var(--green);border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:600}

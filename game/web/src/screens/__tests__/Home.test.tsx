@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -54,6 +54,33 @@ describe('Home map chooser', () => {
     const link = within(india).getByRole('link', { name: /View map/ });
     expect(link).toHaveAttribute('href', '/maps/india-543/web/home.html');
     expect(link).toHaveAttribute('target', '_blank');
+  });
+
+  describe('invite link (?join=CODE)', () => {
+    afterEach(() => window.history.replaceState({}, '', '/'));
+
+    it('prefills the join code and shows an invite banner', () => {
+      window.history.replaceState({}, '', '/?join=ab3k7q');
+      render(<Home />);
+      expect(screen.getByPlaceholderText('HP7K2Q')).toHaveValue('AB3K7Q');
+      expect(screen.getByTestId('invite-banner')).toHaveTextContent('AB3K7Q');
+    });
+
+    it('needs only a nickname and one tap, then clears ?join from the address bar', async () => {
+      window.history.replaceState({}, '', '/?server=local&join=AB3K7Q');
+      const user = userEvent.setup();
+      render(<Home />);
+      await user.type(screen.getByPlaceholderText('e.g. Vishal'), 'Ben');
+      await user.click(screen.getByRole('button', { name: 'Ask to join' }));
+      expect(joinGame).toHaveBeenCalledWith('AB3K7Q', 'Ben');
+      expect(window.location.search).toBe('?server=local');
+    });
+
+    it('has no banner and an empty code without a link', () => {
+      render(<Home />);
+      expect(screen.queryByTestId('invite-banner')).toBeNull();
+      expect(screen.getByPlaceholderText('HP7K2Q')).toHaveValue('');
+    });
   });
 
   it('joining does not involve the map choice', async () => {

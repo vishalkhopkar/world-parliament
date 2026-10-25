@@ -10,6 +10,7 @@ import { useStore } from '../state/store';
 import { ApiException, type Transport } from './transport';
 import { MockTransport } from './mock';
 import { RemoteTransport } from './remote';
+import { joinCodeFromSearch } from './share';
 
 const query = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
 const env = (import.meta as { env?: Record<string, string | undefined> }).env ?? {};
@@ -145,6 +146,9 @@ export async function resumeSession(): Promise<boolean> {
   if (!isRemote || st().gameId) return false;
   const saved = loadSession();
   if (!saved) return false;
+  // an invite link to a different game wins over the saved one (a successful join replaces the saved session)
+  const invited = joinCodeFromSearch();
+  if (invited && invited !== saved.joinCode.toUpperCase()) return false;
   try {
     const lobby = await transport.getLobby(saved.gameId, saved.token);
     const me = lobby.players.find(p => p.playerId === saved.playerId);
