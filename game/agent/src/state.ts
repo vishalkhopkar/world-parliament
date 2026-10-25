@@ -161,6 +161,7 @@ export function applyMessage(st: ClientState, m: ServerMessage, localNow: number
       if (st.priv) {
         st.priv = {
           ...st.priv, budget: m.budget,
+          ...(m.nextRallyAt !== undefined ? { nextRallyAt: m.nextRallyAt } : {}),
           myActions: a ? [...st.priv.myActions, { ...a, ts: localNow + st.serverOffsetMs }] : st.priv.myActions,
         };
       }

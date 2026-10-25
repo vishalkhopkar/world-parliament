@@ -18,12 +18,12 @@ const msgs = (c: Ctx, i: number, type: string) => c.notifier.to(c.p[i].playerId,
 const statuses = (c: Ctx, i: number) => (msgs(c, i, 'status') as { status: string }[]).map((m) => m.status);
 
 /**
- * n players on an 8-seat line map (no spill-over): player 0 rallies seats 1-5 (5 = majority of 8), the others share the rest.
+ * n players on an 8-seat line map (no spill-over): player 0 roadshows seats 1-5 (5 = majority of 8), the others share the rest.
  * Returns with every seat polled and counting at step 0.
  */
 async function fiveForP0(n: number, opts: { opensAt?: 'campaign' | 'counting' } = {}): Promise<Ctx> {
   const c = await new Ctx({ map: lineMap(8), cfg: { ...TEST_CFG, mapId: 'line', seatCount: 8, messaging: { mode: 'individual', opensAt: opts.opensAt ?? 'counting' } } }).started(n, 1);
-  for (let s = 1; s <= 8; s++) await c.send(s <= 5 ? 0 : 1 + ((s - 6) % (n - 1)), { action: 'campaign', type: 'rally', seat: s });
+  for (let s = 1; s <= 8; s++) await c.send(s <= 5 ? 0 : 1 + ((s - 6) % (n - 1)), { action: 'campaign', type: 'roadshow', seat: s });
   await pollAll(c);
   const wins = (await c.repo.listSeatResults(c.gameId)).filter((r) => r.winner === c.p[0].playerId).length;
   expect(wins).toBe(5);

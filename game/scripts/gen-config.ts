@@ -28,10 +28,10 @@ const NUMBER_KEYS = [
   'budget', 'costs.rally', 'costs.roadshow',
   'analyst.seatReport.start', 'analyst.seatReport.end', 'analyst.globalReport.start', 'analyst.globalReport.end',
   'analyst.delayMs', 'analyst.noise', 'analyst.marginFactor',
-  'effects.rally.local', 'effects.rally.global',
-  'effects.rally.decay.halfDistanceKm', 'effects.rally.decay.maxKm', 'effects.rally.decay.capRatio',
-  'effects.roadshow.local',
-  'effects.roadshow.decay.halfDistanceKm', 'effects.roadshow.decay.maxKm', 'effects.roadshow.decay.capRatio',
+  'effects.distanceUnitKm',
+  'effects.rally.local', 'effects.rally.global', 'effects.rally.decay.spread', 'effects.rally.decay.maxKm',
+  'effects.roadshow.local', 'effects.roadshow.decay.spread', 'effects.roadshow.decay.maxKm',
+  'cooldowns.rallyMs',
   'effects.firstMover.rally', 'effects.firstMover.roadshow',
   'timeMultiplier.start', 'timeMultiplier.end',
   'committed.seatMaxPercent', 'voting.influenceMaxPercent', 'voting.randomMaxPercent', 'display.reputationScale',
@@ -108,6 +108,14 @@ if (!errors.length) {
   rule(val('budget') > 0, 'budget must be > 0');
   rule(val('display.reputationScale') > 0, 'display.reputationScale must be > 0');
   for (const k of ['costs.rally', 'costs.roadshow']) rule(val(k) > 0, `${k} must be > 0`);
+  rule(val('effects.distanceUnitKm') > 0, 'effects.distanceUnitKm must be > 0');
+  for (const k of ['effects.rally', 'effects.roadshow']) {
+    rule(val(`${k}.local`) > 0, `${k}.local must be > 0`);
+    rule(val(`${k}.decay.spread`) > 0, `${k}.decay.spread must be > 0`);
+    rule(val(`${k}.decay.maxKm`) >= 0, `${k}.decay.maxKm must be >= 0`);
+  }
+  rule(val('effects.rally.global') >= 0, 'effects.rally.global must be >= 0');
+  rule(val('cooldowns.rallyMs') >= 0, 'cooldowns.rallyMs must be >= 0');
   for (const k of ['effects.firstMover.rally', 'effects.firstMover.roadshow']) rule(val(k) >= 0, `${k} must be >= 0`);
   rule(val('players.min') >= 2 && val('players.max') >= val('players.min'), 'players: need 2 <= min <= max');
   rule(val('phases.min') >= 1 && val('phases.max') >= val('phases.min'), 'phases: need 1 <= min <= max');

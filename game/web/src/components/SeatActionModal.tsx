@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { rallyAvailableAt } from '@hp/shared';
 import type { AnalystReport, GameSnapshot, PrivateState, SeatId } from '@hp/shared';
 import { useStore } from '../state/store';
 import { useMapConfig } from '../state/mapConfig';
@@ -11,6 +12,19 @@ function curvePrice(curve: { start: number; end: number }, snap: GameSnapshot, n
   if (!t) return curve.start;
   const f = Math.min(1, Math.max(0, (now - t.campaignStart) / (t.campaignEnd - t.campaignStart)));
   return Math.round(curve.start + (curve.end - curve.start) * f);
+}
+
+/**
+ * Server-clock ms at which this player's next rally is allowed (<= now means ready). The server's own answer
+ * (PrivateState.nextRallyAt) wins when present; otherwise it is computed from the last rally in myActions and the
+ * configured cooldown. Derived from `priv` only, so closing and reopening the modal never loses the countdown.
+ */
+export function nextRallyAtOf(priv: PrivateState, cooldownMs: number): number {
+  let last: number | undefined;
+  for (const a of priv.myActions) if (a.type === 'rally' && (last === undefined || a.ts > last)) last = a.ts;
+  const computed = rallyAvailableAt(last, { cooldowns: { rallyMs: cooldownMs } });
+  const fromServer = priv.nextRallyAt ?? -Infinity;
+  return Math.max(Number.isFinite(computed) ? computed : -Infinity, fromServer);
 }
 
 interface Props {
@@ -48,14 +62,16 @@ export function SeatActionModal({ seat, snap, priv, now, phaseOf, polled, onClos
     return () => clearTimeout(h);
   }, [isPolled, onClose]);
 
-  const reasonFor = (cost: number): string | null => {
+  const rallyWaitS = Math.max(0, Math.ceil((nextRallyAtOf(priv, cfg.cooldowns?.rallyMs ?? 0) - now) / 1000));
+  const reasonFor = (cost: number, key?: string): string | null => {
     if (!started) return 'Campaign has not started yet';
+    if (key === 'rally' && rallyWaitS > 0) return `Next rally in ${rallyWaitS}s`;
     if (priv.budget < cost) return `Not enough budget (need ${money(cost)})`;
     return null;
   };
   const options = [
-    { key: 'rally', label: 'Rally', cost: cfg.costs.rally, desc: 'Public news. Boosts your party here and nearby.', run: () => campaign('rally', seat) },
-    { key: 'roadshow', label: 'Roadshow', cost: cfg.costs.roadshow, desc: 'Secret. Only helps nearby.', run: () => campaign('roadshow', seat) },
+    { key: 'rally', label: 'Rally', cost: cfg.costs.rally, desc: 'Public news. Big boost here, fading over a few hundred km, plus a small boost everywhere.', run: () => campaign('rally', seat) },
+    { key: 'roadshow', label: 'Roadshow', cost: cfg.costs.roadshow, desc: 'Secret. Strong boost in this seat only.', run: () => campaign('roadshow', seat) },
     { key: 'report', label: 'Local report', cost: reportPrice, desc: 'Analyst estimate for this seat (delayed, noisy).', run: () => buyReport('seat', seat) },
   ];
 
@@ -72,7 +88,7 @@ export function SeatActionModal({ seat, snap, priv, now, phaseOf, polled, onClos
         ) : (
           <div className="sam-options">
             {options.map(o => {
-              const reason = reasonFor(o.cost);
+              const reason = reasonFor(o.cost, o.key);
               return (
                 <button key={o.key} className={'sam-opt sam-' + o.key} disabled={!!reason} title={reason ?? undefined}
                   onClick={() => { o.run(); onClose(); }}>

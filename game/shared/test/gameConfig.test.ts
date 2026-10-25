@@ -26,7 +26,12 @@ describe('game.properties is the source of the game constants', () => {
     expect(WORLD_CONFIG.analyst.globalReport).toEqual({ start: n('analyst.globalReport.start'), end: n('analyst.globalReport.end') });
     expect(WORLD_CONFIG.effects.rally.local).toBe(n('effects.rally.local'));
     expect(WORLD_CONFIG.effects.rally.global).toBe(n('effects.rally.global'));
-    expect(WORLD_CONFIG.effects.roadshow.decay.maxKm).toBe(n('effects.roadshow.decay.maxKm'));
+    expect(WORLD_CONFIG.effects.distanceUnitKm).toBe(n('effects.distanceUnitKm'));
+    expect(WORLD_CONFIG.effects.rally.decay).toEqual({ spread: n('effects.rally.decay.spread'), maxKm: n('effects.rally.decay.maxKm') });
+    expect(WORLD_CONFIG.effects.roadshow.local).toBe(n('effects.roadshow.local'));
+    expect(WORLD_CONFIG.effects.roadshow.decay).toEqual({ spread: n('effects.roadshow.decay.spread'), maxKm: n('effects.roadshow.decay.maxKm') });
+    expect(WORLD_CONFIG.cooldowns).toEqual({ rallyMs: n('cooldowns.rallyMs') });
+    expect(WORLD_CONFIG.display.reputationScale).toBe(n('display.reputationScale'));
     expect(WORLD_CONFIG.effects.firstMover).toEqual({ rally: n('effects.firstMover.rally'), roadshow: n('effects.firstMover.roadshow') });
     expect(WORLD_CONFIG.timeMultiplier).toEqual({ start: n('timeMultiplier.start'), end: n('timeMultiplier.end') });
     expect(WORLD_CONFIG.durations.campaignMs).toBe(n('durations.campaignMs'));
@@ -39,11 +44,34 @@ describe('game.properties is the source of the game constants', () => {
 
   it('the agreed values (50,000 budget, round costs, first-mover bonus on)', () => {
     expect(WORLD_CONFIG.budget).toBe(50_000);
-    expect(WORLD_CONFIG.costs).toEqual({ rally: 2_000, roadshow: 400 });
+    expect(WORLD_CONFIG.costs).toEqual({ rally: 8_000, roadshow: 400 });
     expect(WORLD_CONFIG.analyst.seatReport).toEqual({ start: 800, end: 1_800 });
     expect(WORLD_CONFIG.analyst.globalReport).toEqual({ start: 2_800, end: 6_200 });
     expect(WORLD_CONFIG.effects.firstMover.rally).toBeGreaterThan(0);
     expect(WORLD_CONFIG.effects.firstMover.roadshow).toBeGreaterThan(0);
+  });
+
+  it('the agreed Gaussian spread: rally 0.25 + 10 e^(-0.5 x^2) to 400 km, roadshow 6 e^(-2.8 x^2) to 160 km, x in units of 100 km', () => {
+    const e = WORLD_CONFIG.effects;
+    expect(e.distanceUnitKm).toBe(100);
+    expect(e.rally.global).toBe(0.25);
+    expect(e.rally.local).toBe(10);
+    expect(e.rally.decay).toEqual({ spread: 0.5, maxKm: 400 });
+    expect(e.roadshow.local).toBe(6);
+    expect(e.roadshow.decay).toEqual({ spread: 2.8, maxKm: 160 });
+  });
+
+  it('rallies are rate limited to one per 30 s per player (roadshows are not) and the own reputation is shown x4', () => {
+    expect(WORLD_CONFIG.cooldowns.rallyMs).toBe(30_000);
+    expect(WORLD_CONFIG.display.reputationScale).toBe(4);
+    expect(Object.keys(WORLD_CONFIG.cooldowns)).toEqual(['rallyMs']); // no roadshow cooldown
+  });
+
+  it('the old exponential-decay keys (halfDistanceKm, capRatio) are gone from the file and from the config', () => {
+    expect(propsText).not.toMatch(/^\s*effects\.\w+\.decay\.(halfDistanceKm|capRatio)\s*=/m);
+    for (const d of [WORLD_CONFIG.effects.rally.decay, WORLD_CONFIG.effects.roadshow.decay]) {
+      expect(Object.keys(d).sort()).toEqual(['maxKm', 'spread']);
+    }
   });
 
   it('browsers retry a lost connection every 5 s by default', () => {
@@ -168,6 +196,34 @@ describe('gen-config rejects a bad properties file', () => {
     expect(r.ok).toBe(false);
     expect(r.err).toContain('messaging.mode');
   }, 30_000);
+  it.each([
+    ['a zero rally spread', /^effects\.rally\.decay\.spread=.*$/m, 'effects.rally.decay.spread=0', 'effects.rally.decay.spread'],
+    ['a negative roadshow spread', /^effects\.roadshow\.decay\.spread=.*$/m, 'effects.roadshow.decay.spread=-1', 'effects.roadshow.decay.spread'],
+    ['a negative rally cutoff distance', /^effects\.rally\.decay\.maxKm=.*$/m, 'effects.rally.decay.maxKm=-5', 'effects.rally.decay.maxKm'],
+    ['a zero distance unit', /^effects\.distanceUnitKm=.*$/m, 'effects.distanceUnitKm=0', 'effects.distanceUnitKm'],
+    ['a zero rally local effect', /^effects\.rally\.local=.*$/m, 'effects.rally.local=0', 'effects.rally.local'],
+    ['a zero roadshow local effect', /^effects\.roadshow\.local=.*$/m, 'effects.roadshow.local=0', 'effects.roadshow.local'],
+    ['a negative rally cooldown', /^cooldowns\.rallyMs=.*$/m, 'cooldowns.rallyMs=-1', 'cooldowns.rallyMs'],
+  ])('rejects %s', (_label, re, line, key) => {
+    const r = run(propsText.replace(re, line));
+    expect(r.ok).toBe(false);
+    expect(r.err).toContain(key);
+  }, 30_000);
+  it('accepts a zero rally cooldown (cooldown switched off)', () => {
+    expect(run(propsText.replace(/^cooldowns\.rallyMs=.*$/m, 'cooldowns.rallyMs=0')).ok).toBe(true);
+  }, 30_000);
+  it.each(['effects.distanceUnitKm', 'effects.rally.decay.spread', 'effects.roadshow.decay.spread', 'cooldowns.rallyMs'])('rejects a missing %s', (k) => {
+    const r = run(propsText.replace(new RegExp(`^${k.replace(/\./g, '\.')}=.*$`, 'm'), ''));
+    expect(r.ok).toBe(false);
+    expect(r.err).toContain(k);
+  }, 30_000);
+  it.each(['effects.rally.decay.halfDistanceKm', 'effects.roadshow.decay.capRatio'])('rejects the removed key %s as unknown', (k) => {
+    const r = run(propsText + `
+${k}=1
+`);
+    expect(r.ok).toBe(false);
+    expect(r.err).toContain(k);
+  }, 30_000);
   it('rejects a negative first-mover bonus', () => {
     const r = run(propsText.replace(/^effects\.firstMover\.rally=.*$/m, 'effects.firstMover.rally=-1'));
     expect(r.ok).toBe(false);
@@ -190,5 +246,15 @@ describe('validateConfig', () => {
     expect(() => validateConfig(counting({ panelRunnerUpPercent: 60, panelOtherPercent: 60 }))).toThrow(/counting.panelOtherPercent/);
     expect(() => validateConfig(counting({ panelRunnerUpPercent: undefined }))).toThrow(/counting.panelRunnerUpPercent/);
     expect(() => validateConfig({ ...WORLD_CONFIG, effects: { ...WORLD_CONFIG.effects, firstMover: { rally: 0 } } } as never)).toThrow(/firstMover/);
+    const eff = (over: object) => ({ ...WORLD_CONFIG, effects: { ...WORLD_CONFIG.effects, ...over } });
+    const E = WORLD_CONFIG.effects;
+    expect(() => validateConfig(eff({ distanceUnitKm: 0 }))).toThrow(/effects.distanceUnitKm/);
+    expect(() => validateConfig(eff({ rally: { ...E.rally, decay: { ...E.rally.decay, spread: 0 } } }))).toThrow(/effects.rally.decay.spread/);
+    expect(() => validateConfig(eff({ roadshow: { ...E.roadshow, decay: { ...E.roadshow.decay, spread: -2 } } }))).toThrow(/effects.roadshow.decay.spread/);
+    expect(() => validateConfig(eff({ roadshow: { ...E.roadshow, decay: { ...E.roadshow.decay, maxKm: -1 } } }))).toThrow(/effects.roadshow.decay.maxKm/);
+    expect(() => validateConfig(eff({ rally: { ...E.rally, decay: { maxKm: 400 } } }))).toThrow(/effects.rally.decay.spread/);
+    expect(() => validateConfig({ ...WORLD_CONFIG, cooldowns: { rallyMs: -1 } })).toThrow(/cooldowns.rallyMs/);
+    expect(() => validateConfig({ ...WORLD_CONFIG, cooldowns: undefined } as never)).toThrow(/cooldowns.rallyMs/);
+    expect(() => validateConfig({ ...WORLD_CONFIG, cooldowns: { rallyMs: 0 } })).not.toThrow();
   });
 });

@@ -8,7 +8,7 @@ export interface Kernels {
   seatIds: SeatId[];
   index: Map<SeatId, number>;
   n: number;
-  /** n*n row-major: rally[from*n + to] = local * decay(dist(from,to)) incl. cap; diagonal = local. Excludes the global c. */
+  /** n*n row-major: rally[from*n + to] = local * decay(dist(from,to)) (Gaussian, no cap); diagonal = local. Excludes the global c. */
   rally: Float32Array;
   /** n*n row-major: roadshow[from*n + to], diagonal = s. */
   roadshow: Float32Array;

@@ -47,7 +47,11 @@ export interface PartyRequest { party: PartyIdentity }
 /** POST /games/{gameId}/start (admin only; needs >= players.min active players, all with a party) */
 export type StartResponse = { ok: true; timeline: GameTimeline };
 
-export interface ApiError { error: ErrorCode; message: string }
+/**
+ * `retryAt` (server epoch ms) is set on RATE_LIMITED: the earliest server time at which the same request can succeed
+ * (e.g. the next allowed rally, see cooldowns.rallyMs).
+ */
+export interface ApiError { error: ErrorCode; message: string; retryAt?: number }
 
 export type ErrorCode =
   | 'BAD_REQUEST' | 'UNAUTHORIZED' | 'FORBIDDEN' | 'NOT_FOUND'
@@ -94,6 +98,11 @@ export interface PrivateState {
    * zeros omitted (missing = 0). Whole numbers; raw effect totals are never sent.
    */
   reputation?: Record<SeatId, number>;
+  /**
+   * Server epoch ms from which this player's next rally is allowed (cooldowns.rallyMs after their last accepted rally).
+   * null/absent = a rally is allowed now (never rallied). Roadshows have no cooldown.
+   */
+  nextRallyAt?: number | null;
 }
 
 export interface CommittedView { seat: SeatId; band: number; percent: number; level: CommittedLevel }
@@ -157,7 +166,8 @@ export type ServerMessage =
   | { type: 'status'; status: GameStatus; timeline: GameTimeline | null }
   | { type: 'players'; players: PlayerPublic[] }
   | { type: 'news'; item: NewsItem }
-  | { type: 'actionAck'; clientRef?: string; ok: true; budget: number; reputation?: Record<SeatId, number> }
+  /** `nextRallyAt` = as in PrivateState (server epoch ms of the next allowed rally; null/absent = allowed now). */
+  | { type: 'actionAck'; clientRef?: string; ok: true; budget: number; reputation?: Record<SeatId, number>; nextRallyAt?: number | null }
   | { type: 'report'; report: AnalystReport; budget: number }
   | { type: 'phaseClosed'; phase: number; seats: SeatId[] }
   | { type: 'seatUpdate'; declaration: SeatDeclaration; tally: CountTally }
@@ -166,4 +176,5 @@ export type ServerMessage =
   | { type: 'offer'; offer: CoalitionOffer }
   | { type: 'government'; government: Government }
   | { type: 'result'; result: FinalResult }
-  | { type: 'error'; error: ErrorCode; message: string; clientRef?: string };
+  /** `retryAt` as in ApiError (set on RATE_LIMITED). */
+  | { type: 'error'; error: ErrorCode; message: string; clientRef?: string; retryAt?: number };

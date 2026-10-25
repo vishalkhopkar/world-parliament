@@ -25,6 +25,9 @@ export interface BotCtx {
   visited(i: number): boolean;
   /** my own committed fraction of seat i's voters (0..1, private: only my own patch is known) */
   ownCommitted(i: number): number;
+  /** true when my rally cooldown (cooldowns.rallyMs after my last accepted rally) has passed, i.e. a rally now would not be refused for that reason */
+  rallyReady(): boolean;
+  /** false = refused (cooldown, frozen seat or no money); the caller must retry on a later tick if it still wants the rally */
   rally(i: number): boolean;
   roadshow(i: number): boolean;
   report(scope: 'seat' | 'global', i?: number): AnalystReport | null;
@@ -53,16 +56,63 @@ const MARGIN = 0.012; // keep planned times this far (fraction of campaign) befo
 
 interface Planned { frac: number; type: 'rally' | 'roadshow'; seat: number }
 
-function planBot(name: string, plan: Planned[]): Bot {
+/**
+ * Moves the planned rally times so that consecutive rallies are at least the cooldown plus a 2-tick margin apart, and every rally is
+ * still before its seat's phase closes. Pass 1 pushes rallies later where they bunch up, pass 2 pulls them back before their
+ * deadline (and before the next rally), pass 3 re-checks the spacing at the front. Roadshows are untouched (no cooldown).
+ */
+function spaceRallies(plan: Planned[], w: World, k: number): Planned[] {
+  const gap = (w.cfg.cooldowns.rallyMs + 2 * 2_000) / w.cfg.durations.campaignMs;
+  const po = w.phaseOf.get(k) as Int16Array;
+  const rs = plan.filter((a) => a.type === 'rally').map((a) => ({ ...a })).sort((a, b) => a.frac - b.frac);
+  if (gap <= 0 || rs.length < 2) return plan;
+  const dl = (a: Planned) => (po[a.seat] + 1) / k - MARGIN;
+  for (let i = 1; i < rs.length; i++) rs[i].frac = Math.max(rs[i].frac, rs[i - 1].frac + gap);
+  for (let i = rs.length - 1; i >= 0; i--) {
+    rs[i].frac = Math.min(rs[i].frac, dl(rs[i]));
+    if (i + 1 < rs.length) rs[i].frac = Math.min(rs[i].frac, rs[i + 1].frac - gap);
+  }
+  for (let i = 0; i < rs.length; i++) {
+    rs[i].frac = Math.max(0, rs[i].frac);
+    if (i > 0) rs[i].frac = Math.max(rs[i].frac, rs[i - 1].frac + gap);
+  }
+  return [...plan.filter((a) => a.type !== 'rally'), ...rs];
+}
+
+/** Nearest still-open seat (that I have not visited) to `seat`: used when a plan entry's seat froze while the entry waited. -1 = none. */
+function retarget(ctx: BotCtx, seat: number): number {
+  for (const j of ctx.w.nearest(seat, 80)) if (ctx.isOpen(j) && !ctx.visited(j)) return j;
+  return -1;
+}
+
+/**
+ * Executes a fixed plan. Roadshows fire as soon as they are due. Rallies are limited by the cooldown (one per cooldowns.rallyMs):
+ * a due rally that cannot go yet stays in the queue and is retried on the next tick (never lost); among the waiting rallies the one
+ * whose seat freezes first goes first (earliest deadline), and if a seat froze while its rally waited it is moved to the nearest open seat.
+ */
+function planBot(name: string, rawPlan: Planned[], w: World, k: number): Bot {
+  const plan = spaceRallies(rawPlan, w, k);
   const sorted = [...plan].sort((a, b) => a.frac - b.frac);
   let ptr = 0;
+  let waiting: Planned[] = [];
   return {
     name,
     tick(ctx) {
       while (ptr < sorted.length && sorted[ptr].frac * ctx.campaignMs <= ctx.now) {
         const a = sorted[ptr++];
-        if (a.type === 'rally') ctx.rally(a.seat); else ctx.roadshow(a.seat);
+        if (a.type === 'rally') { waiting.push(a); continue; }
+        const seat = ctx.isOpen(a.seat) ? a.seat : retarget(ctx, a.seat);
+        if (seat >= 0) ctx.roadshow(seat);
       }
+      if (waiting.length === 0) return;
+      if (ctx.budget < ctx.costs.rally) { waiting = []; return; }
+      waiting = waiting.flatMap((a) => {
+        if (ctx.isOpen(a.seat)) return [a];
+        const seat = retarget(ctx, a.seat);
+        return seat >= 0 ? [{ ...a, seat }] : [];
+      });
+      waiting.sort((a, b) => ctx.closeFrac(a.seat) - ctx.closeFrac(b.seat));
+      if (waiting.length > 0 && ctx.rallyReady() && ctx.rally(waiting[0].seat)) waiting.shift();
     },
   };
 }
@@ -131,7 +181,7 @@ function rallyBot(name: string, timing: Timing): BotFactory {
   return (w, k, B, rng) => {
     const { nr } = budgetSplit(B, w.cfg.costs.rally, w.cfg.costs.roadshow, 1);
     const seats = shuffle(allSeats(w.n), rng).slice(0, nr);
-    return planBot(name, seats.map((s) => ({ frac: timeFor(w, k, s, timing, rng), type: 'rally', seat: s })));
+    return planBot(name, seats.map((s) => ({ frac: timeFor(w, k, s, timing, rng), type: 'rally', seat: s })), w, k);
   };
 }
 
@@ -139,7 +189,7 @@ function roadshowBot(name: string): BotFactory {
   return (w, k, B, rng) => {
     const { ns } = budgetSplit(B, w.cfg.costs.rally, w.cfg.costs.roadshow, 0);
     const seats = shuffle(allSeats(w.n), rng).slice(0, ns);
-    return planBot(name, seats.map((s) => ({ frac: timeFor(w, k, s, 'spread', rng), type: 'roadshow', seat: s })));
+    return planBot(name, seats.map((s) => ({ frac: timeFor(w, k, s, 'spread', rng), type: 'roadshow', seat: s })), w, k);
   };
 }
 
@@ -159,7 +209,7 @@ function mixedBot(name: string, fRally: number, timing: Timing, rallyTiming: Tim
     });
     const pool = shuffle(allSeats(w.n).filter((s) => !used.has(s)), rng).slice(0, ns);
     for (const s of pool) plan.push({ frac: timeFor(w, k, s, timing, rng), type: 'roadshow', seat: s });
-    return planBot(name, plan);
+    return planBot(name, plan, w, k);
   };
 }
 
@@ -174,13 +224,14 @@ function clusterBot(name: string, fRally = 0.4, nSeeds = 10): BotFactory {
     const nsP = perPhase(w, k, ns);
     const used = new Set<number>();
     ps.forEach((g, p) => {
-      // seeds: densest seats, at least 450 km apart
+      // seeds: densest seats, further apart than the rally's reach (the Gaussian is 0 beyond maxKm), so clusters do not overlap
+      const reachKm = w.cfg.effects.rally.decay.maxKm;
       const noisy = new Map<number, number>(g.map((s) => [s, w.density[s] * (0.7 + 0.6 * rng())]));
       const ranked = [...g].sort((a, b) => (noisy.get(b) as number) - (noisy.get(a) as number));
       const seeds: number[] = [];
       for (const s of ranked) {
         if (seeds.length >= seedsPer[p]) break;
-        if (seeds.every((t) => w.kernels.distanceKm[s * w.n + t] > 450)) seeds.push(s);
+        if (seeds.every((t) => w.kernels.distanceKm[s * w.n + t] > reachKm)) seeds.push(s);
       }
       if (seeds.length === 0) return;
       const inP = new Set(g);
@@ -200,7 +251,7 @@ function clusterBot(name: string, fRally = 0.4, nSeeds = 10): BotFactory {
         }
       }
     });
-    return planBot(name, plan);
+    return planBot(name, plan, w, k);
   };
 }
 
@@ -228,7 +279,41 @@ function patchBot(name: string, fRally = 0.3): BotFactory {
     const patch = [...own.seats].sort((a, b) => own.frac[a] - own.frac[b]);
     const order = [...patch, ...region.filter((s) => own.frac[s] === 0)].filter((s) => !used.has(s));
     for (const s of order.slice(0, ns)) plan.push({ frac: timeFor(w, k, s, 'spread', rng), type: 'roadshow', seat: s });
-    return planBot(name, plan);
+    return planBot(name, plan, w, k);
+  };
+}
+
+/**
+ * Plays like the AI agents seen in real games: a few rallies at the greedy cluster inside its patch region, then roadshows
+ * on its OWN patch weighted to the strongest committed seats (4 on the 30% band ... 1 on the weakest), all early.
+ */
+function agentBot(name: string, fRally = 0.35): BotFactory {
+  return (w, k, B, rng, own) => {
+    const { nr, ns } = budgetSplit(B, w.cfg.costs.rally, w.cfg.costs.roadshow, fRally);
+    const core = own.seats[0] ?? Math.floor(rng() * w.n);
+    const region = [core, ...w.nearest(core, Math.max(120, ns))];
+    const ps = w.phaseSeats.get(k) as number[][];
+    const plan: Planned[] = [];
+    const rp = perPhase(w, k, nr);
+    ps.forEach((g, p) => {
+      const inP = new Set(g);
+      const cand = region.filter((s) => inP.has(s)).slice(0, 60);
+      for (const s of greedyRallySeats(w, cand.length ? cand : g, rp[p], rng)) plan.push({ frac: timeFor(w, k, s, 'early', rng), type: 'rally', seat: s });
+    });
+    const weight = (f: number) => (f >= 0.3 ? 4 : f >= 0.2 ? 3 : f >= 0.15 ? 2 : 1);
+    const patch = [...own.seats].sort((x, y) => own.frac[y] - own.frac[x]);
+    const done = new Map<number, number>();
+    let left = ns;
+    for (let round = 1; round <= 4 && left > 0; round++) {
+      for (const s of patch) {
+        if (left <= 0) break;
+        if ((done.get(s) ?? 0) >= Math.min(round, weight(own.frac[s]))) continue;
+        done.set(s, (done.get(s) ?? 0) + 1);
+        plan.push({ frac: timeFor(w, k, s, 'early', rng), type: 'roadshow', seat: s });
+        left--;
+      }
+    }
+    return planBot(name, plan, w, k);
   };
 }
 
@@ -309,7 +394,10 @@ function adaptiveBot(name: string, opt: { seat: boolean; global: boolean; reserv
     const allocMoney = ps.map((g) => (mainBudget * g.length) / w.n);
     const spent: number[] = new Array(k).fill(0);
     const taken = new Set<number>();
-    const rallyPlanned: number[][] = ps.map((g, p) => greedyRallySeats(w, g, Math.floor((0.4 * allocMoney[p]) / cr), rng));
+    // 40% of the main budget goes to rallies; at 8,000 a rally that is only 2 of them, so count them for the whole campaign and
+    // deal them out to the phases (a per-phase floor would round every phase down to zero)
+    const rallyShare = perPhase(w, k, Math.floor((0.4 * mainBudget) / cr));
+    const rallyPlanned: number[][] = ps.map((g, p) => greedyRallySeats(w, g, rallyShare[p], rng));
     const rallyDone: number[] = new Array(k).fill(0);
     const stage2done: boolean[] = new Array(k).fill(false);
     const closeSeats: number[][] = ps.map(() => []);
@@ -317,6 +405,17 @@ function adaptiveBot(name: string, opt: { seat: boolean; global: boolean; reserv
     let sniperMode = false;
     let globalDone = false;
     const maxReportsPerPhase = Math.max(1, Math.floor(6 / k));
+
+    /** Play planned rallies of phase p, at most `limit` of them in total so far; a rally the cooldown refuses stays planned (retried next tick). */
+    const playRallies = (ctx: BotCtx, p: number, limit: number) => {
+      while (rallyDone[p] < rallyPlanned[p].length && rallyDone[p] < limit) {
+        const s = rallyPlanned[p][rallyDone[p]];
+        if (!ctx.isOpen(s)) { rallyDone[p]++; continue; }
+        if (!ctx.rallyReady() || !ctx.rally(s)) return;
+        rallyDone[p]++;
+        spent[p] += cr;
+      }
+    };
 
     const buyRoadshow = (ctx: BotCtx, p: number, seat: number): boolean => {
       if (ctx.budget < cs) return false;
@@ -346,10 +445,7 @@ function adaptiveBot(name: string, opt: { seat: boolean; global: boolean; reserv
           const rel = (tf - a) / len;
           // stage 1: opening (rel < 0.45): rallies early, roadshows paced up to 40% of the phase allocation
           if (rel < 0.45) {
-            while (rallyDone[p] < rallyPlanned[p].length && rallyDone[p] < Math.ceil((rel / 0.2) * rallyPlanned[p].length)) {
-              const s = rallyPlanned[p][rallyDone[p]++];
-              if (ctx.isOpen(s) && ctx.rally(s)) spent[p] += cr;
-            }
+            playRallies(ctx, p, Math.ceil((rel / 0.2) * rallyPlanned[p].length));
             const target = 0.4 * allocMoney[p] * (rel / 0.45);
             let guard = 0;
             while (spent[p] + cs <= target && guard++ < 50) {
@@ -379,7 +475,8 @@ function adaptiveBot(name: string, opt: { seat: boolean; global: boolean; reserv
               if (share >= 0.25 && share <= 0.62) closeSeats[p].push(i);
             }
           }
-          // stage 3: top-ups on close seats, then sniping with the rest, paced to the window end
+          // stage 3: rallies still waiting for the cooldown go first, then top-ups on close seats, then sniping with the rest, paced to the window end
+          playRallies(ctx, p, rallyPlanned[p].length);
           const s3 = Math.min(1, (rel - 0.45) / Math.max(1e-9, (b - a) / len - 0.45));
           let target = allocMoney[p] * (0.4 + 0.6 * s3);
           // last phase: also spend whatever the analyst reserve did not use
@@ -420,6 +517,9 @@ export const STRATEGIES: Record<string, BotFactory> = {
   MIX30_EARLYR: mixedBot('MIX30_EARLYR', 0.3, 'spread', 'early'),
   CLUSTER: clusterBot('CLUSTER'),
   PATCH: patchBot('PATCH'),
+  AGENT: agentBot('AGENT'),
+  AGENT_R10: agentBot('AGENT_R10', 0.1),
+  AGENT_R60: agentBot('AGENT_R60', 0.6),
   SNIPER: sniperBot('SNIPER'),
   LATE: mixedBot('LATE', 0.3, 'late'),
   ADAPTIVE: adaptiveBot('ADAPTIVE'),

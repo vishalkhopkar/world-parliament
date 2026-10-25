@@ -17,20 +17,24 @@ describe('campaign', () => {
 
   it('never overspends', async () => {
     const c = await new Ctx().started(2);
-    const n = Math.floor(c.cfg.budget / c.cfg.costs.rally);
-    for (let i = 0; i < n + 5; i++) await c.send(0, { action: 'campaign', type: 'rally', seat: 1 });
+    // roadshows (rallies have a cooldown, see rallyCooldown.test.ts) against a small budget
+    const n = 7;
+    const start = n * c.cfg.costs.roadshow + c.cfg.costs.roadshow - 1;
+    await c.repo.updatePlayer(c.gameId, c.p[0].playerId, { budget: start });
+    for (let i = 0; i < n + 5; i++) await c.send(0, { action: 'campaign', type: 'roadshow', seat: 1 });
     expect(await c.budget(0)).toBeGreaterThanOrEqual(0);
-    expect(await c.budget(0)).toBe(c.cfg.budget - n * c.cfg.costs.rally);
+    expect(await c.budget(0)).toBe(start - n * c.cfg.costs.roadshow);
     expect(c.lastError(0)?.error).toBe('INSUFFICIENT_FUNDS');
     expect((await c.repo.listActions(c.gameId)).length).toBe(n);
   });
 
   it('concurrent actions cannot overspend either', async () => {
     const c = await new Ctx().started(2);
-    const n = Math.floor(c.cfg.budget / c.cfg.costs.rally);
-    await Promise.all(Array.from({ length: n + 20 }, () => c.send(0, { action: 'campaign', type: 'rally', seat: 3 })));
-    expect(await c.budget(0)).toBeGreaterThanOrEqual(0);
-    expect((await c.repo.listActions(c.gameId)).length).toBeLessThanOrEqual(n);
+    const n = 9;
+    await c.repo.updatePlayer(c.gameId, c.p[0].playerId, { budget: n * c.cfg.costs.roadshow });
+    await Promise.all(Array.from({ length: n + 20 }, () => c.send(0, { action: 'campaign', type: 'roadshow', seat: 3 })));
+    expect(await c.budget(0)).toBe(0);
+    expect((await c.repo.listActions(c.gameId)).length).toBe(n);
   });
 
   it('rejects an action on a seat whose phase has been polled', async () => {

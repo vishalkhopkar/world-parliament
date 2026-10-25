@@ -82,14 +82,14 @@ function modeField(w: World, args: Args, out: Record<string, unknown>) {
       if (args.verify) log(`verify: max |incremental - engine| effect diff = ${vmax.toExponential(2)}`);
       log(`\n== FIELD  players=${P} phases=${k} games=${args.games}  (random strategy per seat of the table)  ${(agg.ms / agg.games).toFixed(1)} ms/game`);
       log(fieldTable(agg, P, w.cfg.seatCount, w.cfg.budget));
-      log(`pure-c seats ${pct(agg.pureC / agg.games / w.cfg.seatCount)}   c-only winner == actual winner ${pct(agg.cMatch / agg.games / w.cfg.seatCount)}   actions rejected (frozen seat) ${agg.rejected}`);
+      log(`pure-c seats ${pct(agg.pureC / agg.games / w.cfg.seatCount)}   c-only winner == actual winner ${pct(agg.cMatch / agg.games / w.cfg.seatCount)}   actions rejected (frozen seat) ${agg.rejected}   rally cooldown refusals ${agg.cooled}`);
       log(agg.bal.line());
       balP.merge(agg.bal);
       out[`field_${P}_${k}`] = { ...summarise(agg, P, w), over80Pct: agg.bal.over80Pct, medianMargin: agg.bal.medianMargin, under10Pct: agg.bal.under10Pct };
     }
     log(`
 == BALANCE players=${P} (all phases ${args.phases.join(',')}): ${balP.line()}`);
-    out[`balance_${P}`] = { over80Pct: balP.over80Pct, medianMargin: balP.medianMargin, under10Pct: balP.under10Pct, seats: balP.seats };
+    out[`balance_${P}`] = { over80Pct: balP.over80Pct, medianMargin: balP.medianMargin, p75Margin: balP.p75Margin, medianTop: balP.medianTop, p75Top: balP.p75Top, under10Pct: balP.under10Pct, seats: balP.seats };
   }
 }
 
@@ -253,8 +253,24 @@ function modeChecks(w: World, args: Args, out: Record<string, unknown>) {
   log('== ANALYTIC CHECKS');
   log(`budget ${c.budget.toLocaleString()}  rally ${c.costs.rally.toLocaleString()} (max ${R.toFixed(1)})  roadshow ${c.costs.roadshow.toLocaleString()} (max ${S.toFixed(1)})  ratio ${(c.costs.rally / c.costs.roadshow).toFixed(2)}`);
   log(`actions affordable: ${R.toFixed(0)} rallies ... ${S.toFixed(0)} roadshows`);
-  log(`c x R_max = ${cR.toFixed(3)} (x1.1 late = ${(cR * 1.1).toFixed(3)});  s = ${c.effects.roadshow.local};  s / (c R) = ${(c.effects.roadshow.local / cR).toFixed(2)};  s / (1.1 c R) = ${(c.effects.roadshow.local / (1.1 * cR)).toFixed(2)}`);
+  const tm1 = c.timeMultiplier.end;
+  log(`c x R_max = ${cR.toFixed(3)} (x${tm1} late = ${(cR * tm1).toFixed(3)});  s = ${c.effects.roadshow.local};  s / (c R) = ${(c.effects.roadshow.local / cR).toFixed(2)};  s / (${tm1} c R) = ${(c.effects.roadshow.local / (tm1 * cR)).toFixed(2)}`);
   log(`y = ${c.effects.rally.local}, c = ${c.effects.rally.global}; s/y = ${(c.effects.roadshow.local / c.effects.rally.local).toFixed(2)}`);
+  const unit = c.effects.distanceUnitKm;
+  log(`Gaussian spill (distance unit ${unit} km): rally ${c.effects.rally.local} x exp(-${c.effects.rally.decay.spread} x^2), 0 beyond ${c.effects.rally.decay.maxKm} km, plus ${c.effects.rally.global} to EVERY seat;  roadshow ${c.effects.roadshow.local} x exp(-${c.effects.roadshow.decay.spread} x^2), 0 beyond ${c.effects.roadshow.decay.maxKm} km, no global part`);
+  const rcamp = Math.ceil(c.durations.campaignMs / c.cooldowns.rallyMs);
+  log(`rally cooldown ${c.cooldowns.rallyMs / 1000} s: at most ${rcamp} rallies per player in a ${c.durations.campaignMs / 1000} s campaign; the budget buys ${Math.floor(R)}, so the cooldown ${rcamp >= Math.floor(R) ? 'never binds on money alone' : 'BINDS before the money runs out'} (it only forces the rallies to be spread out); roadshows have no cooldown`);
+  {
+    const kk = w.kernels;
+    let rT = 0; let sT = 0;
+    for (let i = 0; i < kk.n; i++) for (let j = 0; j < kk.n; j++) { rT += kk.rally[i * kk.n + j]; sT += kk.roadshow[i * kk.n + j]; }
+    rT = rT / kk.n + c.effects.rally.global * kk.n; sT /= kk.n;
+    const gaussOnly = rT - c.effects.rally.global * kk.n;
+    log(`total effect of one action over all ${kk.n} seats (mean over home seats): rally ${rT.toFixed(1)} (of which the global floor ${(100 * c.effects.rally.global * kk.n / rT).toFixed(0)}%, Gaussian ${gaussOnly.toFixed(1)}), roadshow ${sT.toFixed(2)};  y = ${(rT / sT).toFixed(1)};  price ratio ${(c.costs.rally / c.costs.roadshow).toFixed(1)} = ${((c.costs.rally / c.costs.roadshow) / (rT / sT)).toFixed(2)} y`);
+  }
+  log(`km:     ${[0, 25, 50, 75, 100, 150, 200, 300, 400, 500].map((d) => pad(d, 7)).join('')}`);
+  log(`rally:  ${[0, 25, 50, 75, 100, 150, 200, 300, 400, 500].map((d) => pad((d > c.effects.rally.decay.maxKm ? 0 : c.effects.rally.local * Math.exp(-c.effects.rally.decay.spread * (d / unit) ** 2)).toFixed(2), 7)).join('')}   (+${c.effects.rally.global} everywhere)`);
+  log(`road:   ${[0, 25, 50, 75, 100, 150, 200, 300, 400, 500].map((d) => pad((d > c.effects.roadshow.decay.maxKm ? 0 : c.effects.roadshow.local * Math.exp(-c.effects.roadshow.decay.spread * (d / unit) ** 2)).toFixed(2), 7)).join('')}`);
   const cs = c.costs.roadshow;
   log(`seat report ${c.analyst.seatReport.start.toLocaleString()} -> ${c.analyst.seatReport.end.toLocaleString()} = ${(c.analyst.seatReport.start / cs).toFixed(1)} -> ${(c.analyst.seatReport.end / cs).toFixed(1)} roadshows (end/start ${(c.analyst.seatReport.end / c.analyst.seatReport.start).toFixed(2)})`);
   log(`global report ${c.analyst.globalReport.start.toLocaleString()} -> ${c.analyst.globalReport.end.toLocaleString()} = ${(c.analyst.globalReport.start / cs).toFixed(1)} -> ${(c.analyst.globalReport.end / cs).toFixed(1)} roadshows (end/start ${(c.analyst.globalReport.end / c.analyst.globalReport.start).toFixed(2)})`);
@@ -301,7 +317,8 @@ function modeChecks(w: World, args: Args, out: Record<string, unknown>) {
   log(`mean #other seats receiving rally spill >= ${rs.map((t, q) => `${t}y: ${(cnt[q] / kern.n).toFixed(2)}`).join(', ')}`);
   log(`mean #other seats receiving roadshow spill >= ${rs.map((t, q) => `${t}s: ${(cntS[q] / kern.n).toFixed(2)}`).join(', ')}`);
   const dens = [...w.density].sort((a, b) => a - b);
-  log(`rally spill-sum (density): median ${dens[250].toFixed(2)}  p90 ${dens[450].toFixed(2)}  max ${dens[499].toFixed(2)} (in units of y)`);
+  const y = c.effects.rally.local;
+  log(`rally spill-sum (density: sum of the other seats' rally effect, in units of y): median ${(dens[250] / y).toFixed(2)}  p90 ${(dens[450] / y).toFixed(2)}  max ${(dens[499] / y).toFixed(2)}`);
   const sp = (seats: number[]) => seats.length;
   void sp;
 }

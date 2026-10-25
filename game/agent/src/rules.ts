@@ -20,6 +20,13 @@ export function configForMap(mapId: string | null | undefined): MapConfig {
   return WORLD_CONFIG;
 }
 
+/** One standard deviation (km) of a Gaussian exp(-spread x^2) with x = km / unitKm: exp(-km^2 / (2 sigma^2)) -> sigma = unit / sqrt(2 spread). */
+const sigmaKm = (unitKm: number, spread: number): number => unitKm / Math.sqrt(2 * spread);
+/** Most rallies one player can hold in a campaign: limited by budget and by the cooldown (the first rally is free of waiting). */
+export function maxRallies(cfg: MapConfig, campaignMs: number): number {
+  const byBudget = Math.floor(cfg.budget / cfg.costs.rally);
+  return cfg.cooldowns.rallyMs > 0 ? Math.min(byBudget, Math.floor(campaignMs / cfg.cooldowns.rallyMs) + 1) : byBudget;
+}
 const trim = (n: number, d = 2): string => String(Number(n.toFixed(d)));
 const group = (n: number): string => n.toLocaleString('en-US');
 
@@ -74,6 +81,7 @@ export function rulesValues(cfg: MapConfig, opts: RenderOptions = {}): Record<st
     RALLY_COST_TEXT: money(cfg, cfg.costs.rally),
     ROADSHOW_COST_TEXT: money(cfg, cfg.costs.roadshow),
     MAX_RALLIES: String(Math.floor(cfg.budget / cfg.costs.rally)),
+    MAX_RALLIES_EFFECTIVE: String(maxRallies(cfg, campaignMs)),
     MAX_ROADSHOWS: String(Math.floor(cfg.budget / cfg.costs.roadshow)),
     SEAT_REPORT_START_TEXT: money(cfg, cfg.analyst.seatReport.start),
     SEAT_REPORT_END_TEXT: money(cfg, cfg.analyst.seatReport.end),
@@ -81,16 +89,18 @@ export function rulesValues(cfg: MapConfig, opts: RenderOptions = {}): Record<st
     GLOBAL_REPORT_END_TEXT: money(cfg, cfg.analyst.globalReport.end),
     RALLY_LOCAL: trim(r.local),
     RALLY_GLOBAL: trim(r.global, 4),
-    RALLY_HALF: String(r.decay.halfDistanceKm),
-    RALLY_MAX: String(r.decay.maxKm),
-    RALLY_CAP: trim(r.decay.capRatio),
+    RALLY_SPREAD_KM: String(Math.round(sigmaKm(cfg.effects.distanceUnitKm, r.decay.spread))),
+    RALLY_SPREAD: trim(r.decay.spread),
+    ROADSHOW_SPREAD: trim(s.decay.spread),
+    RALLY_REACH_KM: String(r.decay.maxKm),
+    RALLY_AT_1UNIT: trim(r.local * Math.exp(-r.decay.spread), 2),
     ROADSHOW_LOCAL: trim(s.local),
-    ROADSHOW_HALF: String(s.decay.halfDistanceKm),
-    ROADSHOW_MAX: String(s.decay.maxKm),
-    ROADSHOW_CAP: trim(s.decay.capRatio),
+    ROADSHOW_SIGMA_KM: String(Math.round(sigmaKm(cfg.effects.distanceUnitKm, s.decay.spread))),
+    ROADSHOW_REACH_KM: String(s.decay.maxKm),
+    DISTANCE_UNIT_KM: String(cfg.effects.distanceUnitKm),
+    RALLY_COOLDOWN_S: String(Math.round(cfg.cooldowns.rallyMs / 1000)),
     FIRST_MOVER_RALLY: trim(cfg.effects.firstMover.rally),
     FIRST_MOVER_ROADSHOW: trim(cfg.effects.firstMover.roadshow),
-    S_OVER_Y: trim(s.local / r.local),
     COST_RATIO: `1/${trim(cfg.costs.rally / cfg.costs.roadshow, 1)}`,
     TM_START: trim(cfg.timeMultiplier.start),
     TM_END: trim(cfg.timeMultiplier.end),

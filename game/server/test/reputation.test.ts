@@ -22,11 +22,13 @@ describe('own reputation (swing voters)', () => {
 
   it('the ack after a rally carries 10 on the rally seat; a second rally raises it; the hello repeats it', async () => {
     const c = await new Ctx().started(2);
-    await c.send(0, { action: 'campaign', type: 'rally', seat: 1 });
+    // seat 8 polls in the last phase, so it is still open when the rally cooldown has passed
+    await c.send(0, { action: 'campaign', type: 'rally', seat: 8 });
     const a1 = lastAck(c, 0);
-    expect(a1.reputation?.[1]).toBe(Math.round((c.cfg.effects.rally.local + c.cfg.effects.rally.global) * c.cfg.display.reputationScale));
-    await c.send(0, { action: 'campaign', type: 'rally', seat: 1 });
-    expect(lastAck(c, 0).reputation![1]).toBeGreaterThan(a1.reputation![1]);
+    expect(a1.reputation?.[8]).toBe(Math.round((c.cfg.effects.rally.local + c.cfg.effects.rally.global) * c.cfg.display.reputationScale));
+    c.clock.advance(c.cfg.cooldowns.rallyMs);
+    await c.send(0, { action: 'campaign', type: 'rally', seat: 8 });
+    expect(lastAck(c, 0).reputation![8]).toBeGreaterThan(a1.reputation![8]);
     const h = (await c.svc.hello((await c.repo.getPlayer(c.gameId, c.p[0].playerId))!)) as Hello;
     expect(h.private.reputation).toEqual(lastAck(c, 0).reputation);
   });
@@ -34,11 +36,11 @@ describe('own reputation (swing voters)', () => {
   it("a roadshow shows too, and another party's numbers never reach you", async () => {
     const c = await new Ctx().started(2);
     await c.send(0, { action: 'campaign', type: 'roadshow', seat: 2 });
-    await c.send(1, { action: 'campaign', type: 'rally', seat: 7 });
+    await c.send(1, { action: 'campaign', type: 'rally', seat: 3 }); // ~111 km from seat 2, where a roadshow has all but died out
     const mine = lastAck(c, 0).reputation!;
     const theirs = lastAck(c, 1).reputation!;
     expect(mine[2]).toBeGreaterThan(theirs[2] ?? 0);
-    expect(theirs[7]).toBeGreaterThan(mine[7] ?? 0);
+    expect(theirs[3]).toBeGreaterThan(mine[3] ?? 0);
     const hB = (await c.svc.hello((await c.repo.getPlayer(c.gameId, c.p[1].playerId))!)) as Hello;
     expect(hB.private.reputation).toEqual(theirs);
     expect(hB.private.reputation![2] ?? 0).toBe(theirs[2] ?? 0);

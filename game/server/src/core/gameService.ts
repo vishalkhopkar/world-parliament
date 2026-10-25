@@ -1,7 +1,7 @@
 // All game logic. Depends only on the interfaces in ./types (no AWS SDK imports).
 import {
   AVATARS, DEFAULT_MAP_ID, PARTY_COLOURS, PARTY_SYMBOLS, analystPrice, analystReport, buildTimeline, committedMatrix, committedView, dealCommitted, computeEffects, reputationView, countingMsFor, postCountingMsFor, createRng,
-  finalResult, governmentFromOffer, leavesPartyOut, majorityGovernment, majorityOf, phaseOfSeat, pollSeats,
+  finalResult, governmentFromOffer, leavesPartyOut, majorityGovernment, majorityOf, phaseOfSeat, pollSeats, rallyAvailableAt,
   removePlayerFromResults, validateGovernment,
 } from '@hp/shared';
 import type {
@@ -18,6 +18,17 @@ import { GameError } from './types';
 import { buildElectionCsv, electionReportName } from './reportSink';
 import type { ReportSink } from './reportSink';
 import { cleanText, hashToken, newId, newJoinCode, newToken, randomInt, uniq } from './util';
+
+/** Server epoch ms of the player's next allowed rally; null = never rallied (a rally is allowed now). */
+function nextRallyAt(p: Pick<PlayerRecord, 'lastRallyAt'> | null | undefined, cfg: MapConfig): number | null {
+  return p?.lastRallyAt === undefined ? null : rallyAvailableAt(p.lastRallyAt, cfg);
+}
+
+/** RATE_LIMITED for a rally inside the cooldown; retryAt = the next allowed rally time. */
+function rallyCooldown(at: number, now: number, cfg: MapConfig): GameError {
+  const wait = Math.max(1, Math.ceil((at - now) / 1000));
+  return new GameError('RATE_LIMITED', `Next rally in ${wait} s (rallies must be at least ${Math.round(cfg.cooldowns.rallyMs / 1000)} s apart)`, at);
+}
 
 export interface GameServiceDeps {
   repo: Repo;
@@ -424,7 +435,9 @@ export class GameService {
       }
     } catch (e) {
       if (e instanceof GameError) {
-        await n.sendToConnection(connectionId, { type: 'error', error: e.code, message: e.message, ...(clientRef ? { clientRef } : {}) });
+        await n.sendToConnection(connectionId, {
+          type: 'error', error: e.code, message: e.message, ...(clientRef ? { clientRef } : {}), ...(e.retryAt !== undefined ? { retryAt: e.retryAt } : {}),
+        });
       } else {
         console.error('handleMessage failed', e);
         await n.sendToConnection(connectionId, { type: 'error', error: 'INTERNAL', message: 'Internal error' });
@@ -507,6 +520,7 @@ export class GameService {
       reputation: game ? await this.reputationFor(game, playerId, actions) : {},
       myActions: actions.filter((a) => a.playerId === playerId).map((a) => ({ type: a.type, seat: a.seat, ts: a.ts })),
       myReports: reports.sort((a, b) => a.ts - b.ts).map((r) => r.report),
+      nextRallyAt: cfg ? nextRallyAt(p, cfg) : null,
     };
   }
 
@@ -566,16 +580,27 @@ export class GameService {
       if (!kernels.index.has(seat)) throw new GameError('BAD_REQUEST', 'Unknown seat');
       const p = phaseOfSeat(map, game.phases, seat);
       if (p < game.closedPhases || timeline.phaseCloses[p] <= now) throw new GameError('SEAT_POLLED', 'Polling has closed in that seat');
+      // rally cooldown (the leader has to be present): checked here for a cheap early answer, and enforced atomically by
+      // the repo (lastRallyAt condition in the spend transaction) against concurrent/pipelined rallies
+      if (type === 'rally' && now < rallyAvailableAt(me.lastRallyAt, cfg)) throw rallyCooldown(rallyAvailableAt(me.lastRallyAt, cfg), now, cfg);
       const cost = cfg.costs[type];
       if (me.budget < cost) throw new GameError('INSUFFICIENT_FUNDS', 'Not enough funds');
       const action: Action = { id: newId(4), playerId: me.playerId, type, seat, ts: now };
-      const res = await this.repo.addAction(game.gameId, me.playerId, cost, action, game.closedPhases);
+      const res = await this.repo.addAction(
+        game.gameId, me.playerId, cost, action, game.closedPhases, type === 'rally' ? { rallyGapMs: cfg.cooldowns.rallyMs } : undefined,
+      );
       if (res === 'conflict') continue;
+      if (res === 'cooldown') {
+        // lost the race to a concurrent rally of the same player: final, never retried
+        const fresh = await this.repo.getPlayer(game.gameId, me.playerId);
+        throw rallyCooldown(Math.max(rallyAvailableAt(fresh?.lastRallyAt, cfg), now + 1), now, cfg);
+      }
       if (res === 'insufficient') throw new GameError('INSUFFICIENT_FUNDS', 'Not enough funds');
       const after = await this.repo.getPlayer(game.gameId, me.playerId);
       await this.d.notifier.sendToPlayer(game.gameId, me.playerId, {
         type: 'actionAck', ...(clientRef ? { clientRef } : {}), ok: true, budget: after ? after.budget : me.budget - cost,
         reputation: await this.reputationFor(game, me.playerId),
+        nextRallyAt: nextRallyAt(after ?? (type === 'rally' ? { lastRallyAt: now } : me), cfg),
       });
       if (type === 'rally') {
         await this.d.notifier.broadcast(game.gameId, { type: 'news', item: { playerId: me.playerId, seat, ts: now } });

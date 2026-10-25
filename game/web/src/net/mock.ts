@@ -1,13 +1,13 @@
 // MOCK backend: simulates the whole game in the browser. Every message is a ServerMessage from protocol.ts,
 // so replacing this with the real REST + WebSocket transport requires no UI changes.
 // Tunables via URL query: ?campaign=120&counting=60&post=120 (seconds). Defaults: 120 / 60 / 120.
-import { AVATARS, DEFAULT_MAP_ID, MAP_MANIFESTS, PARTY_COLOURS, WORLD_CONFIG, leavesPartyOut, majorityOf } from '@hp/shared';
+import { AVATARS, DEFAULT_MAP_ID, MAP_MANIFESTS, PARTY_COLOURS, WORLD_CONFIG, buildKernels, computeEffects, leavesPartyOut, majorityOf, rallyAvailableAt, reputationView } from '@hp/shared';
 import type {
   MapConfig, Action, AdmissionRequest, AdmitRequest, AnalystReport, ClientMessage, CoalitionOffer, CommittedView, CountTally,
   CreateGameRequest, CreateGameResponse, ErrorCode, FinalResult, GameId, GameMapPackage, GameSnapshot,
   GameStatus, GameTimeline, Government, JoinGameRequest, JoinGameResponse, LobbyView, NewsItem, PartyIdentity,
   PartyRequest, PlayerId, PlayerPublic, PointsBreakdown, PortfolioAssignment, PrivateState, SeatDeclaration,
-  SeatId, ServerMessage, SettingsRequest, StartResponse,
+  Kernels, SeatId, ServerMessage, SettingsRequest, StartResponse,
 } from '@hp/shared';
 import { ApiException, type Transport } from './transport';
 import { gamePackageUrl, mapDataUrl } from '../map/mapData';
@@ -77,6 +77,9 @@ class MockGame {
   trueShares: Record<SeatId, Record<PlayerId, number>> = {};
   botOfferSent = false;
   nextBotRally = 0;
+  /** Map package + engine kernels (the real Gaussian spill-over); null when the package could not be loaded (then a simple stand-in is used). */
+  pkg: GameMapPackage | null = null;
+  kernels: Kernels | null = null;
   constructor(phases: number, mapId: string = DEFAULT_MAP_ID) { this.phases = phases; this.mapId = mapId; this.cfg = mapConfigFor(mapId); }
 }
 
@@ -131,12 +134,25 @@ export class MockTransport implements Transport {
       you: g.me, budget: g.players.get(g.me)!.budget,
       myActions: g.actions.filter(a => a.playerId === g.me).map(a => ({ type: a.type, seat: a.seat, ts: a.ts })),
       myReports: [...g.myReports],
+      nextRallyAt: this.nextRallyAt(g, g.me),
       committed: this.committed(g),
       reputation: this.reputation(g),
     };
   }
-  /** Offline stand-in for the server's reputation view (no spill-over or time multiplier): own actions at their seat, scaled and rounded. */
+  /** Server-clock ms when `who` may rally again, or null if they may rally now (same rule as the real server). */
+  private nextRallyAt(g: MockGame, who: PlayerId): number | null {
+    let last: number | undefined;
+    for (const a of g.actions) if (a.playerId === who && a.type === 'rally' && (last === undefined || a.ts > last)) last = a.ts;
+    const at = rallyAvailableAt(last, g.cfg);
+    return Number.isFinite(at) ? at : null;
+  }
+  /** The player's own reputation (round(effect x display.reputationScale)): the real engine kernel (Gaussian spill-over) when the map package is loaded, else own actions at their seat. */
   private reputation(g: MockGame): Record<SeatId, number> {
+    if (g.kernels && g.pkg && g.timeline) {
+      const mine = g.actions.filter(a => a.playerId === g.me);
+      const eff = computeEffects(mine, g.kernels, g.cfg, g.timeline, g.pkg, g.phases);
+      return reputationView(eff.get(g.me), g.kernels, g.cfg);
+    }
     const out: Record<SeatId, number> = {};
     const { rally, roadshow } = g.cfg.effects;
     for (const a of g.actions) {
@@ -264,6 +280,7 @@ export class MockTransport implements Transport {
         const pkg = (await r.json()) as GameMapPackage;
         ids = pkg.seats.map(s => s.id);
         groups = pkg.phaseGroups[String(g.phases)];
+        if (groups) { g.pkg = pkg; g.kernels = buildKernels(pkg, g.cfg); }
       }
     } catch { /* package missing: fall back below */ }
     if (!ids.length) {
@@ -358,12 +375,16 @@ export class MockTransport implements Transport {
     const ph = g.seatPhase.get(msg.seat);
     if (ph === undefined) return err('BAD_REQUEST', 'Unknown seat', msg.clientRef);
     if (g.polledPhases.includes(ph) || this.now() >= g.timeline!.phaseCloses[ph]) return err('SEAT_POLLED', 'That seat has already polled', msg.clientRef);
+    if (msg.type === 'rally') {
+      const at = this.nextRallyAt(g, g.me);
+      if (at !== null && this.now() < at) return err('RATE_LIMITED', `You can rally once every ${Math.round(g.cfg.cooldowns.rallyMs / 1000)} s; next rally in ${Math.ceil((at - this.now()) / 1000)} s`, msg.clientRef);
+    }
     const cost = g.cfg.costs[msg.type];
     if (me.budget < cost) return err('INSUFFICIENT_FUNDS', 'Not enough funds', msg.clientRef);
     me.budget -= cost;
     const a: Action = { id: uid(), playerId: g.me, type: msg.type, seat: msg.seat, ts: this.now() };
     g.actions.push(a);
-    this.emit({ type: 'actionAck', clientRef: msg.clientRef, ok: true, budget: me.budget, reputation: this.reputation(g) });
+    this.emit({ type: 'actionAck', clientRef: msg.clientRef, ok: true, budget: me.budget, reputation: this.reputation(g), nextRallyAt: this.nextRallyAt(g, g.me) });
     this.emit({ type: 'private', private: this.priv(g) });
     if (msg.type === 'rally') this.publishRally(g, a);
   }
@@ -381,12 +402,19 @@ export class MockTransport implements Transport {
   }
   private weights(g: MockGame, seat: SeatId, upTo: number): Map<PlayerId, number> {
     const w = new Map<PlayerId, number>();
+    // with the map package loaded the actions count through the engine's Gaussian kernel (demo scale: 0.15 per effect point)
+    const eff = g.kernels && g.pkg && g.timeline ? computeEffects(g.actions, g.kernels, g.cfg, g.timeline, g.pkg, g.phases, { upTo }) : null;
+    const row = g.kernels?.index.get(seat);
     for (const p of this.activePlayers(g)) {
       let v = 0.6 + 0.8 * hash01(p.pub.playerId + ':' + seat);
-      for (const a of g.actions) {
-        if (a.playerId !== p.pub.playerId || a.ts > upTo) continue;
-        if (a.type === 'rally') v += (a.seat === seat ? 1.0 : 0) + 0.01;
-        else if (a.seat === seat) v += 1.5;
+      if (eff && row !== undefined) v += 0.15 * (eff.get(p.pub.playerId)?.[row] ?? 0);
+      else {
+        const { rally, roadshow } = g.cfg.effects;
+        for (const a of g.actions) {
+          if (a.playerId !== p.pub.playerId || a.ts > upTo) continue;
+          if (a.type === 'rally') v += (a.seat === seat ? 0.15 * rally.local : 0) + 0.15 * rally.global;
+          else if (a.seat === seat) v += 0.15 * roadshow.local;
+        }
       }
       w.set(p.pub.playerId, v);
     }
@@ -570,7 +598,9 @@ export class MockTransport implements Transport {
     const bot = pick(bots);
     const open = g.seatIds.filter(id => !g.polledPhases.includes(g.seatPhase.get(id)!));
     if (!open.length) return;
-    const type = Math.random() < 0.75 ? 'rally' : 'roadshow';
+    const lastRally = g.actions.reduce((m, x) => (x.playerId === bot.pub.playerId && x.type === 'rally' && x.ts > m ? x.ts : m), -Infinity);
+    const mayRally = now >= rallyAvailableAt(Number.isFinite(lastRally) ? lastRally : undefined, g.cfg);
+    const type = mayRally && Math.random() < 0.75 ? 'rally' : 'roadshow';
     if (bot.budget < g.cfg.costs[type]) return;
     bot.budget -= g.cfg.costs[type];
     const a: Action = { id: uid(), playerId: bot.pub.playerId, type, seat: pick(open), ts: now };

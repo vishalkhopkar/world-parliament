@@ -289,12 +289,27 @@ describe('rules rendering', () => {
     const text = renderRules(cfg);
     expect(text).not.toMatch(/\{\{/);
     expect(text).toContain(`${WORLD_CONFIG.currency.symbol}50,000`);
-    expect(text).toContain(`${WORLD_CONFIG.currency.symbol}2,000`);
+    expect(text).toContain(`${WORLD_CONFIG.currency.symbol}8,000`);
     expect(text).toContain(`${WORLD_CONFIG.currency.symbol}400`);
     expect(text).toContain('251 seats');
     expect(text).toContain('500 parliament seats');
     expect(text).toContain('| `PM` | Prime Minister | 100 | 1 |');
     expect(text).toContain('| `DPM` | Deputy Prime Minister | 50 | 2 |');
+  });
+
+  it('describes the Gaussian spill-over and the rally cooldown from the config (no removed keys, nothing stale)', () => {
+    const text = renderRules(cfg);
+    expect(text).toContain(`${cfg.cooldowns.rallyMs / 1000} s`);
+    expect(text).toContain(`${cfg.effects.rally.decay.maxKm} km`);
+    expect(text).toContain(`${cfg.effects.roadshow.decay.maxKm} km`);
+    expect(text).toMatch(/RATE_LIMITED/);
+    expect(text).not.toMatch(/150 km|halfDistance|capRatio/);
+    const v = rulesValues(cfg);
+    const rallyMs = 60_000;
+    const slow = rulesValues({ ...cfg, cooldowns: { rallyMs } });
+    expect(slow.RALLY_COOLDOWN_S).toBe('60');
+    expect(Number(slow.MAX_RALLIES_EFFECTIVE)).toBeLessThanOrEqual(Number(v.MAX_RALLIES));
+    expect(Number(v.RALLY_SPREAD_KM)).toBe(Math.round(cfg.effects.distanceUnitKm / Math.sqrt(2 * cfg.effects.rally.decay.spread)));
   });
 
   it('explains the first mover bonus with the configured amounts', () => {

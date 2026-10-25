@@ -30,6 +30,16 @@ an everyone-coalition would reach a majority they assert that no government form
 and the game finishes at once: `government` then `result` arrive immediately (no waiting for the end of post-counting); later
 `proposeGovernment` is `WRONG_PHASE`, `withdrawOffer` is `OFFER_NOT_FOUND`; the left-out parties score the opposition points.
 
+Rally cooldown and budget (from `WORLD_CONFIG`, `config/game.properties`): the budget of 50,000 buys at most **6 rallies (8,000 each) or
+125 roadshows (400 each)**, and a player may rally only **30 s (`cooldowns.rallyMs`) after their previous accepted rally**; roadshows
+have no cooldown. The e2e clients run on real time against a local server, so they pace themselves: every bot sends a rally only when
+`Date.now() >= nextRallyAt + 600 ms`, taking `nextRallyAt` from the previous `actionAck` (or `retryAt` of a `RATE_LIMITED` error), and
+plays roadshows in between, so every action is acked. In the 45 s e2e campaign that is at most 2 rallies per bot (at ~0 s and ~31 s).
+Each bot's first rally is followed at once by a second one, which `bots.ts` asserts is `RATE_LIMITED` with a `retryAt` about 30 s ahead.
+Bot 0's pre-drain stream plays roadshows only, so its final "rally with an empty purse" still gets `INSUFFICIENT_FUNDS` (the cooldown
+check would come first if it had rallied within the last 30 s). `player2.ts` follows the same pacing (a rally every ~5th action but never
+inside the cooldown). The browser test clicks one rally then one roadshow per party; the UI shows the rally button as a cooldown after use.
+
 ```bash
 # terminal 1: local server with a short game (campaign 45 s, counting 20 s, post-counting 15 s)
 cd game/server

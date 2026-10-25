@@ -18,4 +18,11 @@ describe('own reputation in the store', () => {
     useStore.getState().applyServer({ type: 'actionAck', ok: true, budget: 80 });
     expect(useStore.getState().priv?.reputation).toEqual({ 3: 10 });
   });
+  it('an actionAck carries the server nextRallyAt into priv (kept when absent)', () => {
+    useStore.setState({ priv: priv({}) } as never);
+    useStore.getState().applyServer({ type: 'actionAck', ok: true, budget: 80, nextRallyAt: 5000 });
+    expect(useStore.getState().priv?.nextRallyAt).toBe(5000);
+    useStore.getState().applyServer({ type: 'actionAck', ok: true, budget: 70 });
+    expect(useStore.getState().priv?.nextRallyAt).toBe(5000);
+  });
 });

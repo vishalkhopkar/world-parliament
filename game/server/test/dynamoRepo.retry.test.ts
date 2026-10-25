@@ -39,6 +39,20 @@ describe('DynamoRepo campaign transaction under contention', () => {
     expect((await repo.getPlayer('g1', 'p0'))?.budget).toBe(600);
   });
 
+  it('a rally retried after a TransactionConflict is still subject to the cooldown condition (re-evaluated, never bypassed)', async () => {
+    const { repo, tries, arm } = flaky();
+    await seed(repo);
+    const rally = (id: string, ts: number): Action => ({ ...act(id), type: 'rally', ts });
+    arm(2);
+    expect(await repo.addAction('g1', 'p0', 100, rally('r1', NOW), 0, { rallyGapMs: 30_000 })).toBe('ok');
+    expect(tries()).toBe(3);
+    arm(2);
+    expect(await repo.addAction('g1', 'p0', 100, rally('r2', NOW + 1), 0, { rallyGapMs: 30_000 })).toBe('cooldown');
+    expect(tries()).toBe(3); // conflicts retried, the cooldown failure is final (not retried)
+    expect((await repo.getPlayer('g1', 'p0'))?.budget).toBe(900);
+    expect(await repo.listActions('g1')).toHaveLength(1);
+  });
+
   it('gives up with the original error when the conflict never clears', async () => {
     const { repo, arm } = flaky();
     await seed(repo); arm(1000);

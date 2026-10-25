@@ -115,9 +115,10 @@ describe('AI agents join and play through the action table', () => {
     // single campaign + local overspend rejection + unknown seat
     const one = await call(B, 'campaign', { type: 'roadshow', seat: phase2[50] });
     expect(one.ok).toBe(true);
+    // B rallied a moment ago: more rallies fail locally with RATE_LIMITED (nothing sent or charged)
     const tooMany = await call(B, 'campaign_batch', { actions: Array.from({ length: 50 }, (_, i) => ({ type: 'rally', seat: phase2[i % 40] })) });
-    expect(tooMany.failed).toBeGreaterThan(0);
-    expect(tooMany.results.find((r: any) => !r.ok).error.code).toBe('INSUFFICIENT_FUNDS');
+    expect(tooMany.failed).toBe(50);
+    expect(tooMany.results.find((r: any) => !r.ok).error.code).toBe('RATE_LIMITED');
     expect((await callErr(B, 'campaign', { type: 'rally', seat: 'Atlantis' })).code).toBe('UNKNOWN_SEAT');
 
     // my own actions and public news (rallies only)

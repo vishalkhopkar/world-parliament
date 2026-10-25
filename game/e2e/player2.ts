@@ -59,13 +59,16 @@ async function main() {
   ws.onopen = () => send({ action: 'ping', clientTime: Date.now() });
   setInterval(() => { try { send({ action: 'ping', clientTime: Date.now() }); } catch { /* ignore */ } }, 15000);
 
+  // rallies must be cooldowns.rallyMs apart (the server answers RATE_LIMITED otherwise): remember when the next one is allowed
+  let rallyAfter = 0;
+  const RALLY_MARGIN_MS = 600;
   const offerResponded = new Set<string>();
   ws.onmessage = ev => {
     const m = JSON.parse(String(ev.data)) as ServerMessage;
     switch (m.type) {
       case 'hello': budget = m.private.budget; if (m.snapshot.timeline) { campaignStart = m.snapshot.timeline.campaignStart; campaignEnd = m.snapshot.timeline.campaignEnd; } break;
       case 'private': budget = m.private.budget; break;
-      case 'actionAck': budget = m.budget; break;
+      case 'actionAck': budget = m.budget; if (m.nextRallyAt) rallyAfter = m.nextRallyAt + RALLY_MARGIN_MS; break;
       case 'report': budget = m.budget; log('report', m.report.scope, m.report.entries.map(e => `${e.rank}.${(e.estimate * (m.report.scope === 'seat' ? 100 : 1)).toFixed(0)}`).join(' ')); break;
       case 'status': if (m.timeline) { campaignStart = m.timeline.campaignStart; campaignEnd = m.timeline.campaignEnd; } if (m.status === 'campaign') started = true; if (m.status === 'counting') { countingSeen = true; log('counting started'); } break;
       case 'phaseClosed': m.seats.forEach(s => polled.add(s)); log(`phase ${m.phase + 1} closed (${m.seats.length} seats)`); break;
@@ -80,7 +83,10 @@ async function main() {
         break;
       case 'government': log('government formed, PM', m.government.pm.slice(0, 6)); break;
       case 'result': log('RESULT:', m.result.outcome, 'winners', m.result.winners.map(w => w.slice(0, 6)).join(','), 'my points', m.result.points.find(p => p.playerId === playerId)?.total); finish(); break;
-      case 'error': log('server error', m.error, m.message); break;
+      case 'error':
+        if (m.error === 'RATE_LIMITED' && m.retryAt) rallyAfter = m.retryAt + RALLY_MARGIN_MS; // too early: wait for the time the server named
+        log('server error', m.error, m.message);
+        break;
     }
   };
 
@@ -100,7 +106,9 @@ async function main() {
     const f = campaignEnd > campaignStart ? Math.min(1, Math.max(0, (Date.now() - campaignStart) / (campaignEnd - campaignStart))) : 1;
     const allowedSpent = f * (CFG.budget - reportBudget) + CFG.costs.rally;
     const spendable = Math.min(budget - (reports < 2 ? reportBudget : 0), allowedSpent - (CFG.budget - budget));
-    const type = tick % 5 === 0 && spendable >= CFG.costs.rally ? 'rally' : 'roadshow';
+    // a rally roughly every 5th action, but never inside the rally cooldown (30 s): in between it plays roadshows (no cooldown)
+    const type = tick % 5 === 0 && spendable >= CFG.costs.rally && Date.now() >= rallyAfter ? 'rally' : 'roadshow';
+    if (type === 'rally') rallyAfter = Date.now() + CFG.cooldowns.rallyMs + RALLY_MARGIN_MS; // provisional until the ack names the exact time
     if (spendable >= CFG.costs[type] && open.length) send({ action: 'campaign', type, seat: pick(open) });
     if ((tick === 40 || tick === 200) && reports < 2) { send({ action: 'buyReport', scope: 'global' }); reports++; }
     await sleep(TICK_MS);

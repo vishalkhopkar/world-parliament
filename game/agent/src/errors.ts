@@ -19,7 +19,7 @@ const HINTS: Partial<Record<AgentErrorCode, string>> = {
   INSUFFICIENT_FUNDS: 'Not enough budget. Call get_state to see your budget and the current prices. Cheaper options: roadshow instead of rally; skip reports.',
   SEAT_POLLED: 'Voting in that seat has already closed. Use list_seats with open_only=true to find seats you can still campaign in.',
   TOO_LATE: 'The campaign (or that phase) is over.',
-  RATE_LIMITED: 'Slow down a little and retry.',
+  RATE_LIMITED: 'Rally cooldown: you can hold only one rally per cooldown period. Wait until get_state -> budget.next_rally_in_s reaches 0 (rally_ready), then rally again. Roadshows are NOT limited: place those now. Nothing was charged.',
   INVALID_GOVERNMENT: 'The coalition proposal is invalid: the PM must be you, portfolio limits apply (DPM max 2, others 1), only active players, and at least one party must stay out of the government (a government can never include every party). Members must together hold a majority of WON seats; it is confirmed only once every seat is declared (end of counting).',
   OFFER_NOT_FOUND: 'No such open offer. Call list_offers for current offer ids and their status.',
   ALREADY_COMMITTED: 'A government has already been formed; negotiation is over.',

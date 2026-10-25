@@ -4,23 +4,23 @@
 import { GAME_CONFIG_VALUES } from './config.generated';
 
 export interface DecayParams {
-  /** Spill-over halves every `halfDistanceKm` of great-circle distance between seat centres. */
-  halfDistanceKm: number;
-  /** Beyond this distance the spill-over is exactly 0. */
+  /** Gaussian width: the spill-over is exp(-spread x x^2) with x = distance_km / effects.distanceUnitKm (larger = narrower). */
+  spread: number;
+  /** Beyond this distance the Gaussian part is exactly 0 (a rally keeps only its global part). */
   maxKm: number;
-  /** Spill-over into another seat is never more than capRatio x the local effect (guards very close centres). */
-  capRatio: number;
 }
 
 export interface EffectParams {
+  /** Distances are measured in units of this many km: x = distance_km / distanceUnitKm. */
+  distanceUnitKm: number;
   rally: {
-    local: number;      // y : effect in the seat where the rally is held
-    global: number;     // c : added to EVERY seat (news/social media), including the rally seat
-    decay: DecayParams; // y_d : spill-over to other seats = local * decay(d)
+    local: number;      // peak of the Gaussian: the effect in the seat where the rally is held
+    global: number;     // c : added to EVERY open seat (news/social media), including the rally seat, at any distance
+    decay: DecayParams; // rally in a seat = global + local * exp(-spread x^2)
   };
   roadshow: {
-    local: number;      // s : must be significantly larger than rally.global (docx) and larger than rally.local
-    decay: DecayParams; // s_d : decays much faster than the rally's
+    local: number;      // effect in the seat of the roadshow
+    decay: DecayParams; // roadshow in a seat = local * exp(-spread x^2); no global part
   };
   /**
    * First mover's advantage: the very first party to rally OR roadshow in a seat gets this extra effect in THAT seat
@@ -115,6 +115,11 @@ export interface MapConfig {
   budget: number;
   costs: { rally: number; roadshow: number };
   effects: EffectParams;
+  /** Rate limits. */
+  cooldowns: {
+    /** Minimum gap (ms) between two rallies of the same player (the leader has to be present). Roadshows have no cooldown. 0 = off. */
+    rallyMs: number;
+  };
   /** Multiplier applied to c, y, s by the time an action is taken: linear from start (campaign start) to end (campaign end). Marginal (docx). */
   timeMultiplier: { start: number; end: number };
   analyst: {
@@ -178,17 +183,18 @@ export function validateConfig(cfg: MapConfig): void {
   num('costs.rally', cfg.costs?.rally, 0, true);
   num('costs.roadshow', cfg.costs?.roadshow, 0, true);
   const decay = (k: string, d: DecayParams) => {
-    num(`${k}.halfDistanceKm`, d?.halfDistanceKm, 0, true);
+    num(`${k}.spread`, d?.spread, 0, true);
     num(`${k}.maxKm`, d?.maxKm);
-    num(`${k}.capRatio`, d?.capRatio);
   };
-  num('effects.rally.local', cfg.effects?.rally?.local);
+  num('effects.distanceUnitKm', cfg.effects?.distanceUnitKm, 0, true);
+  num('effects.rally.local', cfg.effects?.rally?.local, 0, true);
   num('effects.rally.global', cfg.effects?.rally?.global);
   decay('effects.rally.decay', cfg.effects?.rally?.decay);
-  num('effects.roadshow.local', cfg.effects?.roadshow?.local);
+  num('effects.roadshow.local', cfg.effects?.roadshow?.local, 0, true);
   decay('effects.roadshow.decay', cfg.effects?.roadshow?.decay);
   num('effects.firstMover.rally', cfg.effects?.firstMover?.rally);
   num('effects.firstMover.roadshow', cfg.effects?.firstMover?.roadshow);
+  num('cooldowns.rallyMs', cfg.cooldowns?.rallyMs);
   num('timeMultiplier.start', cfg.timeMultiplier?.start);
   num('timeMultiplier.end', cfg.timeMultiplier?.end);
   num('analyst.seatReport.start', cfg.analyst?.seatReport?.start);

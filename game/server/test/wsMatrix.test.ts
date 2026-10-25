@@ -147,14 +147,20 @@ describe('malformed messages', () => {
   });
 });
 
-describe('every ErrorCode of the contract is either reachable or documented as unused', () => {
-  it('RATE_LIMITED is declared (HTTP 429) but no code path throws it yet', async () => {
+describe('RATE_LIMITED is reachable over WebSocket (rally cooldown)', () => {
+  it("a second rally inside cooldowns.rallyMs answers 'RATE_LIMITED' (HTTP 429) with clientRef and retryAt; roadshows never do", async () => {
     const { HTTP_STATUS } = await import('../src/core/types');
     expect(HTTP_STATUS.RATE_LIMITED).toBe(429);
-    const { readFileSync } = await import('node:fs');
-    const { fileURLToPath } = await import('node:url');
-    const src = readFileSync(fileURLToPath(new URL('../src/core/gameService.ts', import.meta.url)), 'utf8');
-    expect(src).not.toContain("'RATE_LIMITED'"); // if this fails, RATE_LIMITED became reachable: add a test for it in errorCodes.test.ts
+    const c = await new Ctx().started(2, 1);
+    const t0 = c.clock.now();
+    await c.send(0, { action: 'campaign', type: 'rally', seat: 1, clientRef: 'r1' });
+    await c.send(0, { action: 'campaign', type: 'roadshow', seat: 1, clientRef: 's1' });
+    expect(c.lastError(0)).toBeUndefined();
+    await c.send(0, { action: 'campaign', type: 'rally', seat: 2, clientRef: 'r2' });
+    expect(c.lastError(0)).toMatchObject({ type: 'error', error: 'RATE_LIMITED', clientRef: 'r2', retryAt: t0 + c.cfg.cooldowns.rallyMs });
+    // unrelated errors never carry retryAt
+    await c.send(0, { action: 'campaign', type: 'rally', seat: 999 });
+    expect(c.lastError(0)?.retryAt).toBeUndefined();
   });
 });
 

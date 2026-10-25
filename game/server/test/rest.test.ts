@@ -340,7 +340,7 @@ describe('each ErrorCode has a reachable path and its HTTP status', () => {
     return c.lastError(i)?.error;
   };
 
-  const cases: Record<Exclude<ErrorCode, 'RATE_LIMITED'>, () => Promise<ErrorCode | undefined>> = {
+  const cases: Record<ErrorCode, () => Promise<ErrorCode | undefined>> = {
     BAD_REQUEST: async () => restCode(await (await world()).call('POST', '/games', {})),
     UNAUTHORIZED: async () => { const w = await world(); return restCode(await w.call('GET', `/games/${w.g.gameId}`)); },
     FORBIDDEN: async () => { const w = await world(1); return restCode(await w.call('POST', `/games/${w.g.gameId}/start`, undefined, w.players[0].token)); },
@@ -362,6 +362,12 @@ describe('each ErrorCode has a reachable path and its HTTP status', () => {
     INSUFFICIENT_FUNDS: async () => { const c = await new Ctx().started(2, 1); await c.repo.updatePlayer(c.gameId, c.p[1].playerId, { budget: 1 }); return ws(c, 1, { action: 'campaign', type: 'rally', seat: 1 }); },
     SEAT_POLLED: async () => { const c = await new Ctx().started(2, 3); c.clock.set(c.timeline.phaseCloses[0]); return ws(c, 1, { action: 'campaign', type: 'rally', seat: 1 }); },
     TOO_LATE: async () => { const c = await new Ctx().started(2, 1); c.clock.set(c.timeline.campaignEnd); return ws(c, 1, { action: 'campaign', type: 'rally', seat: 1 }); },
+    RATE_LIMITED: async () => {
+      const c = await new Ctx().started(2, 1);
+      await c.send(1, { action: 'campaign', type: 'rally', seat: 1 });
+      c.clock.advance(c.cfg.cooldowns.rallyMs - 1);
+      return ws(c, 1, { action: 'campaign', type: 'rally', seat: 2 }); // second rally inside cooldowns.rallyMs
+    },
     INVALID_GOVERNMENT: async () => { const c = await new Ctx().started(3, 1); await driveTo(c, 'counting'); return ws(c, 0, { action: 'proposeGovernment', portfolios: { PM: [c.p[1].playerId] } }); },
     OFFER_NOT_FOUND: async () => { const c = await new Ctx().started(3, 1); await driveTo(c, 'counting'); return ws(c, 1, { action: 'respondOffer', offerId: 'nope', accept: true }); },
     ALREADY_COMMITTED: async () => {
@@ -400,8 +406,13 @@ describe('each ErrorCode has a reachable path and its HTTP status', () => {
     });
   }
 
-  it('RATE_LIMITED is in the contract with HTTP 429 (no path throws it yet, see wsMatrix.test.ts)', () => {
+  it('RATE_LIMITED (HTTP 429) carries retryAt over REST too when a GameError has one', async () => {
     expect(HTTP_STATUS.RATE_LIMITED).toBe(429);
+    const svc = { createGame: async () => { throw new GameError('RATE_LIMITED', 'Next rally in 5 s', 12_345); } } as unknown as GameService;
+    const r = await handleRest(svc, { method: 'POST', path: '/games', headers: {}, body: '{}' });
+    expect(r).toEqual({ status: 429, body: { error: 'RATE_LIMITED', message: 'Next rally in 5 s', retryAt: 12_345 } });
+    const plain = { createGame: async () => { throw new GameError('BAD_REQUEST', 'x'); } } as unknown as GameService;
+    expect((await handleRest(plain, { method: 'POST', path: '/games', headers: {}, body: '{}' })).body).toEqual({ error: 'BAD_REQUEST', message: 'x' });
   });
 
   it('HTTP statuses: 4xx for client errors, 409 for state conflicts, 422 for invalid government, 500 only for INTERNAL', () => {

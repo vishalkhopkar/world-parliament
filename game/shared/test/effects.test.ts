@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildKernels, buildTimeline, computeEffects, createRng, haversineKm, majorityOf, phaseOfSeat, seatShares,
-  timeMultiplier,
+  rallyAvailableAt, timeMultiplier, WORLD_CONFIG,
 } from '../src';
 import { T0, TEST_CFG, act, testMap } from './helpers';
 
@@ -62,31 +62,56 @@ describe('haversine', () => {
   });
 });
 
-describe('kernels', () => {
+describe('kernels (Gaussian spread)', () => {
+  const unit = cfg.effects.distanceUnitKm;
+  const dist = (from: number, to: number) => kernels.distanceKm[idx(from) * kernels.n + idx(to)];
+  const gauss = (local: number, spread: number, km: number) => local * Math.exp(-spread * (km / unit) ** 2);
   it('diagonal is exactly local', () => {
     expect(at(1, 1)).toBe(1);
     expect(rs(1, 1)).toBe(1.5);
   });
-  it('decays by half every halfDistanceKm', () => {
-    // seat 3 is 111.19 km from seat 1: 0.5^(1.1119) = 0.4626 ; below cap 0.5
-    expect(at(1, 3)).toBeCloseTo(Math.pow(0.5, 111.19 / 100), 3);
-    expect(at(1, 4)).toBeCloseTo(Math.pow(0.5, 333.58 / 100), 3);
+  it('rally spill-over = local x exp(-spread x (km / distanceUnitKm)^2)', () => {
+    // seat 3 is 111.19 km from seat 1 (x = 1.1119): exp(-0.5 x 1.2363) = 0.5388
+    expect(at(1, 3)).toBeCloseTo(0.5388, 3);
+    expect(at(1, 3)).toBeCloseTo(gauss(1, 0.5, 111.19), 4);
+    // seat 4 is 333.58 km away (x = 3.3358): exp(-0.5 x 11.127) = 0.00384
+    expect(at(1, 4)).toBeCloseTo(gauss(1, 0.5, 333.58), 4);
     expect(at(1, 3)).toBeGreaterThan(at(1, 4));
   });
-  it('is capped at capRatio x local for very close seats', () => {
-    expect(at(1, 2)).toBeCloseTo(0.5, 6);
-    expect(rs(1, 2)).toBeCloseTo(0.4 * 1.5, 6);
-    expect(at(2, 1)).toBeCloseTo(0.5, 6);
+  it('roadshow spill-over uses its own spread (much steeper)', () => {
+    // seat 7 is 22.24 km away: exp(-2.8 x 0.0495) = 0.8707
+    expect(rs(1, 7)).toBeCloseTo(1.5 * Math.exp(-2.8 * (dist(1, 7) / unit) ** 2), 6);
+    expect(rs(1, 7)).toBeCloseTo(1.5 * 0.8707, 3);
+    // seat 3 at 111 km (inside maxKm 150): 1.5 x exp(-2.8 x 1.2363) = 0.0471
+    expect(rs(1, 3)).toBeCloseTo(1.5 * Math.exp(-2.8 * 1.2363), 3);
+    expect(rs(1, 3)).toBeGreaterThan(0);
   });
-  it('is zero beyond maxKm and at maxKm boundary behaviour', () => {
+  it('a very close seat gets almost the full local effect and never more than it (no cap needed)', () => {
+    expect(at(1, 2)).toBeCloseTo(1, 3);
+    expect(at(1, 2)).toBeLessThanOrEqual(1);
+    expect(rs(1, 2)).toBeCloseTo(1.5, 2);
+    expect(rs(1, 2)).toBeLessThanOrEqual(1.5);
+    expect(at(2, 1)).toBe(at(1, 2));
+  });
+  it('is exactly zero beyond maxKm', () => {
     expect(at(1, 5)).toBe(0); // 667 km > 500
     expect(at(1, 6)).toBe(0);
     expect(rs(1, 4)).toBe(0); // 334 km > roadshow maxKm 150
-    expect(rs(1, 3)).toBeCloseTo(1.5 * Math.pow(0.5, 111.19 / 30), 4); // 111 km <= 150
+    expect(rs(1, 5)).toBe(0);
+  });
+  it('the maxKm boundary: a seat just inside keeps its Gaussian value, just outside is cut to 0', () => {
+    const lonAt = (km: number) => km / 111.19488;
+    const bmap = (km: number) => ({ ...map, seats: [map.seats[0], { ...map.seats[1], id: 2, lon: lonAt(km), lat: 0, x: 0, y: 0 }] });
+    const inside = buildKernels(bmap(149.9), cfg);
+    const outside = buildKernels(bmap(150.1), cfg);
+    expect(inside.roadshow[1]).toBeGreaterThan(0);
+    expect(inside.roadshow[1]).toBeCloseTo(1.5 * Math.exp(-2.8 * 1.499 ** 2), 4);
+    expect(outside.roadshow[1]).toBe(0);
+    expect(outside.rally[1]).toBeGreaterThan(0); // rally maxKm is 500
   });
   it('roadshow decays much faster than rally', () => {
-    expect(rs(1, 7)).toBeLessThan(1.5);
     expect(rs(1, 7) / 1.5).toBeLessThan(at(1, 7));
+    expect(rs(1, 3) / 1.5).toBeLessThan(at(1, 3));
   });
 });
 
@@ -137,7 +162,8 @@ describe('computeEffects', () => {
     const e = computeEffects([act('A', 'roadshow', 1, T0)], kernels, cfg, tl1, map, 1);
     const v = e.get('A') as Float64Array;
     expect(v[idx(1)]).toBeCloseTo(1.5, 6);
-    expect(v[idx(2)]).toBeCloseTo(0.6, 6);
+    expect(v[idx(2)]).toBeCloseTo(rs(1, 2), 6);
+    expect(v[idx(2)]).toBeCloseTo(1.5, 2);
     expect(v[idx(4)]).toBe(0);
     expect(v[idx(8)]).toBe(0);
   });
@@ -212,5 +238,46 @@ describe('seatShares', () => {
     expect(seatShares(e, kernels, 1)).toEqual({});
     expect(seatShares(new Map(), kernels, 1)).toEqual({});
     expect(seatShares(e, kernels, 12345)).toEqual({});
+  });
+});
+
+describe('rallyAvailableAt (rally cooldown)', () => {
+  it('is the last rally time plus cooldowns.rallyMs', () => {
+    expect(rallyAvailableAt(T0, cfg)).toBe(T0 + cfg.cooldowns.rallyMs);
+    expect(rallyAvailableAt(T0, { ...cfg, cooldowns: { rallyMs: 5_000 } })).toBe(T0 + 5_000);
+  });
+  it('a player who never rallied (undefined) can rally at once, whatever the clock says', () => {
+    expect(rallyAvailableAt(undefined, cfg)).toBe(-Infinity);
+    expect(rallyAvailableAt(undefined, cfg) <= 0).toBe(true);
+    expect(rallyAvailableAt(undefined, cfg) <= T0).toBe(true);
+  });
+  it('a zero cooldown never blocks', () => {
+    const noCd = { ...cfg, cooldowns: { rallyMs: 0 } };
+    expect(rallyAvailableAt(T0, noCd)).toBe(T0);
+  });
+});
+
+describe('shipped Gaussian numbers (WORLD_CONFIG on the test geometry)', () => {
+  const wk = buildKernels(map, WORLD_CONFIG);
+  const wat = (a: number, b: number) => wk.rally[idx(a) * wk.n + idx(b)];
+  const wrs = (a: number, b: number) => wk.roadshow[idx(a) * wk.n + idx(b)];
+  it('peaks are 10 (rally) and 6 (roadshow); seat 3 (111 km) gets 10 e^(-0.5 x 1.236) of a rally and 6 e^(-2.8 x 1.236) of a roadshow', () => {
+    expect(wat(1, 1)).toBe(10);
+    expect(wrs(1, 1)).toBe(6);
+    expect(wat(1, 3)).toBeCloseTo(10 * Math.exp(-0.5 * 1.1119 ** 2), 3);
+    expect(wrs(1, 3)).toBeCloseTo(6 * Math.exp(-2.8 * 1.1119 ** 2), 3);
+  });
+  it('seat 4 (334 km) is still inside the 400 km rally cutoff, seat 5 (667 km) is outside; roadshows stop at 160 km', () => {
+    expect(wat(1, 4)).toBeGreaterThan(0);
+    expect(wat(1, 5)).toBe(0);
+    expect(wrs(1, 3)).toBeGreaterThan(0);
+    expect(wrs(1, 4)).toBe(0);
+  });
+  it('a rally reads 10.25 in its own seat and only the 0.25 global floor beyond the cutoff', () => {
+    const tl = buildTimeline({ ...WORLD_CONFIG, timeMultiplier: { start: 1, end: 1 } }, 1, T0);
+    const e = computeEffects([act('A', 'rally', 1, T0)], wk, { ...WORLD_CONFIG, timeMultiplier: { start: 1, end: 1 } }, tl, map, 1).get('A') as Float64Array;
+    expect(e[idx(1)]).toBeCloseTo(10.25 + WORLD_CONFIG.effects.firstMover.rally, 9);
+    expect(e[idx(5)]).toBeCloseTo(0.25, 9);
+    expect(e[idx(8)]).toBeCloseTo(0.25, 9);
   });
 });

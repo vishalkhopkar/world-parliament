@@ -14,6 +14,7 @@ export class StratAgg {
   loneWins = 0;
   seatsSq = 0;
   rejected = 0;
+  cooled = 0;
 }
 
 /** Seat-balance metrics over all polled seats: landslides (> 80% share), margin of victory (winner - runner-up share). */
@@ -23,28 +24,39 @@ export class Balance {
   under10 = 0;
   /** histogram of margins in 0.1-point bins (0..100 points) */
   hist = new Array<number>(1001).fill(0);
+  /** histogram of the winner's share in 0.1-point bins (0..100 points) */
+  topHist = new Array<number>(1001).fill(0);
   add(r: GameResult) {
     for (let i = 0; i < r.margins.length; i++) {
       this.seats++;
       if (r.topShares[i] > 0.8) this.over80++;
       if (r.margins[i] < 0.1) this.under10++;
       this.hist[Math.min(1000, Math.round(r.margins[i] * 1000))]++;
+      this.topHist[Math.min(1000, Math.round(r.topShares[i] * 1000))]++;
     }
   }
   merge(o: Balance) {
     this.seats += o.seats; this.over80 += o.over80; this.under10 += o.under10;
-    for (let i = 0; i < this.hist.length; i++) this.hist[i] += o.hist[i];
+    for (let i = 0; i < this.hist.length; i++) { this.hist[i] += o.hist[i]; this.topHist[i] += o.topHist[i]; }
   }
-  /** median margin in share points (0..100) */
-  get medianMargin(): number {
+  /** quantile q (0..1) of a 0.1-point histogram, in share points (0..100) */
+  private quantile(h: number[], q: number): number {
     let acc = 0;
-    for (let i = 0; i < this.hist.length; i++) { acc += this.hist[i]; if (acc >= this.seats / 2) return i / 10; }
+    for (let i = 0; i < h.length; i++) { acc += h[i]; if (acc >= this.seats * q) return i / 10; }
     return 0;
   }
+  /** median margin in share points (0..100) */
+  get medianMargin(): number { return this.quantile(this.hist, 0.5); }
+  /** 75th percentile of the margin (a quarter of the seats are decided by more than this) */
+  get p75Margin(): number { return this.quantile(this.hist, 0.75); }
+  /** median winner share in points (0..100) */
+  get medianTop(): number { return this.quantile(this.topHist, 0.5); }
+  /** 75th percentile of the winner share */
+  get p75Top(): number { return this.quantile(this.topHist, 0.75); }
   get over80Pct(): number { return this.seats ? (100 * this.over80) / this.seats : 0; }
   get under10Pct(): number { return this.seats ? (100 * this.under10) / this.seats : 0; }
   line(): string {
-    return `balance: seats won with >80% share ${this.over80Pct.toFixed(1)}%   median margin ${this.medianMargin.toFixed(1)} pts   seats with margin <10 pts ${this.under10Pct.toFixed(1)}%   (${this.seats} seats)`;
+    return `balance: seats won with >80% share ${this.over80Pct.toFixed(1)}%   median margin ${this.medianMargin.toFixed(1)} pts   seats with margin <10 pts ${this.under10Pct.toFixed(1)}%   margin p75 ${this.p75Margin.toFixed(1)}   winner share median ${this.medianTop.toFixed(1)} p75 ${this.p75Top.toFixed(1)}   (${this.seats} seats)`;
   }
 }
 
@@ -57,6 +69,7 @@ export class Agg {
   cMatch = 0;
   decided = 0;
   rejected = 0;
+  cooled = 0;
   add(r: GameResult) {
     this.games++;
     this.bal.add(r);
@@ -66,6 +79,7 @@ export class Agg {
     this.decided += r.seatsDecided;
     for (const p of r.players) {
       this.rejected += p.rejected;
+      this.cooled += p.cooled;
       let a = this.by.get(p.strategy);
       if (!a) { a = new StratAgg(); this.by.set(p.strategy, a); }
       a.appearances++;
@@ -81,6 +95,7 @@ export class Agg {
       a.loneSeats += p.loneSeats;
       a.loneWins += p.loneWins;
       a.rejected += p.rejected;
+      a.cooled += p.cooled;
     }
   }
 }

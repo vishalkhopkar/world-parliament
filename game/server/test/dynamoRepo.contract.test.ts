@@ -261,6 +261,63 @@ describe.each(impls)('Repo contract: %s', (_name, make) => {
     expect(await h.repo.listActions('g1')).toEqual([]);
   });
 
+  // ---- rally cooldown: addAction(..., { rallyGapMs }) sets lastRallyAt = action.ts, only if the stored one is >= gap older
+  it('addAction with rallyGapMs: stores lastRallyAt; within the gap -> "cooldown" with no charge and no action; at exactly +gap -> ok', async () => {
+    const h = await seeded(make());
+    await campaign(h.repo);
+    expect((await h.repo.getPlayer('g1', 'p0'))?.lastRallyAt).toBeUndefined();
+    expect(await h.repo.addAction('g1', 'p0', 100, action('a1', 'p0', NOW), 0, { rallyGapMs: 30_000 })).toBe('ok');
+    expect((await h.repo.getPlayer('g1', 'p0'))?.lastRallyAt).toBe(NOW);
+    expect(await h.repo.addAction('g1', 'p0', 100, action('a2', 'p0', NOW + 29_999), 0, { rallyGapMs: 30_000 })).toBe('cooldown');
+    expect((await h.repo.getPlayer('g1', 'p0'))?.budget).toBe(900);
+    expect((await h.repo.getPlayer('g1', 'p0'))?.lastRallyAt).toBe(NOW);
+    expect(await h.repo.addAction('g1', 'p0', 100, action('a3', 'p0', NOW + 30_000), 0, { rallyGapMs: 30_000 })).toBe('ok');
+    expect((await h.repo.getPlayer('g1', 'p0'))?.lastRallyAt).toBe(NOW + 30_000);
+    expect((await h.repo.listActions('g1')).map((a) => a.id)).toEqual(['a1', 'a3']);
+    // an older timestamp (a delayed request) can never slip in behind a newer rally
+    expect(await h.repo.addAction('g1', 'p0', 100, action('a4', 'p0', NOW + 1), 0, { rallyGapMs: 30_000 })).toBe('cooldown');
+    expect((await h.repo.getPlayer('g1', 'p0'))?.budget).toBe(800);
+  });
+
+  it('addAction without rallyGapMs (roadshows) neither checks nor touches lastRallyAt; players are independent', async () => {
+    const h = await seeded(make());
+    await campaign(h.repo);
+    expect(await h.repo.addAction('g1', 'p0', 100, action('a1', 'p0', NOW), 0, { rallyGapMs: 30_000 })).toBe('ok');
+    expect(await h.repo.addAction('g1', 'p0', 10, { ...action('a2', 'p0', NOW + 1), type: 'roadshow' }, 0)).toBe('ok');
+    expect((await h.repo.getPlayer('g1', 'p0'))?.lastRallyAt).toBe(NOW);
+    expect(await h.repo.addAction('g1', 'p1', 100, action('a3', 'p1', NOW + 2), 0, { rallyGapMs: 30_000 })).toBe('ok');
+    expect((await h.repo.getPlayer('g1', 'p1'))?.lastRallyAt).toBe(NOW + 2);
+  });
+
+  it('addAction: N concurrent rallies of one player at one timestamp -> exactly one ok, N-1 "cooldown", charged once', async () => {
+    const h = await seeded(make(), 1, { budget: 1000 });
+    await campaign(h.repo);
+    const res = await Promise.all(Array.from({ length: 8 }, (_, i) => h.repo.addAction('g1', 'p0', 100, action(`a${i}`, 'p0', NOW), 0, { rallyGapMs: 30_000 })));
+    expect(res.filter((r) => r === 'ok')).toHaveLength(1);
+    expect(res.filter((r) => r === 'cooldown')).toHaveLength(7);
+    expect((await h.repo.getPlayer('g1', 'p0'))?.budget).toBe(900);
+    expect(await h.repo.listActions('g1')).toHaveLength(1);
+  });
+
+  it('addAction: cooldown takes priority over insufficient funds and over a closed phase; inactive players stay "insufficient"', async () => {
+    const h = await seeded(make(), 1, { budget: 150 });
+    await campaign(h.repo);
+    expect(await h.repo.addAction('g1', 'p0', 100, action('a1', 'p0', NOW), 0, { rallyGapMs: 30_000 })).toBe('ok');
+    expect(await h.repo.addAction('g1', 'p0', 100, action('a2', 'p0', NOW + 1), 0, { rallyGapMs: 30_000 })).toBe('cooldown'); // broke too
+    expect(await h.repo.addAction('g1', 'p0', 10, action('a3', 'p0', NOW + 2), 5, { rallyGapMs: 30_000 })).toBe('cooldown'); // stale phase too
+    await h.repo.updatePlayer('g1', 'p0', { status: 'eliminated' });
+    expect(await h.repo.addAction('g1', 'p0', 10, action('a4', 'p0', NOW + 3), 0, { rallyGapMs: 30_000 })).toBe('insufficient');
+    expect((await h.repo.getPlayer('g1', 'p0'))?.budget).toBe(50);
+  });
+
+  it('addAction: rallyGapMs = 0 never refuses and still records lastRallyAt', async () => {
+    const h = await seeded(make(), 1);
+    await campaign(h.repo);
+    const res = await Promise.all(Array.from({ length: 3 }, (_, i) => h.repo.addAction('g1', 'p0', 10, action(`a${i}`, 'p0', NOW), 0, { rallyGapMs: 0 })));
+    expect(res).toEqual(['ok', 'ok', 'ok']);
+    expect((await h.repo.getPlayer('g1', 'p0'))?.lastRallyAt).toBe(NOW);
+  });
+
   it('seat results: stored, replaced on re-put, listed by seat number', async () => {
     const { repo } = make();
     await repo.createGame(game(), player('p0'));
@@ -489,6 +546,30 @@ describe('DynamoRepo specifics (against FakeDdb)', () => {
     // both failed -> insufficient takes priority (matches MemoryRepo ordering)
     expect(await repo.addAction('g1', 'p0', 60, action('a', 'p0', NOW), 9)).toBe('insufficient');
     expect(ddb.all().filter((i) => String(i.SK).startsWith('ACT#'))).toHaveLength(0);
+  });
+
+  it('a rally whose player condition fails maps to "cooldown" only when the stored lastRallyAt is inside the gap', async () => {
+    const { ddb, repo } = mk();
+    await repo.createGame(game(), player('p0', { budget: 50, lastRallyAt: NOW - 10_000 }));
+    await repo.updateGame('g1', { status: 'campaign' });
+    expect(await repo.addAction('g1', 'p0', 10, action('a', 'p0', NOW), 0, { rallyGapMs: 30_000 })).toBe('cooldown');
+    expect(await repo.addAction('g1', 'p0', 60, action('a', 'p0', NOW + 20_000), 0, { rallyGapMs: 30_000 })).toBe('insufficient'); // gap over, broke
+    expect(await repo.addAction('g1', 'p0', 10, action('a', 'p0', NOW + 20_000), 0, { rallyGapMs: 30_000 })).toBe('ok');
+    const stored = ddb.all().find((i) => i.SK === 'PLAYER#p0');
+    expect(stored?.lastRallyAt).toBe(NOW + 20_000);
+    expect(stored?.budget).toBe(40);
+  });
+
+  it('the rally condition lives in the same transaction as the budget update (one TransactWrite per attempt, no extra writes)', async () => {
+    const ddb = new FakeDdb();
+    const sent: string[] = [];
+    const doc = { send: (c: { constructor: { name: string } }) => { sent.push(c.constructor.name); return ddb.send(c as never); } };
+    const repo = new DynamoRepo(doc as never, ddb.tableName, () => NOW);
+    await repo.createGame(game(), player('p0'));
+    await repo.updateGame('g1', { status: 'campaign' });
+    sent.length = 0;
+    expect(await repo.addAction('g1', 'p0', 10, action('a', 'p0', NOW), 0, { rallyGapMs: 30_000 })).toBe('ok');
+    expect(sent).toEqual(['TransactWriteCommand']);
   });
 
   it('unexpected transaction failures (duplicate action key) are rethrown, and nothing is charged', async () => {

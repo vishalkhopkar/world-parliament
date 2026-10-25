@@ -2,7 +2,7 @@
 export const GAME_CONFIG_VALUES = {
   "budget": 50000,
   "costs": {
-    "rally": 2000,
+    "rally": 8000,
     "roadshow": 400
   },
   "analyst": {
@@ -19,27 +19,29 @@ export const GAME_CONFIG_VALUES = {
     "marginFactor": 1
   },
   "effects": {
+    "distanceUnitKm": 100,
     "rally": {
-      "local": 3,
-      "global": 0.1,
+      "local": 10,
+      "global": 0.25,
       "decay": {
-        "halfDistanceKm": 1000,
-        "maxKm": 3000,
-        "capRatio": 0.5
+        "spread": 0.5,
+        "maxKm": 400
       }
     },
     "roadshow": {
-      "local": 4,
+      "local": 6,
       "decay": {
-        "halfDistanceKm": 40,
-        "maxKm": 200,
-        "capRatio": 0.4
+        "spread": 2.8,
+        "maxKm": 160
       }
     },
     "firstMover": {
       "rally": 0.2,
       "roadshow": 0.2
     }
+  },
+  "cooldowns": {
+    "rallyMs": 30000
   },
   "timeMultiplier": {
     "start": 1,
@@ -85,7 +87,7 @@ export const GAME_CONFIG_VALUES = {
     "randomMaxPercent": 5
   },
   "display": {
-    "reputationScale": 10
+    "reputationScale": 4
   },
   "phases": {
     "min": 1,

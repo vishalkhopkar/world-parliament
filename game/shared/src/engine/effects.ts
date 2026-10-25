@@ -15,10 +15,24 @@ export function haversineKm(lon1: number, lat1: number, lon2: number, lat2: numb
   return 2 * R_EARTH_KM * Math.asin(Math.min(1, Math.sqrt(a)));
 }
 
-/** Spill-over multiplier: 0.5^(d/half) up to maxKm, 0 beyond (before the cap). */
-export function decay(d: number, p: DecayParams): number {
+/**
+ * Gaussian spill-over multiplier at distance d km: exp(-spread x x^2) with x = d / unitKm, exactly 0 beyond maxKm.
+ * (Never above 1, so no cap is needed.)
+ */
+export function decay(d: number, p: DecayParams, unitKm: number): number {
   if (d > p.maxKm) return 0;
-  return Math.pow(0.5, d / p.halfDistanceKm);
+  const x = d / unitKm;
+  return Math.exp(-p.spread * x * x);
+}
+
+/**
+ * Earliest time (ms timestamp) a player may rally again, given the time of their previous rally:
+ * lastRallyTs + cfg.cooldowns.rallyMs. -Infinity when they never rallied (so "now >= rallyAvailableAt" is always true).
+ * A rally at ts is allowed when ts >= rallyAvailableAt(lastRallyTs, cfg). Roadshows are never limited.
+ */
+export function rallyAvailableAt(lastRallyTs: number | undefined, cfg: Pick<MapConfig, 'cooldowns'>): number {
+  if (lastRallyTs === undefined || !Number.isFinite(lastRallyTs)) return -Infinity;
+  return lastRallyTs + cfg.cooldowns.rallyMs;
 }
 
 export function buildKernels(map: GameMapPackage, cfg: MapConfig): Kernels {
@@ -36,7 +50,7 @@ export function buildKernels(map: GameMapPackage, cfg: MapConfig): Kernels {
   const rally = new Float32Array(n * n);
   const roadshow = new Float32Array(n * n);
   const distanceKm = new Float32Array(n * n);
-  const { rally: rc, roadshow: sc } = cfg.effects;
+  const { rally: rc, roadshow: sc, distanceUnitKm: unit } = cfg.effects;
   for (let i = 0; i < n; i++) {
     rally[i * n + i] = rc.local;
     roadshow[i * n + i] = sc.local;
@@ -44,8 +58,8 @@ export function buildKernels(map: GameMapPackage, cfg: MapConfig): Kernels {
       const d = haversineKm(lon[i], lat[i], lon[j], lat[j]);
       distanceKm[i * n + j] = d;
       distanceKm[j * n + i] = d;
-      const r = Math.min(rc.local * decay(d, rc.decay), rc.decay.capRatio * rc.local);
-      const s = Math.min(sc.local * decay(d, sc.decay), sc.decay.capRatio * sc.local);
+      const r = rc.local * decay(d, rc.decay, unit);
+      const s = sc.local * decay(d, sc.decay, unit);
       rally[i * n + j] = r;
       rally[j * n + i] = r;
       roadshow[i * n + j] = s;

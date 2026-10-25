@@ -10,10 +10,13 @@ export const TEST_CFG: MapConfig = {
   ...WORLD_CONFIG,
   seatCount: 8,
   effects: {
-    rally: { local: 1.0, global: 0.01, decay: { halfDistanceKm: 100, maxKm: 500, capRatio: 0.5 } },
-    roadshow: { local: 1.5, decay: { halfDistanceKm: 30, maxKm: 150, capRatio: 0.4 } },
+    distanceUnitKm: 100,
+    rally: { local: 1.0, global: 0.01, decay: { spread: 0.5, maxKm: 500 } },
+    roadshow: { local: 1.5, decay: { spread: 2.8, maxKm: 150 } },
     firstMover: { rally: 0, roadshow: 0 }, // off in the base test config; firstMover.test.ts turns it on
   },
+  cooldowns: { rallyMs: 30_000 },
+  display: { reputationScale: 10 }, // a round scale for the tests (the shipped file uses 4)
   timeMultiplier: { start: 1.0, end: 1.2 },
 };
 

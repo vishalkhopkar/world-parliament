@@ -16,10 +16,13 @@ export const TEST_CFG: MapConfig = {
   costs: { rally: 1000, roadshow: 300 },
   analyst: { ...WORLD_CONFIG.analyst, seatReport: { start: 100, end: 300 }, globalReport: { start: 500, end: 1000 }, delayMs: 1000 },
   effects: {
-    rally: { local: 1.0, global: 0.01, decay: { halfDistanceKm: 100, maxKm: 500, capRatio: 0.5 } },
-    roadshow: { local: 1.5, decay: { halfDistanceKm: 30, maxKm: 150, capRatio: 0.4 } },
+    distanceUnitKm: 100,
+    rally: { local: 1.0, global: 0.01, decay: { spread: 0.5, maxKm: 500 } },
+    roadshow: { local: 1.5, decay: { spread: 2.8, maxKm: 150 } },
     firstMover: { rally: 0, roadshow: 0 }, // off in the shared server test config
   },
+  cooldowns: { rallyMs: 30_000 },
+  display: { reputationScale: 10 }, // a round scale for the tests (the shipped file uses 4)
   durations: {
     campaignMs: 60_000, countingMs: 30_000, countingMsTwoPlayers: 10_000, countingStepMs: 1_000, postCountingMs: 10_000, postCountingMsTwoPlayers: 0, graceMs: 5_000,
   },

@@ -1,5 +1,5 @@
 // Compact, name-based views of game data for LLMs (ids replaced by party names / seat names, times by seconds).
-import { analystPrice, majorityOf } from '@hp/shared';
+import { analystPrice, majorityOf, rallyAvailableAt } from '@hp/shared';
 import type {
   AnalystReport, ChatMessage, CommittedView, CoalitionOffer, FinalResult, GameTimeline, Government, PlayerPublic, PortfolioAssignment, SeatDeclaration,
 } from '@hp/shared';
@@ -21,6 +21,28 @@ export function currentBudget(s: AgentSession): number | null {
   if (!priv) return null;
   if (priv.budget === 0 && s.client.state.budgetPending && s.client.state.snapshot?.status === 'campaign') return s.cfg().budget;
   return priv.budget;
+}
+
+/**
+ * Server-clock ms at which this player's next rally is allowed. The server's own answer (PrivateState.nextRallyAt) wins when
+ * present; otherwise it is computed from the player's last rally (myActions) and the configured cooldown. 0 = ready now.
+ */
+export function rallyReadyAt(s: AgentSession): number {
+  const priv = s.client.state.priv;
+  if (!priv) return 0;
+  const cfg = s.cfg();
+  let last: number | undefined;
+  for (const a of priv.myActions) if (a.type === 'rally' && (last === undefined || a.ts > last)) last = a.ts;
+  const computed = rallyAvailableAt(last, cfg);
+  const at = Math.max(Number.isFinite(computed) ? computed : 0, priv.nextRallyAt ?? 0);
+  return at;
+}
+
+/** rally_ready / next_rally_in_s for budget views (server-clock corrected). */
+export function rallyCooldownView(s: AgentSession): { rally_ready: boolean; next_rally_in_s: number; rally_cooldown_s: number } {
+  const cfg = s.cfg();
+  const left = Math.max(0, rallyReadyAt(s) - s.client.serverNow());
+  return { rally_ready: left <= 0, next_rally_in_s: Math.ceil(left / 1000), rally_cooldown_s: Math.round(cfg.cooldowns.rallyMs / 1000) };
 }
 
 export type Stage = 'lobby' | 'campaign' | 'counting' | 'postCounting' | 'finished';
@@ -310,6 +332,7 @@ export function stateView(s: AgentSession, dir: SeatDirectory | null) {
       roadshow_cost_wr: cost.roadshow,
       rallies_affordable: Math.floor(budget / cost.rally),
       roadshows_affordable: Math.floor(budget / cost.roadshow),
+      ...rallyCooldownView(s),
       ...(prices ? { seat_report_price_now_wr: prices.seat, global_report_price_now_wr: prices.global } : {}),
       report_price_note: 'Report prices rise as the campaign goes on, by the second: the price you pay is the one at the moment the server handles your purchase, so it can be slightly higher than the price shown here.',
       currency: cfg.currency.symbol,

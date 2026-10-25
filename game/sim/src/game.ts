@@ -1,5 +1,5 @@
 import {
-  analystPrice, analystReport, buildTimeline, committedMatrix, computeEffects, createRng, dealCommitted, majorityOf, pollSeats, tallySeats,
+  analystPrice, analystReport, buildTimeline, committedMatrix, computeEffects, createRng, dealCommitted, majorityOf, pollSeats, rallyAvailableAt, tallySeats,
 } from '@hp/shared';
 import type { AnalystReport, CommittedSet, SeatResult } from '@hp/shared';
 import { STRATEGIES } from './bots';
@@ -26,6 +26,8 @@ export interface PlayerResult {
   loneWins: number;
   /** actions refused because the seat was already frozen (bugs in bot timing if > 0) */
   rejected: number;
+  /** rallies refused by the rally cooldown (cooldowns.rallyMs; counted apart from `rejected`; bots should keep this at 0) */
+  cooled: number;
 }
 
 export interface GameResult {
@@ -55,7 +57,9 @@ export function runGame(w: World, strategies: string[], k: number, seed: string,
   const st = new State(w, timeline, k, P);
   const playerIds = strategies.map((_, p) => `P${p}`);
   const budget = new Array<number>(P).fill(cfg.budget);
-  const counts = strategies.map(() => ({ rally: 0, road: 0, rep: 0, repSpend: 0, rej: 0 }));
+  const counts = strategies.map(() => ({ rally: 0, road: 0, rep: 0, repSpend: 0, rej: 0, cool: 0 }));
+  /** timestamp of each player's last ACCEPTED rally (undefined = never), for the rally cooldown */
+  const lastRally = new Array<number | undefined>(P).fill(undefined);
   const groups = w.map.phaseGroups[String(k)];
   const results: SeatResult[] = [];
   const polled = new Array<boolean>(k).fill(false);
@@ -105,9 +109,15 @@ export function runGame(w: World, strategies: string[], k: number, seed: string,
       rivalPub: (i) => st.rivalPub(p, i),
       ownCommitted: (i) => owns[p].frac[i],
       visited: (i) => st.visitedRoad[p][i] === 1 || st.rallied[p][i] === 1,
+      rallyReady: () => T0 + nowMs + clock >= rallyAvailableAt(lastRally[p], cfg),
       rally(i) {
         if (budget[p] < cfg.costs.rally) return false;
-        if (!st.apply(p, 'rally', i, T0 + nowMs + clock++)) { counts[p].rej++; return false; }
+        const ts = T0 + nowMs + clock++;
+        // same order as the server: a frozen seat (SEAT_POLLED) first, then the rally cooldown (RATE_LIMITED), then the cost
+        if (!st.isOpen(i, ts)) { counts[p].rej++; return false; }
+        if (ts < rallyAvailableAt(lastRally[p], cfg)) { counts[p].cool++; return false; }
+        st.apply(p, 'rally', i, ts);
+        lastRally[p] = ts;
         budget[p] -= cfg.costs.rally; counts[p].rally++;
         return true;
       },
@@ -214,6 +224,7 @@ export function runGame(w: World, strategies: string[], k: number, seed: string,
     loneSeats: loneSeats[p],
     loneWins: loneWins[p],
     rejected: counts[p].rej,
+    cooled: counts[p].cool,
   }));
   const winners = new Int16Array(w.n).fill(-1);
   for (let i = 0; i < w.n; i++) { const wn = winnerOf.get(i); if (wn) winners[i] = Number(wn.slice(1)); }

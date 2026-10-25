@@ -4,7 +4,7 @@ import {
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import type { Action, CoalitionOffer, FinalResult, Government, PlayerId, SeatResult } from '@hp/shared';
 import type {
-  ConnectionRecord, CountPlan, GameRecord, PlayerRecord, Repo, SpendResult, StoredChat, StoredReport,
+  AddActionOptions, ConnectionRecord, CountPlan, GameRecord, PlayerRecord, Repo, SpendResult, StoredChat, StoredReport,
 } from '../core/types';
 
 export const TTL_SECONDS = 7 * 24 * 3600;
@@ -159,15 +159,20 @@ export class DynamoRepo implements Repo {
   }
 
   // ---------------------------------------------------------------- campaign
-  /** Budget deduction + insert + game-state guard in one transaction. */
+  /**
+   * Budget deduction + insert + game-state guard in one transaction. With `rally` (rallies only) the player update also
+   * requires lastRallyAt to be missing or <= rally.ts - rally.gapMs and sets lastRallyAt = rally.ts, so two concurrent
+   * rallies of one player can never both commit (the loser's condition fails and it is reported as 'cooldown').
+   */
   private async spendAndInsert(
-    gameId: string, playerId: PlayerId, cost: number, item: Item, expectClosedPhases: number,
+    gameId: string, playerId: PlayerId, cost: number, item: Item, expectClosedPhases: number, rally?: { ts: number; gapMs: number },
   ): Promise<SpendResult> {
     const ttl = this.ttl();
     // Concurrent actions (several from one player, or all players sharing the game META condition check) make DynamoDB
-    // cancel a transaction with TransactionConflict: not a business failure, so retry briefly with jitter.
+    // cancel a transaction with TransactionConflict: not a business failure, so retry briefly with jitter. Each retry
+    // re-evaluates every condition (budget, rally gap, phase), so a retry can never bypass the rally cooldown.
     for (let attempt = 0; ; attempt++) {
-      try { return await this.spendAndInsertOnce(gameId, playerId, cost, item, expectClosedPhases, ttl); } catch (e) {
+      try { return await this.spendAndInsertOnce(gameId, playerId, cost, item, expectClosedPhases, ttl, rally); } catch (e) {
         const reasons = (e as { CancellationReasons?: { Code?: string }[] })?.CancellationReasons;
         const isConflict = (e as { name?: string })?.name === 'TransactionCanceledException'
           && !!reasons?.some((r) => r.Code === 'TransactionConflict');
@@ -179,16 +184,28 @@ export class DynamoRepo implements Repo {
 
   private async spendAndInsertOnce(
     gameId: string, playerId: PlayerId, cost: number, item: Item, expectClosedPhases: number, ttl: number,
+    rally?: { ts: number; gapMs: number },
   ): Promise<SpendResult> {
+    const names: Record<string, string> = { '#status': 'status', '#ttl': 'ttl' };
+    const values: Record<string, unknown> = { ':cost': cost, ':active': 'active', ':ttl': ttl };
+    let update = 'SET budget = budget - :cost, #ttl = :ttl';
+    let cond = 'attribute_exists(PK) AND budget >= :cost AND #status = :active';
+    if (rally) {
+      names['#lr'] = 'lastRallyAt';
+      values[':ts'] = rally.ts;
+      update += ', #lr = :ts';
+      if (rally.gapMs > 0) {
+        values[':maxPrev'] = rally.ts - rally.gapMs;
+        cond += ' AND (attribute_not_exists(#lr) OR #lr <= :maxPrev)';
+      }
+    }
     try {
       await this.doc.send(new TransactWriteCommand({
         TransactItems: [
           { Update: {
             TableName: this.table, Key: { PK: this.gk(gameId), SK: `PLAYER#${playerId}` },
-            UpdateExpression: 'SET budget = budget - :cost, #ttl = :ttl',
-            ConditionExpression: 'attribute_exists(PK) AND budget >= :cost AND #status = :active',
-            ExpressionAttributeNames: { '#status': 'status', '#ttl': 'ttl' },
-            ExpressionAttributeValues: { ':cost': cost, ':active': 'active', ':ttl': ttl },
+            UpdateExpression: update, ConditionExpression: cond,
+            ExpressionAttributeNames: names, ExpressionAttributeValues: values,
           } },
           { Put: { TableName: this.table, Item: { ...item, ttl }, ConditionExpression: 'attribute_not_exists(PK)' } },
           { ConditionCheck: {
@@ -203,17 +220,24 @@ export class DynamoRepo implements Repo {
     } catch (e) {
       const reasons = (e as { CancellationReasons?: { Code?: string }[] })?.CancellationReasons;
       if ((e as { name?: string })?.name === 'TransactionCanceledException' && reasons) {
-        if (reasons[0]?.Code === 'ConditionalCheckFailed') return 'insufficient';
+        if (reasons[0]?.Code === 'ConditionalCheckFailed') {
+          // the player condition mixes funds, status and the rally gap: a (consistent) re-read tells them apart
+          if (rally && rally.gapMs > 0) {
+            const p = await this.getPlayer(gameId, playerId);
+            if (p && p.status === 'active' && p.lastRallyAt !== undefined && p.lastRallyAt > rally.ts - rally.gapMs) return 'cooldown';
+          }
+          return 'insufficient';
+        }
         if (reasons[2]?.Code === 'ConditionalCheckFailed') return 'conflict';
       }
       throw e;
     }
   }
 
-  addAction(gameId: string, playerId: PlayerId, cost: number, a: Action, expectClosedPhases: number) {
+  addAction(gameId: string, playerId: PlayerId, cost: number, a: Action, expectClosedPhases: number, opts?: AddActionOptions) {
     return this.spendAndInsert(gameId, playerId, cost, {
       ...a, PK: this.gk(gameId), SK: `ACT#${pad(a.ts, 15)}#${a.playerId}#${a.id}`,
-    }, expectClosedPhases);
+    }, expectClosedPhases, opts?.rallyGapMs !== undefined ? { ts: a.ts, gapMs: opts.rallyGapMs } : undefined);
   }
   listActions(gameId: string) { return this.query<Action>(this.gk(gameId), 'ACT#'); }
   addReport(gameId: string, playerId: PlayerId, cost: number, rep: StoredReport, expectClosedPhases: number) {

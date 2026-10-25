@@ -438,12 +438,50 @@ describe('campaign / campaign_batch / buy_report validation', () => {
     expect(r.results.map((x: any) => x.index)).toEqual(Array.from({ length: 50 }, (_, i) => i));
   });
   it('batch: budget is checked cumulatively and exactly (the last affordable action passes, the next one fails)', async () => {
-    const { s, c } = session({ budget: cfg.costs.rally * 2 + cfg.costs.roadshow });
+    const { s, c } = session({ budget: cfg.costs.rally + cfg.costs.roadshow * 2 });
     (c.campaignBatch as ReturnType<typeof vi.fn>).mockImplementation(async (l: unknown[]) => l.map(() => ({ ok: true, budget: 0 })));
-    const r = await ok(s, 'campaign_batch', { actions: [{ type: 'rally', seat: 1 }, { type: 'rally', seat: 2 }, { type: 'roadshow', seat: 3 }, { type: 'roadshow', seat: 4 }] });
+    const r = await ok(s, 'campaign_batch', { actions: [{ type: 'rally', seat: 1 }, { type: 'roadshow', seat: 2 }, { type: 'roadshow', seat: 3 }, { type: 'roadshow', seat: 4 }] });
     expect(r.sent).toBe(3);
     expect(r.failed).toBe(1);
     expect(r.results[3].error).toMatchObject({ code: 'INSUFFICIENT_FUNDS', local: true });
+  });
+  it('batch: only one rally per cooldown goes through; later rallies fail locally with RATE_LIMITED, are not charged or sent, roadshows still go', async () => {
+    const { s, c } = session();
+    (c.campaignBatch as ReturnType<typeof vi.fn>).mockImplementation(async (l: unknown[]) => l.map(() => ({ ok: true, budget: 0 })));
+    const r = await ok(s, 'campaign_batch', { actions: [{ type: 'rally', seat: 1 }, { type: 'rally', seat: 2 }, { type: 'roadshow', seat: 3 }, { type: 'rally', seat: 4 }] });
+    expect(r.sent).toBe(2);
+    expect(r.failed).toBe(2);
+    expect(r.results[1].error).toMatchObject({ code: 'RATE_LIMITED', local: true });
+    expect(r.results[1].error.message).toMatch(/cooldown/i);
+    expect(r.results[3].error.code).toBe('RATE_LIMITED');
+    expect((c.campaignBatch as ReturnType<typeof vi.fn>).mock.calls[0][0]).toEqual([{ type: 'rally', seat: 1 }, { type: 'roadshow', seat: 3 }]);
+  });
+  it('a rally inside the cooldown (server nextRallyAt, or the last rally in myActions) is refused locally, roadshows are not', async () => {
+    const { s, c } = session();
+    const now = s.client.serverNow();
+    (c.state.priv as any).nextRallyAt = now + 20_000;
+    const e = await err(s, 'campaign', { type: 'rally', seat: 1 });
+    expect(e.code).toBe('RATE_LIMITED');
+    expect(e.message).toMatch(/(19|20|21) s/);
+    expect((c.campaignBatch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(0);
+    (c.campaignBatch as ReturnType<typeof vi.fn>).mockImplementation(async (l: unknown[]) => l.map(() => ({ ok: true, budget: 0 })));
+    expect((await ok(s, 'campaign', { type: 'roadshow', seat: 1 })).ok).toBe(true);
+    // fallback without nextRallyAt: computed from the last rally in myActions and the configured cooldown
+    (c.state.priv as any).nextRallyAt = undefined;
+    (c.state.priv as any).myActions = [{ type: 'rally', seat: 5, ts: now - 1000 }];
+    expect((await err(s, 'campaign', { type: 'rally', seat: 1 })).code).toBe('RATE_LIMITED');
+    (c.state.priv as any).myActions = [{ type: 'rally', seat: 5, ts: now - cfg.cooldowns.rallyMs - 1000 }];
+    expect((await ok(s, 'campaign', { type: 'rally', seat: 1 })).ok).toBe(true);
+  });
+  it('get_state budget shows rally_ready / next_rally_in_s', async () => {
+    const { s, c } = session();
+    let d = await ok(s, 'get_state');
+    expect(d.budget).toMatchObject({ rally_ready: true, next_rally_in_s: 0, rally_cooldown_s: Math.round(cfg.cooldowns.rallyMs / 1000) });
+    (c.state.priv as any).myActions = [{ type: 'rally', seat: 5, ts: s.client.serverNow() - 5000 }];
+    d = await ok(s, 'get_state');
+    expect(d.budget.rally_ready).toBe(false);
+    expect(d.budget.next_rally_in_s).toBeGreaterThan(0);
+    expect(d.budget.next_rally_in_s).toBeLessThanOrEqual(Math.round(cfg.cooldowns.rallyMs / 1000));
   });
   it('a single campaign error is thrown as that error (not wrapped)', async () => {
     const { s } = session({ budget: 1 });

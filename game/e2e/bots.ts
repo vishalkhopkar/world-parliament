@@ -36,6 +36,8 @@ const rnd = () => { seedState = (seedState + 0x6D2B79F5) >>> 0; let t = seedStat
 const pick = <T,>(xs: T[]): T => xs[Math.floor(rnd() * xs.length)];
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, Math.max(0, ms)));
 const t0 = Date.now();
+/** extra wait (ms) on top of the rally cooldown before a bot rallies again, so timer jitter never hits RATE_LIMITED */
+const RALLY_MARGIN_MS = 600;
 const log = (...a: unknown[]) => console.log(`[${((Date.now() - t0) / 1000).toFixed(1).padStart(5)}s]`, ...a);
 
 const failures: string[] = [];
@@ -68,6 +70,12 @@ class Bot {
   /** budget kept back from random campaigning (the analyst scenario must still afford its reports; W₹50,000 is tight) */
   reserve = 0;
   acked: { type: string; seat: number }[] = [];
+  /** earliest local time (ms) this bot sends its next rally: the ack's nextRallyAt (cooldowns.rallyMs after the last rally) plus a margin */
+  rallyAfter = 0;
+  /** a rally request is in flight (bot 0 runs two campaign streams): hold further rallies until the ack says when the next is allowed */
+  rallyPending = false;
+  /** the one-off "a second rally right away is RATE_LIMITED" check has been done for this bot */
+  rateChecked = false;
   reportsBought = 0;
   violations: string[] = [];
   private refCounter = 0;
@@ -132,10 +140,21 @@ class Bot {
     });
   }
   async request(msg: ClientMessage, ok: Pred, ref?: string): Promise<ServerMessage> { return (await this.requestB(msg, ok, ref)).m; }
+  /** true when a rally from this bot would not run into the rally cooldown (rallies must be cooldowns.rallyMs apart; roadshows are never limited) */
+  rallyReady(): boolean { return !this.rallyPending && Date.now() >= this.rallyAfter; }
   async campaign(type: 'rally' | 'roadshow', seat: SeatId): Promise<ServerMessage> {
     const ref = `${this.idx}-${++this.refCounter}`;
-    const { m: r, before } = await this.requestB({ action: 'campaign', type, seat, clientRef: ref }, m => m.type === 'actionAck' && m.clientRef === ref, ref);
+    if (type === 'rally') this.rallyPending = true;
+    let res: { m: ServerMessage; before: number };
+    try {
+      res = await this.requestB({ action: 'campaign', type, seat, clientRef: ref }, m => m.type === 'actionAck' && m.clientRef === ref, ref);
+    } finally {
+      if (type === 'rally') this.rallyPending = false;
+    }
+    const { m: r, before } = res;
     if (r.type === 'actionAck') {
+      // ack time is after the server's receipt time, so ack + cooldown is never too early; the server's own nextRallyAt is the exact value
+      if (type === 'rally') this.rallyAfter = (r.nextRallyAt ?? Date.now() + CFG.cooldowns.rallyMs) + RALLY_MARGIN_MS;
       this.acked.push({ type, seat });
       check(r.budget === before - CFG.costs[type], `${this.name}: budget after ${type} is ${r.budget}, expected ${before - CFG.costs[type]}`);
     }
@@ -165,7 +184,12 @@ function openSeats(minRemainingMs: number): SeatId[] {
   return out;
 }
 
-async function randomCampaign(bot: Bot, until: number, home: Set<SeatId>) {
+/**
+ * Random rallies and roadshows until `until`. Rallies are only sent when the bot's cooldown (cooldowns.rallyMs, 30 s) has passed, so
+ * every action is acked; the first rally of each bot is followed at once by a second one, which must be RATE_LIMITED and cost nothing.
+ * `allowRally = false` = roadshows only (bot 0's pre-drain stream: its later "rally with an empty purse" must see INSUFFICIENT_FUNDS).
+ */
+async function randomCampaign(bot: Bot, until: number, home: Set<SeatId>, allowRally = true) {
   while (Date.now() < until) {
     await sleep(120 + rnd() * 500);
     if (Date.now() >= until) break;
@@ -173,10 +197,16 @@ async function randomCampaign(bot: Bot, until: number, home: Set<SeatId>) {
     if (!open.length) break;
     const openHome = [...home].filter(s => open.includes(s));
     const seat = openHome.length && rnd() < 0.75 ? pick(openHome) : pick(open);
-    const type = rnd() < 0.6 ? 'rally' : 'roadshow';
+    const type = rnd() < 0.6 && allowRally && bot.rallyReady() ? 'rally' : 'roadshow';
     if (bot.budget - CFG.costs[type] < bot.reserve) continue;
     const r = await bot.campaign(type, seat);
     check(r.type === 'actionAck', `${bot.name}: ${type} in seat ${seat} rejected: ${bot.err(r)} ${r.type === 'error' ? r.message : ''}`);
+    if (type === 'rally' && r.type === 'actionAck' && !bot.rateChecked) {
+      bot.rateChecked = true;
+      const again = await bot.campaign('rally', seat);
+      check(bot.err(again) === 'RATE_LIMITED', `${bot.name}: a second rally right after the first should be RATE_LIMITED, got ${again.type === 'error' ? again.error : again.type}`);
+      check(again.type === 'error' && typeof again.retryAt === 'number' && again.retryAt > Date.now() + CFG.cooldowns.rallyMs - 5000, `${bot.name}: RATE_LIMITED should carry retryAt about ${CFG.cooldowns.rallyMs / 1000} s ahead, got ${again.type === 'error' ? again.retryAt : again.type}`);
+    }
   }
 }
 
@@ -381,7 +411,7 @@ async function main() {
   }
   scenarios.push(drainScenario(bots[0]));
   // bot 0 acts normally for a while before draining
-  scenarios.push(randomCampaign(bots[0], timeline.phaseCloses[0] - 2500, homeOf()));
+  scenarios.push(randomCampaign(bots[0], timeline.phaseCloses[0] - 2500, homeOf(), false));
   if (N >= 2) { bots[1].reserve = CFG.analyst.seatReport.end + CFG.analyst.globalReport.end; scenarios.push(analystScenario(bots[1])); }
   if (N >= 3) scenarios.push(reconnectScenario(bots[2]));
   await Promise.all(scenarios);

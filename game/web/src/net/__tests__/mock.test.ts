@@ -150,3 +150,48 @@ describe('mock transport coalition rules', () => {
     expect(got.find(m => m.type === 'chat')).toBeTruthy();
   });
 });
+
+// ---- campaign: rally cooldown (same rule as the real server) and the Gaussian reputation
+describe('mock transport rally cooldown', () => {
+  async function inCampaign() {
+    const x = await inGame();
+    const g = x.g as unknown as { status: string; timeline: unknown; seatPhase: Map<number, number>; seatIds: number[]; players: Map<string, { budget: number }>; me: string; cfg: { cooldowns: { rallyMs: number } }; nextBotRally: number };
+    const now = Date.now() + 2000;
+    g.status = 'campaign';
+    g.timeline = { campaignStart: now - 1000, phaseCloses: [now + 1e7, now + 2e7], campaignEnd: now + 2e7, countingEnd: now + 3e7, postCountingEnd: now + 4e7 };
+    g.seatIds = [1, 2, 3];
+    for (const s of g.seatIds) g.seatPhase.set(s, 0);
+    g.players.get(g.me)!.budget = 50_000;
+    g.nextBotRally = Infinity; // keep the bots quiet
+    x.got.length = 0;
+    return { ...x, g };
+  }
+  const errs = (got: Array<Record<string, unknown>>) => got.filter(m => m.type === 'error').map(m => m.error);
+
+  it('refuses a second rally inside the cooldown with RATE_LIMITED (and does not charge it); roadshows are not limited', async () => {
+    const { g, got } = await inCampaign();
+    const before = g.players.get(g.me)!.budget;
+    t.send({ action: 'campaign', type: 'rally', seat: 1, clientRef: 'a' } as never);
+    t.send({ action: 'campaign', type: 'rally', seat: 2, clientRef: 'b' } as never);
+    t.send({ action: 'campaign', type: 'roadshow', seat: 2, clientRef: 'c' } as never);
+    await settle();
+    expect(errs(got)).toEqual(['RATE_LIMITED']);
+    expect(got.filter(m => m.type === 'actionAck')).toHaveLength(2);
+    const cfgCosts = (g as unknown as { cfg: { costs: { rally: number; roadshow: number } } }).cfg.costs;
+    expect(g.players.get(g.me)!.budget).toBe(before - cfgCosts.rally - cfgCosts.roadshow);
+    const priv = got.filter(m => m.type === 'private').pop() as { private: { nextRallyAt?: number; myActions: { type: string; ts: number }[] } };
+    const lastRally = priv.private.myActions.filter(a => a.type === 'rally').pop()!;
+    expect(priv.private.nextRallyAt).toBe(lastRally.ts + g.cfg.cooldowns.rallyMs);
+  });
+
+  it('allows a rally again once the cooldown has passed', async () => {
+    const { g, got } = await inCampaign();
+    t.send({ action: 'campaign', type: 'rally', seat: 1, clientRef: 'a' } as never);
+    await settle();
+    const acts = (g as unknown as { actions: { ts: number }[] }).actions;
+    acts[0].ts -= g.cfg.cooldowns.rallyMs + 1;
+    t.send({ action: 'campaign', type: 'rally', seat: 2, clientRef: 'b' } as never);
+    await settle();
+    expect(errs(got)).toEqual([]);
+  });
+});

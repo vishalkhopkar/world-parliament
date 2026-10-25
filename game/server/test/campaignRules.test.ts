@@ -159,6 +159,9 @@ describe('budget invariants', () => {
     for (let i = 0; i < 3; i++) {
       const id = c.p[i].playerId;
       const mine = actions.filter((a) => a.playerId === id);
+      // 15 simultaneous rallies per player: the cooldown lets exactly one through, the rest are RATE_LIMITED
+      expect(mine.filter((a) => a.type === 'rally')).toHaveLength(1);
+      expect(c.notifier.to(id, 'error').filter((e) => (e as { error: string }).error === 'RATE_LIMITED')).toHaveLength(14);
       const spentActions = mine.reduce((s, a) => s + c.cfg.costs[a.type], 0);
       const reports = await c.repo.listReports(c.gameId, id);
       const spentReports = reports.reduce((s, r) => s + r.report.price, 0);
@@ -171,8 +174,16 @@ describe('budget invariants', () => {
 
   it('every acknowledged action is stored exactly once, every failed one is not (ack count = action count per player)', async () => {
     const c = await new Ctx().started(2, 1);
-    await Promise.all(Array.from({ length: 200 }, (_, k) => c.send(k % 2, { action: 'campaign', type: 'rally', seat: 1 + (k % 8) })));
+    // a budget that runs out part-way, rallies (cooldown) mixed with roadshows: some acks, some INSUFFICIENT_FUNDS / RATE_LIMITED
+    for (let i = 0; i < 2; i++) await c.repo.updatePlayer(c.gameId, c.p[i].playerId, { budget: c.cfg.costs.rally + 40 * c.cfg.costs.roadshow });
+    await Promise.all(Array.from({ length: 200 }, (_, k) => c.send(k % 2, { action: 'campaign', type: k % 10 < 2 ? 'rally' : 'roadshow', seat: 1 + (k % 8) })));
     const actions = await c.repo.listActions(c.gameId);
+    for (let i = 0; i < 2; i++) {
+      const errs = c.notifier.to(c.p[i].playerId, 'error').map((e) => (e as { error: string }).error);
+      expect(errs).toContain('INSUFFICIENT_FUNDS');
+      expect(errs).toContain('RATE_LIMITED');
+      expect(await c.budget(i)).toBeGreaterThanOrEqual(0);
+    }
     for (let i = 0; i < 2; i++) {
       expect(c.notifier.to(c.p[i].playerId, 'actionAck')).toHaveLength(actions.filter((a) => a.playerId === c.p[i].playerId).length);
     }
@@ -181,7 +192,11 @@ describe('budget invariants', () => {
 
   it('acks carry the post-action budget, which strictly decreases per player', async () => {
     const c = await new Ctx().started(2, 1);
-    for (let k = 0; k < 6; k++) await c.send(0, { action: 'campaign', type: k % 2 ? 'roadshow' : 'rally', seat: 1 });
+    const types = ['rally', 'roadshow', 'roadshow', 'roadshow', 'rally', 'roadshow'] as const;
+    for (let k = 0; k < types.length; k++) {
+      if (k === 4) c.clock.advance(c.cfg.cooldowns.rallyMs); // the second rally needs the cooldown to have passed
+      await c.send(0, { action: 'campaign', type: types[k], seat: 1 });
+    }
     const budgets = (c.notifier.to(c.p[0].playerId, 'actionAck') as Extract<ServerMessage, { type: 'actionAck' }>[]).map((a) => a.budget);
     expect(budgets).toHaveLength(6);
     for (let k = 1; k < budgets.length; k++) expect(budgets[k]).toBeLessThan(budgets[k - 1]);

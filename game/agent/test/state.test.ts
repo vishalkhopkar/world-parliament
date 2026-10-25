@@ -119,6 +119,16 @@ describe('applyMessage (state reducer)', () => {
     expect(st.priv?.myActions).toHaveLength(1);
   });
 
+  it('actionAck carries the server nextRallyAt into priv (kept when an ack has none)', () => {
+    const st = newState();
+    st.me = 'me';
+    applyMessage(st, hello(), 0);
+    applyMessage(st, { type: 'actionAck', ok: true, budget: 400, nextRallyAt: 12345 }, 100);
+    expect(st.priv?.nextRallyAt).toBe(12345);
+    applyMessage(st, { type: 'actionAck', ok: true, budget: 300 }, 100);
+    expect(st.priv?.nextRallyAt).toBe(12345);
+  });
+
   it('applies news, phaseClosed, status, players, report, seatUpdate, chat (deduplicated), offer (replaced by id), government and result', () => {
     const st = newState();
     st.me = 'me';

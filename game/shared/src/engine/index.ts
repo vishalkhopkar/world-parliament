@@ -4,7 +4,7 @@
 
 export type { Rng, Kernels, Effects, Committed, EffectOptions } from './types';
 export { createRng, gaussian } from './rng';
-export { buildKernels, timeMultiplier, computeEffects, reputationView, seatShares, haversineKm } from './effects';
+export { buildKernels, decay, rallyAvailableAt, timeMultiplier, computeEffects, reputationView, seatShares, haversineKm } from './effects';
 export { buildTimeline, countingMsFor, phaseOfSeat, postCountingMsFor } from './schedule';
 export { pollSeats, expectedSeatShares, removePlayerFromResults, tallySeats } from './votes';
 export { dealCommitted, committedMatrix, committedView, committedTotals } from './committed';

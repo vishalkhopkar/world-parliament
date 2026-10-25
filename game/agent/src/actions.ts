@@ -11,7 +11,7 @@ import type { AgentSession } from './session';
 import { EVENT_TYPES, admissionOf } from './state';
 import type { EventType } from './state';
 import {
-  chatView, committedLabel, currentBudget, eventView, governmentView, offerView, playerView, reportView, round1, stageInfo, stateView, who, winsByName,
+  chatView, committedLabel, currentBudget, eventView, rallyCooldownView, rallyReadyAt, governmentView, offerView, playerView, reportView, round1, stageInfo, stateView, who, winsByName,
 } from './views';
 
 export interface ActionDef<S extends z.ZodObject<z.ZodRawShape> = z.ZodObject<z.ZodRawShape>> {
@@ -86,6 +86,7 @@ function budgetView(s: AgentSession) {
     budget_wr: b,
     rallies_affordable: Math.floor(b / cfg.costs.rally),
     roadshows_affordable: Math.floor(b / cfg.costs.roadshow),
+    ...rallyCooldownView(s),
   };
 }
 
@@ -387,7 +388,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'campaign',
-    description: 'Hold ONE campaign action in a seat: type "rally" (public, wide spill-over + small effect everywhere) or "roadshow" (hidden, strong local effect). Costs money immediately. The seat can be an id or a name. The server decides (seat must not be polled yet, enough budget). Returns the remaining budget. To place many actions use campaign_batch.',
+    description: 'Hold ONE campaign action in a seat: type "rally" (public, expensive, wide local spill-over fading over a few hundred km + a small effect everywhere; at most one per cooldown, otherwise RATE_LIMITED) or "roadshow" (hidden, cheap, strong effect in that seat only, no cooldown). Costs money immediately. The seat can be an id or a name. The server decides (seat must not be polled yet, enough budget, rally cooldown over). Returns the remaining budget. To place many actions use campaign_batch.',
     schema: z.object({ type: actionType, seat: seatRef }),
     async run(s, i) {
       const r = await runCampaign(s, [{ type: i.type, seat: i.seat }]);
@@ -399,7 +400,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'campaign_batch',
-    description: 'Place up to 50 campaign actions in ONE call, as fast as the server accepts them (pipelined). actions = [{type:"rally"|"roadshow", seat:<id or name>}, ...]. Each action is pre-checked locally (budget in order, seat not polled, campaign window) and then sent; the response lists per-action ok/error and your new budget. Failed actions cost nothing. Prefer this over many single calls.',
+    description: 'Place up to 50 campaign actions in ONE call, as fast as the server accepts them (pipelined). actions = [{type:"rally"|"roadshow", seat:<id or name>}, ...]. Each action is pre-checked locally (budget in order, seat not polled, campaign window, rally cooldown) and then sent. Only ONE rally per cooldown period can go through in a batch: if you are not ready, or after the first rally of the batch, later rallies are marked failed locally with RATE_LIMITED (nothing is charged, and they are not sent) while the roadshows are still sent. Put at most one rally in a batch; the response lists per-action ok/error and your new budget. Failed actions cost nothing. Prefer this over many single calls.',
     schema: z.object({
       actions: z.array(z.object({ type: actionType, seat: seatRef })).min(1).max(50).describe('Up to 50 actions, executed in order'),
     }),
@@ -650,6 +651,8 @@ async function runCampaign(s: AgentSession, list: { type: ActionType; seat: numb
   const dir = await s.seatsOrNull();
   const phaseOf = dir ? s.phaseMap(dir) : null;
   let budget = currentBudget(s) ?? 0;
+  let rallyAt = rallyReadyAt(s); // server-clock ms when the next rally may go through (updated as rallies are queued)
+  const serverNow = s.client.serverNow();
   const results: CampaignRow[] = [];
   const toSend: { idx: number; type: ActionType; seat: number }[] = [];
   list.forEach((a, index) => {
@@ -667,6 +670,14 @@ async function runCampaign(s: AgentSession, list: { type: ActionType; seat: numb
       if (e) throw e;
       const cost = cfg.costs[a.type];
       if (budget < cost) throw new AgentError('INSUFFICIENT_FUNDS', `Not enough budget for a ${a.type} (${WR(cfg, cost)}); ${WR(cfg, budget)} left after the earlier actions in this call.`);
+      if (a.type === 'rally') {
+        if (serverNow < rallyAt) {
+          const wait = Math.ceil((rallyAt - serverNow) / 1000);
+          throw new AgentError('RATE_LIMITED', `Rally cooldown: only one rally per ${Math.round(cfg.cooldowns.rallyMs / 1000)} s. Not sent, nothing charged. Next rally possible in ${wait} s (or in a later call); roadshows are not limited.`,
+            `Wait ${wait} s, then rally again. You can still place roadshows now.`);
+        }
+        rallyAt = serverNow + cfg.cooldowns.rallyMs;
+      }
       budget -= cost;
       toSend.push({ idx: index, type: a.type, seat: id });
       row.ok = true; // provisional

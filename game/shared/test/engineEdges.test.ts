@@ -155,14 +155,24 @@ describe('haversine / decay / kernels', () => {
     expect(haversineKm(0, 90, 0, -90)).toBeCloseTo(Math.PI * 6371, 3);
     expect(haversineKm(-179.9, 0, 179.9, 0)).toBeLessThan(25); // across the date line
   });
-  it('decay: 1 at 0 km, 0.5 at half distance, exactly 0 beyond maxKm, non-zero at maxKm', () => {
-    const p = { halfDistanceKm: 100, maxKm: 500, capRatio: 0.5 };
-    expect(decay(0, p)).toBe(1);
-    expect(decay(100, p)).toBeCloseTo(0.5, 12);
-    expect(decay(200, p)).toBeCloseTo(0.25, 12);
-    expect(decay(500, p)).toBeGreaterThan(0);
-    expect(decay(500.0001, p)).toBe(0);
-    expect(decay(1e6, p)).toBe(0);
+  it('decay (Gaussian): 1 at 0 km, exp(-spread x^2) with x = km / unit, exactly 0 beyond maxKm, non-zero at maxKm', () => {
+    const p = { spread: 0.5, maxKm: 500 };
+    expect(decay(0, p, 100)).toBe(1);
+    expect(decay(100, p, 100)).toBeCloseTo(Math.exp(-0.5), 12);
+    expect(decay(200, p, 100)).toBeCloseTo(Math.exp(-2), 12);
+    expect(decay(500, p, 100)).toBeCloseTo(Math.exp(-12.5), 12);
+    expect(decay(500, p, 100)).toBeGreaterThan(0);
+    expect(decay(500.0001, p, 100)).toBe(0);
+    expect(decay(1e6, p, 100)).toBe(0);
+  });
+  it('decay: the distance unit rescales x, a larger spread is narrower, and the curve is bell-shaped (flat top, falling)', () => {
+    expect(decay(50, { spread: 0.5, maxKm: 1e6 }, 50)).toBeCloseTo(Math.exp(-0.5), 12); // x = 1
+    expect(decay(100, { spread: 2.8, maxKm: 1e6 }, 100)).toBeLessThan(decay(100, { spread: 0.5, maxKm: 1e6 }, 100));
+    const p = { spread: 0.5, maxKm: 1e6 };
+    // Gaussian: slope is ~0 at the top (unlike an exponential's sharp tip) and the value never rises with distance
+    expect(1 - decay(1, p, 100)).toBeLessThan(1e-4);
+    let prev = 1;
+    for (let d = 0; d <= 2000; d += 10) { const v = decay(d, p, 100); expect(v).toBeLessThanOrEqual(prev + 1e-15); prev = v; }
   });
   it('kernel matrices are symmetric, non-negative, finite, with local on the diagonal and rally >= roadshow-free spill ordering by distance', () => {
     const n = kernels.n;
@@ -175,8 +185,9 @@ describe('haversine / decay / kernels', () => {
         expect(kernels.rally[i * n + j]).toBeGreaterThanOrEqual(0);
         expect(Number.isFinite(kernels.distanceKm[i * n + j])).toBe(true);
         if (i !== j) {
-          expect(kernels.rally[i * n + j]).toBeLessThanOrEqual(cfg.effects.rally.decay.capRatio * cfg.effects.rally.local + 1e-6);
-          expect(kernels.roadshow[i * n + j]).toBeLessThanOrEqual(cfg.effects.roadshow.decay.capRatio * cfg.effects.roadshow.local + 1e-6);
+          // a Gaussian never exceeds its peak, so no cap is needed
+          expect(kernels.rally[i * n + j]).toBeLessThanOrEqual(cfg.effects.rally.local);
+          expect(kernels.roadshow[i * n + j]).toBeLessThanOrEqual(cfg.effects.roadshow.local);
         }
       }
     }
@@ -600,12 +611,24 @@ describe('configuration invariants (designer rules)', () => {
     expect(c.budget / c.costs.rally).toBeGreaterThanOrEqual(5);
     expect(c.budget / c.costs.roadshow).toBeGreaterThan(c.budget / c.costs.rally);
   });
-  it('docx effect rules: roadshow local effect (s) is much larger than the rally global effect (c) and than the rally local effect (y); roadshows decay faster', () => {
-    expect(c.effects.roadshow.local).toBeGreaterThan(c.effects.rally.local);
-    expect(c.effects.roadshow.local).toBeGreaterThanOrEqual(10 * c.effects.rally.global);
-    expect(c.effects.roadshow.decay.halfDistanceKm).toBeLessThan(c.effects.rally.decay.halfDistanceKm);
-    expect(c.effects.roadshow.decay.maxKm).toBeLessThan(c.effects.rally.decay.maxKm);
-    expect(c.effects.rally.global).toBeGreaterThan(0);
+  it('Gaussian effect sanity: positive spreads, local peaks and global floor, and a cutoff far enough out to be negligible', () => {
+    const e = c.effects;
+    expect(e.distanceUnitKm).toBeGreaterThan(0);
+    expect(e.rally.global).toBeGreaterThan(0);
+    for (const k of [e.rally, e.roadshow]) {
+      expect(k.local).toBeGreaterThan(0);
+      expect(k.decay.spread).toBeGreaterThan(0);
+      expect(k.decay.maxKm).toBeGreaterThanOrEqual(0);
+      // truncating the bell at maxKm drops a tail below 1% of the local effect, so the cutoff is not visible as a step
+      expect(decay(k.decay.maxKm, k.decay, e.distanceUnitKm)).toBeLessThan(0.01);
+    }
+    // a roadshow is a sharp, one-seat punch: it spreads over a narrower area than a rally
+    expect(e.roadshow.decay.spread).toBeGreaterThan(e.rally.decay.spread);
+    expect(e.roadshow.decay.maxKm).toBeLessThan(e.rally.decay.maxKm);
+  });
+  it('the rally cooldown is a non-negative whole number of milliseconds', () => {
+    expect(Number.isInteger(c.cooldowns.rallyMs)).toBe(true);
+    expect(c.cooldowns.rallyMs).toBeGreaterThanOrEqual(0);
   });
   it('prices rise during the campaign, global reports are dearer than seat reports, the time multiplier only grows', () => {
     expect(c.analyst.seatReport.end).toBeGreaterThanOrEqual(c.analyst.seatReport.start);

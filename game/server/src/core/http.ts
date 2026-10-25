@@ -60,7 +60,9 @@ export async function handleRest(svc: GameService, req: RestRequest): Promise<Re
     }
     throw new GameError('NOT_FOUND', 'Not found');
   } catch (e) {
-    if (e instanceof GameError) return { status: HTTP_STATUS[e.code], body: { error: e.code, message: e.message } };
+    if (e instanceof GameError) {
+      return { status: HTTP_STATUS[e.code], body: { error: e.code, message: e.message, ...(e.retryAt !== undefined ? { retryAt: e.retryAt } : {}) } };
+    }
     console.error('REST handler failed', e);
     return { status: 500, body: { error: 'INTERNAL', message: 'Internal error' } };
   }

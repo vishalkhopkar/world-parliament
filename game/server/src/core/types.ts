@@ -40,6 +40,11 @@ export interface PlayerRecord {
   committed?: CommittedSet;
   party?: PartyIdentity;
   budget: number;
+  /**
+   * Server time (ms) of this player's last ACCEPTED rally; missing = never rallied (also for records stored before the
+   * rally cooldown existed). Written only by Repo.addAction in the same transaction as the budget deduction.
+   */
+  lastRallyAt?: number;
   joinedAt: number;
   connectionId?: string;
   disconnectedAt?: number;
@@ -68,7 +73,17 @@ export interface CountPlan {
 export interface StoredReport { playerId: PlayerId; ts: number; report: AnalystReport }
 export interface StoredChat extends ChatMessage {}
 
-export type SpendResult = 'ok' | 'insufficient' | 'conflict';
+/**
+ * 'insufficient' = budget too low or player not active; 'conflict' = the game moved on (status / closedPhases), retry;
+ * 'cooldown' = a rally refused because the player's stored lastRallyAt is less than rallyGapMs before it (final, no retry).
+ */
+export type SpendResult = 'ok' | 'insufficient' | 'conflict' | 'cooldown';
+
+/**
+ * Rally guard for Repo.addAction (pass it for rallies only): atomically with the budget deduction, require the stored
+ * lastRallyAt to be missing or <= action.ts - rallyGapMs, and set lastRallyAt = action.ts. rallyGapMs <= 0 = no check.
+ */
+export interface AddActionOptions { rallyGapMs?: number }
 
 export interface Repo {
   // games
@@ -91,8 +106,8 @@ export interface Repo {
   getConnection(connectionId: string): Promise<ConnectionRecord | null>;
   deleteConnection(connectionId: string): Promise<void>;
 
-  // campaign (atomic: deduct budget with budget >= cost AND player active, insert, check game campaign & closedPhases)
-  addAction(gameId: string, playerId: PlayerId, cost: number, action: Action, expectClosedPhases: number): Promise<SpendResult>;
+  // campaign (atomic: deduct budget with budget >= cost AND player active [AND rally gap], insert, check game campaign & closedPhases)
+  addAction(gameId: string, playerId: PlayerId, cost: number, action: Action, expectClosedPhases: number, opts?: AddActionOptions): Promise<SpendResult>;
   listActions(gameId: string): Promise<Action[]>;
   addReport(gameId: string, playerId: PlayerId, cost: number, rep: StoredReport, expectClosedPhases: number): Promise<SpendResult>;
   listReports(gameId: string, playerId: PlayerId): Promise<StoredReport[]>;
@@ -151,7 +166,8 @@ export interface GameServiceOptions {
 }
 
 export class GameError extends Error {
-  constructor(public code: ErrorCode, message: string) { super(message); this.name = 'GameError'; }
+  /** `retryAt` (server epoch ms): set on RATE_LIMITED, the earliest time the same request can succeed. */
+  constructor(public code: ErrorCode, message: string, public retryAt?: number) { super(message); this.name = 'GameError'; }
 }
 export const HTTP_STATUS: Record<ErrorCode, number> = {
   BAD_REQUEST: 400, UNAUTHORIZED: 401, FORBIDDEN: 403, NOT_FOUND: 404,

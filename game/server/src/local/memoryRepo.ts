@@ -1,6 +1,6 @@
 import type { Action, CoalitionOffer, FinalResult, Government, PlayerId, SeatResult } from '@hp/shared';
 import type {
-  ConnectionRecord, CountPlan, GameRecord, PlayerRecord, Repo, SpendResult, StoredChat, StoredReport,
+  AddActionOptions, ConnectionRecord, CountPlan, GameRecord, PlayerRecord, Repo, SpendResult, StoredChat, StoredReport,
 } from '../core/types';
 
 const clone = <T>(v: T): T => (v === undefined ? v : structuredClone(v));
@@ -76,16 +76,21 @@ export class MemoryRepo implements Repo {
   async getConnection(id: string) { const c = this.conns.get(id); return c ? clone(c) : null; }
   async deleteConnection(id: string) { this.conns.delete(id); }
 
-  private spend(gameId: string, playerId: PlayerId, cost: number, expectClosed: number): SpendResult {
+  /** `rally` = the rally guard (lastRallyAt check + write). Result priority matches DynamoRepo: inactive, cooldown, funds, conflict. */
+  private spend(gameId: string, playerId: PlayerId, cost: number, expectClosed: number, rally?: { ts: number; gapMs: number }): SpendResult {
     const g = this.d(gameId);
     const p = g.players.get(playerId);
-    if (!p || p.status !== 'active' || p.budget < cost) return 'insufficient';
+    if (!p || p.status !== 'active') return 'insufficient';
+    if (rally && rally.gapMs > 0 && p.lastRallyAt !== undefined && p.lastRallyAt > rally.ts - rally.gapMs) return 'cooldown';
+    if (p.budget < cost) return 'insufficient';
     if (g.game.status !== 'campaign' || g.game.closedPhases !== expectClosed) return 'conflict';
     p.budget -= cost;
+    if (rally) p.lastRallyAt = rally.ts;
     return 'ok';
   }
-  async addAction(gameId: string, playerId: PlayerId, cost: number, action: Action, expectClosed: number) {
-    const r = this.spend(gameId, playerId, cost, expectClosed);
+  async addAction(gameId: string, playerId: PlayerId, cost: number, action: Action, expectClosed: number, opts?: AddActionOptions) {
+    const rally = opts?.rallyGapMs !== undefined ? { ts: action.ts, gapMs: opts.rallyGapMs } : undefined;
+    const r = this.spend(gameId, playerId, cost, expectClosed, rally);
     if (r === 'ok') this.d(gameId).actions.push(clone(action));
     return r;
   }
