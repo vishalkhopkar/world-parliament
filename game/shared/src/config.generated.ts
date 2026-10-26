@@ -29,10 +29,10 @@ export const GAME_CONFIG_VALUES = {
       }
     },
     "roadshow": {
-      "local": 6,
+      "local": 6.25,
       "decay": {
         "spread": 2.8,
-        "maxKm": 160
+        "maxKm": 0
       }
     },
     "firstMover": {

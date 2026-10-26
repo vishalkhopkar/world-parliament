@@ -615,15 +615,16 @@ describe('configuration invariants (designer rules)', () => {
     const e = c.effects;
     expect(e.distanceUnitKm).toBeGreaterThan(0);
     expect(e.rally.global).toBeGreaterThan(0);
-    for (const k of [e.rally, e.roadshow]) {
+    expect(e.roadshow.local).toBeGreaterThan(0);
+    expect(e.roadshow.decay.maxKm).toBe(0); // a roadshow is purely local: no spill-over into other seats
+    for (const k of [e.rally]) {
       expect(k.local).toBeGreaterThan(0);
       expect(k.decay.spread).toBeGreaterThan(0);
       expect(k.decay.maxKm).toBeGreaterThanOrEqual(0);
       // truncating the bell at maxKm drops a tail below 1% of the local effect, so the cutoff is not visible as a step
       expect(decay(k.decay.maxKm, k.decay, e.distanceUnitKm)).toBeLessThan(0.01);
     }
-    // a roadshow is a sharp, one-seat punch: it spreads over a narrower area than a rally
-    expect(e.roadshow.decay.spread).toBeGreaterThan(e.rally.decay.spread);
+    // a roadshow is a one-seat punch: it reaches less far than a rally
     expect(e.roadshow.decay.maxKm).toBeLessThan(e.rally.decay.maxKm);
   });
   it('the rally cooldown is a non-negative whole number of milliseconds', () => {

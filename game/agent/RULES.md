@@ -54,8 +54,7 @@ Every action adds **effect** for you in seats. Effects are additive: ten roadsho
   - **every rally is public news**: all players see "<party> held a rally in <seat>" with the time.
 - **Roadshow** (cheap, hidden):
   - strong local effect **s = {{ROADSHOW_LOCAL}}** in the seat, for {{COST_RATIO}} of a rally's price, so a roadshow's peak is much better value than a rally's;
-  - its spill-over is a much narrower Gaussian, s x exp(-{{ROADSHOW_SPREAD}} x d^2): standard deviation only {{ROADSHOW_SIGMA_KM}} km, 0 beyond {{ROADSHOW_REACH_KM}} km, so in practice a roadshow helps
-    its own seat (and a seat very close by), nothing more;
+  - it is **purely local**: it adds effect in its own seat only and nothing at all in any other seat, however close;
   - **no** global effect, **no** cooldown, and **nobody else can see it** (only you see your own roadshows).
 - **First mover's advantage**: the **very first party to campaign in a seat** (with a rally or a roadshow, whichever comes first on the server clock) gets a one-off
   bonus effect in **that seat**: **+{{FIRST_MOVER_RALLY}}** if its first action there was a rally, **+{{FIRST_MOVER_ROADSHOW}}** if it was a roadshow, on top of the normal effect. Only one party gets it per seat, it is
@@ -149,7 +148,7 @@ split the reputation voters into small shares; neglected seats can be won cheapl
    A rally is expensive ({{RALLY_COST_TEXT}}, the budget buys only {{MAX_RALLIES}}) and you can hold one only every {{RALLY_COOLDOWN_S}} s, so use rallies for what only they do: the global effect everywhere and a
    wide local bell around a region where you have no roadshows yet. Put most of the budget into roadshows ({{ROADSHOW_COST_TEXT}} each). Check `get_state` for the exact mix you can afford.
 3. **Place each rally with care.** Its local part reaches roughly {{RALLY_SPREAD_KM}}-{{DISTANCE_UNIT_KM}} km, so a rally in the middle of a dense group of seats lifts all of them; a rally in a sparse area lifts one.
-   A roadshow does NOT spill over (only about {{ROADSHOW_SIGMA_KM}} km), so roadshow every seat you want, one by one. Space your rallies {{RALLY_COOLDOWN_S}} s apart and send them one per `campaign_batch`/`campaign` call.
+   A roadshow does NOT spill over (it is purely local), so roadshow every seat you want, one by one. Space your rallies {{RALLY_COOLDOWN_S}} s apart and send them one per `campaign_batch`/`campaign` call.
 4. **Roadshows win quiet seats.** Use `list_seats` / `get_seat` and the public rally news (`get_news`): seats and regions where nobody has held rallies are cheap to win.
    One roadshow ({{ROADSHOW_LOCAL}}) beats a rival's pure global effect there. Avoid seats where several rivals already rallied (their spill-over splits the vote).
 5. **Roadshows are hidden, rallies are public.** Rivals see where you rallied; they cannot see your roadshows. Surprise is a weapon.

@@ -51,14 +51,14 @@ describe('game.properties is the source of the game constants', () => {
     expect(WORLD_CONFIG.effects.firstMover.roadshow).toBeGreaterThan(0);
   });
 
-  it('the agreed Gaussian spread: rally 0.25 + 10 e^(-0.5 x^2) to 400 km, roadshow 6 e^(-2.8 x^2) to 160 km, x in units of 100 km', () => {
+  it('the agreed Gaussian spread: rally 0.25 + 10 e^(-0.5 x^2) to 400 km, roadshow purely local (6.25, no spill-over), x in units of 100 km', () => {
     const e = WORLD_CONFIG.effects;
     expect(e.distanceUnitKm).toBe(100);
     expect(e.rally.global).toBe(0.25);
     expect(e.rally.local).toBe(10);
     expect(e.rally.decay).toEqual({ spread: 0.5, maxKm: 400 });
-    expect(e.roadshow.local).toBe(6);
-    expect(e.roadshow.decay).toEqual({ spread: 2.8, maxKm: 160 });
+    expect(e.roadshow.local).toBe(6.25); // x display scale 4 = 25 shown
+    expect(e.roadshow.decay.maxKm).toBe(0); // no spill-over into other seats
   });
 
   it('rallies are rate limited to one per 15 s per player (roadshows are not) and the own reputation is shown x4', () => {
