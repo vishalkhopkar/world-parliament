@@ -288,7 +288,7 @@ describe('rules rendering', () => {
   it('the template has no unrendered placeholders and numbers come from the config', () => {
     const text = renderRules(cfg);
     expect(text).not.toMatch(/\{\{/);
-    expect(text).toContain(`${WORLD_CONFIG.currency.symbol}50,000`);
+    expect(text).toContain(`${WORLD_CONFIG.currency.symbol}${WORLD_CONFIG.budget.toLocaleString('en-US')}`);
     expect(text).toContain(`${WORLD_CONFIG.currency.symbol}8,000`);
     expect(text).toContain(`${WORLD_CONFIG.currency.symbol}400`);
     expect(text).toContain('251 seats');
@@ -326,7 +326,7 @@ describe('rules rendering', () => {
     expect(text).toContain(`${WORLD_CONFIG.currency.symbol}3,000`);
     expect(text).toContain('272 seats');
     expect(text).toContain('543 parliament seats');
-    expect(text).not.toContain(`${WORLD_CONFIG.currency.symbol}50,000`);
+    expect(text).not.toContain(`${WORLD_CONFIG.currency.symbol}${WORLD_CONFIG.budget.toLocaleString('en-US')}`);
     const v = rulesValues(changed);
     expect(v.MAX_RALLIES).toBe('10');
     expect(v.MAX_ROADSHOWS).toBe('60');

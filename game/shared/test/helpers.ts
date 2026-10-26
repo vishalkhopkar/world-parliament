@@ -18,6 +18,7 @@ export const TEST_CFG: MapConfig = {
   cooldowns: { rallyMs: 30_000 },
   display: { reputationScale: 10 }, // a round scale for the tests (the shipped file uses 4)
   timeMultiplier: { start: 1.0, end: 1.2 },
+  durations: { ...WORLD_CONFIG.durations, campaignMs: 600_000 }, // pinned: engine tests must not move when the shipped campaign length is tuned
 };
 
 /** No committed voters anywhere. */

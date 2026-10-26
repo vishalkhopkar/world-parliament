@@ -12,7 +12,8 @@ import { TICK_MS, runGame } from '../src/game';
 import { Agg, fieldTable, pad, padR, pct } from '../src/metrics';
 import { buildWorld, loadMap } from '../src/world';
 
-const w = buildWorld(loadMap(), WORLD_CONFIG);
+// campaign length pinned: bot-plan tests must not move when the shipped campaign length is tuned
+const w = buildWorld(loadMap(), { ...WORLD_CONFIG, durations: { ...WORLD_CONFIG.durations, campaignMs: 600_000 } });
 const simDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tsx = path.join(simDir, '..', 'node_modules', 'tsx', 'dist', 'cli.mjs');
 
@@ -264,7 +265,7 @@ describe('CLI', () => {
       execFile(process.execPath, [tsx, 'src/run.ts', '--mode', 'checks', '--quiet'], { cwd: simDir, timeout: 60_000 }, (e, stdout) => resolve({ code: e ? 1 : 0, stdout }));
     });
     expect(out.code).toBe(0);
-    expect(out.stdout).toContain('rally cooldown 30 s');
+    expect(out.stdout).toContain(`rally cooldown ${WORLD_CONFIG.cooldowns.rallyMs / 1000} s`);
     expect(out.stdout).toContain('Gaussian');
   }, 60_000);
   it('an unknown flag is an error', async () => {

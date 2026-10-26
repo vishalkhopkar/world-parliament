@@ -62,7 +62,7 @@ describe('CLI + daemon', () => {
     const rules = await cli(['get_rules', '--name', NAME]);
     expect(rules.code).toBe(0);
     expect(rules.stdout).toContain('HUNG PARLIAMENT');
-    expect(rules.stdout).toContain(`${WORLD_CONFIG.currency.symbol}50,000`);
+    expect(rules.stdout).toContain(`${WORLD_CONFIG.currency.symbol}${WORLD_CONFIG.budget.toLocaleString('en-US')}`);
 
     const human = await new Human(base).create('Asha', 1);
     const t1 = Date.now();

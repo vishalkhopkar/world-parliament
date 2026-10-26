@@ -42,8 +42,8 @@ describe('game.properties is the source of the game constants', () => {
     expect(WORLD_CONFIG.currency).toEqual({ name: props.get('currency.name'), symbol: props.get('currency.symbol') });
   });
 
-  it('the agreed values (50,000 budget, round costs, first-mover bonus on)', () => {
-    expect(WORLD_CONFIG.budget).toBe(50_000);
+  it('the agreed values (60,000 budget, round costs, first-mover bonus on)', () => {
+    expect(WORLD_CONFIG.budget).toBe(60_000);
     expect(WORLD_CONFIG.costs).toEqual({ rally: 8_000, roadshow: 400 });
     expect(WORLD_CONFIG.analyst.seatReport).toEqual({ start: 800, end: 1_800 });
     expect(WORLD_CONFIG.analyst.globalReport).toEqual({ start: 2_800, end: 6_200 });
@@ -61,8 +61,8 @@ describe('game.properties is the source of the game constants', () => {
     expect(e.roadshow.decay).toEqual({ spread: 2.8, maxKm: 160 });
   });
 
-  it('rallies are rate limited to one per 30 s per player (roadshows are not) and the own reputation is shown x4', () => {
-    expect(WORLD_CONFIG.cooldowns.rallyMs).toBe(30_000);
+  it('rallies are rate limited to one per 15 s per player (roadshows are not) and the own reputation is shown x4', () => {
+    expect(WORLD_CONFIG.cooldowns.rallyMs).toBe(15_000);
     expect(WORLD_CONFIG.display.reputationScale).toBe(4);
     expect(Object.keys(WORLD_CONFIG.cooldowns)).toEqual(['rallyMs']); // no roadshow cooldown
   });

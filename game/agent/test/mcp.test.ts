@@ -52,7 +52,7 @@ describe('MCP server over stdio', () => {
       const res = await client.listResources();
       expect(res.resources.map((r) => r.uri)).toContain('hung-parliament://rules');
       const rules = await client.readResource({ uri: 'hung-parliament://rules' });
-      expect((rules.contents[0] as any).text).toContain(`${WORLD_CONFIG.currency.symbol}50,000`);
+      expect((rules.contents[0] as any).text).toContain(`${WORLD_CONFIG.currency.symbol}${WORLD_CONFIG.budget.toLocaleString('en-US')}`);
 
       const prompts = await client.listPrompts();
       expect(prompts.prompts.map((p) => p.name)).toContain('play-hung-parliament');
