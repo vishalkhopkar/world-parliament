@@ -274,7 +274,7 @@ function modeChecks(w: World, args: Args, out: Record<string, unknown>) {
   const cs = c.costs.roadshow;
   log(`seat report ${c.analyst.seatReport.start.toLocaleString()} -> ${c.analyst.seatReport.end.toLocaleString()} = ${(c.analyst.seatReport.start / cs).toFixed(1)} -> ${(c.analyst.seatReport.end / cs).toFixed(1)} roadshows (end/start ${(c.analyst.seatReport.end / c.analyst.seatReport.start).toFixed(2)})`);
   log(`global report ${c.analyst.globalReport.start.toLocaleString()} -> ${c.analyst.globalReport.end.toLocaleString()} = ${(c.analyst.globalReport.start / cs).toFixed(1)} -> ${(c.analyst.globalReport.end / cs).toFixed(1)} roadshows (end/start ${(c.analyst.globalReport.end / c.analyst.globalReport.start).toFixed(2)})`);
-  log(`noise (share std / relative seats std) ${c.analyst.noise}; random voters up to ${c.voting.randomMaxPercent}% of the uncommitted; influence up to ${c.voting.influenceMaxPercent}% of committed; committed bands ${c.committed.bands.map((b) => `${b.percent}%x${b.seats}`).join(' ')} (seat cap ${c.committed.seatMaxPercent}%)`);
+  log(`noise (share std / relative seats std) ${c.analyst.noise}; random voters up to ${c.voting.randomMaxPercent}% x parties of the uncommitted; influence up to ${c.voting.influenceMaxPercent}% of committed; committed bands ${c.committed.bands.map((b) => `${b.percent}%x${b.seats}`).join(' ')} (seat cap ${c.committed.seatMaxPercent}%)`);
 
   // spill-over profile
   const kern = w.kernels;

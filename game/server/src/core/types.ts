@@ -156,6 +156,8 @@ export interface LoadedMap {
   map: GameMapPackage; cfg: MapConfig; kernels: Kernels;
   /** The map's optional candidates.csv rows (row n = seat n, one name per column). */
   candidates?: string[][];
+  /** Seat id -> name from the map's seats.json (reports only; absent = "Seat <id>"). */
+  seatNames?: Record<number, string>;
 }
 export type MapProvider = (mapId: string) => LoadedMap | undefined;
 

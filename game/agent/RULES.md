@@ -85,7 +85,7 @@ Every action adds **effect** for you in seats. Effects are additive: ten roadsho
 When a seat's phase closes, its votes are made up in four steps, and the party with the most votes wins (first past the post, even by a hair; an exact tie is broken at random):
 1. **Committed voters.** Each party has a fixed share of the seat's voters committed to it in some seats (section 6a). They vote for that party.
 2. **Influence.** Every party that has committed voters in the seat gets extra voters on top: a random 0 to {{INFLUENCE_PCT}}% of its committed voters.
-3. **Randomness.** A random 0 to {{RANDOM_PCT}}% of the *uncommitted* voters vote for random parties in random amounts.
+3. **Randomness.** A random 0 to {{RANDOM_PCT}}% **times the number of parties** of the *uncommitted* voters vote for random parties in random amounts.
 4. **Reputation.** All remaining voters are split between parties in proportion to their campaign effect in the seat (rallies and roadshows, with spill-over, the global rally effect, first-mover bonus and time bonus,
    section 3). Where nobody has any effect they are split at random.
    You see your OWN reputation per seat (never a rival's) as a whole number: your effect x {{REPUTATION_SCALE}}, rounded (`get_seat` -> `my_reputation`; 0 until you act there; it only grows). The browser shows the same number on the map and in the seat panel.

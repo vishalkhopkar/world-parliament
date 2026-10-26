@@ -54,11 +54,11 @@ export function expectedShareArray(
   if (!players.length || seatIndex < 0 || seatIndex >= kernels.n) return [];
   const { c, rep } = inputs(effects, committed, players, seatIndex);
   const equal = players.map(() => 1);
-  return compose(c, rep, c.map(() => cfg.voting.influenceMaxPercent / 200), cfg.voting.randomMaxPercent / 200, equal, equal);
+  return compose(c, rep, c.map(() => cfg.voting.influenceMaxPercent / 200), (cfg.voting.randomMaxPercent / 200) * players.length, equal, equal);
 }
 
 /**
- * Expected vote shares of a seat: the pollSeats model with every random draw at its mean (I = influenceMax/2, R = randomMax/2,
+ * Expected vote shares of a seat: the pollSeats model with every random draw at its mean (I = influenceMax/2, R = randomMax*parties/2,
  * equal random weights, equal split when nobody has reputation). Used by the analyst and the simulator.
  */
 export function expectedSeatShares(
@@ -76,7 +76,8 @@ export function expectedSeatShares(
  * effects / committed outside `players` are ignored. Per seat (fractions of the seat's voters):
  *  1 committed c_P (the band figure; scaled down if they ever sum above 1), S0 = 1 - sum c;
  *  2 influence: each committed party brings extra_P = c_P * I_P with I_P = rand * influenceMaxPercent/100;
- *  3 randomness: R = rand * randomMaxPercent/100 of S0 votes at random, split by random weights w_P;
+ *  3 randomness: R = rand * randomMaxPercent/100 * (number of parties) of S0 votes at random, split by random weights w_P
+ *    (the limit scales with the party count, so each party's average slice stays randomMaxPercent/2 of S0 whatever the number of parties);
  *  4 pool = S0 - extras - r (if that would be < 0 the extras are scaled down so it is 0);
  *  5 the pool is split by reputation (effects); with no reputation at all by fresh random weights;
  *  share_P = c_P + extra_P + random_P + pool_P. Winner = highest share, exact ties (1e-12) broken at random.
@@ -99,7 +100,7 @@ export function pollSeats(
     }
     const { c, rep } = inputs(effects, committed, players, i);
     const infl = c.map((x) => (x > 0 ? rng() * infMax : 0));
-    const R = rng() * rndMax;
+    const R = rng() * rndMax * players.length;
     const w = players.map(() => rng());
     let sr = 0;
     for (const x of rep) sr += x;

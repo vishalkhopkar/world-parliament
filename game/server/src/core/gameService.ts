@@ -907,10 +907,22 @@ export class GameService {
     const sink = this.d.reportSink;
     if (!sink) return;
     try {
-      const { map } = this.loadMap(mapId);
-      const csv = buildElectionCsv(
-        map.seats.map((s) => s.id), results, players.map((p) => ({ playerId: p.playerId, name: p.party?.name ?? p.playerId })),
-      );
+      const { map, cfg, kernels, seatNames = {} } = this.loadMap(mapId);
+      const game = await this.repo.getGame(gameId);
+      const seatIds = map.seats.map((s) => s.id);
+      const parties = players.map((p) => ({ playerId: p.playerId, name: p.party?.name ?? p.playerId }));
+      const perSeat = (vals: Float64Array | undefined, scale: number) =>
+        new Map(seatIds.map((id) => [id, (vals?.[kernels.index.get(id) ?? -1] ?? 0) * scale] as const));
+      const effects = game?.timeline
+        ? computeEffects(await this.repo.listActions(gameId), kernels, cfg, game.timeline, map, game.phases,
+          { exclude: new Set(players.filter((p) => p.status === 'eliminated').map((p) => p.playerId)) })
+        : new Map<string, Float64Array>();
+      const matrix = committedMatrix(players.filter((p) => p.committed).map((p) => [p.playerId, p.committed!] as const), kernels, cfg);
+      const csv = buildElectionCsv(seatIds, seatNames, parties, {
+        results,
+        reputation: new Map(players.map((p) => [p.playerId, perSeat(effects.get(p.playerId), cfg.display.reputationScale)] as const)),
+        committedPercent: new Map(players.map((p) => [p.playerId, perSeat(matrix.get(p.playerId), 100)] as const)),
+      });
       await sink.saveElectionCsv(electionReportName(this.now(), gameId), csv);
     } catch (e) {
       console.error('saving election report failed', gameId, e);

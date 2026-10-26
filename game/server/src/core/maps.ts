@@ -2,9 +2,10 @@ import { buildKernels, configForMap } from '@hp/shared';
 import type { GameMapPackage, Kernels, MapConfig } from '@hp/shared';
 import type { LoadedMap, MapProvider } from './types';
 import { CANDIDATES, GAME_PACKAGES } from '../maps.generated';
+import { SEAT_NAMES } from '../seatNames.generated';
 
 /** Map provider that builds kernels lazily and caches them (call at module scope so Lambda containers reuse them). */
-export function makeMapProvider(entries: Record<string, { map: GameMapPackage; cfg: MapConfig; candidates?: string[][] }>): MapProvider {
+export function makeMapProvider(entries: Record<string, { map: GameMapPackage; cfg: MapConfig; candidates?: string[][]; seatNames?: Record<number, string> }>): MapProvider {
   const cache = new Map<string, Kernels>();
   return (mapId: string): LoadedMap | undefined => {
     const e = Object.prototype.hasOwnProperty.call(entries, mapId) ? entries[mapId] : undefined;
@@ -14,13 +15,13 @@ export function makeMapProvider(entries: Record<string, { map: GameMapPackage; c
       kernels = buildKernels(e.map, e.cfg);
       cache.set(mapId, kernels);
     }
-    return { map: e.map, cfg: e.cfg, kernels, ...(e.candidates ? { candidates: e.candidates } : {}) };
+    return { map: e.map, cfg: e.cfg, kernels, ...(e.candidates ? { candidates: e.candidates } : {}), ...(e.seatNames ? { seatNames: e.seatNames } : {}) };
   };
 }
 
 /** One entry per maps/<id>/ game package (generated registry); `tune` may adjust each map's MapConfig (e.g. env overrides). */
-export function registryEntries(tune: (cfg: MapConfig) => MapConfig = c => c): Record<string, { map: GameMapPackage; cfg: MapConfig; candidates?: string[][] }> {
-  return Object.fromEntries(Object.entries(GAME_PACKAGES).map(([id, map]) => [id, { map, cfg: tune(configForMap(id, map.seatCount)), ...(CANDIDATES[id] ? { candidates: CANDIDATES[id] } : {}) }]));
+export function registryEntries(tune: (cfg: MapConfig) => MapConfig = c => c): Record<string, { map: GameMapPackage; cfg: MapConfig; candidates?: string[][]; seatNames?: Record<number, string> }> {
+  return Object.fromEntries(Object.entries(GAME_PACKAGES).map(([id, map]) => [id, { map, cfg: tune(configForMap(id, map.seatCount)), ...(CANDIDATES[id] ? { candidates: CANDIDATES[id] } : {}), ...(SEAT_NAMES[id] ? { seatNames: SEAT_NAMES[id] } : {}) }]));
 }
 
 /** Provider over every map in the generated registry. Unknown ids return undefined (createGame rejects them with BAD_REQUEST). */

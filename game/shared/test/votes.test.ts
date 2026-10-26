@@ -48,14 +48,14 @@ describe('pollSeats', () => {
   });
 
   it("designer's worked example: 5 parties, committed A 20% / D 10%, reputations 1:5:7:3:11", () => {
-    // Draws (seat 1): I_A = 0.05*40% = 2%, I_D = 0.025*40% = 1%, R = 0.8*5% = 4%, weights .1 .1 .2 .3 .3, no tie draw.
+    // Draws (seat 1): I_A = 0.05*40% = 2%, I_D = 0.025*40% = 1%, R = 0.16*(5% x 5 parties) = 4%, weights .1 .1 .2 .3 .3, no tie draw.
     // S0 = 70 points. extra_A = 20*2% = 0.4, extra_D = 10*1% = 0.1, random = 4% of 70 = 2.8 -> .28 .28 .56 .84 .84.
     // pool = 70 - 0.4 - 0.1 - 2.8 = 66.7, split 1:5:7:3:11 (sum 27) -> 2.4704 12.3519 17.2926 7.4111 27.1741.
     // A = 20+0.4+0.28+2.4704 = 23.1504, B = 12.6319, C = 17.8526, D = 10+0.1+0.84+7.4111 = 18.3511, E = 0.84+27.1741 = 28.0141 (sum 100).
     const players = ['A', 'B', 'C', 'D', 'E'];
     const e = effectsOf({ A: at1(1), B: at1(5), C: at1(7), D: at1(3), E: at1(11) });
     const c = committedOf({ A: at1(0.2), D: at1(0.1) });
-    const res = pollSeats(e, c, players, kernels, cfg, [1], 0, stub(0.05, 0.025, 0.8, 0.1, 0.1, 0.2, 0.3, 0.3))[0];
+    const res = pollSeats(e, c, players, kernels, cfg, [1], 0, stub(0.05, 0.025, 0.16, 0.1, 0.1, 0.2, 0.3, 0.3))[0];
     const want = { A: 23.15037, B: 12.631852, C: 17.852593, D: 18.351111, E: 28.014074 };
     for (const [p, v] of Object.entries(want)) expect(res.shares[p] * 100).toBeCloseTo(v, 4);
     expect(sum(res.shares)).toBeCloseTo(1, 12);
@@ -89,13 +89,13 @@ describe('pollSeats', () => {
     }
   });
 
-  it('influence and random voters are bounded: A (c=20%, no reputation) stays within 20%..28% + 5% of the rest', () => {
+  it('influence and random voters are bounded: A (c=20%, no reputation) stays within 20%..28% + (5% x 2 parties) of the rest', () => {
     const e = effectsOf({ B: at1(1) });
     const c = committedOf({ A: at1(0.2) });
     for (let s = 0; s < 300; s++) {
       const a = pollSeats(e, c, ['A', 'B'], kernels, cfg, [1], 0, createRng('b' + s))[0].shares.A;
       expect(a).toBeGreaterThanOrEqual(0.2 - 1e-12);
-      expect(a).toBeLessThanOrEqual(0.2 * 1.4 + 0.05 * 0.8 + 1e-9);
+      expect(a).toBeLessThanOrEqual(0.2 * 1.4 + 0.1 * 0.8 + 1e-9);
     }
   });
 
@@ -173,17 +173,17 @@ describe('pollSeats', () => {
 
 describe('expectedSeatShares', () => {
   it('is the worked example with every draw at its mean', () => {
-    // I = 20% (mean of 0..40), R = 2.5% of S0, equal random weights, pool by reputation 1:5:7:3:11.
+    // I = 20% (mean of 0..40), R = 2.5% x 5 parties = 12.5% of S0, equal random weights, pool by reputation 1:5:7:3:11.
     const players = ['A', 'B', 'C', 'D', 'E'];
     const e = effectsOf({ A: at1(1), B: at1(5), C: at1(7), D: at1(3), E: at1(11) });
     const c = committedOf({ A: at1(0.2), D: at1(0.1) });
     const sh = expectedSeatShares(e, c, players, kernels, cfg, 1);
-    // S0 = .7: extras .2*.2=.04, .1*.2=.02; r = .025*.7 = .0175 (.0035 each); pool = .7-.06-.0175 = .6225
-    const pool = 0.6225;
+    // S0 = .7: extras .2*.2=.04, .1*.2=.02; r = .125*.7 = .0875 (.0175 each); pool = .7-.06-.0875 = .5525
+    const pool = 0.5525;
     const rep: Record<string, number> = { A: 1, B: 5, C: 7, D: 3, E: 11 };
     const com: Record<string, number> = { A: 0.2, D: 0.1 };
     const ext: Record<string, number> = { A: 0.04, D: 0.02 };
-    for (const p of players) expect(sh[p]).toBeCloseTo((com[p] ?? 0) + (ext[p] ?? 0) + 0.0035 + (pool * rep[p]) / 27, 12);
+    for (const p of players) expect(sh[p]).toBeCloseTo((com[p] ?? 0) + (ext[p] ?? 0) + 0.0175 + (pool * rep[p]) / 27, 12);
     expect(sum(sh)).toBeCloseTo(1, 12);
   });
   it('no reputation: the pool is split equally; unknown seat / no players -> {}', () => {

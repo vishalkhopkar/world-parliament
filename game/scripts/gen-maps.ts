@@ -156,12 +156,23 @@ const outputs: [string, string][] = [
     "/** Each map's optional candidates.csv (site/data/candidates.csv) as rows of names (row n = seat n); the server turns a party's column into the candidate names players see. */\n" +
     'export const CANDIDATES: Record<string, string[][]> = ' + JSON.stringify(candidatesByMap) + ';\n'],
 ];
+// Seat names change by hand (seats.json, no rebuild), so this file is written but never part of the staleness check.
+const seatNamesByMap: Record<string, Record<number, string>> = {};
+for (const m of manifests) {
+  const f = path.join(mapsDir, m.id, path.dirname(m.gamePackage), 'seats.json');
+  if (!fs.existsSync(f)) continue;
+  seatNamesByMap[m.id] = Object.fromEntries((readJson(f) as { id: number; name: string }[]).map(s => [s.id, s.name]));
+}
+const seatNamesFile = path.join(gameDir, 'server/src/seatNames.generated.ts');
+const seatNamesText = HEADER + '/** Seat id -> name per map, from maps/<id>/site/data/seats.json (reports only). Refreshed by gen:maps; not covered by --check because names are renamed by hand. */\n' +
+  'export const SEAT_NAMES: Record<string, Record<number, string>> = ' + JSON.stringify(seatNamesByMap) + ';\n';
 if (CHECK) {
   const norm = (t: string) => t.replace(/\r\n/g, '\n');
   const stale = outputs.filter(([file, text]) => !fs.existsSync(file) || norm(fs.readFileSync(file, 'utf8')) !== text).map(([file]) => path.relative(gameDir, file));
   if (stale.length) { console.error('generated map registry is STALE (run `npm run gen:maps` and commit): ' + stale.join(', ')); process.exit(2); }
 } else if (!DRY) {
   for (const [file, text] of outputs) fs.writeFileSync(file, text);
+  fs.writeFileSync(seatNamesFile, seatNamesText);
 }
 
 console.log(`gen-maps: ${manifests.length} map(s): ${manifests.map(m => `${m.id} (${m.seatCount} seats)`).join(', ')}`);

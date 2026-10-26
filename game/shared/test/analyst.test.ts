@@ -94,10 +94,10 @@ describe('analystReport', () => {
     const e = computeEffects([act('B', 'roadshow', 1, T0)], kernels, cfg, tl, map, 1);
     const r = analystReport(e, c, kernels, quiet, 'seat', 1, [], players, 0, 1, 1, createRng('q'));
     const byP = Object.fromEntries(r.entries.map((x) => [x.playerId, x.estimate]));
-    // S0 = .7, extra_A = .3*.2 = .06, r = .025*.7 = .0175 (/3), pool = .6225 all to B (only B has reputation)
-    expect(byP.A).toBeCloseTo(0.3 + 0.06 + 0.0175 / 3, 12);
-    expect(byP.B).toBeCloseTo(0.0175 / 3 + 0.6225, 12);
-    expect(byP.C).toBeCloseTo(0.0175 / 3, 12);
+    // S0 = .7, extra_A = .3*.2 = .06, r = (.025*3)*.7 = .0525 (/3 = .0175 each), pool = .5875 all to B (only B has reputation)
+    expect(byP.A).toBeCloseTo(0.3 + 0.06 + 0.0525 / 3, 12);
+    expect(byP.B).toBeCloseTo(0.0525 / 3 + 0.5875, 12);
+    expect(byP.C).toBeCloseTo(0.0525 / 3, 12);
   });
 
   it('a committed party with no effect shows its committed share when influence and random voters are off', () => {

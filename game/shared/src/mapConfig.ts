@@ -73,7 +73,7 @@ export interface CommittedConfig {
 export interface VotingConfig {
   /** Each committed party brings extra voters: a random 0..this % of its committed voters (relative). */
   influenceMaxPercent: number;
-  /** A random 0..this % of the uncommitted voters vote for random parties in random amounts. */
+  /** Per party: a random 0..(this % x number of parties) of the uncommitted voters vote for random parties in random amounts. */
   randomMaxPercent: number;
 }
 
