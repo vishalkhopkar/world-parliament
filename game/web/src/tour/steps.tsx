@@ -173,7 +173,8 @@ export function buildSteps(startCounting: () => void): TourStep[] {
           return (
             <>
               {gain !== undefined && <p>Your reputation there jumped by <b>+{gain}</b>. The green smoke on the map shows where it grew.</p>}
-              <p>A rally adds round(({local} + {global}) &times; {scale}) = <b>{Math.round((local + global) * scale)}</b> in that seat (a little more when you are the first to act there), spreads to nearby seats in a bell curve that fades to nothing at {decay.maxKm} km, and adds <b>+{Math.round(global * scale)}</b> to every other seat, because a rally is broadcast. Rivals see it in the ticker.</p>
+              <p>A rally adds <b>+{Math.round(global * scale)}</b> to your reputation in <b>every seat</b> in the world, because it is broadcast (rivals see it in the ticker), and an additional <b>+{Math.round(local * scale)}</b> in the seat where you hold it. Nearby seats get a smaller boost that fades with distance, down to nothing at {decay.maxKm} km.</p>
+              <p>Two small bonuses: the <b>first</b> rally or roadshow in a seat earns a slightly bigger gain there, and gains grow slightly as the campaign goes on. Do not wait for the end to do everything: the increase is tiny, and your budget is only worth what you spend.</p>
             </>
           );
         },
@@ -198,7 +199,7 @@ export function buildSteps(startCounting: () => void): TourStep[] {
         id: 'roadshow',
         hint: () => <>Click a seat, then press Roadshow.</>,
         done: c => (
-          <p>A roadshow adds round({c.cfg.effects.roadshow.local} &times; {c.cfg.display.reputationScale}) = <b>{Math.round(c.cfg.effects.roadshow.local * c.cfg.display.reputationScale)}</b> in that seat only: purely local, nothing spills over, and rivals never find out.</p>
+          <p>A roadshow adds <b>+{Math.round(c.cfg.effects.roadshow.local * c.cfg.display.reputationScale)}</b> in that seat only: purely local, nothing spills over, and rivals never find out. The same bonuses apply: a slightly bigger gain for the first campaigner in a seat, and a slightly bigger gain later in the campaign.</p>
         ),
       },
     },
@@ -237,7 +238,7 @@ export function buildSteps(startCounting: () => void): TourStep[] {
       ),
     },
     {
-      id: 'paused', phase: 'counting', title: 'The count is paused', anchor: ['[data-tour="tally"]'], gate: 'paused',
+      id: 'paused', phase: 'counting', title: 'No one has a majority', anchor: ['[data-tour="tally"]'], gate: 'paused',
       body: c => (
         <p>
           <b>{c.largest?.name}</b> leads with <b>{c.largest?.seats}</b> seats but is {Math.max(0, c.maj - (c.largest?.seats ?? 0))} short of the majority ({c.maj}). You have <b>{c.mine?.seats}</b>. Add all {SMALL_PARTIES} smaller parties ({c.smallSum} seats) and you reach exactly <b>{(c.mine?.seats ?? 0) + c.smallSum}</b>: the majority. Lose any one of them and you fall short.
@@ -265,9 +266,9 @@ export function buildSteps(startCounting: () => void): TourStep[] {
       },
     },
     {
-      id: 'resume', phase: 'counting', title: 'The count resumes', anchor: ['[data-tour="tally"]'], gate: 'finished',
+      id: 'resume', phase: 'counting', title: 'The government is confirmed', anchor: ['[data-tour="tally"]'], gate: 'finished',
       body: () => (
-        <p>With the offer accepted, the count carries on. A government is confirmed only once <b>every seat has been declared</b>. In this practice game that happens at once, and the game ends.</p>
+        <p>With the offer accepted, the last seats are declared. A government is confirmed only once <b>every seat has been declared</b>; then the game ends at once.</p>
       ),
     },
     {

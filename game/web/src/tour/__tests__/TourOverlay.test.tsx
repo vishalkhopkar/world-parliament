@@ -198,7 +198,10 @@ describe('TourOverlay task steps', () => {
     const { local, global, decay } = WORLD_CONFIG.effects.rally;
     const scale = WORLD_CONFIG.display.reputationScale;
     expect(t).toHaveTextContent('+42');
-    expect(t).toHaveTextContent(String(Math.round((local + global) * scale)));
+    expect(t).toHaveTextContent(`+${Math.round(local * scale)}`);
+    expect(t).not.toHaveTextContent('×'); // no formula, only the displayed numbers
+    expect(t).toHaveTextContent(/first .* slightly bigger gain/);
+    expect(t).toHaveTextContent(/grow slightly as the campaign goes on/);
     expect(t).toHaveTextContent(`${decay.maxKm} km`);
     expect(t).toHaveTextContent(`+${Math.round(global * scale)}`);
   });
