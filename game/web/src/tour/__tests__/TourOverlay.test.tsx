@@ -99,6 +99,24 @@ describe('TourOverlay steps', () => {
     expect(callout()).toHaveTextContent((WORLD_CONFIG.costs.roadshow).toLocaleString('en-IN'));
   });
 
+  it('has a free global-reports step (news agencies) anchored on the button, left out when news is switched off', () => {
+    cfgBox.cfg = WORLD_CONFIG;
+    const step = stepsNow().find(s => s.id === 'global-reports');
+    expect(step?.anchor).toEqual(['[data-tour="global-reports"]']);
+    expect(step?.title).toBe('News agencies'); // the button is called "News agencies" (not to be confused with the paid Global report)
+    cfgBox.cfg = { ...WORLD_CONFIG, news: { ...WORLD_CONFIG.news, enabled: false } };
+    expect(stepsNow().some(s => s.id === 'global-reports')).toBe(false);
+    setup({ step: 'chat' });
+    cfgBox.cfg = WORLD_CONFIG;
+    goTo('global-reports');
+    render(<TourOverlay />);
+    for (const a of WORLD_CONFIG.news.agencies) expect(callout()).toHaveTextContent(a.name);
+    expect(callout()).toHaveTextContent(String(Math.round(WORLD_CONFIG.news.sampleIntervalMs / 1000)));
+    expect(callout()).toHaveTextContent(/free/i);
+    expect(callout()).toHaveTextContent('News agencies');
+    expect(callout()).not.toHaveTextContent('Global reports');
+  });
+
   it('skips the analyst-report step while both reports are disabled, and shows it when one is enabled', () => {
     cfgBox.cfg = withReports(false);
     expect(stepsNow().some(s => s.id === 'analyst')).toBe(false);
@@ -120,8 +138,9 @@ describe('TourOverlay steps', () => {
     const user = userEvent.setup();
     render(<TourOverlay />);
     const seen: string[] = [];
-    for (let i = 0; i < 7; i++) { seen.push(callout().dataset.step!); await user.click(within(callout()).getByRole('button', { name: 'Next' })); }
+    for (let i = 0; i < 8; i++) { seen.push(callout().dataset.step!); await user.click(within(callout()).getByRole('button', { name: 'Next' })); }
     expect(seen).toContain('chat');
+    expect(seen).toContain('global-reports');
     expect(seen).not.toContain('analyst');
     expect(callout().dataset.step).toBe('committed');
   });

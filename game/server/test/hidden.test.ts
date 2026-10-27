@@ -23,6 +23,7 @@ describe('hidden information', () => {
     c.clock.advance(2000);
     await c.send(0, { action: 'buyReport', scope: 'seat', seat: 7 });
     await c.send(2, { action: 'buyReport', scope: 'global' });
+    await c.send(1, { action: 'globalReports' }); // b asks for the free news-agency graphs: only b gets them
     // a reconnect mid-campaign produces a fresh hello
     await c.svc.disconnect('c1');
     await c.svc.connect(c.gameId, c.p[1].token, 'c1b');
@@ -108,6 +109,23 @@ describe('hidden information', () => {
     // snapshot news via a fresh hello contains only rallies
     const h = c.notifier.to(d, 'hello').pop() as Extract<ServerMessage, { type: 'hello' }>;
     expect(h.snapshot.news.map((n) => n.playerId).sort()).toEqual([a, d].sort());
+    // the global reports went to b alone, hold only the noisy public series and name nobody but the parties of this game
+    expect(c.notifier.to(b, 'globalReports')).toHaveLength(1);
+    expect(c.notifier.to(a, 'globalReports')).toHaveLength(0);
+    expect(c.notifier.to(d, 'globalReports')).toHaveLength(0);
+    const gr = c.notifier.to(b, 'globalReports')[0] as Extract<ServerMessage, { type: 'globalReports' }>;
+    const grText = JSON.stringify(gr);
+    for (const k of ['budget', 'reputation', 'committed', 'effect', 'roadshow', 'token']) expect(grText).not.toContain(k);
+    expect(Object.keys(gr.reports).sort()).toEqual(['agencies', 'asOf', 'sampleIntervalMs']);
+    for (const ag of gr.reports.agencies) {
+      expect(Object.keys(ag).sort()).toEqual(['id', 'name', 'points', 'ranges']);
+      expect(Object.keys(ag.ranges).sort()).toEqual([a, b, d].sort());
+    }
+    // the server-only news secret (seeds the agencies' noise) never reaches anybody, in any message
+    const newsSecret = (await c.repo.getGame(c.gameId))!.newsSecret!;
+    expect(newsSecret.length).toBeGreaterThanOrEqual(32);
+    expect(JSON.stringify(c.notifier.log)).not.toContain(newsSecret);
+    expect(JSON.stringify(c.notifier.log)).not.toContain('newsSecret');
     // the other players' reports never reach b
     expect(c.notifier.to(b, 'report')).toHaveLength(0);
     // the chat reached only a and b

@@ -11,7 +11,7 @@ import type { AgentSession } from './session';
 import { EVENT_TYPES, admissionOf } from './state';
 import type { EventType } from './state';
 import {
-  chatView, committedLabel, currentBudget, eventView, rallyCooldownView, rallyReadyAt, governmentView, offerView, playerView, reportView, round1, stageInfo, stateView, who, winsByName,
+  chatView, committedLabel, currentBudget, eventView, rallyCooldownView, rallyReadyAt, governmentView, offerView, playerView, reportView, globalReportsView, round1, stageInfo, stateView, who, winsByName,
 } from './views';
 
 export interface ActionDef<S extends z.ZodObject<z.ZodRawShape> = z.ZodObject<z.ZodRawShape>> {
@@ -445,6 +445,20 @@ export const ACTIONS: ActionDef[] = [
         price_note: `Report prices rise by the second; you paid ${WR(cfg, r.report.price)} (about ${WR(cfg, price)} was quoted when you asked). The price now is slightly higher: see get_state budget.${i.scope}_report_price_now_wr.`,
         ...budgetView(s),
       };
+    },
+  }),
+
+  def({
+    name: 'get_global_reports',
+    description: 'FREE (no budget cost, no limit): the news agencies global reports. Per agency (names from the config, e.g. Kal Tak, Toofan Express, Woof News, World Today): every party projected seats now (biggest first), the seat range [low, high] and the history of points since the campaign started. Noisy, and each agency errs differently; the error shrinks on average as the campaign goes on; the graphs freeze when the campaign ends. Not the paid analyst report. Needs the game to have started; returns FORBIDDEN when news agencies are switched off.',
+    schema: z.object({}),
+    readOnly: true,
+    async run(s) {
+      needAdmitted(s);
+      if (!s.cfg().news.enabled) throw new AgentError('FORBIDDEN', 'News agency reports are switched off in this game.', 'Use get_state, get_news and the paid buy_report instead.');
+      const snap = s.client.state.snapshot;
+      if (!snap || snap.status === 'lobby' || !snap.timeline) throw new AgentError('WRONG_PHASE', 'The news agencies report from the campaign start.', 'Call wait_for_events with types ["status"], or get_state.');
+      return globalReportsView(s, await s.client.globalReports());
     },
   }),
 

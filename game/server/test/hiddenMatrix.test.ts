@@ -11,7 +11,7 @@ function keys(v: Json, fn: (key: string, value: Json, path: string[]) => void, p
   else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) { fn(k, x, [...path, k]); keys(x, fn, [...path, k]); }
 }
 
-const SECRET_KEYS = new Set(['roadshow', 'roadshows', 'effect', 'effects', 'tokenHash', 'token', 'connectionId', 'graceSchedule', 'disconnectedAt', 'joinedAt', 'kernel', 'kernels', 'candidateColumn']);
+const SECRET_KEYS = new Set(['roadshow', 'roadshows', 'effect', 'effects', 'tokenHash', 'token', 'connectionId', 'graceSchedule', 'disconnectedAt', 'joinedAt', 'kernel', 'kernels', 'candidateColumn', 'newsSecret', 'secret']);
 const PRIVATE_ONLY = new Set(['hello', 'private', 'actionAck', 'report']);
 
 interface Played { c: Ctx; roadshowTs: Map<number, number[]>; reportTs: number[] }
@@ -30,6 +30,7 @@ async function play(players: number, phases: number, seed: string): Promise<Play
     const i = Math.floor(rng() * players);
     const seat = 1 + Math.floor(rng() * 8);
     const r = rng();
+    if (k % 7 === 3) await c.send(i, { action: 'globalReports' }); // free news-agency graphs, asked now and then by anybody
     if (r < 0.15) { await c.send(i, { action: 'buyReport', scope: rng() < 0.5 ? 'global' : 'seat', seat }); reportTs.push(t); }
     else if (r < 0.55) {
       const before = (await c.repo.listActions(c.gameId)).length;
@@ -62,6 +63,11 @@ describe.each([[2, 1], [2, 3], [3, 1], [3, 2], [5, 3], [10, 2]])('full game audi
   it('no message carries data its recipient must not see', async () => {
     const { c, roadshowTs } = await play(players, phases, `audit-${players}-${phases}`);
     const finalBudgets = await Promise.all(c.p.map((_, i) => c.budget(i)));
+    // the server-only news secret (noise seed) is in no message to anybody, nor in the public lobby view
+    const newsSecret = (await c.repo.getGame(c.gameId))!.newsSecret!;
+    expect(newsSecret.length).toBeGreaterThanOrEqual(32);
+    expect(JSON.stringify(c.notifier.log)).not.toContain(newsSecret);
+    expect(JSON.stringify(await c.svc.getLobby(c.gameId, c.p[0].token))).not.toContain(newsSecret);
     for (let i = 0; i < players; i++) {
       const me = c.p[i].playerId;
       const received = c.notifier.log.filter((s) => s.to === me).map((s) => s.msg);
@@ -92,6 +98,23 @@ describe.each([[2, 1], [2, 3], [3, 1], [3, 2], [5, 3], [10, 2]])('full game audi
         if (m.type === 'chat') expect([m.message.from, ...m.message.to]).toContain(me);
         if (m.type === 'offer') expect([m.offer.proposer, ...m.offer.partners]).toContain(me);
         if (m.type === 'news') expect(Object.keys(m.item).sort()).toEqual(['playerId', 'seat', 'ts']);
+        // 3b. global reports: only the noisy public numbers (asOf, interval, per agency id / name / points / ranges), keyed by the parties
+        if (m.type === 'globalReports') {
+          const partyIds = c.p.map((p) => p.playerId);
+          expect(Object.keys(m.reports).sort()).toEqual(['agencies', 'asOf', 'sampleIntervalMs']);
+          expect(m.reports.agencies.length).toBeGreaterThan(0);
+          for (const a of m.reports.agencies) {
+            expect(Object.keys(a).sort()).toEqual(['id', 'name', 'points', 'ranges']);
+            expect(Object.keys(a.ranges).every((id) => partyIds.includes(id))).toBe(true);
+            for (const [lo, hi] of Object.values(a.ranges)) { expect(Number.isInteger(lo) && Number.isInteger(hi)).toBe(true); expect(lo).toBeLessThanOrEqual(hi); }
+            for (const pt of a.points) {
+              expect(Object.keys(pt).sort()).toEqual(['seats', 't']);
+              expect(Object.keys(pt.seats).every((id) => partyIds.includes(id))).toBe(true);
+              expect(pt.t).toBeLessThanOrEqual(c.timeline.campaignEnd);
+            }
+          }
+          expect(m.reports.asOf).toBeLessThanOrEqual(c.timeline.campaignEnd);
+        }
         // 4. nobody else's roadshow timestamps (unique per action) appear in messages to me
         for (const [owner, tss] of roadshowTs) {
           if (owner === i) continue;
@@ -101,6 +124,8 @@ describe.each([[2, 1], [2, 3], [3, 1], [3, 2], [5, 3], [10, 2]])('full game audi
         if (text.includes('secret-deal-')) expect(i === 0 || i === 1).toBe(true);
       }
       // 6. my reports are mine: every 'report' message equals one of my stored reports
+      // 6b. every globalReports message is a reply to my own request, and nobody else's: the log holds only what I asked for
+      expect(received.filter((m) => m.type === 'globalReports').every((m) => m.type === 'globalReports' && m.reports.agencies.length > 0)).toBe(true);
       const stored = await c.repo.listReports(c.gameId, me);
       const got = received.filter((m): m is Extract<ServerMessage, { type: 'report' }> => m.type === 'report');
       expect(got).toHaveLength(stored.length);

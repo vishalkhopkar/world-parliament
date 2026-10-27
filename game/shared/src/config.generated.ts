@@ -174,6 +174,33 @@ export const GAME_CONFIG_VALUES = {
       }
     ]
   },
+  "news": {
+    "sampleIntervalMs": 30000,
+    "errorStartMinPct": 20,
+    "errorStartMaxPct": 40,
+    "errorEndFraction": 0.25,
+    "errorDecayRate": 3,
+    "errorNoise": 0.25,
+    "noiseSmoothing": 0.6,
+    "errorWobbleMin": 0.5,
+    "errorWobbleMax": 1.5,
+    "maxPoints": 60,
+    "enabled": true,
+    "agencies": [
+      {
+        "name": "Kal Tak"
+      },
+      {
+        "name": "Toofan Express"
+      },
+      {
+        "name": "Woof News"
+      },
+      {
+        "name": "World Today"
+      }
+    ]
+  },
   "currency": {
     "name": "World Rupee",
     "symbol": "₩"

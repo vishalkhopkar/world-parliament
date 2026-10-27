@@ -1,7 +1,7 @@
 // MOCK backend: simulates the whole game in the browser. Every message is a ServerMessage from protocol.ts,
 // so replacing this with the real REST + WebSocket transport requires no UI changes.
 // Tunables via URL query: ?campaign=120&counting=60&post=120 (seconds). Defaults: 120 / 60 / 120.
-import { AVATARS, DEFAULT_MAP_ID, MAP_MANIFESTS, PARTY_COLOURS, WORLD_CONFIG, buildKernels, computeEffects, leavesPartyOut, majorityOf, rallyAvailableAt, reputationView } from '@hp/shared';
+import { AVATARS, DEFAULT_MAP_ID, buildGlobalReports, MAP_MANIFESTS, PARTY_COLOURS, WORLD_CONFIG, buildKernels, computeEffects, leavesPartyOut, majorityOf, rallyAvailableAt, reputationView } from '@hp/shared';
 import type {
   MapConfig, Action, AdmissionRequest, AdmitRequest, AnalystReport, ClientMessage, CoalitionOffer, CommittedView, CountTally,
   CreateGameRequest, CreateGameResponse, ErrorCode, FinalResult, GameId, GameMapPackage, GameSnapshot,
@@ -80,6 +80,8 @@ class MockGame {
   /** Map package + engine kernels (the real Gaussian spill-over); null when the package could not be loaded (then a simple stand-in is used). */
   pkg: GameMapPackage | null = null;
   kernels: Kernels | null = null;
+  /** Grid stand-in for pkg / kernels, built on the first global-reports request when the map package is missing (offline). */
+  standIn?: { pkg: GameMapPackage; kernels: Kernels };
   constructor(phases: number, mapId: string = DEFAULT_MAP_ID) { this.phases = phases; this.mapId = mapId; this.cfg = mapConfigFor(mapId); }
 }
 
@@ -339,6 +341,7 @@ export class MockTransport implements Transport {
       case 'ping': this.emit({ type: 'pong', clientTime: msg.clientTime, serverTime: this.now() }); break;
       case 'campaign': this.handleCampaign(g, msg, err); break;
       case 'buyReport': this.handleReport(g, msg, err); break;
+      case 'globalReports': this.handleGlobalReports(g, err); break;
       case 'peekSeat': this.handlePeek(g, msg, err); break;
       case 'chat': this.handleChat(g, msg, err); break;
       case 'proposeGovernment': this.handlePropose(g, msg, err); break;
@@ -457,6 +460,30 @@ export class MockTransport implements Transport {
     const report: AnalystReport = { scope: msg.scope, seat: msg.seat, asOf, purchasedAt: this.now(), price, entries };
     g.myReports.push(report);
     this.emit({ type: 'report', report, budget: me.budget });
+  }
+
+  /** Free news-agency projections (FR "Global reports"): the shared engine on the mock's own actions and effects; the other parties' committed voters are not simulated (none). */
+  private handleGlobalReports(g: MockGame, err: ErrFn) {
+    if (!g.cfg.news.enabled) return err('FORBIDDEN', 'News agency reports are switched off in this game');
+    if (g.status === 'lobby' || !g.timeline) return err('WRONG_PHASE', 'News agencies report from the campaign start');
+    const players = [...g.players.values()].filter(p => p.pub.status === 'active').map(p => p.pub.playerId);
+    let pkg = g.pkg, kernels = g.kernels;
+    if ((!pkg || !kernels) && g.standIn) ({ pkg, kernels } = g.standIn);
+    if (!pkg || !kernels) { // map package not loaded (offline): a stand-in map on a grid so the engine still runs (built once per game)
+      const groups: SeatId[][] = Array.from({ length: g.phases }, () => []);
+      for (const id of g.seatIds) groups[g.seatPhase.get(id) ?? 0].push(id);
+      pkg = {
+        mapId: g.mapId, version: 0, seatCount: g.seatIds.length, topo: { coarse: '' }, phaseGroups: { [String(g.phases)]: groups },
+        seats: g.seatIds.map((id, i) => ({ id, lon: (i % 30) * 6 - 90, lat: Math.floor(i / 30) * 6 - 40, x: 0, y: 0, neighbours: [] })),
+      };
+      kernels = buildKernels(pkg, g.cfg);
+      g.standIn = { pkg, kernels };
+    }
+    const reports = buildGlobalReports({
+      gameId: g.gameId, secret: `mock:${g.gameId}`, cfg: g.cfg, map: pkg, kernels, timeline: g.timeline, phases: g.phases, actions: g.actions, players,
+      committed: new Map(), decided: [], now: this.now(),
+    });
+    this.emit({ type: 'globalReports', reports });
   }
 
   private noNegotiation(g: MockGame) { return [...g.players.values()].filter(p => p.pub.status !== 'pending' && p.pub.status !== 'rejected').length < 3; }

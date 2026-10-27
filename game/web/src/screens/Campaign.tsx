@@ -5,6 +5,7 @@ import { SeatMap, type SeatMapHandle } from '../map/SeatMap';
 import { AnalystShop, CampaignHud, MyActions } from '../components/campaign';
 import { NewsTicker } from '../components/NewsTicker';
 import { Chat } from '../components/Negotiation';
+import { GlobalReportsModal } from '../components/GlobalReportsModal';
 import { useMapConfig } from '../state/mapConfig';
 import './game.css';
 import { colourHex, useSeatPhases, useServerNow } from '../lib';
@@ -21,6 +22,8 @@ export function Campaign() {
   const selectSeat = useStore(s => s.selectSeat);
   const pulseState = useStore(s => s.pulse);
   const polledSeats = useStore(s => s.polledSeats);
+  const [reportsOpen, setReportsOpen] = useState(false);
+  const closeReports = useCallback(() => setReportsOpen(false), []);
   const mapRef = useRef<SeatMapHandle>(null);
   const closeModal = useCallback(() => selectSeat(null), [selectSeat]);
   useEffect(() => () => selectSeat(null), [selectSeat]); // leaving the campaign screen clears the selection
@@ -107,12 +110,16 @@ export function Campaign() {
               <span>{phaseIdx >= 0 ? `Focus on phase ${phaseIdx + 1} seats` : 'Focus on current phase'}</span>
             </label>
           )}
+          {cfg.news.enabled && (
+            <button type="button" className="btn global-reports-btn" data-tour="global-reports" onClick={() => setReportsOpen(true)}>News agencies</button>
+          )}
           <AnalystShop snap={snap} priv={priv} now={now} />
           <ReportToast />
           <div data-tour="my-actions"><MyActions priv={priv} /></div>
           {chatOpen && me && <div data-tour="chat"><Chat snap={snap} me={me} /></div>}
         </aside>
       </div>
+      {reportsOpen && cfg.news.enabled && <GlobalReportsModal onClose={closeReports} />}
       <NewsTicker onPick={s => { selectSeat(s); mapRef.current?.zoomToSeat(s); }} />
     </div>
   );

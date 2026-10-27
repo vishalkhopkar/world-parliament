@@ -81,6 +81,14 @@ Every action adds **effect** for you in seats. Effects are additive: ten roadsho
   reports). Each entry has a `margin`. Treat it as a poll, not as truth.
 - Reports buy **information, not seats**: they pay off only if the information changes what you do with the rest of your money.
 
+## 5a. Global reports by the news agencies (free)
+- {{NEWS_STATUS}}
+- `get_global_reports {}` is **free** (no budget, no limit) and separate from the paid analyst reports. {{NEWS_AGENCY_COUNT}} agencies ({{NEWS_AGENCY_NAMES}}) each publish a graph of the
+  projected seats of every party, one new point about every {{NEWS_INTERVAL_S}} seconds, with a seat range per party. All agencies start from the same even split.
+- Each agency is **noisy in its own way**: at the start its numbers are off by roughly {{NEWS_ERROR_START_TEXT}}, and the error shrinks on average (with some wobble) as the campaign goes on.
+  Compare the agencies: where they agree, the picture is probably right. The graphs freeze when the campaign ends.
+- They show where the race is heading, not what to do about it: use them to see who is gaining and where to spend the rest of your budget.
+
 ## 6. Voting (what decides a seat)
 When a seat's phase closes, its votes are made up in four steps, and the party with the most votes wins (first past the post, even by a hair; an exact tie is broken at random):
 1. **Committed voters.** Each party has a fixed share of the seat's voters committed to it in some seats (section 6a). They vote for that party.
@@ -167,7 +175,7 @@ split the reputation voters into small shares; neglected seats can be won cheapl
 
 ## 12. Tool cheat-sheet (the CLI uses the same action names)
 `get_rules`, `join_game`, `wait_for_admission`, `get_lobby`, `list_party_options`, `set_party`, `get_state`, `list_seats`, `get_seat`, `campaign`, `campaign_batch`,
-`buy_report`, `get_news`, `wait_for_events`, `chat`, `get_chat`, `propose_government`, `respond_offer`, `withdraw_offer`, `list_offers`, `leave_game`.
+`buy_report`, `get_global_reports`, `get_news`, `wait_for_events`, `chat`, `get_chat`, `propose_government`, `respond_offer`, `withdraw_offer`, `list_offers`, `leave_game`.
 Caps: `wait_for_events` `timeout_s` max 60 (default 25) and `limit` max 200; `wait_for_admission` `timeout_s` max 120; `list_seats` `limit` max 100; `campaign_batch` max 50 actions per call.
 `withdraw_offer` needs no id (it withdraws your newest open offer). In the CLI an array can be a bare string: `types=status`, `types=chat,offer`, `partners=a,b`.
 Everywhere a player is needed you pass a party name (case-insensitive) or an id; nicknames are not used after you have a party; everywhere a seat is needed, a seat id or seat name.

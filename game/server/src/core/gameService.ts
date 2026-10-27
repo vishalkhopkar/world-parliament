@@ -1,15 +1,16 @@
 // All game logic. Depends only on the interfaces in ./types (no AWS SDK imports).
 import {
-  AVATARS, DEFAULT_MAP_ID, PARTY_COLOURS, PARTY_SYMBOLS, analystPrice, analystReport, buildTimeline, committedMatrix, committedView, dealCommitted, computeEffects, reputationView, countingMsFor, postCountingMsFor, createRng,
+  AVATARS, DEFAULT_MAP_ID, buildGlobalReports, newsSampleTimes, PARTY_COLOURS, PARTY_SYMBOLS, analystPrice, analystReport, buildTimeline, committedMatrix, committedView, dealCommitted, computeEffects, reputationView, countingMsFor, postCountingMsFor, createRng,
   finalResult, governmentFromOffer, leavesPartyOut, majorityGovernment, majorityOf, phaseOfSeat, pollSeats, rallyAvailableAt,
   removePlayerFromResults, validateGovernment,
 } from '@hp/shared';
 import type {
   Action, AdmissionRequest, AdmitRequest, ChatMessage, ClientMessage, CoalitionOffer, CountTally,
-  CreateGameRequest, CreateGameResponse, GameSnapshot, JoinGameRequest, JoinGameResponse, LobbyView, MapConfig,
+  CreateGameRequest, CreateGameResponse, GameSnapshot, GlobalReports, JoinGameRequest, JoinGameResponse, LobbyView, MapConfig,
   PartyIdentity, PartyRequest, PlayerId, PlayerPublic, PortfolioAssignment, PrivateState, SeatDeclaration, SeatId,
   SeatResult, ServerMessage, SettingsRequest, StartResponse,
 } from '@hp/shared';
+import { createHash } from 'node:crypto';
 import { declaredState, diffDeclarations, fullTally, makePlan, seatSharesAt, stepAt, stepTime } from './counting';
 import type {
   Clock, CountPlan, GameRecord, LoadedMap, MapProvider, Notifier, PlayerRecord, Repo, Scheduler,
@@ -73,8 +74,16 @@ const colourKey = (c: string): string => {
   return hit ? hit.hex : '';
 };
 
+/** Games whose latest global reports are kept in memory (oldest dropped first). */
+const NEWS_CACHE_GAMES = 200;
+
 export class GameService {
   constructor(private readonly d: GameServiceDeps) {}
+
+  /** Latest global reports per game with the key of the inputs they were built from (see globalReports). */
+  private readonly newsCache = new Map<string, { key: string; reports: GlobalReports }>();
+  /** How many times global reports were really built (not served from the cache); read by tests and diagnostics. */
+  newsBuilds = 0;
 
   private now(): number { return this.d.clock.now(); }
   private get repo(): Repo { return this.d.repo; }
@@ -194,7 +203,7 @@ export class GameService {
     const token = newToken();
     const game: GameRecord = {
       gameId, joinCode, mapId, phases, status: 'lobby', admissionOpen: true, adminId: playerId,
-      createdAt: now, timeline: null, closedPhases: 0, revealedStep: 0,
+      createdAt: now, timeline: null, closedPhases: 0, revealedStep: 0, newsSecret: newToken(),
     };
     const admin: PlayerRecord = {
       gameId, playerId, nickname, tokenHash: hashToken(token), isAdmin: true, status: 'active', budget: 0, joinedAt: now,
@@ -426,6 +435,7 @@ export class GameService {
           break;
         case 'campaign': await this.campaign(player, msg.type, msg.seat, msg.clientRef); break;
         case 'buyReport': await this.buyReport(player, msg.scope, msg.seat); break;
+        case 'globalReports': await this.globalReports(player); break;
         case 'peekSeat': await this.peekSeat(player, msg.seat); break;
         case 'chat': await this.chat(player, msg.to, msg.text); break;
         case 'proposeGovernment': await this.proposeGovernment(player, msg.portfolios, msg.partners); break;
@@ -654,6 +664,61 @@ export class GameService {
       return;
     }
     throw new GameError('TOO_LATE', 'Polling has just closed, try again');
+  }
+
+  // ------------------------------------------------------------------ global reports (free, noised, by the news agencies)
+  /**
+   * A player asked for the news agencies' graphs: reply, to that player only, with every agency's growing series of noisy projected
+   * seats per party and its latest seat ranges. Free (no budget, no action stored) and read-only. The numbers are computed here from
+   * the hidden state (effects, committed voters) but only the noisy output leaves the server. Allowed from the campaign start to the
+   * end of the game; the series is frozen at the campaign end. Refused in the lobby, for non-members and when news.enabled is off.
+   */
+  async globalReports(player: PlayerRecord): Promise<void> {
+    const me = await this.repo.getPlayer(player.gameId, player.playerId);
+    if (!me || !MEMBER.has(me.status)) throw new GameError('FORBIDDEN', 'You are not a player of this game');
+    const game = await this.loadGame(player.gameId);
+    if (game.status === 'lobby' || !game.timeline) throw new GameError('WRONG_PHASE', 'The campaign has not started');
+    const { cfg, map, kernels } = this.loadMap(game.mapId);
+    if (!cfg.news.enabled) throw new GameError('FORBIDDEN', 'Global reports are switched off in this game');
+    const timeline = game.timeline;
+    const players = this.sortedPlayers(await this.repo.listPlayers(game.gameId));
+    const exclude = new Set(players.filter((p) => p.status === 'eliminated').map((p) => p.playerId));
+    const contenders = players.filter((p) => CONTENDER.has(p.status));
+    const actions = await this.repo.listActions(game.gameId);
+    const decided = await this.repo.listSeatResults(game.gameId);
+    const secret = await this.newsSecretOf(game);
+    // The reports are identical for every player and change only with the newest sample time, the actions up to it, the parties in
+    // the vote, the eliminated players, the poll results of closed phases and the secret: one build serves all of them.
+    const sampleTimes = newsSampleTimes(cfg, timeline, this.now());
+    const asOf = sampleTimes[sampleTimes.length - 1].t;
+    const key = createHash('sha256').update(JSON.stringify([
+      game.gameId, secret, asOf, contenders.map((p) => p.playerId), [...exclude].sort(),
+      actions.filter((a) => a.ts <= asOf).map((a) => [a.playerId, a.ts, a.type, a.seat]),
+      decided.filter((r) => r.winner !== null && (timeline.phaseCloses[r.phase] ?? Infinity) <= asOf).map((r) => [r.seat, r.phase, r.winner]).sort(),
+    ])).digest('hex');
+    let reports = this.newsCache.get(game.gameId)?.key === key ? this.newsCache.get(game.gameId)!.reports : undefined;
+    if (!reports) {
+      const committed = committedMatrix(contenders.filter((p) => p.committed).map((p) => [p.playerId, p.committed!] as const), kernels, cfg);
+      reports = buildGlobalReports({
+        gameId: game.gameId, secret, cfg, map, kernels, timeline, phases: game.phases, actions,
+        players: contenders.map((p) => p.playerId), committed, decided, exclude, now: this.now(),
+      });
+      this.newsBuilds++;
+      this.newsCache.delete(game.gameId); // re-insert last = most recently used
+      this.newsCache.set(game.gameId, { key, reports });
+      while (this.newsCache.size > NEWS_CACHE_GAMES) this.newsCache.delete(this.newsCache.keys().next().value!);
+    }
+    await this.d.notifier.sendToPlayer(game.gameId, me.playerId, { type: 'globalReports', reports });
+  }
+
+  /** The game's server-only news secret; a game from before the field existed gets one now (stored once, then stable). */
+  private async newsSecretOf(game: GameRecord): Promise<string> {
+    if (game.newsSecret) return game.newsSecret;
+    const fresh = newToken();
+    if (await this.repo.updateGame(game.gameId, { newsSecret: fresh }, { newsSecret: undefined })) return fresh;
+    const again = await this.repo.getGame(game.gameId); // somebody else stored one first
+    if (!again?.newsSecret) throw new GameError('INTERNAL', 'Could not store the news secret');
+    return again.newsSecret;
   }
 
   // ------------------------------------------------------------------ seat vote shares (counting screen pie chart / result panels)

@@ -1,7 +1,7 @@
 // Compact, name-based views of game data for LLMs (ids replaced by party names / seat names, times by seconds).
 import { analystPrice, majorityOf, rallyAvailableAt } from '@hp/shared';
 import type {
-  AnalystReport, ChatMessage, CommittedView, CoalitionOffer, FinalResult, GameTimeline, Government, PlayerPublic, PortfolioAssignment, SeatDeclaration,
+  AnalystReport, ChatMessage, GlobalReports, CommittedView, CoalitionOffer, FinalResult, GameTimeline, Government, PlayerPublic, PortfolioAssignment, SeatDeclaration,
 } from '@hp/shared';
 import { admissionOf } from './state';
 import type { AgentEvent } from './state';
@@ -386,4 +386,25 @@ export function stateView(s: AgentSession, dir: SeatDirectory | null) {
   } else if (status === 'finished') advice.push(snap?.result ? 'The game is over. Report the result to the human.' : 'The game is finished.');
   out.advice = advice;
   return out;
+}
+
+/** The news agencies' graphs as compact JSON: per agency the latest projected seats and seat range per party (biggest first) and the history. */
+export function globalReportsView(s: AgentSession, r: GlobalReports) {
+  const ids = Object.keys(r.agencies[0]?.ranges ?? {});
+  const t0 = r.agencies[0]?.points[0]?.t ?? r.asOf;
+  return {
+    as_of: new Date(r.asOf).toISOString(),
+    seconds_since_campaign_start: secs(r.asOf - t0),
+    point_every_s: secs(r.sampleIntervalMs),
+    agencies: r.agencies.map((a) => {
+      const latest = a.points[a.points.length - 1]?.seats ?? {};
+      return {
+        name: a.name,
+        parties: ids.map((id) => ({ party: who(s, id, true), projected_seats: round1(latest[id] ?? 0), range_seats: a.ranges[id] }))
+          .sort((x, y) => y.projected_seats - x.projected_seats),
+        history: a.points.map((p) => ({ seconds_since_start: secs(p.t - t0), seats: Object.fromEntries(ids.map((id) => [who(s, id, true), round1(p.seats[id] ?? 0)])) })),
+      };
+    }),
+    note: 'Free, noisy opinion projections. Each agency errs differently; the error shrinks on average as the campaign goes on. Compare agencies; do not trust one.',
+  };
 }

@@ -113,6 +113,8 @@ class Bot {
     if (m.type === 'actionAck') this.budget = m.budget;
     if (m.type === 'report') { this.budget = m.budget; }
     if (m.type === 'hello' && m.snapshot.players.some(p => (p as any).budget !== undefined)) bad('budget inside players');
+    // global reports (free news-agency graphs): noisy public numbers only; no private fields (budget is already refused above: globalReports is NOT in ALLOWED_BUDGET)
+    if (m.type === 'globalReports' && /"(reputation|committed|effect|effects|roadshow)"/.test(raw)) bad('private field inside global reports');
   }
   send(msg: ClientMessage) { this.ws.send(JSON.stringify(msg)); }
   async waitFor(pred: Pred, opts: { from?: number; ms?: number; what?: string } = {}): Promise<ServerMessage> {
@@ -314,6 +316,30 @@ async function analystScenario(bot: Bot) {
   const missing = await bot.request({ action: 'buyReport', scope: 'seat' } as ClientMessage, m => m.type === 'report');
   check(bot.err(missing) === 'BAD_REQUEST', `${bot.name}: seat report without a seat should be BAD_REQUEST, got ${missing.type === 'error' ? missing.error : missing.type}`); // malformed: refused before the switch
   log(`${bot.name}: bought ${bot.reportsBought} reports`);
+  await globalReportsCheck(bot);
+}
+
+/** Free global reports (news agencies): shape, one point per sample so far, parties only, and the budget stays exactly the same. */
+async function globalReportsCheck(bot: Bot) {
+  const { m, before, after } = await bot.requestB({ action: 'globalReports' }, x => x.type === 'globalReports');
+  if (!CFG.news.enabled) {
+    check(bot.err(m) === 'FORBIDDEN', `${bot.name}: global reports are switched off, should be FORBIDDEN, got ${m.type === 'error' ? m.error : m.type}`);
+    return;
+  }
+  if (!check(m.type === 'globalReports', `${bot.name}: global reports refused: ${bot.err(m)}`) || m.type !== 'globalReports') return;
+  check(after === before, `${bot.name}: global reports must be free (budget ${before} -> ${after})`);
+  const r = m.reports, ids = new Set(bots.map(b => b.playerId));
+  check(r.agencies.length === CFG.news.agencies.length, `${bot.name}: expected ${CFG.news.agencies.length} agencies, got ${r.agencies.length}`);
+  check(r.asOf >= timeline.campaignStart && r.asOf <= timeline.campaignEnd, `${bot.name}: global reports asOf ${r.asOf} outside the campaign`);
+  for (const a of r.agencies) {
+    check(a.points.length >= 1 && a.points[0].t === timeline.campaignStart, `${bot.name}: ${a.name}: expected a series from the campaign start, got ${a.points.length} point(s)`);
+    check(Object.keys(a.ranges).length === bots.length && Object.keys(a.ranges).every(id => ids.has(id)), `${bot.name}: ${a.name}: ranges are not keyed by the parties`);
+    for (const p of a.points) {
+      const total = Object.values(p.seats).reduce((x, y) => x + y, 0);
+      check(Object.keys(p.seats).every(id => ids.has(id)) && Math.abs(total - CFG.seatCount) < 1e-6 * CFG.seatCount, `${bot.name}: ${a.name}: a point does not add up to the seat count (${total})`);
+    }
+    for (const id of ids) check(Math.abs(a.points[0].seats[id] - CFG.seatCount / bots.length) < 1e-6, `${bot.name}: ${a.name}: point 0 should be seats / parties`);
+  }
 }
 
 /** Bot 2: drops the connection mid-campaign and reconnects with the same token (server restores the player). */

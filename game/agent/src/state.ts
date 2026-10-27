@@ -1,7 +1,7 @@
 // Client-side game state and event log, maintained by applying every ServerMessage (same idea as web/src/state/store.ts).
 // Pure and synchronous: no network here, so it is unit-testable.
 import type {
-  ActionType, ChatMessage, GameSnapshot, LobbyView, PlayerId, PrivateState, SeatId, ServerMessage,
+  ActionType, ChatMessage, GameSnapshot, GlobalReports, LobbyView, PlayerId, PrivateState, SeatId, ServerMessage,
 } from '@hp/shared';
 
 export type EventType =
@@ -97,12 +97,14 @@ export interface ClientState {
   pendingActions: Map<string, { type: ActionType; seat: SeatId }>;
   /** The campaign started but the server's budget update (sent right after the status event) has not arrived yet. */
   budgetPending: boolean;
+  /** The latest answer to a globalReports request (news agencies); not an event, the tool returns it. */
+  globalReports: GlobalReports | null;
 }
 
 export function newState(): ClientState {
   return {
     gameId: null, me: null, joinCode: null, nickname: null, lobby: null, snapshot: null, priv: null, chat: [],
-    serverOffsetMs: 0, link: 'idle', polledPhases: new Set(), pendingActions: new Map(), budgetPending: false,
+    serverOffsetMs: 0, link: 'idle', polledPhases: new Set(), pendingActions: new Map(), budgetPending: false, globalReports: null,
   };
 }
 
@@ -171,6 +173,9 @@ export function applyMessage(st: ClientState, m: ServerMessage, localNow: number
       st.budgetPending = false;
       if (st.priv) st.priv = { ...st.priv, budget: m.budget, myReports: [...st.priv.myReports, m.report] };
       return [ev('report', { report: m.report, budget: m.budget })];
+    case 'globalReports':
+      st.globalReports = m.reports;
+      return [];
     case 'phaseClosed':
       st.polledPhases.add(m.phase);
       if (snap && !snap.polledPhases.includes(m.phase)) st.snapshot = { ...snap, polledPhases: [...snap.polledPhases, m.phase] };

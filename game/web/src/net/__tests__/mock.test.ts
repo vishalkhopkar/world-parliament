@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { AVATARS, WORLD_CONFIG } from '@hp/shared';
+import type { GlobalReports } from '@hp/shared';
 import { MockTransport } from '../mock';
 import { ApiException } from '../transport';
 
@@ -193,5 +195,61 @@ describe('mock transport rally cooldown', () => {
     t.send({ action: 'campaign', type: 'rally', seat: 2, clientRef: 'b' } as never);
     await settle();
     expect(errs(got)).toEqual([]);
+  });
+});
+
+describe('mock transport globalReports (free news-agency projections)', () => {
+  async function startedGame() {
+    t = new MockTransport();
+    const { r, lobby } = await lobbyOf(t);
+    const used = new Set(lobby.players.map(p => p.party?.avatar));
+    const avatar = AVATARS.find(a => !used.has(a.id))!.id;
+    await t.setParty(r.gameId, r.token, { party: { name: 'Mine', colour: '#123456', symbol: 'torch', avatar } });
+    const got: { type: string; error?: string; reports?: GlobalReports }[] = [];
+    t.connect(r.gameId, r.token, m => got.push(m as never));
+    return { r, got };
+  }
+  const wait = (ms = 100) => new Promise(res => setTimeout(res, ms));
+
+  it('refuses in the lobby', async () => {
+    const { got } = await startedGame();
+    t.send({ action: 'globalReports' });
+    await wait();
+    expect(got.filter(m => m.type === 'globalReports')).toHaveLength(0);
+    expect(got.find(m => m.type === 'error')?.error).toBe('WRONG_PHASE');
+  });
+
+  it('answers during the campaign with one series per configured agency, free of charge', async () => {
+    const { r, got } = await startedGame();
+    await t.start(r.gameId, r.token);
+    t.send({ action: 'globalReports' });
+    await wait();
+    const rep = got.find(m => m.type === 'globalReports')?.reports;
+    expect(rep).toBeTruthy();
+    expect(rep!.agencies.map(a => a.name)).toEqual(WORLD_CONFIG.news.agencies.map(a => a.name));
+    const parties = Object.keys(rep!.agencies[0].ranges);
+    expect(parties.length).toBeGreaterThanOrEqual(3);
+    for (const a of rep!.agencies) {
+      const first = a.points[0].seats;
+      const sum = Object.values(first).reduce((x, y) => x + y, 0);
+      expect(Object.values(first).every(v => Math.abs(v - sum / parties.length) < 1e-9)).toBe(true);
+    }
+    expect(got.filter(m => m.type === 'report')).toHaveLength(0); // not a paid analyst report: no budget change is sent
+  });
+
+  it('builds the offline stand-in map and kernels once per game and reuses them', async () => {
+    const { r, got } = await startedGame();
+    await t.start(r.gameId, r.token);
+    const game = () => (t as unknown as { g: { pkg: unknown; kernels: unknown; standIn?: { pkg: unknown; kernels: unknown } } }).g;
+    game().pkg = null; // offline: no map package -> grid stand-in
+    game().kernels = null;
+    t.send({ action: 'globalReports' });
+    await wait();
+    const first = game().standIn;
+    expect(first).toBeTruthy();
+    t.send({ action: 'globalReports' });
+    await wait();
+    expect(game().standIn).toBe(first);
+    expect(got.filter(m => m.type === 'globalReports')).toHaveLength(2);
   });
 });

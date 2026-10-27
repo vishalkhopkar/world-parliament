@@ -397,3 +397,53 @@ describe('TourTransport on the real world-500 package', () => {
     expect(committed.every(c => seats.get(c.seat) === TOUR_ME_ID)).toBe(true);
   });
 });
+
+describe('TourTransport global reports (scripted news-agency series)', () => {
+  const cfgNews = mapConfigFor('world-500', N).news;
+  const ask = async () => { msgs.length = 0; t.send({ action: 'globalReports' }); await settle(60); return of('globalReports')[0]?.reports; };
+
+  it('answers with one series per configured agency for the nine parties, starting level and summing to the seat count', async () => {
+    await start();
+    const rep = (await ask())!;
+    expect(rep.agencies.map(a => a.name)).toEqual(cfgNews.agencies.map(a => a.name));
+    for (const a of rep.agencies) {
+      expect(a.points.length).toBeGreaterThanOrEqual(3);
+      expect(Object.keys(a.ranges)).toHaveLength(9);
+      expect(Object.values(a.points[0].seats).every(v => Math.abs(v - N / 9) < 1e-9)).toBe(true);
+      for (const p of a.points) expect(Object.values(p.seats).reduce((x, y) => x + y, 0)).toBeCloseTo(N, 6);
+      for (const [lo, hi] of Object.values(a.ranges)) { expect(lo).toBeLessThanOrEqual(hi); expect(lo).toBeGreaterThanOrEqual(0); expect(hi).toBeLessThanOrEqual(N); }
+    }
+  });
+
+  it('the graphs move toward the scripted result: the largest party ends clearly ahead of the rest, in every agency', async () => {
+    await start();
+    const rep = (await ask())!;
+    for (const a of rep.agencies) {
+      const last = a.points[a.points.length - 1].seats;
+      const top = Object.entries(last).sort((x, y) => y[1] - x[1])[0][0];
+      expect(top).toBe('p_alliance');
+    }
+  });
+
+  it('the series grows as the player campaigns, is repeatable, and never changes the budget or the real state', async () => {
+    await start();
+    const before = (await ask())!;
+    expect((await ask())!).toEqual(before);
+    campaign('roadshow', pkg.seats[0].id);
+    campaign('roadshow', pkg.seats[1].id);
+    await settle(100);
+    const after = (await ask())!;
+    expect(after.agencies[0].points.length).toBeGreaterThan(before.agencies[0].points.length);
+    expect(of('report')).toHaveLength(0);
+    expect(of('private')).toHaveLength(0); // asking changes nothing: no budget / private-state message
+  });
+
+  it('is refused when news agencies are switched off', async () => {
+    await start();
+    const g = (t as unknown as { g: { cfg: { news: { enabled: boolean } } } }).g;
+    g.cfg.news = { ...g.cfg.news, enabled: false };
+    msgs.length = 0; t.send({ action: 'globalReports' }); await settle(60);
+    expect(of('globalReports')).toHaveLength(0);
+    expect(of('error')[0]?.error).toBe('FORBIDDEN');
+  });
+});

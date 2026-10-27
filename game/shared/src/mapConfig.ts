@@ -107,6 +107,32 @@ export interface CountingParams {
   panelOtherPercent: number;
 }
 
+/** Free "global reports" by news agencies (noised projections of every party's seats over time). See engine/newsAgencies.ts. */
+export interface NewsConfig {
+  /** false = switched off: the server refuses the request, clients hide the button. */
+  enabled: boolean;
+  /** The agencies in display order; the id of each is slugified from its name. */
+  agencies: { name: string }[];
+  /** One graph point per this many ms of campaign time (lengthened when the campaign would need more than maxPoints). */
+  sampleIntervalMs: number;
+  /** Start error of each agency is drawn in [errorStartMinPct, errorStartMaxPct] (percent of a party's seats). */
+  errorStartMinPct: number;
+  errorStartMaxPct: number;
+  /** Fraction of the start error that remains at the end of the campaign (0..1). */
+  errorEndFraction: number;
+  /** k in exp(-k x f): how fast the error falls with the elapsed campaign fraction f. */
+  errorDecayRate: number;
+  /** Relative size of the random wobble of the error rate around its trend (0..1). */
+  errorNoise: number;
+  /** AR(1) coefficient of the wobble between consecutive points (0..<1; higher = smoother). */
+  noiseSmoothing: number;
+  /** Lower / upper bound of the wobble factor (1 + errorNoise x wobble): 0 <= min <= 1 <= max. */
+  errorWobbleMin: number;
+  errorWobbleMax: number;
+  /** Most points per graph (>= 2). */
+  maxPoints: number;
+}
+
 export interface MapConfig {
   mapId: string;
   seatCount: number;
@@ -134,6 +160,8 @@ export interface MapConfig {
     /** Margin of error shown to the player, as a multiple of the noise. */
     marginFactor: number;
   };
+  /** Global reports by news agencies (free, noised, separate from the paid analyst reports). */
+  news: NewsConfig;
   /** Committed voters per party (bands dealt around a core seat). */
   committed: CommittedConfig;
   /** How a seat's votes are made up: committed, influence, randomness, then reputation. */
@@ -206,6 +234,31 @@ export function validateConfig(cfg: MapConfig): void {
   for (const k of ['seatReport', 'globalReport'] as const) {
     if (typeof cfg.analyst?.[k]?.enabled !== 'boolean') bad(`analyst.${k}.enabled`, `must be true or false (got ${String(cfg.analyst?.[k]?.enabled)})`);
   }
+  if (!cfg.news || typeof cfg.news !== 'object') bad('news', 'the news section is missing (news.enabled, news.agency1.name ...)');
+  if (typeof cfg.news.enabled !== 'boolean') bad('news.enabled', `must be true or false (got ${String(cfg.news.enabled)})`);
+  if (!Array.isArray(cfg.news.agencies) || !cfg.news.agencies.length) bad('news.agencies', 'must list at least one agency');
+  cfg.news.agencies.forEach((a, i) => {
+    if (typeof a?.name !== 'string' || !/[a-z0-9]/i.test(a.name)) bad(`news.agency${i + 1}.name`, `must contain a letter or digit (got ${String(a?.name)})`);
+  });
+  if (new Set(cfg.news.agencies.map((a) => a.name.toLowerCase())).size !== cfg.news.agencies.length) bad('news.agencies', 'names must be different');
+  num('news.sampleIntervalMs', cfg.news?.sampleIntervalMs, 999, true);
+  num('news.errorStartMinPct', cfg.news?.errorStartMinPct, 0, true);
+  num('news.errorStartMaxPct', cfg.news?.errorStartMaxPct, 0, true);
+  if (cfg.news.errorStartMinPct > cfg.news.errorStartMaxPct) bad('news.errorStartMinPct', 'must be <= news.errorStartMaxPct');
+  if (cfg.news.errorStartMaxPct > 100) bad('news.errorStartMaxPct', `must be <= 100 (got ${String(cfg.news.errorStartMaxPct)})`);
+  num('news.errorEndFraction', cfg.news?.errorEndFraction);
+  if (cfg.news.errorEndFraction > 1) bad('news.errorEndFraction', `must be <= 1 (got ${String(cfg.news.errorEndFraction)})`);
+  num('news.errorDecayRate', cfg.news?.errorDecayRate);
+  num('news.errorNoise', cfg.news?.errorNoise);
+  if (cfg.news.errorNoise > 1) bad('news.errorNoise', `must be <= 1 (got ${String(cfg.news.errorNoise)})`);
+  num('news.noiseSmoothing', cfg.news?.noiseSmoothing);
+  if (cfg.news.noiseSmoothing >= 1) bad('news.noiseSmoothing', `must be < 1 (got ${String(cfg.news.noiseSmoothing)})`);
+  num('news.errorWobbleMin', cfg.news?.errorWobbleMin);
+  num('news.errorWobbleMax', cfg.news?.errorWobbleMax);
+  if (cfg.news.errorWobbleMin > 1) bad('news.errorWobbleMin', `must be <= 1 (got ${String(cfg.news.errorWobbleMin)})`);
+  if (cfg.news.errorWobbleMax < 1) bad('news.errorWobbleMax', `must be >= 1 (got ${String(cfg.news.errorWobbleMax)})`);
+  num('news.maxPoints', cfg.news?.maxPoints, 2);
+  if (!Number.isInteger(cfg.news.maxPoints)) bad('news.maxPoints', `must be a whole number (got ${String(cfg.news.maxPoints)})`);
   const pct = (key: string, v: unknown) => {
     num(key, v);
     if ((v as number) > 100) bad(key, `must be <= 100 (got ${String(v)})`);

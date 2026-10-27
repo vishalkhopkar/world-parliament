@@ -44,8 +44,10 @@ const NUMBER_KEYS = [
   'counting.pieRefreshMs', 'counting.panelDisplayMs', 'counting.panelStaggerMs',
   'counting.panelRunnerUpPercent', 'counting.panelOtherPercent',
   'points.seatMultiplier', 'points.governmentFloor', 'points.opposition',
+  'news.sampleIntervalMs', 'news.errorStartMinPct', 'news.errorStartMaxPct', 'news.errorEndFraction', 'news.errorDecayRate',
+  'news.errorNoise', 'news.noiseSmoothing', 'news.errorWobbleMin', 'news.errorWobbleMax', 'news.maxPoints',
 ];
-const BOOL_KEYS = ['analyst.seatReport.enabled', 'analyst.globalReport.enabled'];
+const BOOL_KEYS = ['analyst.seatReport.enabled', 'analyst.globalReport.enabled', 'news.enabled'];
 const STRING_KEYS = ['currency.name', 'currency.symbol', 'messaging.mode', 'messaging.opensAt'];
 const PORTFOLIO_FIELDS: Record<string, Kind> = { id: 'string', label: 'string', points: 'number', max: 'number' };
 const BAND_FIELDS: Record<string, Kind> = { percent: 'number', seats: 'number', level: 'string' };
@@ -105,6 +107,12 @@ const bandNums = [...new Set([...raw.keys()].map(k => /^committed\.bands\.(\d+)\
 bandNums.forEach((n, i) => { if (n !== i + 1) errors.push(`committed bands must be numbered 1..n without gaps (found ${n} at position ${i + 1})`); });
 values.committed.bands = bandNums.map(n => Object.fromEntries(
   Object.entries(BAND_FIELDS).map(([f, kind]) => [f, take(`committed.bands.${n}.${f}`, kind)])));
+// News agencies: news.agency<1..n>.name -> values.news.agencies = [{ name }, ...]
+const agencyNums = [...new Set([...raw.keys()].map(k => /^news\.agency(\d+)\./.exec(k)?.[1]).filter((x): x is string => !!x))]
+  .map(Number).sort((a, b) => a - b);
+if (!agencyNums.length) errors.push('no news agencies defined (news.agency1.name ...)');
+agencyNums.forEach((n, i) => { if (n !== i + 1) errors.push(`news agencies must be numbered 1..n without gaps (found ${n} at position ${i + 1})`); });
+values.news.agencies = agencyNums.map(n => ({ name: take(`news.agency${n}.name`, 'string') }));
 for (const key of raw.keys()) if (!used.has(key)) errors.push(`line ${raw.get(key)!.line}: unknown key "${key}" (typo?)`);
 
 // Sanity rules (the same ones are re-checked at run time by validateConfig in shared/src/mapConfig.ts).
@@ -146,6 +154,17 @@ if (!errors.length) {
     rule(Number.isInteger(b.seats) && b.seats >= 0, `committed.bands.${i + 1}.seats must be a whole number >= 0`);
     rule(BAND_LEVELS.includes(b.level), `committed.bands.${i + 1}.level must be one of ${BAND_LEVELS.join(' / ')}`);
   });
+  rule(val('news.sampleIntervalMs') >= 1000, 'news.sampleIntervalMs must be >= 1000 (ms between graph points)');
+  rule(val('news.errorStartMinPct') > 0 && val('news.errorStartMinPct') <= val('news.errorStartMaxPct') && val('news.errorStartMaxPct') <= 100, 'news.errorStartMinPct / errorStartMaxPct: need 0 < min <= max <= 100');
+  rule(val('news.errorEndFraction') >= 0 && val('news.errorEndFraction') <= 1, 'news.errorEndFraction must be in 0..1');
+  rule(val('news.errorDecayRate') >= 0, 'news.errorDecayRate must be >= 0');
+  rule(val('news.errorNoise') >= 0 && val('news.errorNoise') <= 1, 'news.errorNoise must be in 0..1');
+  rule(val('news.noiseSmoothing') >= 0 && val('news.noiseSmoothing') < 1, 'news.noiseSmoothing must be in 0..1 (below 1)');
+  rule(val('news.errorWobbleMin') >= 0 && val('news.errorWobbleMin') <= 1, 'news.errorWobbleMin must be in 0..1 (the lowest the wobble factor may fall to, a fraction of the trend)');
+  rule(val('news.errorWobbleMax') >= 1, 'news.errorWobbleMax must be >= 1 (the highest the wobble factor may rise to, a multiple of the trend)');
+  rule(Number.isInteger(val('news.maxPoints')) && val('news.maxPoints') >= 2, 'news.maxPoints must be a whole number >= 2');
+  values.news.agencies.forEach((a: { name: string }, i: number) => rule(a.name.length > 0 && /[a-z0-9]/i.test(a.name), `news.agency${i + 1}.name must contain a letter or digit`));
+  rule(new Set(values.news.agencies.map((a: { name: string }) => a.name.toLowerCase())).size === values.news.agencies.length, 'news agency names must be different');
   rule(val('analyst.seatReport.end') >=val('analyst.seatReport.start') && val('analyst.globalReport.end') >= val('analyst.globalReport.start'), 'analyst report end price must be >= start price');
 }
 if (errors.length) { console.error(`config FAILED (${path.relative(gameDir, file)}):\n  ` + errors.join('\n  ')); process.exit(1); }
@@ -162,4 +181,4 @@ if (CHECK) {
 } else if (!DRY) {
   fs.writeFileSync(out, text);
 }
-console.log(`gen-config: ${raw.size} keys from ${path.relative(gameDir, file)} (${portfolioNums.length} portfolios, ${bandNums.length} committed-voter bands)`);
+console.log(`gen-config: ${raw.size} keys from ${path.relative(gameDir, file)} (${portfolioNums.length} portfolios, ${bandNums.length} committed-voter bands, ${agencyNums.length} news agencies)`);

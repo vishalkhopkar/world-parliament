@@ -103,6 +103,19 @@ describe('game.properties is the source of the game constants', () => {
     expect(WORLD_CONFIG.messaging.opensAt).toBe('campaign');
   });
 
+  it('news agency tunables come from the file (agencies numbered 1..n become a list)', () => {
+    const c = WORLD_CONFIG.news;
+    expect(c.enabled).toBe(b('news.enabled'));
+    expect(c.agencies.map((a) => a.name)).toEqual(
+      [...props.keys()].filter((k) => /^news\.agency\d+\.name$/.test(k)).map((k) => props.get(k)));
+    for (const k of ['sampleIntervalMs', 'errorStartMinPct', 'errorStartMaxPct', 'errorEndFraction', 'errorDecayRate', 'errorNoise', 'noiseSmoothing', 'errorWobbleMin', 'errorWobbleMax', 'maxPoints'] as const) {
+      expect(c[k]).toBe(n(`news.${k}`));
+    }
+    expect(c.agencies.map((a) => a.name)).toEqual(['Kal Tak', 'Toofan Express', 'Woof News', 'World Today']);
+    expect([c.sampleIntervalMs, c.errorStartMinPct, c.errorStartMaxPct]).toEqual([30_000, 20, 40]);
+    expect(typeof c.enabled).toBe('boolean');
+  });
+
   it('every map without its own entry shares the file values', () => {
     const c = configForMap('some-new-map', 123);
     expect(c.mapId).toBe('some-new-map');
@@ -158,6 +171,64 @@ describe('gen-config rejects a bad properties file', () => {
   it('validateConfig rejects a non-boolean enabled flag', () => {
     const bad = { ...WORLD_CONFIG, analyst: { ...WORLD_CONFIG.analyst, seatReport: { ...WORLD_CONFIG.analyst.seatReport, enabled: 'yes' as unknown as boolean } } };
     expect(() => validateConfig(bad)).toThrow(/analyst\.seatReport\.enabled/);
+  });
+  it.each(['true', 'false'])('accepts news.enabled=%s', (v) => {
+    expect(run(propsText.replace(/^news\.enabled=.*$/m, `news.enabled=${v}`)).ok).toBe(true);
+  }, 30_000);
+  it.each([
+    ['news.enabled=yes (only true / false)', /^news\.enabled=.*$/m, 'news.enabled=yes', 'news.enabled'],
+    ['a start error min above the max', /^news\.errorStartMinPct=.*$/m, 'news.errorStartMinPct=50', 'news.errorStartMinPct'],
+    ['a zero start error min', /^news\.errorStartMinPct=.*$/m, 'news.errorStartMinPct=0', 'news.errorStartMinPct'],
+    ['a start error max over 100', /^news\.errorStartMaxPct=.*$/m, 'news.errorStartMaxPct=150', 'news.errorStartMinPct'],
+    ['an end fraction over 1', /^news\.errorEndFraction=.*$/m, 'news.errorEndFraction=1.5', 'news.errorEndFraction'],
+    ['a negative end fraction', /^news\.errorEndFraction=.*$/m, 'news.errorEndFraction=-0.1', 'news.errorEndFraction'],
+    ['a negative decay rate', /^news\.errorDecayRate=.*$/m, 'news.errorDecayRate=-1', 'news.errorDecayRate'],
+    ['a noise over 1', /^news\.errorNoise=.*$/m, 'news.errorNoise=2', 'news.errorNoise'],
+    ['a smoothing of 1', /^news\.noiseSmoothing=.*$/m, 'news.noiseSmoothing=1', 'news.noiseSmoothing'],
+    ['a sample interval under one second', /^news\.sampleIntervalMs=.*$/m, 'news.sampleIntervalMs=500', 'news.sampleIntervalMs'],
+    ['a wobble min above 1', /^news\.errorWobbleMin=.*$/m, 'news.errorWobbleMin=1.2', 'news.errorWobbleMin'],
+    ['a negative wobble min', /^news\.errorWobbleMin=.*$/m, 'news.errorWobbleMin=-0.1', 'news.errorWobbleMin'],
+    ['a wobble max below 1', /^news\.errorWobbleMax=.*$/m, 'news.errorWobbleMax=0.8', 'news.errorWobbleMax'],
+    ['fewer than 2 points', /^news\.maxPoints=.*$/m, 'news.maxPoints=1', 'news.maxPoints'],
+    ['two agencies with the same name', /^news\.agency2\.name=.*$/m, 'news.agency2.name=kal tak', 'news agency names'],
+    ['a gap in the agency numbering', /^news\.agency4\.name=.*$/m, 'news.agency6.name=World Today', 'news agencies must be numbered'],
+  ])('rejects %s', (_label, re, line, key) => {
+    const r = run(propsText.replace(re, line));
+    expect(r.ok).toBe(false);
+    expect(r.err).toContain(key);
+  }, 30_000);
+  it.each(['sampleIntervalMs', 'errorStartMinPct', 'errorStartMaxPct', 'errorEndFraction', 'errorDecayRate', 'errorNoise', 'noiseSmoothing', 'errorWobbleMin', 'errorWobbleMax', 'maxPoints', 'enabled'])('rejects a missing news.%s', (k) => {
+    const r = run(propsText.replace(new RegExp(`^news\.${k}=.*$`, 'm'), ''));
+    expect(r.ok).toBe(false);
+    expect(r.err).toContain(`news.${k}`);
+  }, 30_000);
+  it('rejects a file without any news agency', () => {
+    const r = run(propsText.replace(/^news\.agency\d+\.name=.*$/gm, ''));
+    expect(r.ok).toBe(false);
+    expect(r.err).toContain('no news agencies');
+  }, 30_000);
+  it('validateConfig reports a config error (not a TypeError) when the news section is missing', () => {
+    const { news: _news, ...rest } = WORLD_CONFIG;
+    let err: unknown;
+    try { validateConfig(rest as unknown as typeof WORLD_CONFIG); } catch (e) { err = e; }
+    expect(err).toBeInstanceOf(Error);
+    expect(err).not.toBeInstanceOf(TypeError);
+    expect((err as Error).message).toMatch(/game config: news/);
+  });
+  it('validateConfig rejects bad news values at run time', () => {
+    const w = (news: Partial<typeof WORLD_CONFIG.news>) => ({ ...WORLD_CONFIG, news: { ...WORLD_CONFIG.news, ...news } });
+    expect(() => validateConfig(w({ enabled: 'yes' as unknown as boolean }))).toThrow(/news\.enabled/);
+    expect(() => validateConfig(w({ agencies: [] }))).toThrow(/news\.agencies/);
+    expect(() => validateConfig(w({ agencies: [{ name: 'A' }, { name: 'a' }] }))).toThrow(/news\.agencies/);
+    expect(() => validateConfig(w({ errorStartMinPct: 50, errorStartMaxPct: 40 }))).toThrow(/news\.errorStartMinPct/);
+    expect(() => validateConfig(w({ errorEndFraction: 2 }))).toThrow(/news\.errorEndFraction/);
+    expect(() => validateConfig(w({ noiseSmoothing: 1 }))).toThrow(/news\.noiseSmoothing/);
+    expect(() => validateConfig(w({ maxPoints: 2.5 }))).toThrow(/news\.maxPoints/);
+    expect(() => validateConfig(w({ maxPoints: 1 }))).toThrow(/news\.maxPoints/);
+    expect(() => validateConfig(w({ errorWobbleMin: 1.1 }))).toThrow(/news\.errorWobbleMin/);
+    expect(() => validateConfig(w({ errorWobbleMax: 0.9 }))).toThrow(/news\.errorWobbleMax/);
+    expect(() => validateConfig(w({ sampleIntervalMs: 0 }))).toThrow(/news\.sampleIntervalMs/);
+    expect(() => validateConfig(w({}))).not.toThrow();
   });
   it('rejects an unknown (typo) key', () => {
     const r = run(propsText + '\nbudgett=5\n');

@@ -1,7 +1,7 @@
 // GameClient: REST + one WebSocket for ONE AI player. Mirrors what the browser client does, nothing more.
 // There is deliberately NO createGame method: an AI agent can only join games created by humans.
 import type {
-  ActionType, AnalystReport, ChatMessage, ClientMessage, CoalitionOffer, ErrorCode, JoinGameRequest, JoinGameResponse,
+  ActionType, AnalystReport, ChatMessage, ClientMessage, CoalitionOffer, ErrorCode, GlobalReports, JoinGameRequest, JoinGameResponse,
   LobbyView, PartyIdentity, PlayerId, PortfolioAssignment, ReportScope, SeatId, ServerMessage,
 } from '@hp/shared';
 import { AgentError } from './errors';
@@ -389,6 +389,11 @@ export class GameClient {
       { action: 'buyReport', scope, ...(seat !== undefined ? { seat } : {}) },
       (m) => (m.type === 'report' ? { report: m.report, budget: m.budget } : undefined),
     );
+  }
+
+  /** Free news-agency projections (no budget cost); the server answers the requester only. */
+  async globalReports(): Promise<GlobalReports> {
+    return this.request<GlobalReports>({ action: 'globalReports' }, (m) => (m.type === 'globalReports' ? m.reports : undefined));
   }
 
   async chat(to: PlayerId[] | undefined, text: string): Promise<ChatMessage> {

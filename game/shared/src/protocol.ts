@@ -69,10 +69,38 @@ export type ErrorCode =
 // Pending (not yet admitted) players may connect; they receive a minimal hello and lobby-level messages only.
 // Party colours are sent as the hex value of a PARTY_COLOURS entry.
 
+/** One graph point of a news agency: projected seats per party at time t (server epoch ms). The values sum to the seat count. */
+export interface GlobalReportPoint {
+  t: number;
+  seats: Record<PlayerId, number>;
+}
+
+/** One news agency's graph: the noisy series and, for the latest point, each party's seat range [low, high] (whole numbers, 0..seatCount). */
+export interface NewsAgencyReport {
+  /** Slug of the agency name, e.g. "kal-tak". */
+  id: string;
+  name: string;
+  points: GlobalReportPoint[];
+  ranges: Record<PlayerId, [number, number]>;
+}
+
+/**
+ * The free global reports. Built by buildGlobalReports (engine/newsAgencies.ts) from the hidden state, but only the noisy
+ * numbers are sent. `asOf` = the time of the latest point's data horizon: min(now, campaignEnd) (frozen once the campaign is over).
+ * `sampleIntervalMs` = the spacing of the points actually used (the configured one, lengthened when the campaign would need more than news.maxPoints).
+ */
+export interface GlobalReports {
+  asOf: number;
+  sampleIntervalMs: number;
+  agencies: NewsAgencyReport[];
+}
+
 export type ClientMessage =
   | { action: 'ping'; clientTime: number }
   | { action: 'campaign'; type: ActionType; seat: SeatId; clientRef?: string }
   | { action: 'buyReport'; scope: ReportScope; seat?: SeatId }
+  /** Campaign start onwards (free, every player): the news agencies' noisy projections. Answered, to the requester only, with 'globalReports'. */
+  | { action: 'globalReports' }
   /** Counting phase onwards: the vote shares (and candidate names) of a seat that already has a lead or a result. Answered with 'seatShares'. */
   | { action: 'peekSeat'; seat: SeatId }
   /** Counting & post-counting only. `to` picks the recipients in 'individual' mode; in 'group' mode (default) everybody reads it and `to` is ignored. */
@@ -169,6 +197,7 @@ export type ServerMessage =
   /** `nextRallyAt` = as in PrivateState (server epoch ms of the next allowed rally; null/absent = allowed now). */
   | { type: 'actionAck'; clientRef?: string; ok: true; budget: number; reputation?: Record<SeatId, number>; nextRallyAt?: number | null }
   | { type: 'report'; report: AnalystReport; budget: number }
+  | { type: 'globalReports'; reports: GlobalReports }
   | { type: 'phaseClosed'; phase: number; seats: SeatId[] }
   | { type: 'seatUpdate'; declaration: SeatDeclaration; tally: CountTally }
   | SeatSharesMessage

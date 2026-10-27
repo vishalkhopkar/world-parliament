@@ -123,6 +123,13 @@ export function rulesValues(cfg: MapConfig, opts: RenderOptions = {}): Record<st
     COST_RATIO: `1/${trim(cfg.costs.rally / cfg.costs.roadshow, 1)}`,
     TM_START: trim(cfg.timeMultiplier.start),
     TM_END: trim(cfg.timeMultiplier.end),
+    NEWS_STATUS: cfg.news.enabled
+      ? 'Global reports by the news agencies are on in this game.'
+      : 'Global reports by the news agencies are currently switched off in this game: `get_global_reports` is refused. Ignore the rest of this section.',
+    NEWS_AGENCY_NAMES: cfg.news.agencies.map((a) => a.name).join(', '),
+    NEWS_AGENCY_COUNT: String(cfg.news.agencies.length),
+    NEWS_ERROR_START_TEXT: `${cfg.news.errorStartMinPct}-${cfg.news.errorStartMaxPct}%`,
+    NEWS_INTERVAL_S: String(Math.round(cfg.news.sampleIntervalMs / 1000)),
     REPORT_DELAY_S: String(Math.round(cfg.analyst.delayMs / 1000)),
     NOISE_PCT: String(Math.round(cfg.analyst.noise * 100)),
     INFLUENCE_PCT: String(cfg.voting.influenceMaxPercent),

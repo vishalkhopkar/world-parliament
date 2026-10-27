@@ -23,6 +23,12 @@ export interface GameRecord {
   finalised?: boolean;
   /** Committed-voter deals so far: bumped (with a condition on the old value) by every deal, so two deals never interleave. */
   committedSeq?: number;
+  /**
+   * Server-only random secret of the game, mixed into the noise seeds of the news agencies (global reports) so a client cannot rebuild
+   * the noise from the public game id. NEVER sent to a client (not in the snapshot, hello or lobby view). Missing on games created
+   * before it existed: GameService.newsSecretOf then creates and stores one on first use.
+   */
+  newsSecret?: string;
 }
 
 export interface PlayerRecord {

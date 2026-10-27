@@ -56,7 +56,7 @@ describe('action table', () => {
     expect(new Set(names).size).toBe(names.length);
     for (const n of ['get_rules', 'join_game', 'wait_for_admission', 'get_lobby', 'list_party_options', 'set_party', 'get_state', 'list_seats', 'get_seat',
       'campaign', 'campaign_batch', 'buy_report', 'get_news', 'wait_for_events', 'chat', 'get_chat', 'propose_government', 'respond_offer', 'withdraw_offer',
-      'list_offers', 'leave_game']) expect(names).toContain(n);
+      'list_offers', 'leave_game', 'get_global_reports']) expect(names).toContain(n);
     expect(names.some((n) => /create|host|start_game/i.test(n))).toBe(false);
     expect('createGame' in GameClient.prototype).toBe(false);
     expect(Object.getOwnPropertyNames(GameClient.prototype).some((n) => /create/i.test(n))).toBe(false);

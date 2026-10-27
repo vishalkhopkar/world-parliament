@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type {
   ActionType, ChatMessage, GameMapPackage, GameSnapshot, GameStatus, LobbyView, PlayerId, PlayerPublic, PrivateState,
-  SeatId, SeatSharesMessage, ServerMessage,
+  GlobalReports, SeatId, SeatSharesMessage, ServerMessage,
 } from '@hp/shared';
 import type { LinkState } from '../net/transport';
 
@@ -26,6 +26,8 @@ interface State {
   polledSeats: SeatId[]; // seats closed so far (from phaseClosed messages)
   /** Latest answer to peekSeat per seat (vote shares + candidate names); lead answers swing, won answers never change. */
   seatShares: Record<SeatId, SeatSharesMessage>;
+  /** Latest answer to requestGlobalReports (the news agencies' noisy projections); null until asked. */
+  globalReports: GlobalReports | null;
   // map data
   names: Record<SeatId, string>;
   gamePkg: GameMapPackage | null;
@@ -53,7 +55,7 @@ interface State {
 
 const initial = {
   gameId: null, token: null, me: null, joinCode: null, lobby: null, snapshot: null, priv: null,
-  chat: [] as ChatMessage[], clockOffset: 0, link: 'open' as LinkState, polledSeats: [] as SeatId[], seatShares: {} as Record<SeatId, SeatSharesMessage>, lobbyPage: 'lobby' as const, selectedSeat: null,
+  chat: [] as ChatMessage[], clockOffset: 0, link: 'open' as LinkState, polledSeats: [] as SeatId[], seatShares: {} as Record<SeatId, SeatSharesMessage>, globalReports: null as GlobalReports | null, lobbyPage: 'lobby' as const, selectedSeat: null,
   pulse: null as Pulse | null, repGain: null as RepGainState | null, error: null as string | null,
 };
 
@@ -66,7 +68,7 @@ export const useStore = create<State>((set, get) => ({
   names: {},
   gamePkg: null,
 
-  setSession: s => set({ ...s, polledSeats: [], seatShares: {}, lobby: null, snapshot: null, priv: null, chat: [], lobbyPage: 'lobby', selectedSeat: null, repGain: null }),
+  setSession: s => set({ ...s, polledSeats: [], seatShares: {}, globalReports: null, lobby: null, snapshot: null, priv: null, chat: [], lobbyPage: 'lobby', selectedSeat: null, repGain: null }),
   setLobby: v => set({ lobby: v }),
   setNames: names => set({ names }),
   setGamePkg: gamePkg => set({ gamePkg }),
@@ -115,6 +117,7 @@ export const useStore = create<State>((set, get) => ({
       case 'seatUpdate':
         if (snap) set({ snapshot: { ...snap, seats: { ...snap.seats, [m.declaration.seat]: m.declaration }, tally: m.tally } });
         break;
+      case 'globalReports': set({ globalReports: m.reports }); break;
       case 'seatShares': set(s => ({ seatShares: { ...s.seatShares, [m.seat]: m } })); break;
       case 'chat': set(s => ({ chat: s.chat.some(c => c.id === m.message.id) ? s.chat : [...s.chat, m.message] })); break;
       case 'offer':

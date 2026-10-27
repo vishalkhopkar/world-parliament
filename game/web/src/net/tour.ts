@@ -5,10 +5,11 @@
 import {
   DEFAULT_MAP_ID, MAP_MANIFESTS, PARTY_COLOURS, buildKernels, committedView, computeEffects, createRng, dealCommitted, finalResult,
   governmentFromOffer, leavesPartyOut, majorityOf, rallyAvailableAt, reputationView,
+  gaussian, newsAgencies, newsErrorRates, newsSeed, newsSampleTimes,
 } from '@hp/shared';
 import type {
   Action, AdmissionRequest, AdmitRequest, ClientMessage, CoalitionOffer, CommittedSet, CountTally, CreateGameRequest, CreateGameResponse,
-  ErrorCode, FinalResult, GameId, GameMapPackage, GameSnapshot, GameStatus, GameTimeline, Government, JoinGameRequest, JoinGameResponse, Kernels,
+  ErrorCode, FinalResult, GlobalReports, GameId, GameMapPackage, GameSnapshot, GameStatus, GameTimeline, Government, JoinGameRequest, JoinGameResponse, Kernels,
   LobbyView, MapConfig, NewsItem, PartyIdentity, PartyRequest, PlayerId, PlayerPublic, PortfolioAssignment, PrivateState,
   Rng, SeatDeclaration, SeatId, ServerMessage, SettingsRequest, StartResponse,
 } from '@hp/shared';
@@ -277,6 +278,7 @@ export class TourTransport implements Transport {
       case 'ping': this.emit({ type: 'pong', clientTime: msg.clientTime, serverTime: Date.now() }); break;
       case 'campaign': this.handleCampaign(g, msg, err); break;
       case 'buyReport': err('BAD_REQUEST', 'Analyst reports are not part of the tour'); break;
+      case 'globalReports': this.handleGlobalReports(g, err); break;
       case 'peekSeat': this.handlePeek(g, msg, err); break;
       case 'chat': this.handleChat(g, msg, err); break;
       case 'proposeGovernment': this.handlePropose(g, msg, err); break;
@@ -289,6 +291,43 @@ export class TourTransport implements Transport {
         break;
       }
     }
+  }
+
+  // ---- global reports (news agencies)
+  /**
+   * Scripted series: the practice clock is frozen (a 10-year campaign), so the engine's time-based series would be a single point.
+   * Instead the agencies' graphs run over a synthetic campaign of MIN(maxPoints, 3 + your actions) points: they start from the even
+   * split and move toward the scripted final result (largest party first, you the runner-up), so the picture is the one the tour
+   * narrates, and every action you take adds one point (the graph visibly changes). Noise and error shrinkage are the engine's own
+   * (newsErrorRates, same config); seeds are fixed per game, so asking again repeats the answer.
+   */
+  private handleGlobalReports(g: TourGame, err: ErrFn) {
+    if (!g.cfg.news.enabled) return err('FORBIDDEN', 'News agency reports are switched off in this game');
+    const ids = g.players.map(p => p.playerId);
+    const final = ids.map((_, i) => [...g.truth.values()].filter(w => w === i).length);
+    const count = Math.min(g.cfg.news.maxPoints, 3 + g.actions.length);
+    const interval = g.cfg.news.sampleIntervalMs;
+    const start = g.timeline.campaignStart;
+    const tl: GameTimeline = { ...g.timeline, campaignStart: start, campaignEnd: start + (count - 1) * interval };
+    const times = newsSampleTimes(g.cfg, tl, tl.campaignEnd);
+    const even = g.n / ids.length;
+    const agencies = newsAgencies(g.cfg).map(agency => {
+      const errs = newsErrorRates(g.cfg, newsSeed(g.gameId, 'tour'), agency.id, tl, times);
+      const points = times.map((x, i) => {
+        if (i === 0) return { t: x.t, seats: Object.fromEntries(ids.map(id => [id, even])) };
+        const f = i / (times.length - 1);
+        const rng = createRng(`${g.gameId}:tour-news:${agency.id}:${x.k}`);
+        const raw = ids.map((_, j) => Math.max(0, (even + (final[j] - even) * f) * (1 + errs[i] * gaussian(rng))));
+        const sum = raw.reduce((a, b) => a + b, 0);
+        return { t: x.t, seats: Object.fromEntries(ids.map((id, j) => [id, sum > 0 ? (raw[j] * g.n) / sum : even])) };
+      });
+      const latest = points[points.length - 1].seats, e = errs[errs.length - 1];
+      const clamp = (v: number) => Math.min(g.n, Math.max(0, v));
+      const ranges = Object.fromEntries(ids.map(id => [id, [clamp(Math.round(latest[id] * (1 - e))), clamp(Math.round(latest[id] * (1 + e)))] as [number, number]]));
+      return { id: agency.id, name: agency.name, points, ranges };
+    });
+    const reports: GlobalReports = { asOf: times[times.length - 1].t, sampleIntervalMs: interval, agencies };
+    this.emit({ type: 'globalReports', reports });
   }
 
   // ---- campaign

@@ -130,6 +130,16 @@ export function buildSteps(startCounting: () => void): TourStep[] {
       ),
     },
     {
+      id: 'global-reports', phase: 'campaign', title: 'News agencies', anchor: ['[data-tour="global-reports"]'], dim: true, block: true,
+      enabled: ({ cfg }) => cfg.news.enabled,
+      body: c => (
+        <>
+          <p>The <b>News agencies</b> button is <b>free</b>. It opens one graph from each of {c.cfg.news.agencies.length} news agencies: {c.cfg.news.agencies.map(a => a.name).join(', ')}. Each draws how many seats it thinks every party will win, with the party avatars on the lines, and a new point every <b>{Math.round(c.cfg.news.sampleIntervalMs / 1000)} seconds</b>.</p>
+          <p>All the agencies start from the same even split, but they guess differently: each one's seat range for a party is its own. They get closer to the truth as the campaign goes on, and the graphs stop when the campaign ends. Compare them, but do not trust any one of them.</p>
+        </>
+      ),
+    },
+    {
       id: 'analyst', phase: 'campaign', title: 'Analyst reports', anchor: ['[data-tour="side"]'], dim: true, block: true,
       enabled: ({ cfg }) => reportsOn(cfg),
       body: c => (

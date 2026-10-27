@@ -213,12 +213,28 @@ async function main() {
     await see(B, 'My actions (2)');
     await see(A, /rallied in/);                       // Ben's rally is public news on Asha's screen
     await see(B, /Lotus Front.*rallied|Blue Anchor.*rallied/);
+    // free news-agency graphs ("News agencies" button, not the paid "Global report (price)" analyst button)
+    if (WORLD_CONFIG.news.enabled) {
+      const bN = await budget(B);
+      await btn(B, /^News agencies$/).click();
+      const dialog = B.getByRole('dialog', { name: 'News agencies' });
+      await dialog.waitFor({ timeout: 10000 });
+      const want = WORLD_CONFIG.news.agencies.length;
+      await B.locator('[data-testid="gr-chart"]').nth(want - 1).waitFor({ timeout: 10000 }).catch(() => problems.push('the news agencies dialog did not show its charts'));
+      const charts = await B.locator('[data-testid="gr-chart"]').count();
+      if (charts !== want) problems.push(`the news agencies dialog shows ${charts} charts, expected one per configured agency (${want})`);
+      for (const a of WORLD_CONFIG.news.agencies) if (!(await dialog.getByText(a.name, { exact: true }).count())) problems.push(`news agency ${a.name} is missing from the dialog`);
+      await shot(B, '06-news-agencies');
+      await B.keyboard.press('Escape');
+      await dialog.waitFor({ state: 'detached', timeout: 5000 }).catch(() => problems.push('Escape did not close the news agencies dialog'));
+      if ((await budget(B)) !== bN) problems.push('the news agencies are free but the budget changed');
+    } else if (await B.getByRole('button', { name: /^News agencies$/ }).count()) problems.push('news agencies are switched off but their button is shown');
     if (WORLD_CONFIG.analyst.globalReport.enabled) {
       const bB = await budget(B);
-      await btn(B, /^Global report/).click();
+      await btn(B, /^Global report \(/).click();
       await see(B, 'Global (seats)');
       if ((await budget(B)) === bB) problems.push('budget did not drop after a global report');
-    } else if (await B.getByRole('button', { name: /^Global report/ }).count()) problems.push('the global report is switched off but its button is shown');
+    } else if (await B.getByRole('button', { name: /^Global report \(/ }).count()) problems.push('the global report is switched off but its button is shown');
     await shot(B, '06-campaign-b-report');
 
     await clickSeat(C, 6);

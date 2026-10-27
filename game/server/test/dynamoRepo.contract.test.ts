@@ -78,6 +78,20 @@ describe.each(impls)('Repo contract: %s', (_name, make) => {
     expect(await repo.updateGame('g1', { admissionOpen: true }, { admissionOpen: true, status: 'campaign' })).toBe(false);
   });
 
+  it('round-trips newsSecret on create and sets it once on a game that lacks it (legacy record)', async () => {
+    const { repo } = make();
+    await repo.createGame({ ...game(), newsSecret: 'secret-1' }, player('p0'));
+    expect((await repo.getGame('g1'))?.newsSecret).toBe('secret-1');
+    expect(await repo.updateGame('g1', { newsSecret: 'secret-2' }, { newsSecret: undefined })).toBe(false);
+    expect((await repo.getGame('g1'))?.newsSecret).toBe('secret-1');
+    const legacy = make();
+    await legacy.repo.createGame(game(), player('p0'));
+    expect((await legacy.repo.getGame('g1'))?.newsSecret).toBeUndefined();
+    expect(await legacy.repo.updateGame('g1', { newsSecret: 'late' }, { newsSecret: undefined })).toBe(true);
+    expect(await legacy.repo.updateGame('g1', { newsSecret: 'later' }, { newsSecret: undefined })).toBe(false);
+    expect((await legacy.repo.getGame('g1'))?.newsSecret).toBe('late');
+  });
+
   it('conditions on a missing attribute (undefined) and round-trips committed + committedSeq', async () => {
     const { repo } = make();
     await repo.createGame(game(), player('p0'));
