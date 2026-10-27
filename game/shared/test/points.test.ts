@@ -63,6 +63,27 @@ describe('governmentFromOffer', () => {
     expect(g2.portfolios.PM).toEqual(['B']);
     expect(g2.pm).toBe('B');
   });
+  it('gives the proposer every portfolio slot nobody was invited to hold (and so its points)', () => {
+    const offer: CoalitionOffer = {
+      ...base, partners: ['C', 'D'], accepted: ['C', 'D'], portfolios: { PM: ['B'], HOME: ['C'], DEFENCE: ['D'], DPM: ['C'] },
+    };
+    const g = governmentFromOffer(offer, 5);
+    expect(g.portfolios.HOME).toEqual(['C']);
+    expect(g.portfolios.DEFENCE).toEqual(['D']);
+    expect(g.portfolios.DPM).toEqual(['C', 'B']);
+    for (const def of cfg.points.portfolios) {
+      if (['PM', 'HOME', 'DEFENCE', 'DPM'].includes(def.id)) continue;
+      expect(g.portfolios[def.id]).toEqual(Array.from({ length: def.max }, () => 'B'));
+    }
+    expect(offer.portfolios.FINANCE).toBeUndefined();
+    const res = finalResult({ B: 100, C: 60, D: 50 }, g, ['B', 'C', 'D'], new Set(), cfg, 400);
+    const pts = (p: string) => res.points.find((x) => x.playerId === p)!.portfolioPoints;
+    const total = cfg.points.portfolios.reduce((s, d) => s + d.points * d.max, 0);
+    const held = (id: string) => cfg.points.portfolios.find((d) => d.id === id)!;
+    expect(pts('C')).toBe(held('HOME').points + held('DPM').points);
+    expect(pts('D')).toBe(held('DEFENCE').points);
+    expect(pts('B') + pts('C') + pts('D')).toBe(total);
+  });
 });
 
 describe('majorityGovernment', () => {

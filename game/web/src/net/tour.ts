@@ -478,7 +478,7 @@ export class TourTransport implements Transport {
     if (!o || g.government) return;
     o.status = 'formed';
     g.offers.filter(x => x !== o && (x.status === 'open' || x.status === 'accepted')).forEach(x => { x.status = 'superseded'; x.supersededBy = o.offerId; this.emit({ type: 'offer', offer: x }); });
-    g.government = governmentFromOffer(o, Date.now());
+    g.government = governmentFromOffer(o, Date.now(), g.cfg);
     g.status = 'finished';
     g.result = finalResult(g.tally!.wins, g.government, this.ids(g), new Set(), g.cfg, g.n);
     this.emit({ type: 'offer', offer: o });

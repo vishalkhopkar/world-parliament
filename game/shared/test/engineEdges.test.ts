@@ -524,11 +524,11 @@ describe('finalResult properties', () => {
     expect(r.points[0].total).toBe(Math.round((cfg.points.seatMultiplier * 250) / 500) + cfg.points.governmentFloor);
   });
   it('coalition ties in points share the win; the PM can lose to a richer partner', () => {
-    const offer: CoalitionOffer = { offerId: 'o', proposer: 'A', partners: ['B'], accepted: ['B'], status: 'accepted', createdAt: 1, portfolios: { PM: ['A'], DPM: ['B'], HOME: ['B'], FINANCE: ['B'] } };
+    const offer: CoalitionOffer = { offerId: 'o', proposer: 'A', partners: ['B'], accepted: ['B'], status: 'accepted', createdAt: 1, portfolios: { PM: ['A'], DPM: ['B', 'B'], HOME: ['B'], DEFENCE: ['B'], FINANCE: ['B'], EXTERNAL: ['B'], SPEAKER: ['B'] } };
     const gov = governmentFromOffer(offer, 1);
     const r = finalResult({ A: 100, B: 200 }, gov, ['A', 'B', 'C'], new Set(), cfg, 500);
     expect(r.outcome).toBe('coalition');
-    expect(r.winners).toEqual(['B']); // 50+20+20 + 80 + 10 beats PM 100 + 40 + 10
+    expect(r.winners).toEqual(['B']); // every post except PM plus more seats beats PM 100 + 40 + 10
     expect(r.points.find((p) => p.playerId === 'C')!.total).toBe(0);
   });
   it('unknown portfolio ids in a government give no points and no membership (validateGovernment rejects them before a government exists)', () => {

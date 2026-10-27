@@ -1140,7 +1140,7 @@ export class GameService {
       if (members.some((m) => !alive.has(m))) continue;
       if (!leavesPartyOut(members, contenders)) continue; // e.g. everybody else was eliminated after it was made
       if (validateGovernment(o.portfolios, wins, cfg, cfg.seatCount, o.partners) !== null) continue;
-      const gov = governmentFromOffer(o, this.now());
+      const gov = governmentFromOffer(o, this.now(), cfg);
       if (!(await this.repo.putGovernmentIfAbsent(gameId, gov))) return false; // somebody else was first
       await this.setOfferStatus(gameId, o, 'formed');
       for (const other of await this.repo.listOffers(gameId)) {

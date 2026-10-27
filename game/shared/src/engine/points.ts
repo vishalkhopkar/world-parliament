@@ -1,4 +1,4 @@
-import { majorityOf } from '../mapConfig';
+import { WORLD_CONFIG, majorityOf } from '../mapConfig';
 import type { MapConfig } from '../mapConfig';
 import type {
   CoalitionOffer, FinalResult, Government, PlayerId, PointsBreakdown, PortfolioAssignment, SeatTally,
@@ -40,11 +40,16 @@ export function validateGovernment(
 }
 
 /** Build the Government object from an accepted offer (proposer is always PM). */
-export function governmentFromOffer(offer: CoalitionOffer, formedAt: number): Government {
+export function governmentFromOffer(offer: CoalitionOffer, formedAt: number, cfg: MapConfig = WORLD_CONFIG): Government {
   const portfolios: PortfolioAssignment = {};
   for (const [id, holders] of Object.entries(offer.portfolios)) portfolios[id] = [...holders];
   if (!portfolios['PM'] || portfolios['PM'].length !== 1 || portfolios['PM'][0] !== offer.proposer) {
     portfolios['PM'] = [offer.proposer];
+  }
+  // Any slot nobody was invited to hold stays with the proposer (who then also gets its points).
+  for (const def of cfg.points.portfolios) {
+    const holders = portfolios[def.id] ?? (portfolios[def.id] = []);
+    while (holders.length < def.max) holders.push(offer.proposer);
   }
   const members: PlayerId[] = [offer.proposer];
   const add = (p: PlayerId) => { if (!members.includes(p)) members.push(p); };
