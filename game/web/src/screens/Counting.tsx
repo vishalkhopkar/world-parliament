@@ -77,10 +77,10 @@ export function Counting() {
       <SeatShareHint />
       <div className="hud">
         <div className="hud-item"><span>{counting ? 'Counting ends in' : snap.government && snap.status === 'postCounting' ? 'Final result in' : 'Government must form within'}</span><strong>{formatClock(left)}</strong></div>
-        <div className="hud-item wide"><TallyBar snap={snap} /></div>
+        <div className="hud-item wide" data-tour="tally"><TallyBar snap={snap} /></div>
       </div>
       <div className="game-body">
-        <div className="map-col">
+        <div className="map-col" data-tour="map">
           {counting && <div className="result-col"><ResultPanels /></div>}
           <SeatMap names={names} fills={fills} leading={leading} selectedSeat={selected} onSeatClick={selectSeat} />
           {selected != null && (
@@ -91,7 +91,7 @@ export function Counting() {
           )}
           {selected != null && <SeatSharesModal seat={selected} onClose={() => selectSeat(null)} />}
         </div>
-        <aside className="side">
+        <aside className="side" data-tour="side">
           <Negotiation snap={snap} />
         </aside>
       </div>

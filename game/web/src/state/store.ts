@@ -7,6 +7,7 @@ import type { LinkState } from '../net/transport';
 
 export type Screen = 'home' | 'lobby' | 'party' | 'campaign' | 'counting' | 'result';
 
+export interface RepGainState { key: number; type: 'rally' | 'roadshow'; seat: SeatId; seats: Record<SeatId, number> }
 export interface Pulse { seat: SeatId; playerId: PlayerId; key: number }
 
 interface State {
@@ -32,6 +33,8 @@ interface State {
   lobbyPage: 'lobby' | 'party';
   selectedSeat: SeatId | null;
   pulse: Pulse | null;
+  /** Latest rise of the player's own reputation caused by their own rally/roadshow (drives the green "+N" smoke on the map). */
+  repGain: RepGainState | null;
   error: string | null;
   // actions
   setSession(s: { gameId: string; token: string; me: PlayerId; joinCode: string }): void;
@@ -51,10 +54,11 @@ interface State {
 const initial = {
   gameId: null, token: null, me: null, joinCode: null, lobby: null, snapshot: null, priv: null,
   chat: [] as ChatMessage[], clockOffset: 0, link: 'open' as LinkState, polledSeats: [] as SeatId[], seatShares: {} as Record<SeatId, SeatSharesMessage>, lobbyPage: 'lobby' as const, selectedSeat: null,
-  pulse: null as Pulse | null, error: null as string | null,
+  pulse: null as Pulse | null, repGain: null as RepGainState | null, error: null as string | null,
 };
 
 let pulseKey = 0;
+let gainKey = 0;
 const pendingActions = new Map<string, { type: ActionType; seat: SeatId }>();
 
 export const useStore = create<State>((set, get) => ({
@@ -62,7 +66,7 @@ export const useStore = create<State>((set, get) => ({
   names: {},
   gamePkg: null,
 
-  setSession: s => set({ ...s, polledSeats: [], seatShares: {}, lobby: null, snapshot: null, priv: null, chat: [], lobbyPage: 'lobby', selectedSeat: null }),
+  setSession: s => set({ ...s, polledSeats: [], seatShares: {}, lobby: null, snapshot: null, priv: null, chat: [], lobbyPage: 'lobby', selectedSeat: null, repGain: null }),
   setLobby: v => set({ lobby: v }),
   setNames: names => set({ names }),
   setGamePkg: gamePkg => set({ gamePkg }),
@@ -95,6 +99,11 @@ export const useStore = create<State>((set, get) => ({
         const a = m.clientRef ? pendingActions.get(m.clientRef) : undefined;
         if (m.clientRef) pendingActions.delete(m.clientRef);
         if (priv) set({ priv: { ...priv, budget: m.budget, reputation: m.reputation ?? priv.reputation, nextRallyAt: m.nextRallyAt !== undefined ? m.nextRallyAt : priv.nextRallyAt, myActions: a ? [...priv.myActions, { ...a, ts: Date.now() + get().clockOffset }] : priv.myActions } });
+        if (priv && a && m.reputation && (a.type === 'rally' || a.type === 'roadshow')) {
+          const seats: Record<SeatId, number> = {};
+          for (const [k, v] of Object.entries(m.reputation)) { const d = v - (priv.reputation?.[Number(k)] ?? 0); if (d > 0) seats[Number(k)] = d; }
+          if (Object.keys(seats).length) set({ repGain: { key: ++gainKey, type: a.type, seat: a.seat, seats } });
+        }
         break;
       }
       case 'report':

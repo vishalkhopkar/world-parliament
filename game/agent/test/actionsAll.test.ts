@@ -1,6 +1,6 @@
 // Every action of the table, offline against a fake session: guards (not joined / not admitted), argument validation,
 // name resolution, cursor handling, error texts. The real server is exercised by integration.test.ts.
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { AVATARS, PARTY_COLOURS, PARTY_SYMBOLS, WORLD_CONFIG } from '@hp/shared';
 import type { ChatMessage, CoalitionOffer, GameSnapshot, PlayerPublic, ServerMessage } from '@hp/shared';
 import { readFileSync } from 'node:fs';
@@ -9,10 +9,14 @@ import { ACTIONS, ACTION_BY_NAME, executeAction, formatResultText } from '../src
 import { AgentError, toErrorInfo } from '../src/errors';
 import { loadGamePackage, loadSeatNames } from '../src/gamePackage';
 import { SeatDirectory } from '../src/resolve';
+import { renderRules } from '../src/rules';
 import { AgentSession } from '../src/session';
 import { applyMessage } from '../src/state';
 
+import { enableReportsForFile, setReportFlags } from './reportsFlag';
+
 const cfg = WORLD_CONFIG;
+enableReportsForFile();
 let dir: SeatDirectory;
 beforeAll(async () => { dir = new SeatDirectory((await loadGamePackage('world-500'))!, loadSeatNames('world-500')); });
 
@@ -504,6 +508,50 @@ describe('campaign / campaign_batch / buy_report validation', () => {
     expect((await err(s, 'campaign', { type: 'rally', seat: 1 })).code).toBe(code);
     expect((await err(s, 'buy_report', { scope: 'global' })).code).toBe(code);
     expect(c.campaignBatch).not.toHaveBeenCalled();
+  });
+});
+
+describe('analyst reports switched off in the config', () => {
+  let restore: () => void;
+  afterEach(() => restore?.());
+
+  it.each([['seat', false, true], ['global', true, false]] as const)('buy_report scope %s is refused locally (FORBIDDEN, nothing sent) when that report is off', async (scope, seatOn, globalOn) => {
+    restore = setReportFlags(seatOn, globalOn);
+    const { s, c } = session();
+    c.buyReport = vi.fn(async () => { throw new Error('must not be called'); }) as never;
+    const e = await err(s, 'buy_report', scope === 'seat' ? { scope, seat: 1 } : { scope });
+    expect(e.code).toBe('FORBIDDEN');
+    expect(e.message).toMatch(new RegExp(`${scope} reports are switched off`, 'i'));
+    expect(c.buyReport).not.toHaveBeenCalled();
+  });
+  it('the other scope still works when only one report is off', async () => {
+    restore = setReportFlags(false, true);
+    const { s, c } = session();
+    c.buyReport = vi.fn(async () => ({ report: { scope: 'global', asOf: 1, purchasedAt: 2, price: 3, entries: [] }, budget: 5 })) as never;
+    await ok(s, 'buy_report', { scope: 'global' });
+    expect(c.buyReport).toHaveBeenCalledWith('global', undefined);
+  });
+  it('the tool description warns that reports may be switched off', () => {
+    expect(ACTION_BY_NAME.get('buy_report')!.description).toMatch(/switched off/i);
+  });
+  it('get_state quotes no price for a switched-off report and says so', async () => {
+    restore = setReportFlags(false, true);
+    const { s } = session();
+    const b = (await ok(s, 'get_state')).budget;
+    expect(b.seat_report_price_now_wr).toBeUndefined();
+    expect(b.seat_report).toMatch(/switched off/i);
+    expect(b.global_report_price_now_wr).toBeGreaterThan(0);
+    expect(b.global_report).toBeUndefined();
+  });
+  it('RULES say "currently switched off in this game" in the prices table and section 5, and render prices when on', () => {
+    const off = renderRules({ ...cfg, analyst: { ...cfg.analyst, seatReport: { ...cfg.analyst.seatReport, enabled: false }, globalReport: { ...cfg.analyst.globalReport, enabled: false } } });
+    expect(off).toMatch(/\*\*Seat analyst report\*\* \(one seat\) \| currently switched off in this game/);
+    expect(off).toMatch(/\*\*Global analyst report\*\* \| currently switched off in this game/);
+    expect(off).toMatch(/analyst reports are currently switched off in this game/i);
+    expect(off).not.toContain('{{');
+    const on = renderRules({ ...cfg, analyst: { ...cfg.analyst, seatReport: { ...cfg.analyst.seatReport, enabled: true }, globalReport: { ...cfg.analyst.globalReport, enabled: true } } });
+    expect(on).not.toMatch(/switched off in this game/i);
+    expect(on).toContain(`${cfg.currency.symbol}${cfg.analyst.globalReport.start.toLocaleString('en-US')}`);
   });
 });
 

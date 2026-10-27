@@ -1,5 +1,6 @@
 // Action layer used by the UI. Same operations the real backend exposes.
 // Transport selection (see .env.example):
+//   ?tour                      -> guided tour: scripted offline practice game (net/tour.ts), no server, no saved session
 //   ?mock                      -> in-browser mock (bots), always
 //   ?server=local              -> http://<page host>:8787 + ws://<page host>:8787/ws (npm run dev in game/server)
 //   ?server=http(s)://host:port -> that server (ws URL derived: same host, /ws)
@@ -10,6 +11,7 @@ import { useStore } from '../state/store';
 import { ApiException, type Transport } from './transport';
 import { MockTransport } from './mock';
 import { RemoteTransport } from './remote';
+import { TourTransport } from './tour';
 import { joinCodeFromSearch } from './share';
 
 const query = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
@@ -30,10 +32,12 @@ function remoteConfig(): { apiUrl: string; wsUrl: string } | null {
   return null;
 }
 
-const cfg = remoteConfig();
-/** true when talking to a real backend (false = in-browser mock) */
+/** true in the guided tour (?tour): a scripted practice game that never contacts a server and is never saved. */
+export const isTour = query.has('tour');
+const cfg = isTour ? null : remoteConfig();
+/** true when talking to a real backend (false = in-browser mock or tour) */
 export const isRemote = cfg !== null;
-export let transport: Transport = cfg ? new RemoteTransport(cfg) : new MockTransport();
+export let transport: Transport = isTour ? new TourTransport() : cfg ? new RemoteTransport(cfg) : new MockTransport();
 /** Plug-in point (tests can swap the transport). */
 export function setTransport(t: Transport) { transport = t; }
 
@@ -200,7 +204,13 @@ export const withdrawOffer = (offerId: string) => transport.send({ action: 'with
 /** Leave the game (forget the saved session). `notice` is shown as a toast on the home screen. */
 export function leaveGame(notice?: string) {
   transport.disconnect();
+  if (isTour) { leaveTour(); return; }
   saveSession(null);
   st().reset();
   if (notice) st().setError(notice);
+}
+
+/** Leave the guided tour: back to the normal home page (this page without ?tour). */
+export function leaveTour() {
+  try { location.assign(location.pathname); } catch { /* not in a browser */ }
 }

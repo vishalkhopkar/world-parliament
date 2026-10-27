@@ -8,11 +8,13 @@ export const GAME_CONFIG_VALUES = {
   "analyst": {
     "seatReport": {
       "start": 800,
-      "end": 1800
+      "end": 1800,
+      "enabled": false
     },
     "globalReport": {
       "start": 2800,
-      "end": 6200
+      "end": 6200,
+      "enabled": false
     },
     "delayMs": 30000,
     "noise": 0.07,
@@ -24,8 +26,8 @@ export const GAME_CONFIG_VALUES = {
       "local": 10,
       "global": 0.25,
       "decay": {
-        "spread": 0.5,
-        "maxKm": 400
+        "spread": 0.1,
+        "maxKm": 700
       }
     },
     "roadshow": {

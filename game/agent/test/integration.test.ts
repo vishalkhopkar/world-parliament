@@ -5,6 +5,9 @@ import type { DevServer } from '../../server/src/local/devServer';
 import { AgentSession } from '../src/session';
 import { Human, call, callErr, sleep, startServer, until } from './helpers';
 
+import { enableReportsForFile } from './reportsFlag';
+
+enableReportsForFile();
 let srv: DevServer;
 let base: string;
 const sessions: AgentSession[] = [];

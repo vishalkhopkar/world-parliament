@@ -49,6 +49,8 @@ export interface SeatMapProps {
   mapId?: string;
   /** Optional seat centres in projected space (map package x,y); falls back to the polygon centroid. */
   centres?: Record<SeatId, [number, number]>;
+  /** Change `key` to float a green "+N" up from each seat in `seats` (own reputation gained); `globalText` = one label at a random visible spot. */
+  gains?: { key: number; seats: Record<SeatId, number>; globalText?: string } | null;
 }
 export interface SeatMapHandle { zoomToSeat(seat: SeatId): void; reset(): void }
 
@@ -56,7 +58,7 @@ type SeatFeature = Feature<Geometry, { seat: SeatId }>;
 type PulseArg = NonNullable<SeatMapProps['pulse']>;
 
 interface Api {
-  update(): void; pulse(p: PulseArg): void; zoomToSeat(s: SeatId): void; reset(): void; zoomBy(f: number): void;
+  update(): void; pulse(p: PulseArg): void; smoke(g: NonNullable<SeatMapProps['gains']>): void; zoomToSeat(s: SeatId): void; reset(): void; zoomBy(f: number): void;
 }
 
 const toFeatures = (topo: Topology): SeatFeature[] => {
@@ -289,6 +291,25 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
         seatSel.classed('flash', true);
         setTimeout(() => seatSel.classed('flash', false), 900);
       },
+      smoke: g => {
+        const SMOKE_MS = 2200;
+        const add = (c: [number, number], text: string, cls: string) => {
+          const node = gFx.append('g').attr('class', `rep-smoke ${cls}`).attr('transform', `translate(${c[0]},${c[1]}) scale(${1 / kNow})`);
+          node.append('text').text(text);
+          setTimeout(() => node.remove(), SMOKE_MS + 100);
+        };
+        const ids = Object.keys(g.seats).map(Number);
+        for (const id of ids) { const c = centre(id); if (c) add(c, `+${g.seats[id]}`, 'seat-gain'); }
+        if (g.globalText) {
+          // a random visible seat centre that has no smoke of its own; else a random point of the visible area
+          const t = d3.zoomTransform(svgEl), inView = (c: [number, number]) => { const x = t.applyX(c[0]), y = t.applyY(c[1]); return x > 60 && x < W - 60 && y > 30 && y < H - 30; };
+          const own = new Set(ids);
+          const cands = features.map(f => f.properties.seat).filter(id => !own.has(id)).map(id => centre(id)).filter((c): c is [number, number] => !!c && inView(c));
+          const pick = cands.length ? cands[Math.floor(Math.random() * cands.length)]
+            : [t.invertX(W * (0.25 + Math.random() * 0.5)), t.invertY(H * (0.25 + Math.random() * 0.5))] as [number, number];
+          add(pick, g.globalText, 'global');
+        }
+      },
       zoomToSeat: id => {
         const f = featById.get(id); if (!f) return;
         const b = path.bounds(f), dx = b[1][0] - b[0][0], dy = b[1][1] - b[0][1];
@@ -327,6 +348,9 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
   useEffect(() => { api.current?.update(); }, [fills, leading, dimmed, blurred, labels, badges, selectedSeat, names, fillStyle]);
   const pulseKey = props.pulse?.key;
   useEffect(() => { if (propsRef.current.pulse) api.current?.pulse(propsRef.current.pulse); }, [pulseKey]);
+
+  const gainKey = props.gains?.key;
+  useEffect(() => { if (propsRef.current.gains) api.current?.smoke(propsRef.current.gains); }, [gainKey]);
 
   return (
     <div className="map-wrap">

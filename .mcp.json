@@ -6,7 +6,8 @@
         "game/agent/bin/mcp.mjs"
       ],
       "env": {
-        "HP_SERVER": "http://localhost:8787",
+        "HP_SERVER": "https://iqame0kk34.execute-api.ap-south-1.amazonaws.com",
+        "HP_WS": "wss://y7rl4ork6c.execute-api.ap-south-1.amazonaws.com/live",
         "HP_SESSION_FILE": "game/agent/.sessions/mcp.session.json"
       }
     },

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { AnalystReport, GameSnapshot, PlayerPublic, PrivateState, SeatId } from '@hp/shared';
 import { useStore } from '../state/store';
 import { useMapConfig } from '../state/mapConfig';
+import { useTour } from '../tour/tourStore';
 import { buyReport } from '../net/client';
 import { Card, PartyAvatar, PartyLabel, PartyDot, SymbolIcon } from './ui';
 import '../screens/game.css';
@@ -17,21 +18,23 @@ export function CampaignHud({ snap, priv, now }: { snap: GameSnapshot; priv: Pri
   const phaseLeft = t && phaseIdx >= 0 ? t.phaseCloses[phaseIdx] - now : 0;
   const startsIn = t ? t.campaignStart - now : 0;
   const mine = snap.players.find(p => p.playerId === priv.you);
+  const frozen = useTour(s => s.frozenClock); // the guided tour has no running clock: both timers read 0:00
+  const clock = (ms: number) => formatClock(frozen ? 0 : ms);
   return (
     <div className="hud">
       {mine?.party && (
-        <div className="hud-item hud-me" title={mine.party.name}>
+        <div className="hud-item hud-me" title={mine.party.name} data-tour="hud-party">
           <PartyAvatar party={mine.party} size={44} />
           <span className="hud-me-text"><span>You lead</span><PartyLabel party={mine.party} /></span>
         </div>
       )}
-      {startsIn > 0 && <div className="hud-item"><span>Campaign starts in</span><strong>{formatClock(startsIn)}</strong></div>}
-      <div className="hud-item"><span>Campaign ends in</span><strong>{formatClock(totalLeft)}</strong></div>
-      <div className="hud-item">
+      {startsIn > 0 && !frozen && <div className="hud-item"><span>Campaign starts in</span><strong>{formatClock(startsIn)}</strong></div>}
+      <div className="hud-item" data-tour="hud-campaign"><span>Campaign ends in</span><strong>{clock(totalLeft)}</strong></div>
+      <div className="hud-item" data-tour="hud-phase">
         <span>{phaseIdx >= 0 ? `Phase ${phaseIdx + 1} of ${snap.phases} polls in` : 'All phases polled'}</span>
-        <strong>{phaseIdx >= 0 ? formatClock(phaseLeft) : '0:00'}</strong>
+        <strong>{phaseIdx >= 0 ? clock(phaseLeft) : '0:00'}</strong>
       </div>
-      <div className="hud-item budget"><span>Your budget</span><strong>{formatMoney(priv.budget, cfg.currency.symbol)}</strong></div>
+      <div className="hud-item budget" data-tour="hud-budget"><span>Your budget</span><strong>{formatMoney(priv.budget, cfg.currency.symbol)}</strong></div>
     </div>
   );
 }
@@ -69,13 +72,17 @@ export function AnalystShop({ snap, priv, now }: { snap: GameSnapshot; priv: Pri
   const cfg = useMapConfig();
   const globalPrice = curvePrice(cfg.analyst.globalReport, snap, now);
   const reports = useMemo(() => [...priv.myReports].sort((a, b) => b.purchasedAt - a.purchasedAt), [priv.myReports]);
+  // Reports are switched off in the config: nothing to buy, so no card. (The seat report is bought from the seat panel.)
+  if (!cfg.analyst.seatReport.enabled && !cfg.analyst.globalReport.enabled) return null;
   return (
     <Card title="Analyst">
-      <div className="actions">
-        <button className="btn" disabled={priv.budget < globalPrice} onClick={() => buyReport('global')}>
-          Global report ({formatMoney(globalPrice, cfg.currency.symbol)})
-        </button>
-      </div>
+      {cfg.analyst.globalReport.enabled && (
+        <div className="actions">
+          <button className="btn" disabled={priv.budget < globalPrice} onClick={() => buyReport('global')}>
+            Global report ({formatMoney(globalPrice, cfg.currency.symbol)})
+          </button>
+        </div>
+      )}
       <p className="hint">Reports describe the position {Math.round(cfg.analyst.delayMs / 1000)} s ago and are noisy. Prices rise as the campaign goes on.</p>
       {reports.length === 0 ? <p className="hint">No reports bought yet.</p> : reports.map(r => <ReportView key={r.purchasedAt + ':' + (r.seat ?? 'g')} r={r} players={snap.players} names={names} />)}
     </Card>

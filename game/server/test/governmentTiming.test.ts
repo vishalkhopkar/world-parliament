@@ -17,12 +17,15 @@ const errs = (c: Ctx, i: number) => c.notifier.to(c.p[i].playerId, 'error') as {
 const msgs = (c: Ctx, i: number, type: string) => c.notifier.to(c.p[i].playerId, type);
 const statuses = (c: Ctx, i: number) => (msgs(c, i, 'status') as { status: string }[]).map((m) => m.status);
 
+/** No committed voters, influence or random voters: every seat goes to the only party that campaigned there. */
+const PURE = { ...TEST_CFG, voting: { influenceMaxPercent: 0, randomMaxPercent: 0 }, committed: { ...TEST_CFG.committed, bands: [] } };
+
 /**
  * n players on an 8-seat line map (no spill-over): player 0 roadshows seats 1-5 (5 = majority of 8), the others share the rest.
  * Returns with every seat polled and counting at step 0.
  */
 async function fiveForP0(n: number, opts: { opensAt?: 'campaign' | 'counting' } = {}): Promise<Ctx> {
-  const c = await new Ctx({ map: lineMap(8), cfg: { ...TEST_CFG, mapId: 'line', seatCount: 8, messaging: { mode: 'individual', opensAt: opts.opensAt ?? 'counting' } } }).started(n, 1);
+  const c = await new Ctx({ map: lineMap(8), cfg: { ...PURE, mapId: 'line', seatCount: 8, messaging: { mode: 'individual', opensAt: opts.opensAt ?? 'counting' } } }).started(n, 1);
   for (let s = 1; s <= 8; s++) await c.send(s <= 5 ? 0 : 1 + ((s - 6) % (n - 1)), { action: 'campaign', type: 'roadshow', seat: s });
   await pollAll(c);
   const wins = (await c.repo.listSeatResults(c.gameId)).filter((r) => r.winner === c.p[0].playerId).length;
@@ -149,6 +152,46 @@ describe('a government forms only after every seat is declared, and then the gam
     c.clock.set(c.timeline.postCountingEnd);
     await c.svc.finalise(c.gameId);
     expect((await c.repo.getResult(c.gameId))!.outcome).toBe('majority'); // p0's lone majority, unchanged path
+  });
+});
+
+describe('partners invited without a portfolio count towards the majority', () => {
+  /** 5 players on 8 seats: p0 wins 1-3, p1 4-5, p2 6-7, p3 8, p4 nothing. p1 (PM) + p2 (Home) = 4, short of 5; + p3 = 5. */
+  async function split(): Promise<Ctx> {
+    const c = await new Ctx({ map: lineMap(8), cfg: { ...PURE, mapId: 'line', seatCount: 8, messaging: { mode: 'individual', opensAt: 'counting' } } }).started(5, 1);
+    const owner = [0, 0, 0, 1, 1, 2, 2, 3];
+    for (let s = 1; s <= 8; s++) await c.send(owner[s - 1], { action: 'campaign', type: 'roadshow', seat: s });
+    await pollAll(c);
+    const results = await c.repo.listSeatResults(c.gameId);
+    expect(owner.map((o, i) => results.find((r) => r.seat === i + 1)!.winner === c.p[o].playerId)).toEqual(Array(8).fill(true));
+    return c;
+  }
+
+  it('accepted during counting: confirmed and finished at the last count step', async () => {
+    const c = await split();
+    const o = await propose(c, 1, { PM: [1], HOME: [2] }, [3]);
+    await c.send(2, { action: 'respondOffer', offerId: o.offerId, accept: true });
+    await c.send(3, { action: 'respondOffer', offerId: o.offerId, accept: true });
+    expect((await c.repo.getOffer(c.gameId, o.offerId))!.status).toBe('accepted');
+    c.notifier.clear();
+    await c.runCampaignToCountingEnd();
+    expect((await c.game()).status).toBe('finished');
+    const result = (await c.repo.getResult(c.gameId))!;
+    expect(result.outcome).toBe('coalition');
+    expect(result.government!.members.sort()).toEqual([1, 2, 3].map((i) => c.p[i].playerId).sort());
+    for (let i = 0; i < 5; i++) expect(statuses(c, i)).toEqual(['postCounting', 'finished']);
+  });
+
+  it('accepted in post-counting: confirmed and finished at once', async () => {
+    const c = await split();
+    await c.runCampaignToCountingEnd();
+    expect((await c.game()).status).toBe('postCounting');
+    const o = await propose(c, 1, { PM: [1], HOME: [2] }, [3]);
+    await c.send(2, { action: 'respondOffer', offerId: o.offerId, accept: true });
+    expect((await c.game()).status).toBe('postCounting');
+    await c.send(3, { action: 'respondOffer', offerId: o.offerId, accept: true });
+    expect((await c.game()).status).toBe('finished');
+    expect((await c.repo.getResult(c.gameId))!.outcome).toBe('coalition');
   });
 });
 

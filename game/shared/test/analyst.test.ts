@@ -24,7 +24,7 @@ describe('analystPrice', () => {
     );
     expect(analystPrice(cfg, 'global', tl, T0 - 100)).toBe(cfg.analyst.globalReport.start);
     expect(analystPrice(cfg, 'global', tl, tl.campaignEnd + 100_000)).toBe(cfg.analyst.globalReport.end);
-    const odd = analystPrice({ ...cfg, analyst: { ...cfg.analyst, seatReport: { start: 1, end: 2 } } }, 'seat', tl, T0 + 100_000);
+    const odd = analystPrice({ ...cfg, analyst: { ...cfg.analyst, seatReport: { start: 1, end: 2, enabled: true } } }, 'seat', tl, T0 + 100_000);
     expect(Number.isInteger(odd)).toBe(true);
   });
 });

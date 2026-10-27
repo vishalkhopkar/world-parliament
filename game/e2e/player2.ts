@@ -98,7 +98,7 @@ async function main() {
   // remaining campaign so the bot never runs dry early; a rally roughly every 5th action; two global reports.
   const TICK_MS = Number(flag('tick', '600'));
   let tick = 0, reports = 0;
-  const reportBudget = 2 * CFG.analyst.globalReport.end;
+  const reportBudget = CFG.analyst.globalReport.enabled ? 2 * CFG.analyst.globalReport.end : 0;
   while (!countingSeen) {
     tick++;
     const open = PKG.seats.map(s => s.id).filter(id => !polled.has(id));
@@ -110,7 +110,7 @@ async function main() {
     const type = tick % 5 === 0 && spendable >= CFG.costs.rally && Date.now() >= rallyAfter ? 'rally' : 'roadshow';
     if (type === 'rally') rallyAfter = Date.now() + CFG.cooldowns.rallyMs + RALLY_MARGIN_MS; // provisional until the ack names the exact time
     if (spendable >= CFG.costs[type] && open.length) send({ action: 'campaign', type, seat: pick(open) });
-    if ((tick === 40 || tick === 200) && reports < 2) { send({ action: 'buyReport', scope: 'global' }); reports++; }
+    if (CFG.analyst.globalReport.enabled && (tick === 40 || tick === 200) && reports < 2) { send({ action: 'buyReport', scope: 'global' }); reports++; }
     await sleep(TICK_MS);
   }
   log('waiting for the result ...');

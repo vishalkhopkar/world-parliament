@@ -72,7 +72,9 @@ export function SeatActionModal({ seat, snap, priv, now, phaseOf, polled, onClos
   const options = [
     { key: 'rally', label: 'Rally', cost: cfg.costs.rally, desc: 'Public news. Big boost here, fading over a few hundred km, plus a small boost everywhere.', run: () => campaign('rally', seat) },
     { key: 'roadshow', label: 'Roadshow', cost: cfg.costs.roadshow, desc: 'Secret. Strong boost in this seat only.', run: () => campaign('roadshow', seat) },
-    { key: 'report', label: 'Local report', cost: reportPrice, desc: 'Analyst estimate for this seat (delayed, noisy).', run: () => buyReport('seat', seat) },
+    ...(cfg.analyst.seatReport.enabled
+      ? [{ key: 'report', label: 'Local report', cost: reportPrice, desc: 'Analyst estimate for this seat (delayed, noisy).', run: () => buyReport('seat', seat) }]
+      : []),
   ];
 
   return (

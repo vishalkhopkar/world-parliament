@@ -22,7 +22,7 @@ const file = path.resolve(flagValue('file') ?? process.env.HP_CONFIG_FILE ?? pat
 const DRY = argv.includes('--dry');
 const CHECK = argv.includes('--check');
 
-type Kind = 'number' | 'string';
+type Kind = 'number' | 'string' | 'boolean';
 /** Every key the game understands (portfolios and committed-voter bands are numbered: points.portfolios.<1..n>.<field>, committed.bands.<1..n>.<field>). */
 const NUMBER_KEYS = [
   'budget', 'costs.rally', 'costs.roadshow',
@@ -45,6 +45,7 @@ const NUMBER_KEYS = [
   'counting.panelRunnerUpPercent', 'counting.panelOtherPercent',
   'points.seatMultiplier', 'points.governmentFloor', 'points.opposition',
 ];
+const BOOL_KEYS = ['analyst.seatReport.enabled', 'analyst.globalReport.enabled'];
 const STRING_KEYS = ['currency.name', 'currency.symbol', 'messaging.mode', 'messaging.opensAt'];
 const PORTFOLIO_FIELDS: Record<string, Kind> = { id: 'string', label: 'string', points: 'number', max: 'number' };
 const BAND_FIELDS: Record<string, Kind> = { percent: 'number', seats: 'number', level: 'string' };
@@ -65,13 +66,17 @@ fs.readFileSync(file, 'utf8').replace(/^﻿/, '').split(/\r?\n/).forEach((text, 
 });
 
 const used = new Set<string>();
-function take(key: string, kind: Kind): number | string | undefined {
+function take(key: string, kind: Kind): number | string | boolean | undefined {
   const e = raw.get(key);
   if (!e) { errors.push(`missing key "${key}"`); return undefined; }
   used.add(key);
   if (kind === 'string') {
     if (!e.value) errors.push(`line ${e.line}: "${key}" must not be empty`);
     return e.value;
+  }
+  if (kind === 'boolean') {
+    if (e.value !== 'true' && e.value !== 'false') { errors.push(`line ${e.line}: "${key}" must be exactly true or false, got "${e.value}"`); return undefined; }
+    return e.value === 'true';
   }
   const n = Number(e.value.replace(/_/g, ''));
   if (e.value === '' || !Number.isFinite(n)) { errors.push(`line ${e.line}: "${key}" must be a number, got "${e.value}"`); return undefined; }
@@ -86,6 +91,7 @@ function put(obj: Record<string, any>, key: string, v: unknown) {
 
 const values: Record<string, any> = {};
 for (const k of NUMBER_KEYS) put(values, k, take(k, 'number'));
+for (const k of BOOL_KEYS) put(values, k, take(k, 'boolean'));
 for (const k of STRING_KEYS) put(values, k, take(k, 'string'));
 
 const portfolioNums = [...new Set([...raw.keys()].map(k => /^points\.portfolios\.(\d+)\./.exec(k)?.[1]).filter((x): x is string => !!x))]

@@ -228,7 +228,8 @@ async function drainScenario(bot: Bot) {
     r = await bot.campaign('roadshow', seat);
     check(bot.err(r) === 'SEAT_POLLED', `${bot.name}: roadshow on a polled seat should be SEAT_POLLED, got ${r.type === 'error' ? r.error : r.type}`);
     r = await bot.request({ action: 'buyReport', scope: 'seat', seat }, m => m.type === 'report');
-    check(bot.err(r) === 'SEAT_POLLED', `${bot.name}: seat report on a polled seat should be SEAT_POLLED, got ${r.type === 'error' ? r.error : r.type}`);
+    const polledReport = CFG.analyst.seatReport.enabled ? 'SEAT_POLLED' : 'FORBIDDEN'; // a switched-off report is refused first
+    check(bot.err(r) === polledReport, `${bot.name}: seat report on a polled seat should be ${polledReport}, got ${r.type === 'error' ? r.error : r.type}`);
     log(`${bot.name}: polled-seat actions rejected`);
   } else {
     await sleep(timeline.campaignStart + 3000 - Date.now());
@@ -249,7 +250,7 @@ async function drainScenario(bot: Bot) {
   }
   const rally = await bot.campaign('rally', pick(openSeats(1000)));
   check(bot.err(rally) === 'INSUFFICIENT_FUNDS', `${bot.name}: rally with an empty purse should be INSUFFICIENT_FUNDS, got ${rally.type === 'error' ? rally.error : rally.type}`);
-  for (let i = 0; i < 100; i++) {
+  for (let i = 0; i < (CFG.analyst.globalReport.enabled ? 100 : 0); i++) {
     const { m: r, before } = await bot.requestB({ action: 'buyReport', scope: 'global' }, m => m.type === 'report');
     if (r.type === 'error') { check(r.error === 'INSUFFICIENT_FUNDS', `${bot.name}: unexpected report error ${r.error}`); break; }
     bot.reportsBought++;
@@ -257,7 +258,7 @@ async function drainScenario(bot: Bot) {
   }
   check(bot.budget >= 0, `${bot.name}: budget went negative (${bot.budget})`);
   const last = await bot.request({ action: 'buyReport', scope: 'global' }, m => m.type === 'report');
-  check(bot.err(last) === 'INSUFFICIENT_FUNDS', `${bot.name}: final report should be INSUFFICIENT_FUNDS`);
+  check(bot.err(last) === (CFG.analyst.globalReport.enabled ? 'INSUFFICIENT_FUNDS' : 'FORBIDDEN'), `${bot.name}: final report should be ${CFG.analyst.globalReport.enabled ? 'INSUFFICIENT_FUNDS' : 'FORBIDDEN (switched off)'}`);
   log(`${bot.name}: drained after ${n} roadshows + ${bot.reportsBought} reports, budget left ${bot.budget} (>= 0)`);
 }
 
@@ -279,8 +280,17 @@ async function analystScenario(bot: Bot) {
   check(bot.err(r) === 'WRONG_PHASE', `${bot.name}: proposeGovernment during the campaign should be WRONG_PHASE, got ${r.type === 'error' ? r.error : r.type}`);
 
   const seat = pick(openSeats(5000));
-  const { m: seatRep, before } = await bot.requestB({ action: 'buyReport', scope: 'seat', seat }, m => m.type === 'report');
-  if (check(seatRep.type === 'report', `${bot.name}: seat report refused: ${bot.err(seatRep)}`) && seatRep.type === 'report') {
+  if (!CFG.analyst.seatReport.enabled) {
+    // switched off in game.properties: the server must refuse it (FORBIDDEN) and charge nothing
+    const before = bot.budget;
+    const off = await bot.request({ action: 'buyReport', scope: 'seat', seat }, m => m.type === 'report');
+    check(bot.err(off) === 'FORBIDDEN', `${bot.name}: seat report is switched off, should be FORBIDDEN, got ${off.type === 'error' ? off.error : off.type}`);
+    check(bot.budget === before, `${bot.name}: a refused seat report must not cost anything`);
+  }
+  const { m: seatRep, before } = CFG.analyst.seatReport.enabled
+    ? await bot.requestB({ action: 'buyReport', scope: 'seat', seat }, m => m.type === 'report')
+    : { m: null as never, before: 0 };
+  if (CFG.analyst.seatReport.enabled && check(seatRep.type === 'report', `${bot.name}: seat report refused: ${bot.err(seatRep)}`) && seatRep.type === 'report') {
     bot.reportsBought++;
     const lo = Math.min(CFG.analyst.seatReport.start, CFG.analyst.seatReport.end), hi = Math.max(CFG.analyst.seatReport.start, CFG.analyst.seatReport.end);
     check(Number.isInteger(seatRep.report.price) && seatRep.report.price >= lo && seatRep.report.price <= hi, `${bot.name}: seat report price ${seatRep.report.price} outside [${lo}, ${hi}]`);
@@ -290,13 +300,21 @@ async function analystScenario(bot: Bot) {
     const ids = new Set(bots.map(b => b.playerId));
     check(seatRep.report.entries.length === bots.length && seatRep.report.entries.every(e => ids.has(e.playerId)), `${bot.name}: report entries are not the players of this game`);
   }
-  const { m: globalRep, before: before2 } = await bot.requestB({ action: 'buyReport', scope: 'global' }, m => m.type === 'report');
-  if (check(globalRep.type === 'report', `${bot.name}: global report refused`) && globalRep.type === 'report') {
+  if (!CFG.analyst.globalReport.enabled) {
+    const b0 = bot.budget;
+    const off = await bot.request({ action: 'buyReport', scope: 'global' }, m => m.type === 'report');
+    check(bot.err(off) === 'FORBIDDEN', `${bot.name}: global report is switched off, should be FORBIDDEN, got ${off.type === 'error' ? off.error : off.type}`);
+    check(bot.budget === b0, `${bot.name}: a refused global report must not cost anything`);
+  }
+  const { m: globalRep, before: before2 } = CFG.analyst.globalReport.enabled
+    ? await bot.requestB({ action: 'buyReport', scope: 'global' }, m => m.type === 'report')
+    : { m: null as never, before: 0 };
+  if (CFG.analyst.globalReport.enabled && check(globalRep.type === 'report', `${bot.name}: global report refused`) && globalRep.type === 'report') {
     bot.reportsBought++;
     check(globalRep.budget === before2 - globalRep.report.price, `${bot.name}: budget after global report inconsistent`);
   }
   const missing = await bot.request({ action: 'buyReport', scope: 'seat' } as ClientMessage, m => m.type === 'report');
-  check(bot.err(missing) === 'BAD_REQUEST', `${bot.name}: seat report without a seat should be BAD_REQUEST`);
+  check(bot.err(missing) === 'BAD_REQUEST', `${bot.name}: seat report without a seat should be BAD_REQUEST, got ${missing.type === 'error' ? missing.error : missing.type}`); // malformed: refused before the switch
   log(`${bot.name}: bought ${bot.reportsBought} reports`);
 }
 
@@ -412,7 +430,7 @@ async function main() {
   scenarios.push(drainScenario(bots[0]));
   // bot 0 acts normally for a while before draining
   scenarios.push(randomCampaign(bots[0], timeline.phaseCloses[0] - 2500, homeOf(), false));
-  if (N >= 2) { bots[1].reserve = CFG.analyst.seatReport.end + CFG.analyst.globalReport.end; scenarios.push(analystScenario(bots[1])); }
+  if (N >= 2) { bots[1].reserve = (CFG.analyst.seatReport.enabled ? CFG.analyst.seatReport.end : 0) + (CFG.analyst.globalReport.enabled ? CFG.analyst.globalReport.end : 0); scenarios.push(analystScenario(bots[1])); }
   if (N >= 3) scenarios.push(reconnectScenario(bots[2]));
   await Promise.all(scenarios);
 

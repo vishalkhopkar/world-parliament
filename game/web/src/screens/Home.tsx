@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { DEFAULT_MAP_ID, MAP_MANIFESTS } from '@hp/shared';
 import { createGame, isRemote, joinGame } from '../net/client';
-import { joinCodeFromSearch } from '../net/share';
+import { buildTourLink, joinCodeFromSearch } from '../net/share';
 import { Card } from '../components/ui';
 import { MapChooser } from '../components/MapChooser';
 import { mapConfigFor } from '../state/mapConfig';
@@ -39,6 +39,13 @@ export function Home() {
           The map is split into parliament seats. Rally, roadshow and spy on rivals during the
           campaign; then, if nobody has a majority, bargain for portfolios in the count.
         </p>
+      </div>
+      <div className="tour-card" data-testid="tour-card">
+        <div>
+          <strong>New here?</strong>
+          <p>Take a short guided tour: a practice election where you rally, count the votes and build a coalition. No account, no nickname, nobody else needed.</p>
+        </div>
+        <button className="btn primary" onClick={() => window.open(buildTourLink(), '_blank')}>Take a tour</button>
       </div>
       {invited && (
         <p className="invite-banner" data-testid="invite-banner">

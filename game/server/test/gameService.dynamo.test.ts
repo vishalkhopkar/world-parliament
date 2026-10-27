@@ -19,8 +19,8 @@ vi.mock('./helpers', async (importOriginal) => {
   const { GameService } = await import('../src/core/gameService');
   class DdbCtx extends orig.Ctx {
     ddb = new FakeDdb();
-    constructor() {
-      super();
+    constructor(opts: ConstructorParameters<typeof orig.Ctx>[0] = {}) {
+      super(opts);
       this.repo = new DynamoRepo(this.ddb as never, this.ddb.tableName) as never; // Ctx types repo as MemoryRepo
       this.notifier = new orig.FakeNotifier(this.repo);
       this.svc = new GameService({

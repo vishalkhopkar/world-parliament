@@ -622,6 +622,9 @@ export class GameService {
       this.campaignWindow(game, now);
       const timeline = game.timeline!;
       const { cfg, map, kernels } = this.loadMap(game.mapId);
+      if (!(scope === 'seat' ? cfg.analyst.seatReport : cfg.analyst.globalReport).enabled) {
+        throw new GameError('FORBIDDEN', scope === 'seat' ? 'Analyst seat reports are switched off in this game' : 'Analyst global reports are switched off in this game');
+      }
       if (scope === 'seat') {
         if (!kernels.index.has(seat as number)) throw new GameError('BAD_REQUEST', 'Unknown seat');
         const p = phaseOfSeat(map, game.phases, seat as number);
@@ -1136,7 +1139,7 @@ export class GameService {
       const members = uniq(Object.values(o.portfolios).flat().concat(o.proposer, o.partners));
       if (members.some((m) => !alive.has(m))) continue;
       if (!leavesPartyOut(members, contenders)) continue; // e.g. everybody else was eliminated after it was made
-      if (validateGovernment(o.portfolios, wins, cfg, cfg.seatCount) !== null) continue;
+      if (validateGovernment(o.portfolios, wins, cfg, cfg.seatCount, o.partners) !== null) continue;
       const gov = governmentFromOffer(o, this.now());
       if (!(await this.repo.putGovernmentIfAbsent(gameId, gov))) return false; // somebody else was first
       await this.setOfferStatus(gameId, o, 'formed');

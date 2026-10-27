@@ -424,6 +424,9 @@ export class MockTransport implements Transport {
     const me = g.players.get(g.me)!;
     if (g.status !== 'campaign') return err('WRONG_PHASE', 'Reports are sold during the campaign only');
     if (msg.scope === 'seat' && (msg.seat === undefined || !g.seatPhase.has(msg.seat))) return err('BAD_REQUEST', 'Pick a seat for a seat report');
+    if (!(msg.scope === 'seat' ? g.cfg.analyst.seatReport : g.cfg.analyst.globalReport).enabled) {
+      return err('FORBIDDEN', msg.scope === 'seat' ? 'Analyst seat reports are switched off in this game' : 'Analyst global reports are switched off in this game');
+    }
     const price = this.price(msg.scope === 'seat' ? g.cfg.analyst.seatReport : g.cfg.analyst.globalReport, g);
     if (me.budget < price) return err('INSUFFICIENT_FUNDS', 'Not enough funds for this report');
     me.budget -= price;

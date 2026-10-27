@@ -178,7 +178,7 @@ function OfferBuilder({ snap, me }: { snap: GameSnapshot; me: PlayerId }) {
   const ok = partners.length > 0 && !everyoneIn && combined >= maj;
 
   return (
-    <Card title="Propose a government (you are PM)">
+    <Card title="Propose a government (you are PM)" className="tour-offer-builder">
       <div className="portfolio-grid">
         {defs.map(d => (
           <div key={d.id} className="pf">
@@ -234,7 +234,7 @@ export function Negotiation({ snap }: { snap: GameSnapshot }) {
       )}
       {!gov && (
         <>
-          <Card title="Parties">
+          <Card title="Parties" className="tour-parties">
             {snap.players.filter(p => p.status === 'active' || p.status === 'disconnected').map(p => (
               <div className="row" key={p.playerId}>
                 <PartyBadge party={p.party} kind={p.kind} size={34} />

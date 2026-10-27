@@ -395,7 +395,7 @@ describe('analyst corner cases', () => {
         prev = p;
       }
     }
-    const flat = { ...cfg, analyst: { ...cfg.analyst, seatReport: { start: 500, end: 500 } } };
+    const flat = { ...cfg, analyst: { ...cfg.analyst, seatReport: { start: 500, end: 500, enabled: true } } };
     expect(analystPrice(flat, 'seat', tl, T0 + 12345)).toBe(500);
     expect(analystPrice(cfg, 'seat', { ...tl, campaignEnd: tl.campaignStart }, T0)).toBe(cfg.analyst.seatReport.end);
   });

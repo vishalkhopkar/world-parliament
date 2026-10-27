@@ -16,6 +16,8 @@ export function leavesPartyOut(memberIds: readonly PlayerId[], contenderIds: rea
 /** Checks: exactly one PM, portfolio limits from cfg, no unknown ids, members' seats >= majority. Error text or null. */
 export function validateGovernment(
   portfolios: PortfolioAssignment, tally: SeatTally, cfg: MapConfig, seatCount: number,
+  /** Partners invited without a portfolio: their seats count towards the majority too. */
+  extraMembers: readonly PlayerId[] = [],
 ): string | null {
   const defs = new Map(cfg.points.portfolios.map((d) => [d.id, d]));
   for (const id of Object.keys(portfolios)) {
@@ -29,6 +31,7 @@ export function validateGovernment(
     if (holders.length > def.max) return `${def.label} can be held by at most ${def.max} player${def.max === 1 ? '' : 's'}`;
     for (const h of holders) members.add(h);
   }
+  for (const m of extraMembers) members.add(m);
   let seats = 0;
   for (const m of members) seats += tally[m] ?? 0;
   const need = majorityOf(seatCount);

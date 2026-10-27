@@ -34,6 +34,11 @@ describe('validateGovernment', () => {
   it('counts a player only once even if they hold several portfolios', () => {
     expect(validateGovernment({ PM: ['C'], HOME: ['C'], DEFENCE: ['C'] }, tally, cfg, 400)).toMatch(/needs 201/);
   });
+  it('counts partners invited without a portfolio towards the majority (once each)', () => {
+    expect(validateGovernment({ PM: ['B'], HOME: ['C'] }, tally, cfg, 400)).toMatch(/needs 201/);
+    expect(validateGovernment({ PM: ['B'], HOME: ['C'] }, tally, cfg, 400, ['D'])).toBeNull();
+    expect(validateGovernment({ PM: ['B'], HOME: ['C'] }, tally, cfg, 400, ['C', 'B'])).toMatch(/needs 201/);
+  });
 });
 
 describe('governmentFromOffer', () => {

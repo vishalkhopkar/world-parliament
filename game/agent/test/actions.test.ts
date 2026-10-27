@@ -11,7 +11,10 @@ import { AgentSession } from '../src/session';
 import { parseArgsLenient, parseArgv } from '../src/cli';
 import { GameClient } from '../src/client';
 
+import { enableReportsForFile } from './reportsFlag';
+
 const cfg = WORLD_CONFIG;
+enableReportsForFile();
 let dir: SeatDirectory;
 beforeAll(async () => { dir = new SeatDirectory((await loadGamePackage('world-500'))!, loadSeatNames('world-500')); });
 

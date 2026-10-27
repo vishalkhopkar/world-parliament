@@ -43,6 +43,12 @@ Rules source of truth: `../FEATURE REQUIREMENTS.docx`. Technical plan: see CLAUD
 
 ## Log
 
+### 2026-10-26 - Report switches, guided tour, reputation smoke, coalition fix
+- **Reports switched off.** `analyst.seatReport.enabled` / `analyst.globalReport.enabled` (both `false`) in `config/game.properties`; gen-config now supports booleans (exactly `true`/`false`). Server refuses with `FORBIDDEN`; web hides Local report and the Analyst card; agent `buy_report` prechecks; RULES.md renders "currently switched off"; e2e bots/sim skip reports. Tests that buy reports turn them on (`server/test/helpers.ts`, `agent/test/reportsFlag.ts`, `web/test/fakeMap.ts`).
+- **Bug: coalition with a no-portfolio partner never formed.** `validateGovernment` counted only portfolio holders, so an accepted offer that needed a partner "invited without a portfolio" was rejected by `formGovernment`, and the game waited for the end of post-counting and ended with no government. It now takes `extraMembers` (the offer's partners); regression tests in `server/test/governmentTiming.test.ts`.
+- **Reputation smoke.** `store.repGain` (deltas of the shown reputation on a rally/roadshow ack) → `lib/repSmoke.ts` `selectSmoke` (rally: seats inside the Gaussian kernel get their own "+N", the rest one "Every other seat +G" label) → `SeatMap` `gains` prop (CSS animation in `SeatMap.css`).
+- **Guided tour** (`?tour`, "Take a tour" on Home, opens a new tab): offline `net/tour.ts` `TourTransport` (real engine, 9 parties, 0:00 clocks, scripted result 249 / you 110 / 30 28 25 20 17 12 9 scaled by seat count, count pauses until you offer posts to all 7 smaller parties) + `tour/` overlay with 20 steps (numbers from the config). Requirements docx updated (Guided tour section, reputation smoke, report switches, partners without a portfolio).
+
 ### 2026-10-25 - Invite link + mobile-safe copy
 - Lobby "Copy code" now works on phones: `web/src/net/share.ts` `copyText` (async Clipboard API, then hidden-textarea `execCommand` fallback for http/iOS), "Copied!"/"Copy failed" feedback, and it copies the displayed code (was `''` when the store `joinCode` was null).
 - Invite link `…/?join=CODE` (`buildJoinLink`, keeps `server`/`mock`, drops `as`): "Copy invite link" + a "Share" button where `navigator.share` exists. Home prefills the code and shows an invite banner (nickname still required); `?join` is cleared after joining. `resumeSession` skips a saved game when the link is for a different one (the saved session is replaced on a successful join). Requirements docx updated (Game setup).

@@ -17,13 +17,14 @@ for (const line of propsText.split(/\r?\n/)) {
   props.set(t.slice(0, eq).trim(), t.slice(eq + 1).trim());
 }
 const n = (k: string) => Number((props.get(k) ?? 'NaN').replace(/_/g, ''));
+const b = (k: string) => props.get(k) === 'true';
 
 describe('game.properties is the source of the game constants', () => {
   it('WORLD_CONFIG carries exactly the values in the properties file', () => {
     expect(WORLD_CONFIG.budget).toBe(n('budget'));
     expect(WORLD_CONFIG.costs).toEqual({ rally: n('costs.rally'), roadshow: n('costs.roadshow') });
-    expect(WORLD_CONFIG.analyst.seatReport).toEqual({ start: n('analyst.seatReport.start'), end: n('analyst.seatReport.end') });
-    expect(WORLD_CONFIG.analyst.globalReport).toEqual({ start: n('analyst.globalReport.start'), end: n('analyst.globalReport.end') });
+    expect(WORLD_CONFIG.analyst.seatReport).toEqual({ start: n('analyst.seatReport.start'), end: n('analyst.seatReport.end'), enabled: b('analyst.seatReport.enabled') });
+    expect(WORLD_CONFIG.analyst.globalReport).toEqual({ start: n('analyst.globalReport.start'), end: n('analyst.globalReport.end'), enabled: b('analyst.globalReport.enabled') });
     expect(WORLD_CONFIG.effects.rally.local).toBe(n('effects.rally.local'));
     expect(WORLD_CONFIG.effects.rally.global).toBe(n('effects.rally.global'));
     expect(WORLD_CONFIG.effects.distanceUnitKm).toBe(n('effects.distanceUnitKm'));
@@ -45,18 +46,18 @@ describe('game.properties is the source of the game constants', () => {
   it('the agreed values (60,000 budget, round costs, first-mover bonus on)', () => {
     expect(WORLD_CONFIG.budget).toBe(60_000);
     expect(WORLD_CONFIG.costs).toEqual({ rally: 8_000, roadshow: 400 });
-    expect(WORLD_CONFIG.analyst.seatReport).toEqual({ start: 800, end: 1_800 });
-    expect(WORLD_CONFIG.analyst.globalReport).toEqual({ start: 2_800, end: 6_200 });
+    expect(WORLD_CONFIG.analyst.seatReport).toEqual({ start: 800, end: 1_800, enabled: false });
+    expect(WORLD_CONFIG.analyst.globalReport).toEqual({ start: 2_800, end: 6_200, enabled: false });
     expect(WORLD_CONFIG.effects.firstMover.rally).toBeGreaterThan(0);
     expect(WORLD_CONFIG.effects.firstMover.roadshow).toBeGreaterThan(0);
   });
 
-  it('the agreed Gaussian spread: rally 0.25 + 10 e^(-0.5 x^2) to 400 km, roadshow purely local (6.25, no spill-over), x in units of 100 km', () => {
+  it('the agreed Gaussian spread: rally 0.25 + 10 e^(-0.1 x^2) to 700 km, roadshow purely local (6.25, no spill-over), x in units of 100 km', () => {
     const e = WORLD_CONFIG.effects;
     expect(e.distanceUnitKm).toBe(100);
     expect(e.rally.global).toBe(0.25);
     expect(e.rally.local).toBe(10);
-    expect(e.rally.decay).toEqual({ spread: 0.5, maxKm: 400 });
+    expect(e.rally.decay).toEqual({ spread: 0.1, maxKm: 700 });
     expect(e.roadshow.local).toBe(6.25); // x display scale 4 = 25 shown
     expect(e.roadshow.decay.maxKm).toBe(0); // no spill-over into other seats
   });
@@ -138,6 +139,26 @@ describe('gen-config rejects a bad properties file', () => {
     expect(r.ok).toBe(false);
     expect(r.err).toContain('costs.rally');
   }, 30_000);
+  it.each(['seatReport', 'globalReport'])('accepts analyst.%s.enabled=true and =false and emits real booleans', (k) => {
+    for (const v of ['true', 'false']) {
+      expect(run(propsText.replace(new RegExp(`^analyst\.${k}\.enabled=.*$`, 'm'), `analyst.${k}.enabled=${v}`)).ok).toBe(true);
+    }
+    expect(typeof WORLD_CONFIG.analyst[k as 'seatReport' | 'globalReport'].enabled).toBe('boolean');
+  }, 60_000);
+  it.each(['seatReport', 'globalReport'])('rejects analyst.%s.enabled=yes (only true / false)', (k) => {
+    const r = run(propsText.replace(new RegExp(`^analyst\.${k}\.enabled=.*$`, 'm'), `analyst.${k}.enabled=yes`));
+    expect(r.ok).toBe(false);
+    expect(r.err).toContain(`analyst.${k}.enabled`);
+  }, 30_000);
+  it.each(['seatReport', 'globalReport'])('rejects a missing analyst.%s.enabled', (k) => {
+    const r = run(propsText.replace(new RegExp(`^analyst\.${k}\.enabled=.*$`, 'm'), ''));
+    expect(r.ok).toBe(false);
+    expect(r.err).toContain(`analyst.${k}.enabled`);
+  }, 30_000);
+  it('validateConfig rejects a non-boolean enabled flag', () => {
+    const bad = { ...WORLD_CONFIG, analyst: { ...WORLD_CONFIG.analyst, seatReport: { ...WORLD_CONFIG.analyst.seatReport, enabled: 'yes' as unknown as boolean } } };
+    expect(() => validateConfig(bad)).toThrow(/analyst\.seatReport\.enabled/);
+  });
   it('rejects an unknown (typo) key', () => {
     const r = run(propsText + '\nbudgett=5\n');
     expect(r.ok).toBe(false);

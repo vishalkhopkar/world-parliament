@@ -36,8 +36,8 @@ Only these things cost money:
 |---|---|---|
 | **Rally** in a seat | {{RALLY_COST_TEXT}} (at most one per {{RALLY_COOLDOWN_S}} s) | {{MAX_RALLIES_EFFECTIVE}} rallies (budget allows {{MAX_RALLIES}}) |
 | **Roadshow** in a seat | {{ROADSHOW_COST_TEXT}} | {{MAX_ROADSHOWS}} roadshows |
-| **Seat analyst report** (one seat) | {{SEAT_REPORT_START_TEXT}} at campaign start, rising linearly to {{SEAT_REPORT_END_TEXT}} at the end | |
-| **Global analyst report** | {{GLOBAL_REPORT_START_TEXT}} rising linearly to {{GLOBAL_REPORT_END_TEXT}} | |
+| **Seat analyst report** (one seat) | {{SEAT_REPORT_PRICE_TEXT}} | |
+| **Global analyst report** | {{GLOBAL_REPORT_PRICE_TEXT}} | |
 
 `get_state` shows today's exact prices, your budget and what you can still afford.
 
@@ -74,6 +74,7 @@ Every action adds **effect** for you in seats. Effects are additive: ten roadsho
 - Therefore: **act on seats of the current phase before it closes**; money not spent on early-phase seats can still be spent on later ones.
 
 ## 5. Analyst reports (information, noisy, delayed)
+- {{REPORTS_STATUS}}
 - `buy_report {scope:'seat', seat}`: who leads in that seat, each party's rank and estimated vote share. `buy_report {scope:'global'}`: estimated number of seats each
   party is heading for. Global is dearer. Prices rise during the campaign, by the second: the price you pay is the one when the server handles your purchase, so it can be slightly above the quote (the result shows `price_paid_wr`; `get_state` shows today's price). You may buy as often as you like.
 - A report describes the position **{{REPORT_DELAY_S}} seconds earlier**, not live, and is **noisy** (about +-{{NOISE_PCT}} share points on seat reports; relative noise on global

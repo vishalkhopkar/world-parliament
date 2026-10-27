@@ -413,12 +413,16 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'buy_report',
-    description: 'Buy an analyst report. scope "seat" (needs seat id or name): ranks and estimated vote shares in that seat. scope "global": estimated seat counts per party (dearer). Reports show the position ~30 s ago and are noisy; prices rise during the campaign, by the second, so the quoted price may rise slightly before the server handles your purchase: the report shows the price actually paid (price_paid_wr) and get_state shows the current price. Returns the report (estimate +- margin, asOf) and your new budget.',
+    description: 'Buy an analyst report. scope "seat" (needs seat id or name): ranks and estimated vote shares in that seat. scope "global": estimated seat counts per party (dearer). Reports show the position ~30 s ago and are noisy; prices rise during the campaign, by the second, so the quoted price may rise slightly before the server handles your purchase: the report shows the price actually paid (price_paid_wr) and get_state shows the current price. Returns the report (estimate +- margin, asOf) and your new budget. Reports can be switched off in a game (config): then this tool returns FORBIDDEN ("switched off") for that scope and charges nothing; get_state shows which are on.',
     schema: z.object({
       scope: z.enum(['seat', 'global']),
       seat: seatRef.optional().describe('Required for scope "seat"'),
     }),
     async run(s, i) {
+      const reportCfg = i.scope === 'seat' ? s.cfg().analyst.seatReport : s.cfg().analyst.globalReport;
+      if (!reportCfg.enabled) {
+        throw new AgentError('FORBIDDEN', `Analyst ${i.scope} reports are switched off in this game.`, 'Nothing was charged. Do not try again: spend the budget on rallies and roadshows (get_state shows which reports are on sale).');
+      }
       await campaignWindow(s);
       const cfg = s.cfg();
       const snap = s.client.state.snapshot!;

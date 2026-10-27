@@ -126,7 +126,7 @@ export function NewsTicker({ onPick }: { onPick?: (seat: SeatId) => void }) {
       : <span className="nt-item nt-head" key={e.key}><i className="nt-sep">•</i>{e.text}</span>;
 
   return (
-    <div className="nt">
+    <div className="nt" data-tour="ticker">
       {open && (
         <div className="nt-hist" role="dialog" aria-label="Rally history">
           <div className="nt-hist-head"><strong>Rally news</strong><button className="btn ghost sm" onClick={() => setOpen(false)}>Close</button></div>

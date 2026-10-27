@@ -11,7 +11,7 @@ export const FAKE_CONFIG: MapConfig = {
   currency: { name: 'Fake Dollar', symbol: 'F$' },
   budget: 9_000,
   costs: { rally: 5_000, roadshow: 3_000 },
-  analyst: { ...WORLD_CONFIG.analyst, seatReport: { start: 7_000, end: 7_000 }, globalReport: { start: 11_000, end: 11_000 }, delayMs: 45_000 },
+  analyst: { ...WORLD_CONFIG.analyst, seatReport: { start: 7_000, end: 7_000, enabled: true }, globalReport: { start: 11_000, end: 11_000, enabled: true }, delayMs: 45_000 },
   phases: { min: 1, max: 2, default: 2 },
   players: { min: 3, max: 4 },
   points: {

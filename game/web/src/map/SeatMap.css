@@ -25,3 +25,9 @@
 .seat-badge circle{stroke:#fff;stroke-width:1.5;opacity:.95}
 .seat-badge text{text-anchor:middle;font:700 12px system-ui,sans-serif;font-variant-numeric:tabular-nums}
 .seat-label{fill:#2b2a22;fill-opacity:.3;font-family:var(--serif);font-weight:700;text-anchor:middle;dominant-baseline:central;pointer-events:none;user-select:none}
+/* own-reputation gain: green "+N" rising like smoke, spreading and fading (the g is positioned/scaled by JS, the text moves in screen px) */
+.rep-smoke{pointer-events:none}
+.rep-smoke text{fill:#1f9d4c;stroke:#fff;stroke-width:3px;paint-order:stroke;stroke-linejoin:round;text-anchor:middle;font:800 17px system-ui,sans-serif;font-variant-numeric:tabular-nums;animation:rep-smoke 2.2s ease-out forwards;transform-box:fill-box;transform-origin:center}
+.rep-smoke.global text{font-size:15px}
+@keyframes rep-smoke{0%{opacity:0;transform:translateY(0) scale(.8);filter:blur(0)}12%{opacity:1}55%{opacity:1;transform:translateY(-22px) scale(1.15);filter:blur(0)}100%{opacity:0;transform:translateY(-40px) scale(1.5);filter:blur(2.5px)}}
+@media (prefers-reduced-motion:reduce){.rep-smoke text{animation:rep-fade 2.2s ease-out forwards}@keyframes rep-fade{0%{opacity:0}12%{opacity:1}100%{opacity:0}}}

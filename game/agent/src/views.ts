@@ -333,7 +333,10 @@ export function stateView(s: AgentSession, dir: SeatDirectory | null) {
       rallies_affordable: Math.floor(budget / cost.rally),
       roadshows_affordable: Math.floor(budget / cost.roadshow),
       ...rallyCooldownView(s),
-      ...(prices ? { seat_report_price_now_wr: prices.seat, global_report_price_now_wr: prices.global } : {}),
+      ...(prices && cfg.analyst.seatReport.enabled ? { seat_report_price_now_wr: prices.seat } : {}),
+      ...(prices && cfg.analyst.globalReport.enabled ? { global_report_price_now_wr: prices.global } : {}),
+      ...(cfg.analyst.seatReport.enabled ? {} : { seat_report: 'currently switched off in this game (buy_report refuses it)' }),
+      ...(cfg.analyst.globalReport.enabled ? {} : { global_report: 'currently switched off in this game (buy_report refuses it)' }),
       report_price_note: 'Report prices rise as the campaign goes on, by the second: the price you pay is the one at the moment the server handles your purchase, so it can be slightly higher than the price shown here.',
       currency: cfg.currency.symbol,
     };

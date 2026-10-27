@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { analystPrice } from '@hp/shared';
-import { Ctx } from './helpers';
+import { Ctx, TEST_CFG, TEST_MAP } from './helpers';
 
 describe('campaign', () => {
   it('deducts the cost atomically and acks with the new budget', async () => {
@@ -179,6 +179,43 @@ describe('analyst', () => {
     c.clock.set(c.timeline.phaseCloses[0]);
     await c.send(1, { action: 'buyReport', scope: 'seat', seat: 1 });
     expect(c.lastError(1)?.error).toBe('SEAT_POLLED');
+  });
+});
+
+describe('analyst reports switched off by config', () => {
+  const cfgWith = (seat: boolean, global: boolean) => ({
+    ...TEST_CFG, mapId: TEST_MAP.mapId, seatCount: TEST_MAP.seatCount,
+    analyst: { ...TEST_CFG.analyst, seatReport: { ...TEST_CFG.analyst.seatReport, enabled: seat }, globalReport: { ...TEST_CFG.analyst.globalReport, enabled: global } },
+  });
+
+  it('refuses a seat report and a global report when both are off, without charging or storing anything', async () => {
+    const c = await new Ctx({ cfg: cfgWith(false, false) }).started(2);
+    c.clock.advance(10_000);
+    const before = await c.budget(0);
+    await c.send(0, { action: 'buyReport', scope: 'seat', seat: 1 });
+    expect(c.lastError(0)?.error).toBe('FORBIDDEN');
+    expect(c.lastError(0)?.message).toContain('seat reports are switched off');
+    await c.send(0, { action: 'buyReport', scope: 'global' });
+    expect(c.lastError(0)?.error).toBe('FORBIDDEN');
+    expect(c.lastError(0)?.message).toContain('global reports are switched off');
+    expect(await c.budget(0)).toBe(before);
+    expect(c.notifier.to(c.p[0].playerId, 'report')).toHaveLength(0);
+    expect((await c.svc.privateState(c.gameId, c.p[0].playerId)).myReports).toHaveLength(0);
+  });
+
+  it('switches the two scopes off independently', async () => {
+    const c = await new Ctx({ cfg: cfgWith(false, true) }).started(2);
+    c.clock.advance(10_000);
+    await c.send(0, { action: 'buyReport', scope: 'seat', seat: 1 });
+    expect(c.lastError(0)?.error).toBe('FORBIDDEN');
+    await c.send(0, { action: 'buyReport', scope: 'global' });
+    expect(c.notifier.to(c.p[0].playerId, 'report')).toHaveLength(1);
+    const d = await new Ctx({ cfg: cfgWith(true, false) }).started(2);
+    d.clock.advance(10_000);
+    await d.send(0, { action: 'buyReport', scope: 'global' });
+    expect(d.lastError(0)?.error).toBe('FORBIDDEN');
+    await d.send(0, { action: 'buyReport', scope: 'seat', seat: 1 });
+    expect(d.notifier.to(d.p[0].playerId, 'report')).toHaveLength(1);
   });
 });
 

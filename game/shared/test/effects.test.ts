@@ -261,22 +261,22 @@ describe('shipped Gaussian numbers (WORLD_CONFIG on the test geometry)', () => {
   const wk = buildKernels(map, WORLD_CONFIG);
   const wat = (a: number, b: number) => wk.rally[idx(a) * wk.n + idx(b)];
   const wrs = (a: number, b: number) => wk.roadshow[idx(a) * wk.n + idx(b)];
-  it('peaks are 10 (rally) and 6.25 (roadshow); seat 3 (111 km) gets 10 e^(-0.5 x 1.236) of a rally and nothing of a roadshow (purely local)', () => {
+  it('peaks are 10 (rally) and 6.25 (roadshow); seat 3 (111 km) gets 10 e^(-0.1 x 1.236) of a rally and nothing of a roadshow (purely local)', () => {
     expect(wat(1, 1)).toBe(10);
     expect(wrs(1, 1)).toBe(6.25);
-    expect(wat(1, 3)).toBeCloseTo(10 * Math.exp(-0.5 * 1.1119 ** 2), 3);
+    expect(wat(1, 3)).toBeCloseTo(10 * Math.exp(-0.1 * 1.1119 ** 2), 3);
     expect(wrs(1, 3)).toBe(0);
   });
-  it('seat 4 (334 km) is still inside the 400 km rally cutoff, seat 5 (667 km) is outside; a roadshow never leaves its own seat', () => {
-    expect(wat(1, 4)).toBeGreaterThan(0);
-    expect(wat(1, 5)).toBe(0);
+  it('seat 5 (667 km) is still inside the 700 km rally cutoff, seat 6 (2224 km) is outside; a roadshow never leaves its own seat', () => {
+    expect(wat(1, 5)).toBeGreaterThan(0);
+    expect(wat(1, 6)).toBe(0);
     for (const j of [2, 3, 4, 5, 6, 7, 8]) expect(wrs(1, j)).toBe(0);
   });
   it('a rally reads 10.25 in its own seat and only the 0.25 global floor beyond the cutoff', () => {
     const tl = buildTimeline({ ...WORLD_CONFIG, timeMultiplier: { start: 1, end: 1 } }, 1, T0);
     const e = computeEffects([act('A', 'rally', 1, T0)], wk, { ...WORLD_CONFIG, timeMultiplier: { start: 1, end: 1 } }, tl, map, 1).get('A') as Float64Array;
     expect(e[idx(1)]).toBeCloseTo(10.25 + WORLD_CONFIG.effects.firstMover.rally, 9);
-    expect(e[idx(5)]).toBeCloseTo(0.25, 9);
+    expect(e[idx(6)]).toBeCloseTo(0.25, 9);
     expect(e[idx(8)]).toBeCloseTo(0.25, 9);
   });
 });

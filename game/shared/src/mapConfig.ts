@@ -123,8 +123,10 @@ export interface MapConfig {
   /** Multiplier applied to c, y, s by the time an action is taken: linear from start (campaign start) to end (campaign end). Marginal (docx). */
   timeMultiplier: { start: number; end: number };
   analyst: {
-    seatReport: PriceCurve;
-    globalReport: PriceCurve;
+    /** Local (one-seat) report. enabled=false: switched off (server refuses the purchase, clients hide it). */
+    seatReport: PriceCurve & { enabled: boolean };
+    /** Global (all-seats) report. enabled=false: switched off. */
+    globalReport: PriceCurve & { enabled: boolean };
     /** Reports describe the position this many ms before purchase. */
     delayMs: number;
     /** Relative noise: estimates get a random error with this standard deviation (fraction of the true value / share points). */
@@ -201,6 +203,9 @@ export function validateConfig(cfg: MapConfig): void {
   num('analyst.seatReport.end', cfg.analyst?.seatReport?.end);
   num('analyst.globalReport.start', cfg.analyst?.globalReport?.start);
   num('analyst.globalReport.end', cfg.analyst?.globalReport?.end);
+  for (const k of ['seatReport', 'globalReport'] as const) {
+    if (typeof cfg.analyst?.[k]?.enabled !== 'boolean') bad(`analyst.${k}.enabled`, `must be true or false (got ${String(cfg.analyst?.[k]?.enabled)})`);
+  }
   const pct = (key: string, v: unknown) => {
     num(key, v);
     if ((v as number) > 100) bad(key, `must be <= 100 (got ${String(v)})`);

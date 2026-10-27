@@ -9,6 +9,7 @@ import { useMapConfig } from '../state/mapConfig';
 import './game.css';
 import { colourHex, useSeatPhases, useServerNow } from '../lib';
 import { committedFills } from '../lib/committedShade';
+import { selectSmoke } from '../lib/repSmoke';
 
 export function Campaign() {
   const snap = useStore(s => s.snapshot);
@@ -56,6 +57,9 @@ export function Campaign() {
     return s;
   }, [focusPhase, multiPhase, phaseOf, phaseIdx]);
 
+  const repGain = useStore(s => s.repGain);
+  const gains = useMemo(() => (repGain ? selectSmoke(repGain, pkg, cfg) : null), [repGain, pkg, cfg]);
+
   const pulse = useMemo(() => {
     if (!pulseState || !snap) return null;
     const p = snap.players.find(x => x.playerId === pulseState.playerId);
@@ -88,13 +92,13 @@ export function Campaign() {
     <div className="game">
       <CampaignHud snap={snap} priv={priv} now={now} />
       <div className="game-body">
-        <div className="map-col">
-          <SeatMap ref={mapRef} names={names} centres={centres} dimmed={polled} fills={committedFill} fillStyle={committedFill ? 'committed' : undefined} blurred={blurred} labels={labels} badges={badges} selectedSeat={selected} onSeatClick={selectSeat} pulse={pulse} />
+        <div className="map-col" data-tour="map">
+          <SeatMap ref={mapRef} names={names} centres={centres} dimmed={polled} fills={committedFill} fillStyle={committedFill ? 'committed' : undefined} blurred={blurred} labels={labels} badges={badges} selectedSeat={selected} onSeatClick={selectSeat} pulse={pulse} gains={gains} />
           {selected != null && (
             <SeatActionModal seat={selected} snap={snap} priv={priv} now={now} phaseOf={phaseOf} polled={polled} onClose={closeModal} />
           )}
         </div>
-        <aside className="side">
+        <aside className="side" data-tour="side">
           <p className="hint">Click a seat to campaign there.</p>
           {multiPhase && (
             <label className="phase-focus">
@@ -105,8 +109,8 @@ export function Campaign() {
           )}
           <AnalystShop snap={snap} priv={priv} now={now} />
           <ReportToast />
-          <MyActions priv={priv} />
-          {chatOpen && me && <Chat snap={snap} me={me} />}
+          <div data-tour="my-actions"><MyActions priv={priv} /></div>
+          {chatOpen && me && <div data-tour="chat"><Chat snap={snap} me={me} /></div>}
         </aside>
       </div>
       <NewsTicker onPick={s => { selectSeat(s); mapRef.current?.zoomToSeat(s); }} />

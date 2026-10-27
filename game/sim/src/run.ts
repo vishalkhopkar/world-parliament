@@ -53,7 +53,8 @@ export function withOverrides(base: MapConfig, sets: string[]): MapConfig {
     const keys = path.split('.');
     let o: any = cfg;
     for (let i = 0; i < keys.length - 1; i++) o = o[keys[i]];
-    o[keys[keys.length - 1]] = Number(val.replace(/_/g, ''));
+    // booleans (analyst.seatReport.enabled=true) stay booleans, everything else is a number
+    o[keys[keys.length - 1]] = val === 'true' || val === 'false' ? val === 'true' : Number(val.replace(/_/g, ''));
   }
   return cfg;
 }

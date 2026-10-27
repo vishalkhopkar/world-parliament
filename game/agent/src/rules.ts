@@ -39,6 +39,18 @@ export interface RenderOptions {
   timeline?: GameTimeline | null;
 }
 
+const SWITCHED_OFF = 'currently switched off in this game';
+
+/** First bullet of RULES section 5: which reports can be bought in this game. */
+function reportsStatus(cfg: MapConfig): string {
+  const seat = cfg.analyst.seatReport.enabled, global = cfg.analyst.globalReport.enabled;
+  if (seat && global) return 'Both reports (seat and global) are on sale in this game.';
+  if (!seat && !global) {
+    return 'Analyst reports are currently switched off in this game: `buy_report` is refused for both scopes (nothing is charged). Ignore the rest of this section, and put the whole budget into campaigning.';
+  }
+  return `The ${seat ? 'global' : 'seat'} report is currently switched off in this game: \`buy_report\` refuses that scope (nothing is charged). Only the ${seat ? 'seat' : 'global'} report can be bought.`;
+}
+
 export function rulesValues(cfg: MapConfig, opts: RenderOptions = {}): Record<string, string> {
   const n = cfg.seatCount;
   const minutes = (ms: number) => trim(ms / 60_000, 1);
@@ -83,6 +95,13 @@ export function rulesValues(cfg: MapConfig, opts: RenderOptions = {}): Record<st
     MAX_RALLIES: String(Math.floor(cfg.budget / cfg.costs.rally)),
     MAX_RALLIES_EFFECTIVE: String(maxRallies(cfg, campaignMs)),
     MAX_ROADSHOWS: String(Math.floor(cfg.budget / cfg.costs.roadshow)),
+    SEAT_REPORT_PRICE_TEXT: cfg.analyst.seatReport.enabled
+      ? `${money(cfg, cfg.analyst.seatReport.start)} at campaign start, rising linearly to ${money(cfg, cfg.analyst.seatReport.end)} at the end`
+      : SWITCHED_OFF,
+    GLOBAL_REPORT_PRICE_TEXT: cfg.analyst.globalReport.enabled
+      ? `${money(cfg, cfg.analyst.globalReport.start)} rising linearly to ${money(cfg, cfg.analyst.globalReport.end)}`
+      : SWITCHED_OFF,
+    REPORTS_STATUS: reportsStatus(cfg),
     SEAT_REPORT_START_TEXT: money(cfg, cfg.analyst.seatReport.start),
     SEAT_REPORT_END_TEXT: money(cfg, cfg.analyst.seatReport.end),
     GLOBAL_REPORT_START_TEXT: money(cfg, cfg.analyst.globalReport.start),

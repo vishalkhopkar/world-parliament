@@ -43,3 +43,8 @@ export function joinCodeFromSearch(search: string = typeof location !== 'undefin
   const v = (new URLSearchParams(search).get('join') ?? '').trim().toUpperCase();
   return /^[A-Z0-9]{4,8}$/.test(v) ? v : '';
 }
+
+/** Link to the guided tour: this page with only `?tour` (the tour is offline, so `server`, `mock`, `join` and `as` are dropped). */
+export function buildTourLink(loc: Location = location): string {
+  return `${loc.origin}${loc.pathname}?tour`;
+}

@@ -128,6 +128,8 @@ export function runGame(w: World, strategies: string[], k: number, seed: string,
         return true;
       },
       report(scope, i) {
+        // switched off in the config (analyst.*.enabled=false; override with --set analyst.seatReport.enabled=true): bots get nothing
+        if (!(scope === 'seat' ? cfg.analyst.seatReport : cfg.analyst.globalReport).enabled) return null;
         const ts = T0 + nowMs + clock++;
         const price = analystPrice(cfg, scope, timeline, ts);
         if (budget[p] < price) return null;

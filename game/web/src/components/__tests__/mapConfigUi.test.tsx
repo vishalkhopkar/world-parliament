@@ -1,8 +1,8 @@
 // The seat panel costs and the offer builder portfolios come from the current game's map config.
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import type { GameSnapshot, PlayerPublic, PrivateState } from '@hp/shared';
-import { WORLD_CONFIG } from '@hp/shared';
+import { MAP_CONFIGS, WORLD_CONFIG } from '@hp/shared';
 import { FAKE_MAP_ID, registerFakeMap } from '../../../test/fakeMap';
 
 vi.mock('../../net/client', () => ({
@@ -60,6 +60,50 @@ describe('campaign panels follow the current map', () => {
     expect(screen.getByText('F$ 90,000')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Global report \(F\$ 11,000\)/ })).toBeInTheDocument();
     expect(screen.getByText(/45 s ago/)).toBeInTheDocument();
+  });
+});
+
+describe('analyst reports switched off in the map config', () => {
+  const orig = MAP_CONFIGS[FAKE_MAP_ID].analyst;
+  const setEnabled = (seat: boolean, global: boolean) => {
+    MAP_CONFIGS[FAKE_MAP_ID] = { ...MAP_CONFIGS[FAKE_MAP_ID], analyst: { ...orig, seatReport: { ...orig.seatReport, enabled: seat }, globalReport: { ...orig.globalReport, enabled: global } } };
+  };
+  afterEach(() => { MAP_CONFIGS[FAKE_MAP_ID] = { ...MAP_CONFIGS[FAKE_MAP_ID], analyst: orig }; });
+  const shop = () => {
+    const s = snap(FAKE_MAP_ID);
+    useStore.setState({ me: 'p1', gameId: 'g', snapshot: s });
+    return render(<AnalystShop snap={s} priv={priv} now={1} />);
+  };
+
+  it('the seat panel has no Local report option when the seat report is off, but keeps Rally and Roadshow', () => {
+    setEnabled(false, true);
+    modal(FAKE_MAP_ID);
+    expect(screen.queryByText('Local report')).toBeNull();
+    expect(screen.getByText('Rally')).toBeInTheDocument();
+    expect(screen.getByText('Roadshow')).toBeInTheDocument();
+  });
+  it('the seat panel still shows the Local report option when it is on', () => {
+    setEnabled(true, false);
+    modal(FAKE_MAP_ID);
+    expect(screen.getByText('Local report')).toBeInTheDocument();
+  });
+  it('the Analyst card is not rendered at all when both reports are off', () => {
+    setEnabled(false, false);
+    const { container } = shop();
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByText('Analyst')).toBeNull();
+  });
+  it('the Analyst card shows the global button only when the global report is on', () => {
+    setEnabled(false, true);
+    shop();
+    expect(screen.getByText('Analyst')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Global report/ })).toBeInTheDocument();
+  });
+  it('the Analyst card with only the seat report on has no global button (it still lists bought reports)', () => {
+    setEnabled(true, false);
+    shop();
+    expect(screen.getByText('Analyst')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Global report/ })).toBeNull();
   });
 });
 

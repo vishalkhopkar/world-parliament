@@ -92,3 +92,40 @@ describe('Home map chooser', () => {
     expect(joinGame).toHaveBeenCalledWith('ABCD', 'Ben');
   });
 });
+
+describe('Home guided tour entry', () => {
+  afterEach(() => { vi.restoreAllMocks(); window.history.replaceState({}, '', '/'); });
+
+  it('offers a "Take a tour" button that opens ?tour in a NEW tab', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const user = userEvent.setup();
+    render(<Home />);
+    expect(screen.getByTestId('tour-card')).toHaveTextContent(/New here/i);
+    await user.click(screen.getByRole('button', { name: 'Take a tour' }));
+    expect(open).toHaveBeenCalledTimes(1);
+    const [url, target] = open.mock.calls[0];
+    expect(String(url)).toMatch(/\?tour$/);
+    expect(target).toBe('_blank');
+  });
+
+  it('keeps server / mock / join params out of the tour link (the tour is offline)', async () => {
+    window.history.replaceState({}, '', '/play/?server=local&mock&join=AB3K7Q&as=2');
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const user = userEvent.setup();
+    render(<Home />);
+    await user.click(screen.getByRole('button', { name: 'Take a tour' }));
+    const url = new URL(String(open.mock.calls[0][0]));
+    expect(url.pathname).toBe('/play/');
+    expect(url.search).toBe('?tour');
+  });
+
+  it('works without any nickname and does not touch the game forms', async () => {
+    vi.spyOn(window, 'open').mockReturnValue(null);
+    const user = userEvent.setup();
+    render(<Home />);
+    expect(screen.getByRole('button', { name: 'Take a tour' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Take a tour' }));
+    expect(createGame).not.toHaveBeenCalled();
+    expect(joinGame).not.toHaveBeenCalled();
+  });
+});
