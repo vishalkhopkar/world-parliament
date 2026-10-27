@@ -90,8 +90,22 @@ function avatars(): Plugin {
   };
 }
 
+/**
+ * Link-preview tags need an absolute og:image URL. VITE_SITE_URL (set by game-deploy.yml from the CloudFront URL)
+ * is prefixed to the root-relative path; without it the path stays relative (fine for local use).
+ */
+function siteUrl(): Plugin {
+  return {
+    name: 'hp-site-url',
+    transformIndexHtml(html) {
+      const base = (process.env.VITE_SITE_URL ?? '').replace(/\/+$/, '');
+      return base ? html.replace(/content="\/og-image\.jpg"/g, `content="${base}/og-image.jpg"`) : html;
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), maps(), avatars()],
+  plugins: [react(), maps(), avatars(), siteUrl()],
   server: { port: 5173, fs: { allow: [path.resolve(here, '../..')] } },
   build: { chunkSizeWarningLimit: 1200 },
 });

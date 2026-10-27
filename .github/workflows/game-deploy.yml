@@ -76,6 +76,7 @@ jobs:
           out=infra/cdk-outputs.json
           export VITE_API_URL=$(node -p "require('./$out')['HungParliament-$STAGE-Api'].HttpApiUrl")
           export VITE_WS_URL=$(node -p "require('./$out')['HungParliament-$STAGE-Api'].WebSocketUrl")
+          export VITE_SITE_URL=$(node -p "require('./$out')['HungParliament-$STAGE-Web'].CloudFrontUrl")
           npm run build -w @hp/web
           cd infra
           npx cdk deploy "HungParliament-$STAGE-Web" --exclusively --require-approval never -c stage=$STAGE
