@@ -131,12 +131,12 @@ class Bot {
     return run;
   }
   /** Send and wait for the matching success message, or the first error. `before` = budget when the request was sent. */
-  requestB(msg: ClientMessage, ok: Pred, ref?: string): Promise<{ m: ServerMessage; before: number }> {
+  requestB(msg: ClientMessage, ok: Pred, ref?: string): Promise<{ m: ServerMessage; before: number; after: number }> {
     return this.serial(async () => {
       const from = this.msgs.length, before = this.budget;
       this.send(msg);
       const m = await this.waitFor(x => ok(x) || (x.type === 'error' && (ref === undefined || x.clientRef === ref)), { from, what: msg.action });
-      return { m, before };
+      return { m, before, after: this.budget }; // `after` is read inside the serial slot: a concurrent campaign of this bot cannot change it
     });
   }
   async request(msg: ClientMessage, ok: Pred, ref?: string): Promise<ServerMessage> { return (await this.requestB(msg, ok, ref)).m; }
@@ -145,7 +145,7 @@ class Bot {
   async campaign(type: 'rally' | 'roadshow', seat: SeatId): Promise<ServerMessage> {
     const ref = `${this.idx}-${++this.refCounter}`;
     if (type === 'rally') this.rallyPending = true;
-    let res: { m: ServerMessage; before: number };
+    let res: { m: ServerMessage; before: number; after: number };
     try {
       res = await this.requestB({ action: 'campaign', type, seat, clientRef: ref }, m => m.type === 'actionAck' && m.clientRef === ref, ref);
     } finally {
@@ -282,10 +282,9 @@ async function analystScenario(bot: Bot) {
   const seat = pick(openSeats(5000));
   if (!CFG.analyst.seatReport.enabled) {
     // switched off in game.properties: the server must refuse it (FORBIDDEN) and charge nothing
-    const before = bot.budget;
-    const off = await bot.request({ action: 'buyReport', scope: 'seat', seat }, m => m.type === 'report');
+    const { m: off, before, after } = await bot.requestB({ action: 'buyReport', scope: 'seat', seat }, m => m.type === 'report');
     check(bot.err(off) === 'FORBIDDEN', `${bot.name}: seat report is switched off, should be FORBIDDEN, got ${off.type === 'error' ? off.error : off.type}`);
-    check(bot.budget === before, `${bot.name}: a refused seat report must not cost anything`);
+    check(after === before, `${bot.name}: a refused seat report must not cost anything`);
   }
   const { m: seatRep, before } = CFG.analyst.seatReport.enabled
     ? await bot.requestB({ action: 'buyReport', scope: 'seat', seat }, m => m.type === 'report')
@@ -301,10 +300,9 @@ async function analystScenario(bot: Bot) {
     check(seatRep.report.entries.length === bots.length && seatRep.report.entries.every(e => ids.has(e.playerId)), `${bot.name}: report entries are not the players of this game`);
   }
   if (!CFG.analyst.globalReport.enabled) {
-    const b0 = bot.budget;
-    const off = await bot.request({ action: 'buyReport', scope: 'global' }, m => m.type === 'report');
+    const { m: off, before: b0, after } = await bot.requestB({ action: 'buyReport', scope: 'global' }, m => m.type === 'report');
     check(bot.err(off) === 'FORBIDDEN', `${bot.name}: global report is switched off, should be FORBIDDEN, got ${off.type === 'error' ? off.error : off.type}`);
-    check(bot.budget === b0, `${bot.name}: a refused global report must not cost anything`);
+    check(after === b0, `${bot.name}: a refused global report must not cost anything`);
   }
   const { m: globalRep, before: before2 } = CFG.analyst.globalReport.enabled
     ? await bot.requestB({ action: 'buyReport', scope: 'global' }, m => m.type === 'report')
