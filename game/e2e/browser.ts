@@ -7,6 +7,7 @@ import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
+import { WORLD_CONFIG } from '@hp/shared';
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -212,18 +213,22 @@ async function main() {
     await see(B, 'My actions (2)');
     await see(A, /rallied in/);                       // Ben's rally is public news on Asha's screen
     await see(B, /Lotus Front.*rallied|Blue Anchor.*rallied/);
-    const bB = await budget(B);
-    await btn(B, /^Global report/).click();
-    await see(B, 'Global (seats)');
-    if ((await budget(B)) === bB) problems.push('budget did not drop after a global report');
+    if (WORLD_CONFIG.analyst.globalReport.enabled) {
+      const bB = await budget(B);
+      await btn(B, /^Global report/).click();
+      await see(B, 'Global (seats)');
+      if ((await budget(B)) === bB) problems.push('budget did not drop after a global report');
+    } else if (await B.getByRole('button', { name: /^Global report/ }).count()) problems.push('the global report is switched off but its button is shown');
     await shot(B, '06-campaign-b-report');
 
     await clickSeat(C, 6);
     await C.locator('.sam-rally').click();
     await see(C, 'My actions (1)');
     await clickSeat(C, 6);
-    await C.locator('.sam-report').click();
-    await C.locator('.report').first().waitFor({ timeout: 10000 });
+    if (WORLD_CONFIG.analyst.seatReport.enabled) {
+      await C.locator('.sam-report').click();
+      await C.locator('.report').first().waitFor({ timeout: 10000 });
+    } else if (await C.locator('.sam-report').count()) problems.push('the seat report is switched off but its option is shown');
     await shot(C, '07-campaign-c-seat-report');
     // privacy: Asha's roadshow must not show up for Ben as news (only rallies are public)
     if (await B.locator('.nt').getByText(/roadshow/i).count()) problems.push('a roadshow leaked into the news ticker');
