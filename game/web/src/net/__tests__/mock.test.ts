@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { AVATARS, WORLD_CONFIG } from '@hp/shared';
-import type { GlobalReports } from '@hp/shared';
+import type { CoalitionOffer, GlobalReports, ServerMessage } from '@hp/shared';
 import { MockTransport } from '../mock';
 import { ApiException } from '../transport';
 
@@ -138,18 +138,60 @@ describe('mock transport coalition rules', () => {
     expect((inc as Record<string, unknown>).declinedBy).toBe(g.me);
   });
 
-  it('chat is refused in the campaign unless messaging.opensAt is campaign', async () => {
+  it('chat is refused in the campaign when Chat.Campaigning is OFF', async () => {
     const { g, got } = await inGame();
+    type Cfg = { cfg: { chat: { campaigning: string } } };
     g.status = 'campaign';
-    (g as unknown as { cfg: { messaging: { opensAt: string } } }).cfg = { ...(g as never as { cfg: object }).cfg, messaging: { mode: 'group', opensAt: 'counting' } } as never;
+    (g as unknown as Cfg).cfg = { ...(g as never as { cfg: object }).cfg, chat: { campaigning: 'OFF' } } as never;
     t.send({ action: 'chat', to: [], text: 'hi' } as never);
     await settle();
     expect(got.find(m => m.type === 'error')?.error).toBe('WRONG_PHASE');
     got.length = 0;
-    (g as unknown as { cfg: { messaging: { opensAt: string } } }).cfg.messaging.opensAt = 'campaign';
+    (g as unknown as Cfg).cfg.chat.campaigning = 'GROUP';
     t.send({ action: 'chat', to: [], text: 'hi' } as never);
     await settle();
     expect(got.find(m => m.type === 'chat')).toBeTruthy();
+  });
+
+  it('GROUP: one group message to everybody, with the tags found in the text', async () => {
+    const { g, got, ids } = await inGame();
+    g.status = 'campaign';
+    const other = ids.find(i => i !== g.me)!;
+    const name = (g as unknown as { players: Map<string, { pub: { party?: { name: string } } }> }).players.get(other)!.pub.party!.name;
+    t.send({ action: 'chat', text: `hi @${name}` } as never);
+    await settle();
+    const m = got.find(x => x.type === 'chat') as unknown as Extract<ServerMessage, { type: 'chat' }>;
+    expect(m.message).toMatchObject({ channel: 'group', mentions: [other] });
+    expect(m.message.to.sort()).toEqual(ids.filter(i => i !== g.me).sort());
+  });
+
+  it('INDV (counting): one private one-to-one copy per recipient; a recipient is required', async () => {
+    const { g, got, ids } = await inGame();
+    g.status = 'counting';
+    const others = ids.filter(i => i !== g.me);
+    t.send({ action: 'chat', to: [others[0], others[1]], text: 'deal?' } as never);
+    await settle();
+    const sent = got.filter(x => x.type === 'chat').map(x => (x as unknown as Extract<ServerMessage, { type: 'chat' }>).message).filter(m => m.from === g.me);
+    expect(sent.map(m => [m.to, m.channel])).toEqual([[[others[0]], 'direct'], [[others[1]], 'direct']]);
+    got.length = 0;
+    t.send({ action: 'chat', text: 'nobody' } as never);
+    await settle();
+    expect(got.find(m => m.type === 'error')?.error).toBe('BAD_REQUEST');
+  });
+
+  it('offers keep a log: my acceptance / decline, my withdrawal', async () => {
+    const { g, ids } = await inGame();
+    g.status = 'counting';
+    const others = ids.filter(i => i !== g.me);
+    const inc = { offerId: 'y', proposer: others[0], portfolios: { PM: [others[0]] }, partners: [g.me, others[1]], accepted: [], status: 'open', createdAt: 1 } as CoalitionOffer;
+    g.offers.push(inc as never);
+    t.send({ action: 'respondOffer', offerId: 'y', accept: true } as never);
+    expect(inc.log?.[0]).toMatchObject({ type: 'accepted', by: g.me });
+    const mine = { offerId: 'z', proposer: g.me, portfolios: { PM: [g.me] }, partners: [others[0]], accepted: [], status: 'open', createdAt: 2 } as CoalitionOffer;
+    g.offers.push(mine as never);
+    t.send({ action: 'withdrawOffer', offerId: 'z' } as never);
+    expect(mine.status).toBe('withdrawn');
+    expect(mine.log).toEqual([expect.objectContaining({ type: 'withdrawn', by: g.me })]);
   });
 });
 

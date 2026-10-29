@@ -205,8 +205,7 @@ export const GAME_CONFIG_VALUES = {
     "name": "World Rupee",
     "symbol": "₩"
   },
-  "messaging": {
-    "mode": "group",
-    "opensAt": "campaign"
+  "chat": {
+    "campaigning": "GROUP"
   }
 };

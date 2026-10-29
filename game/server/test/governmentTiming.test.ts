@@ -2,7 +2,7 @@
 //  - a negotiated government is confirmed only once EVERY seat has been declared; the game then ends at once;
 //  - at least one party must stay out of the government (no everyone-in coalitions);
 //  - offers say who declined them / which offer superseded them;
-//  - the chat window opens at the campaign or at counting (messaging.opensAt);
+//  - the chat window opens at the campaign or at counting (Chat.Campaigning = OFF);
 //  - the local timer scheduler stops waiting for the end of post-counting once the game is finished.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { majorityOf } from '@hp/shared';
@@ -25,7 +25,7 @@ const PURE = { ...TEST_CFG, voting: { influenceMaxPercent: 0, randomMaxPercent: 
  * Returns with every seat polled and counting at step 0.
  */
 async function fiveForP0(n: number, opts: { opensAt?: 'campaign' | 'counting' } = {}): Promise<Ctx> {
-  const c = await new Ctx({ map: lineMap(8), cfg: { ...PURE, mapId: 'line', seatCount: 8, messaging: { mode: 'individual', opensAt: opts.opensAt ?? 'counting' } } }).started(n, 1);
+  const c = await new Ctx({ map: lineMap(8), cfg: { ...PURE, mapId: 'line', seatCount: 8, chat: { campaigning: opts.opensAt === 'campaign' ? 'INDV' : 'OFF' } } }).started(n, 1);
   for (let s = 1; s <= 8; s++) await c.send(s <= 5 ? 0 : 1 + ((s - 6) % (n - 1)), { action: 'campaign', type: 'roadshow', seat: s });
   await pollAll(c);
   const wins = (await c.repo.listSeatResults(c.gameId)).filter((r) => r.winner === c.p[0].playerId).length;
@@ -158,7 +158,7 @@ describe('a government forms only after every seat is declared, and then the gam
 describe('partners invited without a portfolio count towards the majority', () => {
   /** 5 players on 8 seats: p0 wins 1-3, p1 4-5, p2 6-7, p3 8, p4 nothing. p1 (PM) + p2 (Home) = 4, short of 5; + p3 = 5. */
   async function split(): Promise<Ctx> {
-    const c = await new Ctx({ map: lineMap(8), cfg: { ...PURE, mapId: 'line', seatCount: 8, messaging: { mode: 'individual', opensAt: 'counting' } } }).started(5, 1);
+    const c = await new Ctx({ map: lineMap(8), cfg: { ...PURE, mapId: 'line', seatCount: 8, chat: { campaigning: 'OFF' } } }).started(5, 1);
     const owner = [0, 0, 0, 1, 1, 2, 2, 3];
     for (let s = 1; s <= 8; s++) await c.send(owner[s - 1], { action: 'campaign', type: 'roadshow', seat: s });
     await pollAll(c);
@@ -284,9 +284,9 @@ describe('offer bookkeeping: declinedBy and supersededBy', () => {
   });
 });
 
-describe('chat window (messaging.opensAt)', () => {
-  const ctx = (opensAt: 'campaign' | 'counting', mode: 'group' | 'individual' = 'group') =>
-    new Ctx({ cfg: { ...TEST_CFG, messaging: { mode, opensAt } } });
+describe('chat window (Chat.Campaigning: GROUP / INDV = from the campaign, OFF = from counting)', () => {
+  const ctx = (opensAt: 'campaign' | 'counting', mode: 'GROUP' | 'INDV' = 'GROUP') =>
+    new Ctx({ cfg: { ...TEST_CFG, chat: { campaigning: opensAt === 'campaign' ? mode : 'OFF' } } });
 
   it('opensAt=campaign: refused in the lobby, allowed during the campaign (group and individual modes)', async () => {
     const lobby = await ctx('campaign').lobby(3);
@@ -294,7 +294,7 @@ describe('chat window (messaging.opensAt)', () => {
     await lobby.send(0, { action: 'chat', text: 'hi' } as never);
     expect(errs(lobby, 0).pop()).toMatchObject({ error: 'WRONG_PHASE', message: 'Chat opens when the campaign starts' });
 
-    for (const mode of ['group', 'individual'] as const) {
+    for (const mode of ['GROUP', 'INDV'] as const) {
       const c = await ctx('campaign', mode).started(3, 1);
       c.notifier.clear();
       await c.send(0, { action: 'chat', to: [c.p[1].playerId], text: 'early bird' });
@@ -318,7 +318,7 @@ describe('chat window (messaging.opensAt)', () => {
     await c.send(0, { action: 'chat', text: 'too soon' } as never);
     expect(errs(c, 0).pop()).toMatchObject({ error: 'WRONG_PHASE', message: 'Chat opens when counting starts' });
     await driveTo(c, 'counting');
-    await c.send(0, { action: 'chat', text: 'now' } as never);
+    await c.send(0, { action: 'chat', to: [c.p[1].playerId], text: 'now' });
     expect(errs(c, 0)).toHaveLength(1);
   });
 

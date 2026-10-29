@@ -170,7 +170,7 @@ split the reputation voters into small shares; neglected seats can be won cheapl
    because prices rise.
 11. **Counting is a second game.** Watch leads and wins. Start talking early: say who you would back as PM, ask for portfolios. Remember: the government needs members whose
     *won* seats reach {{MAJORITY}}, nobody gets points from opposition, and **no government means everyone loses**, so do not hold out forever.
-12. **Agree one government early in the group chat.** Offers wait for the last seat and then confirm automatically, so use the whole counting time to settle who is PM and who gets which portfolio, then send one clean offer.
+12. **Agree one government early in the chat** (the group chat during the campaign; tag the party you want with "@Party name"; from counting the chats are one-to-one). Offers wait for the last seat and then confirm automatically, so use the whole counting time to settle who is PM and who gets which portfolio, then send one clean offer.
 13. If you hold a majority and want a clear win, simply do **not** negotiate. If you are far from a majority, aim to be the PM of a coalition or a valued partner.
 
 ## 12. Tool cheat-sheet (the CLI uses the same action names)

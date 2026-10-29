@@ -150,6 +150,22 @@ describe('TourOverlay steps', () => {
     expect(visibleSteps(() => undefined, withReports(false), 9).some(s => s.id === 'chat')).toBe(true);
   });
 
+  it('the chat step follows Chat.Campaigning: group chat with @ tags, one-to-one, or no step when OFF', () => {
+    const chatCfg = (campaigning: MapConfig['chat']['campaigning']): MapConfig => ({ ...withReports(false), chat: { campaigning } });
+    expect(visibleSteps(() => undefined, chatCfg('OFF'), 9).some(s => s.id === 'chat')).toBe(false);
+    setup({ step: 'chat' });
+    const { unmount } = render(<TourOverlay />);
+    expect(callout()).toHaveTextContent('group chat');
+    expect(callout()).toHaveTextContent('Type @ to tag a party');
+    expect(callout()).toHaveTextContent('Once counting starts, the chat becomes one-to-one');
+    unmount();
+    cfgBox.cfg = chatCfg('INDV');
+    goTo('chat');
+    render(<TourOverlay />);
+    expect(callout()).toHaveTextContent('one-to-one with every party');
+    expect(callout()).not.toHaveTextContent('Type @');
+  });
+
   it('the vote-model step reads the percentages from the config and offers Start counting', async () => {
     setup({ step: 'votes' });
     const start = vi.fn();
@@ -285,6 +301,22 @@ describe('TourOverlay counting steps', () => {
     expect(callout()).toHaveTextContent('exactly 251');
   });
 
+  it('before the offer, a step asks to keep monitoring the chat: offers and "Accepted" arrive there, with badges', async () => {
+    const ids = stepsNow().map(s => s.id);
+    expect(ids.indexOf('watch-chat')).toBe(ids.indexOf('govern') - 1);
+    expect(ids.indexOf('watch-chat')).toBeGreaterThan(ids.indexOf('paused'));
+    expect(stepsNow().find(s => s.id === 'watch-chat')?.anchor).toEqual(['[data-tour="chat"]']);
+    setup({ step: 'watch-chat', snap: counting() });
+    const { unmount } = render(<TourOverlay />);
+    expect(callout()).toHaveTextContent('Keep monitoring the chat');
+    expect(callout()).toHaveTextContent('one-to-one');
+    expect(callout()).toHaveTextContent('Government offers arrive in the chat');
+    expect(callout()).toHaveTextContent('“Accepted”');
+    expect(callout()).toHaveTextContent('keep monitoring the chat for offers');
+    expect(callout()).not.toHaveTextContent('Offers card');
+    unmount();
+  });
+
   it('the government step lists the posts from the config and follows the offer', async () => {
     setup({ step: 'govern', snap: counting() });
     render(<TourOverlay />);
@@ -294,11 +326,13 @@ describe('TourOverlay counting steps', () => {
     const offer = (status: 'open' | 'declined' | 'accepted') => ({ offerId: 'o', proposer: 'p0', portfolios: {}, partners: ['p2', 'p3'], accepted: ['p2'], status, createdAt: 1, declinedBy: status === 'declined' ? 'p3' : undefined });
     act(() => useStore.setState({ snapshot: snap(counting({ offers: [offer('open')] })) }));
     await waitFor(() => expect(screen.getByTestId('tour-task')).toHaveTextContent('1 of 2 have accepted'));
+    expect(screen.getByTestId('tour-task')).toHaveTextContent('each acceptance says Accepted');
     act(() => useStore.setState({ snapshot: snap(counting({ offers: [offer('declined')] })) }));
     await waitFor(() => expect(screen.getByTestId('tour-task')).toHaveTextContent(/People.s Star declined/));
     act(() => useStore.setState({ snapshot: snap(counting({ offers: [offer('accepted')] })) }));
     await waitFor(() => expect(screen.getByTestId('tour-task')).toHaveClass('done'));
     expect(screen.getByTestId('tour-task')).toHaveTextContent('251');
+    expect(screen.getByTestId('tour-task')).toHaveTextContent('Each chat with them now says Accepted');
   });
 
   it('jumps to the result step when the game finishes, with the coalition headline and the buttons', async () => {

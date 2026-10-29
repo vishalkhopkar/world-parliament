@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { WORLD_CONFIG, configForMap, validateConfig } from '../src';
+import { WORLD_CONFIG, chatModeFor, configForMap, validateConfig } from '../src';
 
 const gameDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const propsFile = path.join(gameDir, 'config/game.properties');
@@ -94,13 +94,21 @@ describe('game.properties is the source of the game constants', () => {
     expect([c.panelRunnerUpPercent, c.panelOtherPercent]).toEqual([75, 25]);
   });
 
-  it('messaging is one group chat everybody can read by default (the flag allows private threads)', () => {
-    expect(WORLD_CONFIG.messaging).toEqual({ mode: props.get('messaging.mode'), opensAt: props.get('messaging.opensAt') });
-    expect(WORLD_CONFIG.messaging.mode).toBe('group');
+  it('chat: one group chat during the campaign, one-to-one chats during counting and post-counting (the designer keys)', () => {
+    expect(WORLD_CONFIG.chat).toEqual({ campaigning: props.get('Chat.Campaigning') });
+    expect(WORLD_CONFIG.chat).toEqual({ campaigning: 'GROUP' });
   });
 
-  it('chat opens at the start of the campaign by default (the flag allows counting start)', () => {
-    expect(WORLD_CONFIG.messaging.opensAt).toBe('campaign');
+  it('chatModeFor: campaign -> Chat.Campaigning (OFF = null), counting / postCounting -> always INDV, other stages none', () => {
+    const cfg = (campaigning: string) => ({ chat: { campaigning } } as never);
+    expect(chatModeFor(cfg('GROUP'), 'campaign')).toBe('GROUP');
+    expect(chatModeFor(cfg('INDV'), 'campaign')).toBe('INDV');
+    expect(chatModeFor(cfg('OFF'), 'campaign')).toBeNull();
+    for (const c of ['GROUP', 'INDV', 'OFF']) {
+      expect(chatModeFor(cfg(c), 'counting')).toBe('INDV');
+      expect(chatModeFor(cfg(c), 'postCounting')).toBe('INDV');
+    }
+    for (const st of ['lobby', 'finished', 'abandoned', undefined]) expect(chatModeFor(cfg('GROUP'), st)).toBeNull();
   });
 
   it('news agency tunables come from the file (agencies numbered 1..n become a list)', () => {
@@ -262,31 +270,25 @@ describe('gen-config rejects a bad properties file', () => {
     expect(r.ok).toBe(false);
     expect(r.err).toContain(`counting.${k}`);
   }, 30_000);
-  it.each(['group', 'individual'])('accepts messaging.mode=%s', (mode) => {
-    expect(run(propsText.replace(/^messaging\.mode=.*$/m, `messaging.mode=${mode}`)).ok).toBe(true);
+  it.each(['GROUP', 'INDV', 'OFF'])('accepts Chat.Campaigning=%s', (v) => {
+    expect(run(propsText.replace(/^Chat\.Campaigning=.*$/m, `Chat.Campaigning=${v}`)).ok).toBe(true);
   }, 30_000);
-  it.each(['threads', 'GROUP', ''])('rejects messaging.mode=%j', (mode) => {
-    const r = run(propsText.replace(/^messaging\.mode=.*$/m, `messaging.mode=${mode}`));
+  it.each(['group', 'threads', ''])('rejects Chat.Campaigning=%j', (v) => {
+    const r = run(propsText.replace(/^Chat\.Campaigning=.*$/m, `Chat.Campaigning=${v}`));
     expect(r.ok).toBe(false);
-    expect(r.err).toContain('messaging.mode');
+    expect(r.err).toContain('Chat.Campaigning');
   }, 30_000);
-  it.each(['campaign', 'counting'])('accepts messaging.opensAt=%s', (v) => {
-    expect(run(propsText.replace(/^messaging\.opensAt=.*$/m, `messaging.opensAt=${v}`)).ok).toBe(true);
-  }, 30_000);
-  it.each(['lobby', 'CAMPAIGN', ''])('rejects messaging.opensAt=%j', (v) => {
-    const r = run(propsText.replace(/^messaging\.opensAt=.*$/m, `messaging.opensAt=${v}`));
+  it.each(['Chat.Campaigning'])('rejects a missing %s', (k) => {
+    const r = run(propsText.replace(new RegExp(`^${k.replace(/\./g, '\.')}=.*$`, 'm'), ''));
     expect(r.ok).toBe(false);
-    expect(r.err).toContain('messaging.opensAt');
+    expect(r.err).toContain(k);
   }, 30_000);
-  it('rejects a missing messaging.opensAt', () => {
-    const r = run(propsText.replace(/^messaging\.opensAt=.*$/m, ''));
+  it.each(['messaging.mode', 'messaging.opensAt', 'Chat.post-campaigning'])('rejects the removed key %s as unknown', (k) => {
+    const r = run(propsText + `
+${k}=group
+`);
     expect(r.ok).toBe(false);
-    expect(r.err).toContain('messaging.opensAt');
-  }, 30_000);
-  it('rejects a missing messaging.mode', () => {
-    const r = run(propsText.replace(/^messaging\.mode=.*$/m, ''));
-    expect(r.ok).toBe(false);
-    expect(r.err).toContain('messaging.mode');
+    expect(r.err).toContain(k);
   }, 30_000);
   it.each([
     ['a zero rally spread', /^effects\.rally\.decay\.spread=.*$/m, 'effects.rally.decay.spread=0', 'effects.rally.decay.spread'],
@@ -328,8 +330,7 @@ describe('validateConfig', () => {
     expect(() => validateConfig({ ...WORLD_CONFIG, budget: NaN })).toThrow(/budget/);
     expect(() => validateConfig({ ...WORLD_CONFIG, connection: { retryMs: 200 } })).toThrow(/connection.retryMs/);
     expect(() => validateConfig({ ...WORLD_CONFIG, costs: { rally: -1, roadshow: 1 } })).toThrow(/costs.rally/);
-    expect(() => validateConfig({ ...WORLD_CONFIG, messaging: { ...WORLD_CONFIG.messaging, mode: 'threads' } } as never)).toThrow(/messaging.mode/);
-    expect(() => validateConfig({ ...WORLD_CONFIG, messaging: { ...WORLD_CONFIG.messaging, opensAt: 'lobby' } } as never)).toThrow(/messaging.opensAt/);
+    expect(() => validateConfig({ ...WORLD_CONFIG, chat: { ...WORLD_CONFIG.chat, campaigning: 'group' } } as never)).toThrow(/Chat.Campaigning/);
     const counting = (over: object) => ({ ...WORLD_CONFIG, counting: { ...WORLD_CONFIG.counting, ...over } });
     expect(() => validateConfig(counting({ pieRefreshMs: 100 }))).toThrow(/counting.pieRefreshMs/);
     expect(() => validateConfig(counting({ panelDisplayMs: 0 }))).toThrow(/counting.panelDisplayMs/);

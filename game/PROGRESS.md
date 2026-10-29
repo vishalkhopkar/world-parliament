@@ -6,6 +6,7 @@ Rules source of truth: `../FEATURE REQUIREMENTS.docx`. Technical plan: see CLAUD
 - `shared/` — contract (types.ts, protocol.ts, mapConfig.ts, presets.ts) + engine (`src/engine/`). Pure TS, no AWS.
 - `server/` — Lambda handlers + DynamoDB repo.
 - `web/` — React + Vite + d3 SeatMap.
+- `chat/` — `@hp/chat`: `common/` (pure: mentions, conversations, unread badges; `@hp/chat/common` for the server/mock/tour) + `common/ui/` (rows, composer, badge, chat.css), `group/GroupChat.tsx` (GROUP, @ tags), `individual/DirectChat.tsx` (INDV, Teams-style list + pane, offers inside). No store/network: the web adapter is `web/src/components/ChatSection.tsx`.
 - `infra/` — AWS CDK (ap-south-1).
 - `sim/` — balance simulator (tunes WORLD_CONFIG).
 - `../maps/<id>/source/build/07_game_map.py` → `../maps/<id>/site/data/game.json` (centroids, neighbours, phase groupings k=1..5). Maps live in `../maps/<id>/` (manifest `map.json`); `npm run gen:maps` (scripts/gen-maps.ts) validates them and writes `shared/src/maps.generated.ts` (MAP_MANIFESTS) + `server/src/maps.generated.ts` (GAME_PACKAGES).
@@ -33,7 +34,7 @@ Rules source of truth: `../FEATURE REQUIREMENTS.docx`. Technical plan: see CLAUD
 ## Next (not started)
 - Deploy to AWS dev stage (needs the user's AWS credentials; `cdk bootstrap` + `cdk deploy -c stage=dev`), then run e2e/bots.ts against it.
 - Designer decisions pending: R1/R3/R5 (docx comment), disconnect-after-polling rule.
-- Settled (21 Oct 2026): a government is confirmed only once every seat is declared (or on acceptance later in post-counting) and the game then finishes at once; a government can never include every party; chat is one group chat open from the campaign start (flag `messaging.opensAt`, `messaging.mode`); offers stay private. e2e (bots.ts, browser.ts, README) updated; not yet re-run.
+- Settled (21 Oct 2026): a government is confirmed only once every seat is declared (or on acceptance later in post-counting) and the game then finishes at once; a government can never include every party; chat is one group chat open from the campaign start (SUPERSEDED 2026-10-29: `Chat.Campaigning`, see the log); offers stay private. e2e (bots.ts, browser.ts, README) updated; not yet re-run.
 - Small UI: disable campaign buttons during the 5 s start lead-in.
 | H DynamoRepo/AWS adapter tests with in-memory DDB fake | agent H | done — server suite 172 tests; fixed 3 aws/ bugs (report SK collision, broadcast to pending, schedule Conflict); residual risks listed in progress/agent-H.md |
 | R Repo restructure: `maps/` + `game/` | agent R | done (2026-10-20) — site/build/data/output moved to `maps/world-500/{site,source}`; map id `world` → `world-500` everywhere; generic map registry (`npm run gen:maps`, MAP_MANIFESTS / GAME_PACKAGES, `configForMap`); web serves/copies `/maps/<id>/...`; CDK Web stack no longer deploys separate map data; workflows retargeted. See progress/agent-R.md |
@@ -44,6 +45,19 @@ Rules source of truth: `../FEATURE REQUIREMENTS.docx`. Technical plan: see CLAUD
 | Own reputation shown (2026-10-23) | 1 agent | done - each player sees their OWN reputation among swing voters (`reputationView` in `engine/effects.ts` = round(effect x `display.reputationScale`, default 10 at the time; now 4, see the 2026-10-25 entry), zeros omitted): party-coloured badge with the number on every campaign-map seat (0 at start, only grows), "Reputation N among swing voters" in the seat panel, `PrivateState.reputation` + `actionAck.reputation` (own only, hidden-info audit extended), agent `get_seat` -> `my_reputation` + RULES.md |
 
 ## Log
+
+### 2026-10-29 (follow-up) - Counting chat is always one-to-one: `Chat.post-campaigning` removed
+- The designer wants counting and post-counting always private one-to-one, so the `Chat.post-campaigning` key (INDV / GROUP) is gone (a leftover line in `game.properties` is now rejected as an unknown key, like `messaging.*`). `MapConfig.chat` is `{ campaigning }` only; `chatModeFor` returns `'INDV'` for `counting` / `postCounting`.
+- Web: the GROUP-while-counting branch of `Negotiation.tsx` (Parties card, Offers card, group chat) is deleted; counting always shows the one-to-one `ChatSection` (offers live inside it) and the offer builder. Agent rules, e2e, tests and the FR docx updated.
+- Tour: needed a change (`tour/steps.tsx`: the 'chat' step note shows whenever the campaign chat is GROUP; 'watch-chat' keeps only the one-to-one text; 'govern' done text says "Accepted" unconditionally).
+
+### 2026-10-29 - Chat redesign: group chat in the campaign, one-to-one (Teams style) from counting, offers in the chats
+- **Config.** `Chat.Campaigning=GROUP|INDV|OFF` (designer's key name; gen-config maps it to `cfg.chat.campaigning`; counting and post-counting are always one-to-one, see the 2026-10-29 follow-up entry) replace `messaging.mode` / `messaging.opensAt` (now unknown keys). `chatModeFor(cfg, status)` in `shared/src/mapConfig.ts` gives a stage's mode (null = no chat).
+- **Protocol.** `ChatMessage.channel` ('group' | 'direct'; missing = old group message) and `mentions` (server-computed from "@Party name", `findMentions` in `@hp/chat/common`). `CoalitionOffer.log` (`OfferEvent` accepted / declined / unaccepted / withdrawn, `logOfferEvent` in the engine): the one-to-one chats show "Accepted" etc. from it.
+- **Server.** GROUP: everyone reads, `to` ignored, mentions filled. INDV: `to` required; a message to several players is stored and delivered as one private copy per recipient. hello history: every group message + own direct ones.
+- **Web.** New workspace `chat/` (see Layout). Campaign: group chat card (avatar left, name on top, text below, @ picker, badge only when tagged). Counting: wide side panel with one-to-one chats (badge per conversation + section badge + phone floating button), offers (Accept/Decline/Withdraw) inside the conversations, offer builder below the chat. Read state per conversation in the store (`chatRead`, `markChatRead`, localStorage per game). Post mode GROUP keeps a Parties + Offers card.
+- **Mock / tour / agent / e2e.** Mock and tour backends follow the modes and log offer events; tour: chat step text per mode and a new `watch-chat` step ("Keep monitoring the chat") before `govern`, plus hints on "Accepted". Agent: `chat` needs `to` in INDV, messages show `chat`, `tagged`, `tags_you`; `get_state.chat_mode`; RULES chat paragraph from both keys. e2e bots/browser check group tags and one-to-one privacy.
+- FR docx updated (Messaging rules, Guided tour; the "private threads" future item removed).
 
 ### 2026-10-26 - Report switches, guided tour, reputation smoke, coalition fix
 - **Reports switched off.** `analyst.seatReport.enabled` / `analyst.globalReport.enabled` (both `false`) in `config/game.properties`; gen-config now supports booleans (exactly `true`/`false`). Server refuses with `FORBIDDEN`; web hides Local report and the Analyst card; agent `buy_report` prechecks; RULES.md renders "currently switched off"; e2e bots/sim skip reports. Tests that buy reports turn them on (`server/test/helpers.ts`, `agent/test/reportsFlag.ts`, `web/test/fakeMap.ts`).

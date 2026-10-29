@@ -164,14 +164,14 @@ describe('RATE_LIMITED is reachable over WebSocket (rally cooldown)', () => {
   });
 });
 
-/** chat with messaging.opensAt = 'campaign': open from the campaign until the game ends; then membership as above. */
+/** chat with Chat.Campaigning = INDV: open from the campaign until the game ends; then membership as above. */
 function chatFromCampaignRule(gs: GameStatus, ps: PlayerStatus): Outcome {
   if (!live(gs) && gs !== 'campaign') return 'WRONG_PHASE';
   return ps === 'pending' || ps === 'rejected' ? 'FORBIDDEN' : 'OK';
 }
 
-describe('chat matrix with messaging.opensAt = campaign (4 players)', () => {
-  const cfg: MapConfig = { ...TEST_CFG, messaging: { mode: 'individual', opensAt: 'campaign' } };
+describe('chat matrix with chat from the campaign (Chat.Campaigning = INDV, 4 players)', () => {
+  const cfg: MapConfig = { ...TEST_CFG, chat: { campaigning: 'INDV' } };
   for (const gs of GAME_STATUSES) {
     for (const ps of PLAYER_STATUSES) {
       it(`game ${gs}, player ${ps}`, async () => {

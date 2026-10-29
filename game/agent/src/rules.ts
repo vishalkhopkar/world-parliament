@@ -8,6 +8,22 @@ import type { GameTimeline, MapConfig } from '@hp/shared';
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const RULES_TEMPLATE_PATH = resolve(HERE, '..', 'RULES.md');
 
+const CHAT_TEXT = {
+  GROUP: '**one group chat** that everyone in the game reads: `chat {text}` (the `to` list is ignored). Write "@Party name" in the text to tag a party; tagged parties are notified (`tags_you` in the message)',
+  INDV: '**one-to-one chats**: `chat {to:[names], text}`; each recipient gets a private copy that only you and they see (Microsoft Teams style)',
+};
+
+/** The chat paragraph of RULES.md from Chat.Campaigning (counting and post-counting are always one-to-one). */
+function chatRule(cfg: MapConfig): string {
+  const { campaigning } = cfg.chat;
+  const campaign = campaigning === 'OFF'
+    ? 'There is no chat during the campaign: chat opens when counting starts.'
+    : `During the campaign there is ${CHAT_TEXT[campaigning]}. Chat opens at the start of the campaign (not only at counting).`;
+  return `**Chat**: ${campaign} During counting and post-counting there is ${CHAT_TEXT.INDV}.`
+    + ' Government offers made to you also show up in your one-to-one chat with the proposer, and "Accepted" in the chat of the party who accepted.'
+    + ' Chat stays open until the end of the game. Read messages with `get_chat` or `wait_for_events`.';
+}
+
 export function rulesTemplate(): string { return readFileSync(RULES_TEMPLATE_PATH, 'utf8'); }
 
 /** MapConfig for a map id (falls back to WORLD_CONFIG, e.g. when the id is a renamed registry id). */
@@ -79,12 +95,7 @@ export function rulesValues(cfg: MapConfig, opts: RenderOptions = {}): Record<st
     PLAYERS_MAX: String(cfg.players.max),
     SEATS: String(n),
     MAJORITY: String(majorityOf(n)),
-    CHAT_RULE: (cfg.messaging.mode === 'group'
-      ? '**Group chat**: `chat {text}` posts to ONE common chat that everyone in the game reads (the `to` list is ignored). Read what others wrote with `get_chat` or `wait_for_events`.'
-      : '**Private chat**: `chat {to:[names], text}` to one or more players. Only you and the recipients see it. Read replies with `get_chat` or `wait_for_events`.')
-      + (cfg.messaging.opensAt === 'campaign'
-        ? ' Chat opens at the start of the campaign (not only at counting) and stays open until the end of the game.'
-        : ' Chat opens when counting starts and stays open until the end of the game.'),
+    CHAT_RULE: chatRule(cfg),
     CURRENCY: cfg.currency.name,
     SYM: cfg.currency.symbol,
     PHASES_MIN: String(cfg.phases.min),

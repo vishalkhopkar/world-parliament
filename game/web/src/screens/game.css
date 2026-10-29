@@ -16,6 +16,9 @@
 @media (min-width:900px){
   .app.screen-campaign,.app.screen-counting{height:100vh;height:100dvh;overflow:hidden}
 }
+/* counting: the side panel holds the one-to-one chats, so it is wider on a desktop */
+@media (min-width:900px){ .game-body.wide-side{grid-template-columns:minmax(0,1fr) 440px} }
+@media (min-width:1200px){ .game-body.wide-side{grid-template-columns:minmax(0,1fr) 560px} }
 .result-col{display:none}
 @media (min-width:1200px){
   /* the result panels float over the left edge of the map and always stay there */

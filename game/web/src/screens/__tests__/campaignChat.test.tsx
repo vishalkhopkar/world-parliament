@@ -1,4 +1,4 @@
-// Campaign screen: the chat card shows only when messaging.opensAt = 'campaign' and 3+ players. Counting HUD label rules.
+// Campaign screen: the chat card follows Chat.Campaigning (GROUP / INDV / OFF) with 3+ players; counting is always one-to-one. HUD label rules.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MAP_CONFIGS, WORLD_CONFIG } from '@hp/shared';
@@ -12,8 +12,9 @@ import { useStore } from '../../state/store';
 import { Campaign } from '../Campaign';
 import { Counting } from '../Counting';
 
-MAP_CONFIGS['chat-campaign'] = { ...WORLD_CONFIG, mapId: 'chat-campaign', messaging: { mode: 'group', opensAt: 'campaign' } };
-MAP_CONFIGS['chat-counting'] = { ...WORLD_CONFIG, mapId: 'chat-counting', messaging: { mode: 'group', opensAt: 'counting' } };
+MAP_CONFIGS['chat-campaign'] = { ...WORLD_CONFIG, mapId: 'chat-campaign', chat: { campaigning: 'GROUP' } };
+MAP_CONFIGS['chat-counting'] = { ...WORLD_CONFIG, mapId: 'chat-counting', chat: { campaigning: 'OFF' } };
+MAP_CONFIGS['chat-indv'] = { ...WORLD_CONFIG, mapId: 'chat-indv', chat: { campaigning: 'INDV' } };
 
 const pl = (id: string, n: string, status: PlayerPublic['status'] = 'active'): PlayerPublic => ({ playerId: id, nickname: n, isAdmin: id === 'a', status, party: { name: n + ' Party', colour: '#E8710A', symbol: 'sun' } });
 const t = () => ({ campaignStart: 0, phaseCloses: [Date.now() + 1e5], campaignEnd: Date.now() + 1e5, countingEnd: Date.now() + 2e5, postCountingEnd: Date.now() + 3e5 });
@@ -28,11 +29,18 @@ const setup = (s: GameSnapshot) => useStore.setState({ me: 'a', gameId: 'g', sna
 beforeEach(() => setup(snap('chat-campaign', three)));
 
 describe('Campaign screen chat', () => {
-  it('shows the chat card when chat opens at the campaign and there are 3 players', () => {
+  it('shows the group chat card (Chat.Campaigning = GROUP) with 3 players', () => {
     render(<Campaign />);
     expect(screen.getByText('Group chat')).toBeInTheDocument();
+    expect(screen.queryByRole('tablist')).toBeNull();
   });
-  it('shows no chat when chat opens at counting', () => {
+  it('shows one-to-one chats during the campaign with Chat.Campaigning = INDV', () => {
+    setup(snap('chat-indv', three));
+    render(<Campaign />);
+    expect(screen.getByText('Chats')).toBeInTheDocument();
+    expect(screen.getAllByRole('tab')).toHaveLength(2);
+  });
+  it('shows no chat when Chat.Campaigning = OFF', () => {
     setup(snap('chat-counting', three));
     render(<Campaign />);
     expect(screen.queryByText('Group chat')).toBeNull();
@@ -46,10 +54,14 @@ describe('Campaign screen chat', () => {
 
 describe('Counting screen keeps the chat; HUD label', () => {
   const gov = { pm: 'a', members: ['a', 'b'], portfolios: { PM: ['a'] }, formedAt: 1, viaNegotiation: true };
-  it('chat is there in counting for either opensAt', () => {
-    setup(snap('chat-campaign', three, { status: 'counting' }));
-    render(<Counting />);
-    expect(screen.getByText('Group chat')).toBeInTheDocument();
+  it('counting has one-to-one chats whatever the campaign had', () => {
+    for (const map of ['chat-campaign', 'chat-counting', 'chat-indv']) {
+      setup(snap(map, three, { status: 'counting' }));
+      const { unmount } = render(<Counting />);
+      expect(screen.getByText('Chats')).toBeInTheDocument();
+      expect(screen.queryByText('Group chat')).toBeNull();
+      unmount();
+    }
   });
   it('"Counting ends in" while counting even with an accepted/formed government', () => {
     setup(snap('chat-campaign', three, { status: 'counting', government: gov }));

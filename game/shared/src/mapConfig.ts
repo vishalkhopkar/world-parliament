@@ -77,10 +77,10 @@ export interface VotingConfig {
   randomMaxPercent: number;
 }
 
-/** 'group' = one common chat, every message readable by everybody; 'individual' = private threads. */
-export type MessagingMode = 'group' | 'individual';
-/** When the chat opens: at the start of the campaign, or only once counting has started. */
-export type ChatOpensAt = 'campaign' | 'counting';
+/** GROUP = one common chat that everybody in the game reads (with @-tags); INDV = one-to-one chats (Teams style). */
+export type ChatMode = 'GROUP' | 'INDV';
+/** The campaign may also have no chat at all. */
+export type CampaignChatMode = ChatMode | 'OFF';
 
 export interface CountingParams {
   /** No seat is confirmed ('won') before this fraction of the counting time; confirmations are then spread up to the end. */
@@ -184,8 +184,11 @@ export interface MapConfig {
   /** How the count is revealed: noisy leads first, confirmed wins only late. All fractions are of the counting time. */
   counting: CountingParams;
   players: { min: number; max: number };
-  /** Chat between players during counting / post-counting: one group chat everybody reads, or private threads. */
-  messaging: { mode: MessagingMode; opensAt: ChatOpensAt };
+  /**
+   * Chat between players (games with 3+ players): `campaigning` is the campaign's chat. Counting and post-counting
+   * (when government offers are made) are always one-to-one (INDV; the offers appear in those chats), not configurable.
+   */
+  chat: { campaigning: CampaignChatMode };
   /** Browser connection behaviour. */
   connection: {
     /** Milliseconds between automatic reconnect attempts while the link is down (min 1000). */
@@ -273,8 +276,7 @@ export function validateConfig(cfg: MapConfig): void {
     if (!Number.isInteger(b?.seats) || b.seats < 0) bad(`committed.bands.${i + 1}.seats`, `must be a whole number >= 0 (got ${String(b?.seats)})`);
     if (b.level !== 'HIGH' && b.level !== 'MEDIUM' && b.level !== 'LOW') bad(`committed.bands.${i + 1}.level`, `must be HIGH, MEDIUM or LOW (got ${String(b.level)})`);
   });
-  if (cfg.messaging?.mode !== 'group' && cfg.messaging?.mode !== 'individual') bad('messaging.mode', `must be "group" or "individual" (got ${String(cfg.messaging?.mode)})`);
-  if (cfg.messaging?.opensAt !== 'campaign' && cfg.messaging?.opensAt !== 'counting') bad('messaging.opensAt', `must be "campaign" or "counting" (got ${String(cfg.messaging?.opensAt)})`);
+  if (!['GROUP', 'INDV', 'OFF'].includes(cfg.chat?.campaigning)) bad('Chat.Campaigning', `must be GROUP, INDV or OFF (got ${String(cfg.chat?.campaigning)})`);
   num('connection.retryMs', cfg.connection?.retryMs, 999, true);
   num('durations.countingMs', cfg.durations?.countingMs, 0, true);
   num('durations.countingMsTwoPlayers', cfg.durations?.countingMsTwoPlayers, 0, true);
@@ -301,13 +303,23 @@ export const WORLD_CONFIG: MapConfig = {
   mapId: 'world-500',
   seatCount: 500,
   ...GAME_CONFIG_VALUES,
-  // the generated file types the mode as a plain string; validateConfig below checks it
-  messaging: GAME_CONFIG_VALUES.messaging as MapConfig['messaging'],
+  // the generated file types the modes as plain strings; validateConfig below checks them
+  chat: GAME_CONFIG_VALUES.chat as MapConfig['chat'],
   committed: GAME_CONFIG_VALUES.committed as MapConfig['committed'],
 };
 validateConfig(WORLD_CONFIG);
 
 export const MAP_CONFIGS: Record<string, MapConfig> = { 'world-500': WORLD_CONFIG };
+
+/**
+ * The chat of a game stage: the campaign uses `chat.campaigning` (null when OFF), counting and post-counting are
+ * always one-to-one ('INDV'); the lobby and a finished game have no chat (null). The 2-player rule (no chat) is separate.
+ */
+export function chatModeFor(cfg: Pick<MapConfig, 'chat'>, status: string | undefined): ChatMode | null {
+  if (status === 'campaign') return cfg.chat.campaigning === 'OFF' ? null : cfg.chat.campaigning;
+  if (status === 'counting' || status === 'postCounting') return 'INDV';
+  return null;
+}
 
 /**
  * MapConfig for any map folder under maps/. Maps without their own entry in MAP_CONFIGS get a copy of

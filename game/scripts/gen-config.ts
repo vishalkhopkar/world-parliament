@@ -48,7 +48,10 @@ const NUMBER_KEYS = [
   'news.errorNoise', 'news.noiseSmoothing', 'news.errorWobbleMin', 'news.errorWobbleMax', 'news.maxPoints',
 ];
 const BOOL_KEYS = ['analyst.seatReport.enabled', 'analyst.globalReport.enabled', 'news.enabled'];
-const STRING_KEYS = ['currency.name', 'currency.symbol', 'messaging.mode', 'messaging.opensAt'];
+const STRING_KEYS = ['currency.name', 'currency.symbol'];
+/** Keys whose name in the .properties file differs from their path in the generated object (designer's spelling). */
+const RENAMED_STRING_KEYS: Record<string, string> = { 'Chat.Campaigning': 'chat.campaigning' };
+const CHAT_CAMPAIGN_MODES = ['GROUP', 'INDV', 'OFF'];
 const PORTFOLIO_FIELDS: Record<string, Kind> = { id: 'string', label: 'string', points: 'number', max: 'number' };
 const BAND_FIELDS: Record<string, Kind> = { percent: 'number', seats: 'number', level: 'string' };
 const BAND_LEVELS = ['HIGH', 'MEDIUM', 'LOW'];
@@ -95,6 +98,7 @@ const values: Record<string, any> = {};
 for (const k of NUMBER_KEYS) put(values, k, take(k, 'number'));
 for (const k of BOOL_KEYS) put(values, k, take(k, 'boolean'));
 for (const k of STRING_KEYS) put(values, k, take(k, 'string'));
+for (const [k, to] of Object.entries(RENAMED_STRING_KEYS)) put(values, to, take(k, 'string'));
 
 const portfolioNums = [...new Set([...raw.keys()].map(k => /^points\.portfolios\.(\d+)\./.exec(k)?.[1]).filter((x): x is string => !!x))]
   .map(Number).sort((a, b) => a - b);
@@ -135,8 +139,7 @@ if (!errors.length) {
   rule(val('phases.min') >= 1 && val('phases.max') >= val('phases.min'), 'phases: need 1 <= min <= max');
   rule(val('phases.default') >= val('phases.min') && val('phases.default') <= val('phases.max'), 'phases.default must be within min..max');
   rule(val('durations.countingMs') > 0 && val('durations.countingMsTwoPlayers') > 0 && val('durations.countingStepMs') > 0, 'durations.countingMs / countingMsTwoPlayers / countingStepMs must be > 0');
-  rule(['group', 'individual'].includes(val('messaging.mode') as unknown as string), 'messaging.mode must be "group" or "individual"');
-  rule(['campaign', 'counting'].includes(val('messaging.opensAt') as unknown as string), 'messaging.opensAt must be "campaign" or "counting"');
+  rule(CHAT_CAMPAIGN_MODES.includes(val('chat.campaigning') as unknown as string), `Chat.Campaigning must be one of ${CHAT_CAMPAIGN_MODES.join(' / ')}`);
   rule(val('connection.retryMs') >= 1000, 'connection.retryMs must be >= 1000 (ms between browser reconnect attempts)');
   rule(val('counting.winStartFraction') > 0 && val('counting.winStartFraction') <= 1, 'counting.winStartFraction must be in (0, 1]');
   rule(val('counting.allLeadsByFraction') > 0 && val('counting.allLeadsByFraction') <= val('counting.winStartFraction'), 'counting.allLeadsByFraction must be in (0, winStartFraction]');

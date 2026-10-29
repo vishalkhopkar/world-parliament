@@ -123,10 +123,16 @@ export function buildSteps(startCounting: () => void): TourStep[] {
       body: () => <p>Everything you have done, including your secret roadshows. Only you can see this list.</p>,
     },
     {
-      id: 'chat', phase: 'campaign', title: 'Group chat', anchor: ['[data-tour="chat"]'], dim: true, block: true,
-      enabled: ({ cfg, playerCount }) => cfg.messaging.opensAt === 'campaign' && playerCount >= 3,
-      body: () => (
-        <p>With three or more players there is a <b>group chat</b> that everybody reads. It opens when the campaign starts, so you can bargain (or bluff) early. In a 2-player game there is no chat and no coalition-building.</p>
+      id: 'chat', phase: 'campaign', title: 'Chat', anchor: ['[data-tour="chat"]'], dim: true, block: true,
+      enabled: ({ cfg, playerCount }) => cfg.chat.campaigning !== 'OFF' && playerCount >= 3,
+      body: c => (
+        <>
+          {c.cfg.chat.campaigning === 'GROUP'
+            ? <p>With three or more players there is a <b>group chat</b> that everybody reads. It opens when the campaign starts, so you can bargain (or bluff) early. Type <b>@</b> to tag a party: they get a red badge for it.</p>
+            : <p>With three or more players you can chat <b>one-to-one</b> with every party from the start of the campaign: pick a party on the left. A red badge shows unread messages.</p>}
+          {c.cfg.chat.campaigning === 'GROUP' && <p>Once counting starts, the chat becomes <b>one-to-one</b>: a private chat with each party.</p>}
+          <p>In a 2-player game there is no chat and no coalition-building.</p>
+        </>
       ),
     },
     {
@@ -256,6 +262,15 @@ export function buildSteps(startCounting: () => void): TourStep[] {
       ),
     },
     {
+      id: 'watch-chat', phase: 'counting', title: 'Keep monitoring the chat', anchor: ['[data-tour="chat"]'], dim: true, block: true,
+      body: () => (
+        <>
+          <p>From now on every chat is <b>one-to-one</b>: a private conversation with each party, listed on the left.</p>
+          <p><b>Government offers arrive in the chat</b> with the party that made them, with Accept and Decline buttons. When a party accepts your offer, <b>&ldquo;Accepted&rdquo;</b> appears in your chat with them (and when you accept, in yours). A red badge counts what is unread, on each chat and on the chat section, so <b>keep monitoring the chat for offers</b>.</p>
+        </>
+      ),
+    },
+    {
       id: 'govern', phase: 'counting', title: 'Form a government', anchor: ['.tour-offer-builder'],
       body: c => (
         <>
@@ -269,10 +284,10 @@ export function buildSteps(startCounting: () => void): TourStep[] {
           const o = lastOffer(c);
           if (!o) return <>Fill the posts, then Send offer. In this practice game the rivals only say yes when all {SMALL_PARTIES} smaller parties are in.</>;
           if (o.status === 'declined') return <><b>{nameOf(c, o.declinedBy)}</b> declined: they only join if all {SMALL_PARTIES} smaller parties are in. Change the offer and send it again.</>;
-          if (o.status === 'open') return <>Offer sent: {o.accepted.length} of {o.partners.length} have accepted&hellip;</>;
+          if (o.status === 'open') return <>Offer sent: {o.accepted.length} of {o.partners.length} have accepted&hellip; Watch the chats: each acceptance says <b>Accepted</b>.</>;
           return <>Fill the posts, then Send offer.</>;
         },
-        done: c => <>All {SMALL_PARTIES} accepted: you hold {c.maj} seats.</>,
+        done: c => <>All {SMALL_PARTIES} accepted: you hold {c.maj} seats. Each chat with them now says <b>Accepted</b>.</>,
       },
     },
     {

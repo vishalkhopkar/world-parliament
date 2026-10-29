@@ -197,6 +197,13 @@ export interface AnalystReport {
 
 export type OfferStatus = 'open' | 'accepted' | 'declined' | 'withdrawn' | 'superseded' | 'formed';
 
+/**
+ * Something a party did to an offer, shown in the one-to-one chat between that party and the proposer:
+ * accepted / declined (a partner), unaccepted (a partner's acceptance dropped because they accepted another offer),
+ * withdrawn (the proposer).
+ */
+export interface OfferEvent { type: 'accepted' | 'declined' | 'unaccepted' | 'withdrawn'; by: PlayerId; ts: number }
+
 export interface CoalitionOffer {
   offerId: string;
   /** The proposer is always the PM candidate. */
@@ -211,4 +218,6 @@ export interface CoalitionOffer {
   declinedBy?: PlayerId;
   /** Set when status = 'superseded' by a new proposal of the same proposer: the id of that new offer. */
   supersededBy?: string;
+  /** What the parties did to the offer, oldest first (missing = nothing yet). */
+  log?: OfferEvent[];
 }

@@ -1,0 +1,23 @@
+{
+  "name": "@hp/chat",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "HUNG PARLIAMENT chat: common lib (modes, @-mentions, conversations, unread badges, shared UI) + group chat + one-to-one chats",
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./common": "./common/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hp/shared": "*"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1"
+  }
+}

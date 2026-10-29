@@ -4,9 +4,10 @@
 // majority. Every message is an ordinary ServerMessage, so the normal screens run unchanged.
 import {
   DEFAULT_MAP_ID, MAP_MANIFESTS, PARTY_COLOURS, buildKernels, committedView, computeEffects, createRng, dealCommitted, finalResult,
-  governmentFromOffer, leavesPartyOut, majorityOf, rallyAvailableAt, reputationView,
+  chatModeFor, governmentFromOffer, leavesPartyOut, logOfferEvent, majorityOf, rallyAvailableAt, reputationView,
   gaussian, newsAgencies, newsErrorRates, newsSeed, newsSampleTimes,
 } from '@hp/shared';
+import { findMentions } from '@hp/chat/common';
 import type {
   Action, AdmissionRequest, AdmitRequest, ClientMessage, CoalitionOffer, CommittedSet, CountTally, CreateGameRequest, CreateGameResponse,
   ErrorCode, FinalResult, GlobalReports, GameId, GameMapPackage, GameSnapshot, GameStatus, GameTimeline, Government, JoinGameRequest, JoinGameResponse, Kernels,
@@ -287,6 +288,7 @@ export class TourTransport implements Transport {
         const o = g.offers.find(x => x.offerId === msg.offerId && x.status === 'open');
         if (!o) return err('OFFER_NOT_FOUND', 'No such open offer');
         o.status = 'withdrawn';
+        logOfferEvent(o, 'withdrawn', TOUR_ME_ID, Date.now());
         this.emit({ type: 'offer', offer: o });
         break;
       }
@@ -358,18 +360,36 @@ export class TourTransport implements Transport {
 
   // ---- chat
   private handleChat(g: TourGame, msg: Msg<'chat'>, err: ErrFn) {
-    const early = g.status === 'campaign' && g.cfg.messaging.opensAt === 'campaign';
-    if (!early && g.status !== 'counting' && g.status !== 'postCounting') return err('WRONG_PHASE', 'Chat opens when the campaign starts');
+    const mode = chatModeFor(g.cfg, g.status);
+    if (!mode) return err('WRONG_PHASE', g.cfg.chat.campaigning !== 'OFF' ? 'Chat opens when the campaign starts' : 'Chat opens when counting starts');
     const others = this.ids(g).filter(id => id !== TOUR_ME_ID);
-    const group = g.cfg.messaging.mode === 'group';
-    const to = group ? others : (msg.to ?? []).filter(id => others.includes(id));
-    if (!to.length || !msg.text.trim()) return err('BAD_REQUEST', 'Pick recipients and write something');
+    const text = msg.text.trim().slice(0, 500);
+    if (!text) return err('BAD_REQUEST', 'Write something');
     const now = Date.now();
-    this.emit({ type: 'chat', message: { id: this.uid('c'), from: TOUR_ME_ID, to, text: msg.text.trim().slice(0, 500), ts: now } });
-    const replier = to[Math.floor(this.rng() * to.length)];
-    this.later(() => this.emit({
-      type: 'chat', message: { id: this.uid('c'), from: replier, to: [TOUR_ME_ID, ...to.filter(x => x !== replier)], text: BOT_REPLIES[Math.floor(this.rng() * BOT_REPLIES.length)], ts: Date.now() },
-    }), 1_500 + Math.floor(this.rng() * 1_500));
+    const reply = () => BOT_REPLIES[Math.floor(this.rng() * BOT_REPLIES.length)];
+    if (mode === 'GROUP') {
+      // everybody reads it; a tagged party answers (tagging you back), otherwise a random one
+      const named = g.players.filter(p => p.party).map(p => ({ id: p.playerId, name: p.party!.name }));
+      const mentions = findMentions(text, named, TOUR_ME_ID);
+      this.emit({ type: 'chat', message: { id: this.uid('c'), from: TOUR_ME_ID, to: others, text, ts: now, channel: 'group', ...(mentions.length ? { mentions } : {}) } });
+      const replier = mentions[0] ?? others[Math.floor(this.rng() * others.length)];
+      const myName = g.players.find(p => p.playerId === TOUR_ME_ID)?.party?.name;
+      const tagBack = mentions.length > 0 && !!myName;
+      this.later(() => this.emit({
+        type: 'chat', message: {
+          id: this.uid('c'), from: replier, to: others.filter(x => x !== replier).concat(TOUR_ME_ID), text: (tagBack ? `@${myName} ` : '') + reply(), ts: Date.now(),
+          channel: 'group', ...(tagBack ? { mentions: [TOUR_ME_ID] } : {}),
+        },
+      }), 1_500 + Math.floor(this.rng() * 1_500));
+      return;
+    }
+    // one-to-one: a private copy per recipient, each answers in its own chat
+    const to = [...new Set(msg.to ?? [])].filter(id => others.includes(id));
+    if (!to.length) return err('BAD_REQUEST', 'Choose the party to message');
+    for (const id of to) {
+      this.emit({ type: 'chat', message: { id: this.uid('c'), from: TOUR_ME_ID, to: [id], text, ts: now, channel: 'direct' } });
+      this.later(() => this.emit({ type: 'chat', message: { id: this.uid('c'), from: id, to: [TOUR_ME_ID], text: reply(), ts: Date.now(), channel: 'direct' } }), 1_500 + Math.floor(this.rng() * 1_500));
+    }
   }
 
   // ---- peek (vote-share pie)
@@ -476,6 +496,7 @@ export class TourTransport implements Transport {
       partners.forEach((id, i) => this.later(() => {
         if (offer.status !== 'open' || offer.accepted.includes(id)) return;
         offer.accepted.push(id);
+        logOfferEvent(offer, 'accepted', id, Date.now());
         if (offer.partners.every(p => offer.accepted.includes(p))) this.accepted(g, offer);
         else this.emit({ type: 'offer', offer });
       }, 1_000 + i * 350));
@@ -486,10 +507,11 @@ export class TourTransport implements Transport {
         if (offer.status !== 'open') return;
         offer.status = 'declined';
         offer.declinedBy = decliner;
+        logOfferEvent(offer, 'declined', decliner, Date.now());
         this.emit({ type: 'offer', offer });
         this.emit({
           type: 'chat', message: {
-            id: this.uid('c'), from: decliner, to: [TOUR_ME_ID], ts: Date.now(),
+            id: this.uid('c'), from: decliner, to: [TOUR_ME_ID], ts: Date.now(), channel: 'direct',
             text: withLargest
               ? 'We will not sit in a government with the biggest party. Build it without them.'
               : 'We will only join if all of the smaller parties are on board. Count the seats again.',

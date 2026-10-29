@@ -1,0 +1,64 @@
+/* @hp/chat - group chat and one-to-one chats. Uses the web app's theme variables, with fallbacks. */
+.hpchat{display:flex;flex-direction:column;min-height:0;gap:6px;font-size:14px}
+.hpchat-log{flex:1;min-height:160px;overflow-y:auto;border:1px solid var(--line,rgba(120,96,40,.35));border-radius:8px;background:#fff;padding:8px;display:flex;flex-direction:column;gap:2px}
+.hpchat-empty{margin:auto;color:var(--muted,#6b6247);font-size:13px;text-align:center;padding:12px}
+
+/* a message: avatar left, name + time on top, text below; own messages on the right */
+.hpchat-row{display:flex;gap:8px;align-items:flex-start;margin-top:8px;max-width:100%}
+.hpchat-row.compact{margin-top:1px}
+.hpchat-row-avatar{flex:none;width:32px;display:flex;justify-content:center}
+.hpchat-row-main{min-width:0;display:flex;flex-direction:column;align-items:flex-start;max-width:calc(100% - 40px)}
+.hpchat-row-head{display:flex;align-items:baseline;gap:8px;margin-bottom:2px}
+.hpchat-name{font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hpchat-time{font-size:11px;color:var(--muted,#6b6247);font-variant-numeric:tabular-nums}
+.hpchat-bubble{background:#f3ecd8;border-radius:4px 10px 10px 10px;padding:6px 10px;white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%}
+.hpchat-row.mine{justify-content:flex-end}
+.hpchat-row.mine .hpchat-row-main{align-items:flex-end;max-width:88%}
+.hpchat-row.mine .hpchat-bubble{background:#d7ebdd;border-radius:10px 4px 10px 10px}
+.hpchat-row.offer-row .hpchat-bubble{background:transparent;padding:0;width:100%;min-width:min(300px,100%)}
+.hpchat-tag{font-weight:700;color:var(--green,#0f4c37)}
+.hpchat-tag.me{background:#fde7b0;border-radius:4px;padding:0 2px;color:var(--ink,#2c2a1c)}
+
+/* "Accepted" and other offer events: a centred line */
+.hpchat-event{align-self:center;display:flex;align-items:center;gap:6px;margin:8px 0 2px;font-size:12.5px;color:var(--muted,#6b6247)}
+.hpchat-event-who{font-weight:600;color:var(--ink,#2c2a1c)}
+.hpchat-event-pill{border-radius:999px;padding:1px 10px;font-weight:700;background:#e9e1cc;color:var(--ink,#2c2a1c)}
+.hpchat-event.accepted .hpchat-event-pill{background:var(--green,#0f4c37);color:#fff}
+.hpchat-event.declined .hpchat-event-pill{background:var(--danger,#a8213f);color:#fff}
+
+.hpchat-avatar{display:inline-flex;flex:none;line-height:0}
+.hpchat-initial{border-radius:50%;color:#fff;font-weight:700;align-items:center;justify-content:center;line-height:1}
+.hpchat-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--danger,#a8213f);color:#fff;font-size:11px;font-weight:700;line-height:1;box-shadow:0 0 0 2px var(--panel,#fdf9ee)}
+
+/* composer + @ picker */
+.hpchat-composer{position:relative;display:flex;gap:6px;align-items:center}
+.hpchat-input{flex:1;min-width:0}
+.hpchat-mentions{position:absolute;left:0;right:70px;bottom:calc(100% + 4px);z-index:5;margin:0;padding:4px;list-style:none;background:#fff;border:1px solid var(--line,rgba(120,96,40,.35));border-radius:8px;box-shadow:0 4px 14px rgba(40,30,0,.2);max-height:220px;overflow-y:auto}
+.hpchat-mentions li{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;cursor:pointer}
+.hpchat-mentions li.on,.hpchat-mentions li:hover{background:#efe6cc}
+
+/* one-to-one chats: conversation list + open conversation (stacked when narrow) */
+.hpchat-direct{container-type:inline-size;flex-direction:row;gap:0;border:1px solid var(--line,rgba(120,96,40,.35));border-radius:8px;background:#fff;overflow:hidden;min-height:340px}
+.hpchat-list{flex:none;width:180px;margin:0;padding:4px;list-style:none;overflow-y:auto;border-right:1px solid var(--line,rgba(120,96,40,.35));background:#faf5e6}
+.hpchat-conv{display:flex;align-items:center;gap:8px;width:100%;padding:6px;border:0;border-radius:6px;background:transparent;text-align:left;cursor:pointer;font:inherit;color:inherit}
+.hpchat-conv:hover{background:#f1e8cf}
+.hpchat-conv.on{background:#e3eedf;box-shadow:inset 3px 0 0 var(--green,#0f4c37)}
+.hpchat-conv-avatar{position:relative;flex:none;display:inline-flex}
+.hpchat-conv-avatar .hpchat-badge{position:absolute;top:-6px;right:-8px}
+.hpchat-conv-text{min-width:0;display:flex;flex-direction:column}
+.hpchat-conv-text small{color:var(--muted,#6b6247);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hpchat-conv.unread .hpchat-conv-text small{color:var(--ink,#2c2a1c);font-weight:600}
+.hpchat-pane{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;padding:6px}
+.hpchat-pane-head{display:flex;align-items:center;gap:8px;padding:2px 2px 6px;border-bottom:1px solid var(--line,rgba(120,96,40,.35))}
+.hpchat-sub{color:var(--muted,#6b6247);font-size:12px;margin-left:auto}
+.hpchat-pane .hpchat-log{border:0;padding:2px 4px;border-radius:0}
+@container (max-width: 459px){
+  .hpchat-direct{flex-direction:column}
+  .hpchat-list{width:auto;display:flex;gap:2px;overflow-x:auto;overflow-y:hidden;border-right:0;border-bottom:1px solid var(--line,rgba(120,96,40,.35))}
+  .hpchat-list li{flex:none}
+  .hpchat-conv{flex-direction:column;gap:2px;width:72px;padding:4px 2px}
+  .hpchat-conv.on{box-shadow:inset 0 -3px 0 var(--green,#0f4c37)}
+  .hpchat-conv-text{align-items:center;max-width:100%}
+  .hpchat-conv-text .hpchat-name{font-size:11px;max-width:68px}
+  .hpchat-conv-text small{display:none}
+}

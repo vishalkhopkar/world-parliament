@@ -152,21 +152,21 @@ describe('grace period and elimination', () => {
 });
 
 describe('chat', () => {
-  it('3+ players: recipients de-duplicated, self removed, messages ordered, ids unique', async () => {
+  it('3+ players: recipients de-duplicated, self removed (one one-to-one copy each), messages ordered, ids unique', async () => {
     const c = await new Ctx().started(4, 1);
     await driveTo(c, 'counting');
     const [a, b, d] = [c.p[0].playerId, c.p[1].playerId, c.p[3].playerId];
     await c.send(0, { action: 'chat', to: [b, b, a, d], text: '  hello   there  ' });
-    const [msg] = await c.repo.listChat(c.gameId);
-    expect(msg.to.sort()).toEqual([b, d].sort());
-    expect(msg.text).toBe('hello there');
+    const copies = await c.repo.listChat(c.gameId);
+    expect(copies.map((m) => m.to)).toEqual([[b], [d]]);
+    expect(copies.map((m) => m.text)).toEqual(['hello there', 'hello there']);
     await c.send(0, { action: 'chat', to: [a], text: 'to myself' });
     expect(errs(c, 0).pop()!.error).toBe('BAD_REQUEST');
     await c.send(1, { action: 'chat', to: [a], text: 'one' });
     await c.send(1, { action: 'chat', to: [a], text: 'two' });
     const all = await c.repo.listChat(c.gameId);
     expect(new Set(all.map((m) => m.id)).size).toBe(all.length);
-    expect(all.map((m) => m.text)).toEqual(['hello there', 'one', 'two']);
+    expect(all.map((m) => m.text)).toEqual(['hello there', 'hello there', 'one', 'two']);
   });
 
   it.each([[''], ['   '], ['\u0000\u0001'], [7 as never], [null as never], ['x'.repeat(501)]])('invalid text %j -> BAD_REQUEST', async (text) => {
@@ -193,12 +193,12 @@ describe('chat', () => {
     expect(c.notifier.to(c.p[2].playerId, 'chat')).toHaveLength(0);
   });
 
-  it('a chat message is delivered to the sender as an echo and to each recipient exactly once', async () => {
+  it('a chat message reaches each recipient exactly once, and the sender gets an echo of each one-to-one copy', async () => {
     const c = await new Ctx().started(4, 1);
     await driveTo(c, 'counting');
     c.notifier.clear();
     await c.send(2, { action: 'chat', to: [c.p[0].playerId, c.p[1].playerId], text: 'hi' });
-    expect(c.notifier.to(c.p[2].playerId, 'chat')).toHaveLength(1);
+    expect(c.notifier.to(c.p[2].playerId, 'chat')).toHaveLength(2);
     expect(c.notifier.to(c.p[0].playerId, 'chat')).toHaveLength(1);
     expect(c.notifier.to(c.p[1].playerId, 'chat')).toHaveLength(1);
     expect(c.notifier.to(c.p[3].playerId, 'chat')).toHaveLength(0);

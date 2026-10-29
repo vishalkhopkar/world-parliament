@@ -160,8 +160,9 @@ describe('AI agents join and play through the action table', () => {
     const gotChat = await call(B, 'wait_for_events', { timeout_s: 5, types: ['chat'] });
     expect(gotChat.events[0].text).toMatch(/government/);
     expect(gotChat.events[0].from).toBe('Blue Wave');
-    // default messaging.mode = group: one chat everybody reads, so `to` is just 'everyone' (individual mode would list names)
-    expect(gotChat.events[0].to).toBe('everyone');
+    // counting is always: one-to-one, so `to` is the one recipient
+    expect(gotChat.events[0].to).toEqual(['Green Deal']);
+    expect(gotChat.events[0].chat).toBe('one-to-one');
     const chats = await call(B, 'get_chat', {});
     expect(chats.messages.length).toBe(1);
     expect((await callErr(A, 'chat', { to: ['nobody'], text: 'hi' })).code).toBe('UNKNOWN_PLAYER');

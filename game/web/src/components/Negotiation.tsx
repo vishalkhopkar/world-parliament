@@ -1,97 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useState } from 'react';
 import { leavesPartyOut, majorityOf } from '@hp/shared';
 import type { CoalitionOffer, GameSnapshot, PlayerId, PortfolioAssignment } from '@hp/shared';
 import { useStore } from '../state/store';
 import { useMapConfig } from '../state/mapConfig';
-import { chat, proposeGovernment, respondOffer, withdrawOffer } from '../net/client';
-import { Card, PartyBadge, PartyTags } from './ui';
+import { proposeGovernment, respondOffer, withdrawOffer } from '../net/client';
+import { Card, PartyTags } from './ui';
+import { ChatSection } from './ChatSection';
 import './Negotiation.css';
-import { formatTime, playerName, seatCountOf } from '../lib';
-
-const key = (ids: PlayerId[]) => [...ids].sort().join('|');
-
-// ---------------------------------------------------------------- chat
-export function Chat({ snap, me }: { snap: GameSnapshot; me: PlayerId }) {
-  const cfg = useMapConfig();
-  return cfg.messaging.mode === 'group' ? <GroupChat snap={snap} me={me} /> : <ThreadChat snap={snap} me={me} />;
-}
-
-/** One common chat: every message of the game is shown to everyone (messaging.mode = group, the default). */
-function GroupChat({ snap, me }: { snap: GameSnapshot; me: PlayerId }) {
-  const messages = useStore(s => s.chat);
-  const others = snap.players.filter(p => p.playerId !== me && (p.status === 'active' || p.status === 'disconnected')).map(p => p.playerId);
-  const [text, setText] = useState('');
-  const log = useRef<HTMLDivElement>(null);
-  useEffect(() => { const el = log.current; if (el) el.scrollTop = el.scrollHeight; }, [messages.length]);
-  const send = () => { if (!text.trim()) return; chat(others, text.trim()); setText(''); };
-  return (
-    <Card title="Group chat">
-      <div className="chat-log" ref={log}>
-        {messages.length === 0 ? <p className="hint">No messages yet. Everyone in the game reads this chat.</p> :
-          messages.map(c => (
-            <div key={c.id} className={'msg' + (c.from === me ? ' mine' : '')}>
-              <small><b>{c.from === me ? 'You' : playerName(snap.players, c.from)}</b> · {formatTime(c.ts)}</small>
-              <div>{c.text}</div>
-            </div>
-          ))}
-      </div>
-      <div className="row">
-        <input className="input" value={text} placeholder="Message everyone"
-          onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') send(); }} maxLength={500} />
-        <button className="btn primary sm" disabled={!text.trim()} onClick={send}>Send</button>
-      </div>
-    </Card>
-  );
-}
-
-/** Private threads between the players picked as recipients (messaging.mode = individual). */
-function ThreadChat({ snap, me }: { snap: GameSnapshot; me: PlayerId }) {
-  const messages = useStore(s => s.chat);
-  const others = snap.players.filter(p => p.playerId !== me && (p.status === 'active' || p.status === 'disconnected'));
-  const [to, setTo] = useState<PlayerId[]>([]);
-  const [text, setText] = useState('');
-
-  const threads = useMemo(() => {
-    const m = new Map<string, PlayerId[]>();
-    for (const c of messages) { const parts = [...new Set([c.from, ...c.to])].filter(x => x !== me); m.set(key(parts), parts); }
-    return [...m.values()];
-  }, [messages, me]);
-
-  const thread = messages.filter(c => key([...new Set([c.from, ...c.to])].filter(x => x !== me)) === key(to));
-  const toggle = (id: PlayerId) => setTo(t => (t.includes(id) ? t.filter(x => x !== id) : [...t, id]));
-  const label = (ids: PlayerId[]) => ids.map(id => playerName(snap.players, id)).join(', ');
-  const send = () => { if (!text.trim() || !to.length) return; chat(to, text.trim()); setText(''); };
-
-  return (
-    <Card title="Private chat">
-      <div className="chips">
-        {others.map(p => (
-          <button key={p.playerId} className={'chip btn-chip' + (to.includes(p.playerId) ? ' on' : '')} onClick={() => toggle(p.playerId)}>{playerName(snap.players, p.playerId)}</button>
-        ))}
-      </div>
-      {threads.length > 0 && (
-        <div className="chips threads"><small className="muted">Threads:</small>
-          {threads.map(t => <button key={key(t)} className="chip btn-chip" onClick={() => setTo(t)}>{label(t)}</button>)}
-        </div>
-      )}
-      <div className="chat-log">
-        {to.length === 0 ? <p className="hint">Pick who to talk to. Only they will see it.</p> :
-          thread.length === 0 ? <p className="hint">No messages with {label(to)} yet.</p> :
-            thread.map(c => (
-              <div key={c.id} className={'msg' + (c.from === me ? ' mine' : '')}>
-                <small><b>{c.from === me ? 'You' : playerName(snap.players, c.from)}</b> · {formatTime(c.ts)}</small>
-                <div>{c.text}</div>
-              </div>
-            ))}
-      </div>
-      <div className="row">
-        <input className="input" value={text} placeholder={to.length ? `Message ${label(to)}` : 'Choose recipients first'} disabled={!to.length}
-          onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') send(); }} maxLength={500} />
-        <button className="btn primary sm" disabled={!to.length || !text.trim()} onClick={send}>Send</button>
-      </div>
-    </Card>
-  );
-}
+import { playerName, seatCountOf } from '../lib';
 
 // ---------------------------------------------------------------- offers
 function seatsOf(snap: GameSnapshot, id: PlayerId) {
@@ -112,7 +28,8 @@ function LargestLeftOut({ snap, members }: { snap: GameSnapshot; members: Player
   return <div className="hint muted">Largest party {playerName(snap.players, big)} is left out of this offer</div>;
 }
 
-function OfferView({ o, snap, me }: { o: CoalitionOffer; snap: GameSnapshot; me: PlayerId }) {
+/** A government offer with its Accept / Decline / Withdraw buttons (shown inside the one-to-one chats). */
+export function OfferView({ o, snap, me }: { o: CoalitionOffer; snap: GameSnapshot; me: PlayerId }) {
   const cfg = useMapConfig();
   const portfolios = cfg.points.portfolios;
   const members = [o.proposer, ...o.partners];
@@ -214,7 +131,6 @@ function OfferBuilder({ snap, me }: { snap: GameSnapshot; me: PlayerId }) {
 export function Negotiation({ snap }: { snap: GameSnapshot }) {
   const me = useStore(s => s.me)!;
   const gov = snap.government;
-  const offers = [...snap.offers].sort((a, b) => b.createdAt - a.createdAt);
   // Designer's rule: with 2 players (counting eliminated ones) there is no chat or coalition-building.
   if (snap.players.filter(p => p.status !== 'pending' && p.status !== 'rejected').length < 3) {
     return (
@@ -223,6 +139,7 @@ export function Negotiation({ snap }: { snap: GameSnapshot }) {
       </Card>
     );
   }
+  // Counting and post-counting are always one-to-one: the (private) offers appear inside those chats
   return (
     <>
       {gov && (
@@ -232,26 +149,10 @@ export function Negotiation({ snap }: { snap: GameSnapshot }) {
           <div className="gov-line"><span>Parties</span><PartyTags players={snap.players} ids={gov.members} /></div>
         </div>
       )}
-      {!gov && (
-        <>
-          <Card title="Parties" className="tour-parties">
-            {snap.players.filter(p => p.status === 'active' || p.status === 'disconnected').map(p => (
-              <div className="row" key={p.playerId}>
-                <PartyBadge party={p.party} kind={p.kind} size={34} />
-                <span className="spacer" />
-                <b>{seatsOf(snap, p.playerId)}</b>
-              </div>
-            ))}
-          </Card>
-          <OfferBuilder snap={snap} me={me} />
-        </>
-      )}
-      {offers.length > 0 && (
-        <Card title="Offers">
-          {offers.map(o => <OfferView key={o.offerId} o={o} snap={snap} me={me} />)}
-        </Card>
-      )}
-      <Chat snap={snap} me={me} />
+      <div data-tour="chat" className="chat-slot">
+        <ChatSection snap={snap} me={me} mode="INDV" renderOffer={o => <OfferView o={o} snap={snap} me={me} />} />
+      </div>
+      {!gov && <OfferBuilder snap={snap} me={me} />}
     </>
   );
 }

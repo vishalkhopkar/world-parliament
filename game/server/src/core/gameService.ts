@@ -1,9 +1,10 @@
 // All game logic. Depends only on the interfaces in ./types (no AWS SDK imports).
 import {
   AVATARS, DEFAULT_MAP_ID, buildGlobalReports, newsSampleTimes, PARTY_COLOURS, PARTY_SYMBOLS, analystPrice, analystReport, buildTimeline, committedMatrix, committedView, dealCommitted, computeEffects, reputationView, countingMsFor, postCountingMsFor, createRng,
-  finalResult, governmentFromOffer, leavesPartyOut, majorityGovernment, majorityOf, phaseOfSeat, pollSeats, rallyAvailableAt,
+  chatModeFor, finalResult, governmentFromOffer, leavesPartyOut, logOfferEvent, majorityGovernment, majorityOf, phaseOfSeat, pollSeats, rallyAvailableAt,
   removePlayerFromResults, validateGovernment,
 } from '@hp/shared';
+import { channelOf, findMentions } from '@hp/chat/common';
 import type {
   Action, AdmissionRequest, AdmitRequest, ChatMessage, ClientMessage, CoalitionOffer, CountTally,
   CreateGameRequest, CreateGameResponse, GameSnapshot, GlobalReports, JoinGameRequest, JoinGameResponse, LobbyView, MapConfig,
@@ -489,17 +490,19 @@ export class GameService {
   /** A hello must stay well under the 128 KB WebSocket frame limit: at most this many characters of chat history (newest kept). */
   private static readonly HELLO_CHAT_BUDGET = 12_000;
 
-  /** The conversation this player may read (everything in group mode, only own threads otherwise), oldest first, bounded. */
+  /** What this player may read (every group message, their own one-to-one messages), oldest first, bounded. */
   private async chatHistoryFor(player: PlayerRecord): Promise<ChatMessage[]> {
     const game = await this.repo.getGame(player.gameId);
     if (!game || (game.status !== 'campaign' && game.status !== 'counting' && game.status !== 'postCounting' && game.status !== 'finished')) return [];
-    const group = this.loadMap(game.mapId).cfg.messaging.mode === 'group';
     const all = (await this.repo.listChat(player.gameId)).sort((a, b) => a.ts - b.ts);
-    const mine = group ? all : all.filter((m) => m.from === player.playerId || m.to.includes(player.playerId));
+    const mine = all.filter((m) => channelOf(m) === 'group' || m.from === player.playerId || m.to.includes(player.playerId));
     const out: ChatMessage[] = [];
     let size = 2;
     for (let i = mine.length - 1; i >= 0; i--) {
-      const m: ChatMessage = { id: mine[i].id, from: mine[i].from, to: mine[i].to, text: mine[i].text, ts: mine[i].ts };
+      const s = mine[i];
+      const m: ChatMessage = {
+        id: s.id, from: s.from, to: s.to, text: s.text, ts: s.ts, channel: channelOf(s), ...(s.mentions?.length ? { mentions: s.mentions } : {}),
+      };
       size += JSON.stringify(m).length + 1;
       if (size > GameService.HELLO_CHAT_BUDGET) break;
       out.unshift(m);
@@ -1006,36 +1009,44 @@ export class GameService {
     }
   }
 
+  /**
+   * Chat.Campaigning (campaign) and the fixed one-to-one rule from counting decide the stage's chat (chatModeFor). GROUP: everybody reads it, `to` is
+   * ignored, "@Party name" tags fill `mentions`. INDV: one-to-one; a message to several players is stored and delivered as
+   * one private copy per recipient, so nobody sees who else got it.
+   */
   async chat(player: PlayerRecord, to: unknown, text: unknown): Promise<void> {
     const game = await this.loadGame(player.gameId);
-    const { messaging } = this.loadMap(game.mapId).cfg;
-    // messaging.opensAt: the chat opens with the campaign or with counting; it closes when the game ends
-    const open = game.status === 'counting' || game.status === 'postCounting' || (game.status === 'campaign' && messaging.opensAt === 'campaign');
-    if (!open) {
+    const { cfg } = this.loadMap(game.mapId);
+    const mode = chatModeFor(cfg, game.status);
+    if (!mode) {
       if (game.status === 'finished' || game.status === 'abandoned') throw new GameError('WRONG_PHASE', 'The game is over: the chat is closed');
-      throw new GameError('WRONG_PHASE', messaging.opensAt === 'campaign' ? 'Chat opens when the campaign starts' : 'Chat opens when counting starts');
+      throw new GameError('WRONG_PHASE', cfg.chat.campaigning !== 'OFF' ? 'Chat opens when the campaign starts' : 'Chat opens when counting starts');
     }
     await this.requireNegotiationAllowed(game.gameId);
     if (!MEMBER.has(player.status)) throw new GameError('FORBIDDEN', 'You are not part of this game');
     const body = cleanText(text, 1, 500, 'Message');
     const players = await this.repo.listPlayers(player.gameId);
-    let recipients: string[];
-    if (messaging.mode === 'group') {
+    const members = players.filter((p) => MEMBER.has(p.status));
+    if (mode === 'GROUP') {
       // one common chat: everybody else in the game (eliminated players included) reads it; `to` is ignored
-      recipients = players.filter((p) => MEMBER.has(p.status) && p.playerId !== player.playerId).map((p) => p.playerId);
-    } else {
-      if (!Array.isArray(to) || to.length === 0 || to.some((x) => typeof x !== 'string')) throw new GameError('BAD_REQUEST', 'Choose at least one recipient');
-      recipients = uniq(to as string[]).filter((id) => id !== player.playerId);
-      if (!recipients.length) throw new GameError('BAD_REQUEST', 'Choose at least one other player');
-      for (const r of recipients) {
-        const rp = players.find((p) => p.playerId === r);
-        if (!rp || !MEMBER.has(rp.status)) throw new GameError('BAD_REQUEST', 'Unknown recipient');
-      }
+      const recipients = members.filter((p) => p.playerId !== player.playerId).map((p) => p.playerId);
+      const named = members.filter((p) => p.party?.name).map((p) => ({ id: p.playerId, name: p.party!.name }));
+      const mentions = findMentions(body, named, player.playerId);
+      const message: ChatMessage = { id: newId(6), from: player.playerId, to: recipients, text: body, ts: this.now(), channel: 'group', ...(mentions.length ? { mentions } : {}) };
+      await this.repo.addChat(player.gameId, message);
+      for (const id of [player.playerId, ...recipients]) await this.d.notifier.sendToPlayer(player.gameId, id, { type: 'chat', message });
+      return;
     }
-    const message: ChatMessage = { id: newId(6), from: player.playerId, to: recipients, text: body, ts: this.now() };
-    await this.repo.addChat(player.gameId, message);
-    for (const id of [player.playerId, ...recipients]) {
-      await this.d.notifier.sendToPlayer(player.gameId, id, { type: 'chat', message });
+    if (!Array.isArray(to) || to.length === 0 || to.some((x) => typeof x !== 'string')) throw new GameError('BAD_REQUEST', 'Choose the party to message');
+    const recipients = uniq(to as string[]).filter((id) => id !== player.playerId);
+    if (!recipients.length) throw new GameError('BAD_REQUEST', 'Choose at least one other player');
+    for (const r of recipients) if (!members.some((p) => p.playerId === r)) throw new GameError('BAD_REQUEST', 'Unknown recipient');
+    const ts = this.now();
+    for (const r of recipients) {
+      const message: ChatMessage = { id: newId(6), from: player.playerId, to: [r], text: body, ts, channel: 'direct' };
+      await this.repo.addChat(player.gameId, message);
+      await this.d.notifier.sendToPlayer(player.gameId, player.playerId, { type: 'chat', message });
+      await this.d.notifier.sendToPlayer(player.gameId, r, { type: 'chat', message });
     }
   }
 
@@ -1071,6 +1082,7 @@ export class GameService {
       } else if (o.accepted.includes(playerId)) {
         o.accepted = o.accepted.filter((x) => x !== playerId);
         o.status = 'open';
+        logOfferEvent(o, 'unaccepted', playerId, this.now());
         await this.repo.putOffer(gameId, o);
         await this.notifyOffer(gameId, o);
       }
@@ -1138,6 +1150,7 @@ export class GameService {
     if (!accept) {
       offer.accepted = offer.accepted.filter((x) => x !== me.playerId);
       offer.declinedBy = me.playerId;
+      logOfferEvent(offer, 'declined', me.playerId, this.now());
       await this.setOfferStatus(game.gameId, offer, 'declined');
       return;
     }
@@ -1147,6 +1160,7 @@ export class GameService {
     const fresh = (await this.repo.getOffer(game.gameId, offerId)) as CoalitionOffer;
     if (fresh.status !== 'open' && fresh.status !== 'accepted') throw new GameError('OFFER_NOT_FOUND', 'That offer is no longer open');
     fresh.accepted = uniq([...fresh.accepted, me.playerId]);
+    logOfferEvent(fresh, 'accepted', me.playerId, this.now());
     fresh.status = fresh.partners.every((p) => fresh.accepted.includes(p)) ? 'accepted' : 'open';
     await this.repo.putOffer(game.gameId, fresh);
     await this.notifyOffer(game.gameId, fresh);
@@ -1159,6 +1173,7 @@ export class GameService {
     const offer = await this.repo.getOffer(player.gameId, offerId);
     if (!offer || offer.proposer !== player.playerId) throw new GameError('OFFER_NOT_FOUND', 'No such offer');
     if (offer.status !== 'open' && offer.status !== 'accepted') throw new GameError('OFFER_NOT_FOUND', 'That offer is no longer open');
+    logOfferEvent(offer, 'withdrawn', player.playerId, this.now());
     await this.setOfferStatus(player.gameId, offer, 'withdrawn');
   }
 

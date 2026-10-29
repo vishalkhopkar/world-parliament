@@ -155,8 +155,20 @@ describe('TourTransport campaign', () => {
     await settle(4000);
     const c = of('chat');
     expect(c[0].message.from).toBe(TOUR_ME_ID);
+    expect(c[0].message.channel).toBe('group');
     expect(c.length).toBeGreaterThanOrEqual(2);
     expect(c[1].message.from).not.toBe(TOUR_ME_ID);
+    expect(c[1].message.mentions).toBeUndefined();
+  });
+
+  it('group chat: tagging a party with @ makes that party answer and tag you back', async () => {
+    await start({ botRallyAt: [] });
+    t.send({ action: 'chat', text: '@National Alliance shall we talk?', to: [] });
+    await settle(4000);
+    const [mine, answer] = of('chat').map(m => m.message);
+    expect(mine.mentions).toEqual(['p_alliance']);
+    expect(answer.from).toBe('p_alliance');
+    expect(answer.mentions).toEqual([TOUR_ME_ID]);
   });
 
   it('answers a ping', async () => {
@@ -273,7 +285,8 @@ describe('TourTransport government', () => {
     const last = offers.at(-1)!.offer;
     expect(last.status).toBe('declined');
     expect(last.declinedBy).toBe('p_alliance');
-    expect(of('chat').at(-1)?.message.from).toBe('p_alliance');
+    expect(of('chat').at(-1)?.message).toMatchObject({ from: 'p_alliance', to: [TOUR_ME_ID], channel: 'direct' });
+    expect(last.log).toEqual([expect.objectContaining({ type: 'declined', by: 'p_alliance' })]);
     expect(useTour.getState().countPaused).toBe(true); // still paused: no government yet
   });
 
@@ -286,6 +299,8 @@ describe('TourTransport government', () => {
     expect(of('offer')[0].offer.status).toBe('open');
     await settle(5000);
     expect(of('offer').at(-1)!.offer.status).toBe('accepted');
+    // every smaller party's "Accepted" is logged (it shows in your one-to-one chat with that party)
+    expect(of('offer').at(-1)!.offer.log!.map(e => [e.type, e.by]).sort()).toEqual(small.map(id => ['accepted', id]).sort());
     expect(useTour.getState().countPaused).toBe(false);
     expect(of('result')).toHaveLength(0); // not confirmed before every seat is declared
     await settle(10_000);

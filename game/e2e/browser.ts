@@ -92,7 +92,7 @@ async function setParty(page: Page, name: string, colour: string, symbol: string
 
 async function main() {
   mkdirSync(SHOTS, { recursive: true });
-  for (const f of ['01-home', '02-lobby-admin', '03-party', '04-lobby-ready', '05-campaign-admin', '06-campaign-b-report', '07-campaign-c-seat-report', '08-counting', '09-offer', '09a-offer-everyone-blocked', '10-government', '11-result-admin', '12-result-c']) rmSync(path.join(SHOTS, f + '.png'), { force: true });
+  for (const f of ['01-home', '02-lobby-admin', '03-party', '04-lobby-ready', '05-campaign-admin', '06-campaign-b-report', '07-campaign-c-seat-report', '07b-campaign-group-chat-tagged', '08-counting', '08b-counting-one-to-one-chat', '09-offer', '09a-offer-everyone-blocked', '10-government', '11-result-admin', '12-result-c']) rmSync(path.join(SHOTS, f + '.png'), { force: true });
   if (!existsSync(CHROME)) throw new Error('Chrome not found at ' + CHROME + ' (set CHROME_PATH)');
   for (const p of [API_PORT, WEB_PORT]) if (!(await portFree(p))) throw new Error(`port ${p} is already in use; stop that server first`);
 
@@ -255,27 +255,48 @@ async function main() {
     await see(C, 'My actions (1)');
     log('Chitra reloaded and rejoined');
 
-    // campaign-phase chat: the ONE group chat is open from the campaign start (messaging.opensAt = campaign); everybody reads it
+    // campaign-phase chat: the ONE group chat is open from the campaign start (Chat.Campaigning = GROUP); everybody reads it
     for (const p of [A, B, C]) await p.getByRole('heading', { name: 'Group chat' }).first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => problems.push('the group chat card is missing during the campaign'));
-    await B.getByPlaceholder('Message everyone').fill('Campaign hello from Blue Anchor');
+    await B.getByPlaceholder(/Message everyone/).fill('Campaign hello from Blue Anchor');
     await B.getByRole('button', { name: 'Send', exact: true }).click();
     await see(B, 'Campaign hello from Blue Anchor'); await see(A, 'Campaign hello from Blue Anchor'); await see(C, 'Campaign hello from Blue Anchor');
-    log('campaign group chat ok');
+    // tagging: typing @ offers the parties; picking one tags it, and the tagged party sees its own tag highlighted
+    const groupBox = B.getByPlaceholder(/Message everyone/);
+    await groupBox.fill('');
+    await groupBox.pressSequentially('Hi @Lot');
+    await B.getByRole('option', { name: /Lotus Front/ }).click().catch(() => problems.push('the @ picker did not offer Lotus Front'));
+    await groupBox.pressSequentially('let us talk');
+    await B.getByRole('button', { name: 'Send', exact: true }).click();
+    await see(A, 'let us talk');
+    if (!(await A.locator('.hpchat-tag.me', { hasText: '@Lotus Front' }).count())) problems.push('the tagged party does not see its tag highlighted');
+    if (await C.locator('.hpchat-tag.me').count()) problems.push('an untagged party sees a tag of itself');
+    await shot(A, '07b-campaign-group-chat-tagged');
+    log('campaign group chat + @ tag ok');
 
     // ---- counting
     for (const p of [A, B, C]) await see(p, 'Counting ends in', 60000);
     log('counting');
-    await B.waitForFunction(() => /\d+ of 500 seats declared/.test(document.body.innerText) && !/^0 of/.test(document.querySelector('.tally-foot')?.textContent ?? '0 of'), undefined, { timeout: 30000 });
-    await shot(B, '08-counting');
-
-    // chat: ONE group chat (messaging.mode = group, the default): what Blue Anchor writes, everybody reads (party names, never nicknames)
-    const chatCard = (p: Page) => p.locator('section.card', { has: p.getByRole('heading', { name: 'Group chat' }) });
-    await B.getByPlaceholder('Message everyone').fill('Shall we talk portfolios?');
+    // chat: one-to-one from counting (always): what Blue Anchor writes to Lotus Front, only Lotus Front reads
+    const chatCard = (p: Page) => p.locator('section.chat-card');
+    for (const [n, p] of [['A', A], ['B', B], ['C', C]] as const) {
+      await p.getByRole('heading', { name: 'Chats' }).first().waitFor({ state: 'visible', timeout: 10000 })
+        .catch(async () => { problems.push(`the one-to-one chats are missing during counting (${n})`); await shot(p, `fail-chats-${n}`); });
+    }
+    await B.getByRole('tab', { name: /Lotus Front/ }).click();
+    await B.getByPlaceholder('Message Lotus Front').fill('Shall we talk portfolios?');
     await B.getByRole('button', { name: 'Send', exact: true }).click();
     await see(B, 'Shall we talk portfolios?');
+    await A.getByRole('tab', { name: /Blue Anchor/ }).click();
     await see(A, 'Shall we talk portfolios?');
-    await see(C, 'Shall we talk portfolios?');
-    if (!(await chatCard(C).getByText('Blue Anchor').count())) problems.push('group chat does not name the sender by party');
+    await sleep(500);
+    if (await C.getByText('Shall we talk portfolios?').count()) problems.push('a one-to-one message leaked to a third party');
+    if (!(await chatCard(A).getByRole('tabpanel', { name: 'Chat with Blue Anchor' }).count())) problems.push('one-to-one chat does not name the other party');
+    await shot(A, '08b-counting-one-to-one-chat');
+    log('one-to-one chats ok');
+    await B.waitForFunction(() => /\d+ of 500 seats declared/.test(document.body.innerText) && !/^0 of/.test(document.querySelector('.tally-foot')?.textContent ?? '0 of'), undefined, { timeout: 30000 });
+    await shot(B, '08-counting');
+    log('first seats declared');
+
 
     // Lotus Front proposes a government. Designer's rule: a government can never include every party.
     const dpm = A.locator('.pf', { hasText: 'Deputy Prime Minister' }).locator('select').first();
@@ -303,11 +324,13 @@ async function main() {
     for (let i = 0; i < 20 && (await send.isDisabled()); i++) await sleep(250);
     await send.click();
     const [PP, OO] = partner === 'Blue Anchor' ? [B, C] : [C, B];
+    // the offer arrives in the partner's one-to-one chat with Lotus Front
+    await PP.getByRole('tab', { name: /Lotus Front/ }).click();
     await see(PP, /Lotus Front proposes/);
     await sleep(500);
     if (await OO.getByText(/Lotus Front proposes/).count()) problems.push(`${outName} sees an offer it is not part of (offers are private)`);
     for (const pg of [A, B, C]) for (const nick of ['Asha', 'Ben', 'Chitra']) {
-      const txt = await pg.locator('section.card', { has: pg.getByRole('heading', { name: 'Group chat' }) }).innerText();
+      const txt = await chatCard(pg).innerText();
       if (txt.includes(nick)) problems.push(`nickname ${nick} shown in chat card`);
     }
     await shot(PP, '09-offer');

@@ -1,0 +1,11 @@
+/* components/ChatSection.tsx: the chat card in the side panel */
+.chat-card{display:flex;flex-direction:column;min-height:0}
+.chat-card .card-title{display:flex;align-items:center;gap:8px}
+.chat-card .card-title .hpchat-badge{margin-left:auto}
+.chat-card.group .hpchat-log{min-height:220px;max-height:46vh}
+.chat-card.direct .hpchat-direct{height:min(560px,62vh)}
+.chat-fab{display:none}
+@media (max-width:899px){
+  .chat-card.direct .hpchat-direct{height:480px}
+  .chat-fab{display:inline-flex;align-items:center;gap:6px;position:fixed;right:14px;bottom:62px;z-index:20;padding:8px 14px;border:0;border-radius:999px;background:var(--green);color:var(--ivory);font:inherit;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.3);cursor:pointer}
+}

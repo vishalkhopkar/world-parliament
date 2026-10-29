@@ -103,7 +103,10 @@ export type ClientMessage =
   | { action: 'globalReports' }
   /** Counting phase onwards: the vote shares (and candidate names) of a seat that already has a lead or a result. Answered with 'seatShares'. */
   | { action: 'peekSeat'; seat: SeatId }
-  /** Counting & post-counting only. `to` picks the recipients in 'individual' mode; in 'group' mode (default) everybody reads it and `to` is ignored. */
+  /**
+   * A chat message (3+ players; the stage's mode is `chatModeFor(cfg, status)`). GROUP: everybody reads it, `to` is ignored,
+   * and "@Party name" in the text tags that party (the server works out `mentions`). INDV: `to` = exactly ONE other player.
+   */
   | { action: 'chat'; to?: PlayerId[]; text: string }
   | { action: 'proposeGovernment'; portfolios: PortfolioAssignment; partners?: PlayerId[] }
   | { action: 'respondOffer'; offerId: string; accept: boolean }
@@ -170,7 +173,16 @@ export interface SeatDeclaration {
  */
 export interface CountTally { leads: SeatTally; wins: SeatTally; declared: number; total: number }
 
-export interface ChatMessage { id: string; from: PlayerId; to: PlayerId[]; text: string; ts: number }
+/** 'group' = the common chat everybody reads; 'direct' = a one-to-one message (`to` = the one recipient). */
+export type ChatChannel = 'group' | 'direct';
+
+export interface ChatMessage {
+  id: string; from: PlayerId; to: PlayerId[]; text: string; ts: number;
+  /** Missing on messages stored before one-to-one chats existed: read as 'group'. */
+  channel?: ChatChannel;
+  /** Group messages: the players tagged with "@Party name" in the text (they get a badge). */
+  mentions?: PlayerId[];
+}
 
 /**
  * Private reply to 'peekSeat'. status 'won' = the seat's true final shares (they never change); 'leading' = the server's

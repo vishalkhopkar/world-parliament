@@ -12,7 +12,7 @@ multiplayer mock-election game played on those maps.
 
   See [`maps/README.md`](maps/README.md) (what a map folder must contain, how the game finds maps, how to add one) and
   [`maps/world-500/source/README.md`](maps/world-500/source/README.md) (how to edit seats / geometry and rebuild).
-- **`game/`** - HUNG PARLIAMENT, the election game (npm workspaces: `shared` engine + contract, `server`, `web`, `infra` AWS CDK, `sim`, `agent`, `e2e`).
+- **`game/`** - HUNG PARLIAMENT, the election game (npm workspaces: `shared` engine + contract, `server`, `web`, `chat` group / one-to-one chat module, `infra` AWS CDK, `sim`, `agent`, `e2e`).
   It reads maps from `maps/` generically. Status: [`game/PROGRESS.md`](game/PROGRESS.md); rules: `FEATURE REQUIREMENTS.docx`.
 
 Other root files: `CLAUDE.md` (project guide), `.claude/` (skills, e.g. `/name-change`), `.github/workflows/` (Pages + game deploy).

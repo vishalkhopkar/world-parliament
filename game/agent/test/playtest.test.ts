@@ -270,9 +270,9 @@ describe('withdraw_offer', () => {
 });
 
 // ------------------------------------------------------------------ H: chat window
-describe('chat window follows messaging.opensAt', () => {
+describe('chat window follows Chat.Campaigning (OFF = from counting)', () => {
   it('default (campaign): allowed during the campaign with 3+ players, not in the lobby; propose/respond stay counting-only', async () => {
-    expect(cfg.messaging.opensAt).toBe('campaign');
+    expect(cfg.chat.campaigning).not.toBe('OFF');
     const camp = mk({ status: 'campaign' });
     await ok(camp.s, 'chat', { text: 'early talk' });
     expect(camp.calls.chat).toHaveLength(1);
@@ -282,9 +282,9 @@ describe('chat window follows messaging.opensAt', () => {
     const two = mk({ status: 'campaign', players: [P('h', 'Asha', 0), P('me', 'Claude', 1)] });
     expect((await err(two.s, 'chat', { text: 'x' })).code).toBe('NEGOTIATION_DISABLED');
   });
-  it('opensAt=counting: campaign chat is WRONG_PHASE and says when it opens', async () => {
+  it('Chat.Campaigning=OFF: campaign chat is WRONG_PHASE and says when it opens', async () => {
     const { s } = mk({ status: 'campaign' });
-    s.cfg = () => ({ ...cfg, messaging: { mode: 'group', opensAt: 'counting' } });
+    s.cfg = () => ({ ...cfg, chat: { campaigning: 'OFF' } });
     const e = await err(s, 'chat', { text: 'x' });
     expect(e.code).toBe('WRONG_PHASE');
     expect(e.message).toMatch(/counting/);
@@ -295,10 +295,10 @@ describe('chat window follows messaging.opensAt', () => {
 });
 
 // ------------------------------------------------------------------ J: chat view
-describe('chat view: to is "everyone" in group mode, names in individual mode', () => {
-  const msg = { id: 'm1', from: 'c', to: ['me', 'h', 'd'], text: 'hi', ts: 1 };
-  it('group (default)', async () => {
-    const { s } = mk({ status: 'counting' });
+describe('chat view: to is "everyone" in the group chat, the recipient one-to-one', () => {
+  const msg = { id: 'm1', from: 'c', to: ['me', 'h', 'd'], text: 'hi', ts: 1, channel: 'group' as const };
+  it('group (the campaign default)', async () => {
+    const { s } = mk({ status: 'campaign' });
     s.client.state.chat = [msg];
     const r = await ok(s, 'get_chat');
     expect(r.messages[0].to).toBe('everyone');
@@ -308,11 +308,28 @@ describe('chat view: to is "everyone" in group mode, names in individual mode', 
     const sent = await ok(s, 'chat', { text: 'yo' });
     expect(sent.message.to).toBe('everyone');
   });
-  it('individual', async () => {
+  it('one-to-one (the counting default): the recipient, and `to` is required', async () => {
     const { s } = mk({ status: 'counting' });
-    s.cfg = () => ({ ...cfg, messaging: { mode: 'individual', opensAt: 'campaign' } });
-    s.client.state.chat = [msg];
-    expect((await ok(s, 'get_chat')).messages[0].to).toEqual(['Party Claude', 'Party Asha', 'Party Dev']);
+    s.client.state.chat = [{ id: 'm1', from: 'c', to: ['me'], text: 'psst', ts: 1, channel: 'direct' }];
+    const r = (await ok(s, 'get_chat')).messages[0];
+    expect(r.to).toEqual(['Party Claude']);
+    expect(r.chat).toBe('one-to-one');
+    expect((await err(s, 'chat', { text: 'to whom?' })).code).toBe('INVALID_INPUT');
+    const sent = await ok(s, 'chat', { to: ['Party Asha', 'Party Dev'], text: 'deal?' });
+    expect(sent.chat_mode).toBe('INDV');
+    expect(sent.sent_to).toEqual(['Party Asha', 'Party Dev']);
+  });
+  it('tags: listed by party, with tags_you when you are tagged', async () => {
+    const { s } = mk({ status: 'campaign' });
+    s.client.state.chat = [{ ...msg, text: '@Party Claude @Party Dev', mentions: ['me', 'd'] }, { ...msg, id: 'm2', text: 'plain' }];
+    const [tagged, plain] = (await ok(s, 'get_chat')).messages;
+    expect(tagged.tagged).toEqual(['Party Claude', 'Party Dev']);
+    expect(tagged.tags_you).toBe(true);
+    expect(plain.tagged).toBeUndefined();
+  });
+  it('get_state says which chat this stage has', async () => {
+    expect((await ok(mk({ status: 'campaign' }).s, 'get_state')).chat_mode).toBe('GROUP');
+    expect((await ok(mk({ status: 'counting' }).s, 'get_state')).chat_mode).toBe('INDV');
   });
 });
 
@@ -370,11 +387,11 @@ describe('rules text', () => {
     expect(text).toMatch(/at least one party must stay out/i);
     expect(text).toMatch(/offers are private/i);
     expect(text).toMatch(/chat opens at the start of the campaign/i);
-    expect(text).toMatch(/agree one government early in the group chat/i);
+    expect(text).toMatch(/agree one government early in the chat/i);
     expect(text).not.toContain('{{');
   });
-  it('CHAT_RULE renders the chat start from messaging.opensAt', () => {
-    const c = renderRules({ ...cfg, messaging: { mode: 'group', opensAt: 'counting' } });
+  it('CHAT_RULE renders the chat start from Chat.Campaigning', () => {
+    const c = renderRules({ ...cfg, chat: { campaigning: 'OFF' } });
     expect(c).toMatch(/chat opens when counting starts/i);
     expect(c).not.toMatch(/chat opens at the start of the campaign/i);
   });

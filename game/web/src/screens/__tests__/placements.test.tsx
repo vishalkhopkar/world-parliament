@@ -43,13 +43,14 @@ describe('avatars and AI badges across the UI', () => {
     expect(container.querySelectorAll('.tl-item .party-dot')).toHaveLength(1); // "Old Guard" has no avatar
   });
 
-  it('negotiation panel lists parties with avatars and the AI badge for agents only', () => {
+  it('negotiation panel: the chat list shows the other parties with avatars (symbol fallback) and "AI player" for agents only', () => {
     render(<Negotiation snap={snap()} />);
-    const card = screen.getByRole('heading', { name: 'Parties' }).closest('section')!;
-    const rows = card.querySelectorAll('.row');
-    expect(within(rows[0] as HTMLElement).getByAltText('Modi')).toBeInTheDocument();
-    expect(within(rows[0] as HTMLElement).queryByTitle('AI player')).toBeNull();
-    expect(within(rows[1] as HTMLElement).getByTitle('AI player')).toBeInTheDocument();
+    const bot = screen.getByRole('tab', { name: /Blue Front/ });
+    expect(within(bot).getByAltText('Kim')).toBeInTheDocument();
+    expect(bot).toHaveTextContent('AI player · 55 seats');
+    const old = screen.getByRole('tab', { name: /Old Guard/ });
+    expect(old).not.toHaveTextContent('AI player');
+    expect(old.querySelector('.party-dot')).not.toBeNull();
   });
 
   it('government banner shows the PM and parties with avatars', () => {

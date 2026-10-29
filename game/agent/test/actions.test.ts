@@ -339,14 +339,19 @@ describe('rules rendering', () => {
     expect(() => renderRules(cfg, {}, 'x {{NOPE}}')).toThrow(/NOPE/);
   });
 
-  it('the chat paragraph follows messaging.mode: one group chat everybody reads, or private threads', () => {
-    const group = renderRules({ ...cfg, messaging: { mode: 'group', opensAt: 'counting' } });
-    expect(group).toMatch(/group chat/i);
-    expect(group).toMatch(/everyone in the game reads/i);
-    expect(group).not.toMatch(/Only you and the recipients see it/);
-    const threads = renderRules({ ...cfg, messaging: { mode: 'individual', opensAt: 'counting' } });
-    expect(threads).toMatch(/Only you and the recipients see it/);
-    expect(threads).not.toMatch(/everyone in the game reads/i);
+  it('the chat paragraph follows Chat.Campaigning (counting is always one-to-one): group chat with @ tags, or one-to-one chats', () => {
+    const shipped = renderRules(cfg);
+    expect(shipped).toMatch(/During the campaign there is \*\*one group chat\*\* that everyone in the game reads/);
+    expect(shipped).toMatch(/"@Party name"/);
+    expect(shipped).toMatch(/During counting and post-counting there is \*\*one-to-one chats\*\*/);
+    expect(shipped).toMatch(/"Accepted" in the chat of the party who accepted/);
+    const group = renderRules({ ...cfg, chat: { campaigning: 'OFF' } });
+    expect(group).toMatch(/no chat during the campaign: chat opens when counting starts/i);
+    expect(group).toMatch(/counting and post-counting there is \*\*one-to-one chats\*\*/);
+    expect(group).not.toMatch(/counting and post-counting there is \*\*one group chat\*\*/);
+    const indv = renderRules({ ...cfg, chat: { campaigning: 'INDV' } });
+    expect(indv).toMatch(/only you and they see/);
+    expect(indv).not.toMatch(/everyone in the game reads/i);
     expect(group).not.toContain('{{');
     expect(rulesTemplate().length).toBeGreaterThan(3000);
   });

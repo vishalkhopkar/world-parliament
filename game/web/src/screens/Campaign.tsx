@@ -4,9 +4,10 @@ import { useStore } from '../state/store';
 import { SeatMap, type SeatMapHandle } from '../map/SeatMap';
 import { AnalystShop, CampaignHud, MyActions } from '../components/campaign';
 import { NewsTicker } from '../components/NewsTicker';
-import { Chat } from '../components/Negotiation';
+import { ChatSection } from '../components/ChatSection';
 import { GlobalReportsModal } from '../components/GlobalReportsModal';
 import { useMapConfig } from '../state/mapConfig';
+import { chatModeFor } from '@hp/shared';
 import './game.css';
 import { colourHex, useSeatPhases, useServerNow } from '../lib';
 import { committedFills } from '../lib/committedShade';
@@ -88,8 +89,8 @@ export function Campaign() {
 
   if (!snap || !priv) return <div className="page"><p className="hint">Connecting…</p></div>;
 
-  // chat opens at the campaign start when the map says so; with fewer than 3 players there is no chat at all
-  const chatOpen = cfg.messaging.opensAt === 'campaign' && snap.players.filter(p => p.status !== 'pending' && p.status !== 'rejected').length >= 3;
+  // Chat.Campaigning: GROUP / INDV chat from the campaign start, OFF = none until counting; never with fewer than 3 players
+  const chatMode = snap.players.filter(p => p.status !== 'pending' && p.status !== 'rejected').length >= 3 ? chatModeFor(cfg, 'campaign') : null;
 
   return (
     <div className="game">
@@ -116,7 +117,7 @@ export function Campaign() {
           <AnalystShop snap={snap} priv={priv} now={now} />
           <ReportToast />
           <div data-tour="my-actions"><MyActions priv={priv} /></div>
-          {chatOpen && me && <div data-tour="chat"><Chat snap={snap} me={me} /></div>}
+          {chatMode && me && <div data-tour="chat" className="chat-slot"><ChatSection snap={snap} me={me} mode={chatMode} /></div>}
         </aside>
       </div>
       {reportsOpen && cfg.news.enabled && <GlobalReportsModal onClose={closeReports} />}

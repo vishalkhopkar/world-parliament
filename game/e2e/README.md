@@ -23,7 +23,7 @@ Connects N scripted clients to a **running** server over REST + WebSocket and as
 invariants (no budget/roadshow/report data of others, overspending and polled-seat actions rejected, every seat declared,
 points = `finalResult` rules, opposition scores 0, reconnect restores state, offers only to participants).
 
-Government flow it checks (3+ players): the one group chat is open from the campaign start (2 players: `NEGOTIATION_DISABLED`);
+Government flow it checks (3+ players): the chat follows `Chat.Campaigning` (default: the one group chat is open from the campaign start) and from counting always one-to-one (only the recipient gets a message, a recipient is required) (2 players: `NEGOTIATION_DISABLED`);
 proposals are `WRONG_PHASE` before counting; an all-parties government is rejected with `INVALID_GOVERNMENT` ("At least one party must stay out");
 the bots then wait until every seat is declared, form the smallest majority coalition that leaves at least one party out (if only
 an everyone-coalition would reach a majority they assert that no government forms), and the government is confirmed on acceptance
@@ -62,7 +62,7 @@ costs and points come from `WORLD_CONFIG`, so run it against a server using the 
 
 Starts its own dev server (:8787, short timings) and Vite (:5173) as child processes, opens three headless-Chrome contexts
 and plays a game through the UI with `?server=local` (create / join / admit / party / start, rallies, roadshows, reports,
-page reload rejoin, campaign-phase group chat, counting, an all-parties offer blocked by the UI (Send disabled + "At least one party must stay out of the government."), a two-party coalition offer (the third party stays in opposition) once every seat is declared, accept, and the Result screen ("Coalition government") that replaces the Counting screen at once). Only the processes it started are killed.
+page reload rejoin, campaign-phase group chat with an @ tag (the tagged party sees its tag highlighted), counting with one-to-one chats (a message reaches only its recipient), an all-parties offer blocked by the UI (Send disabled + "At least one party must stay out of the government."), a two-party coalition offer (the third party stays in opposition) once every seat is declared, accept, and the Result screen ("Coalition government") that replaces the Counting screen at once). Only the processes it started are killed.
 
 ```bash
 cd game

@@ -1,7 +1,8 @@
 // MOCK backend: simulates the whole game in the browser. Every message is a ServerMessage from protocol.ts,
 // so replacing this with the real REST + WebSocket transport requires no UI changes.
 // Tunables via URL query: ?campaign=120&counting=60&post=120 (seconds). Defaults: 120 / 60 / 120.
-import { AVATARS, DEFAULT_MAP_ID, buildGlobalReports, MAP_MANIFESTS, PARTY_COLOURS, WORLD_CONFIG, buildKernels, computeEffects, leavesPartyOut, majorityOf, rallyAvailableAt, reputationView } from '@hp/shared';
+import { AVATARS, DEFAULT_MAP_ID, buildGlobalReports, MAP_MANIFESTS, PARTY_COLOURS, WORLD_CONFIG, buildKernels, chatModeFor, computeEffects, leavesPartyOut, logOfferEvent, majorityOf, rallyAvailableAt, reputationView } from '@hp/shared';
+import { findMentions } from '@hp/chat/common';
 import type {
   MapConfig, Action, AdmissionRequest, AdmitRequest, AnalystReport, ClientMessage, CoalitionOffer, CommittedView, CountTally,
   CreateGameRequest, CreateGameResponse, ErrorCode, FinalResult, GameId, GameMapPackage, GameSnapshot,
@@ -349,7 +350,7 @@ export class MockTransport implements Transport {
       case 'withdrawOffer': {
         const o = g.offers.find(x => x.offerId === msg.offerId && x.proposer === g.me && x.status === 'open');
         if (!o) return err('OFFER_NOT_FOUND', 'No such open offer');
-        o.status = 'withdrawn'; this.emit({ type: 'offer', offer: o });
+        o.status = 'withdrawn'; logOfferEvent(o, 'withdrawn', g.me, this.now()); this.emit({ type: 'offer', offer: o });
         break;
       }
     }
@@ -490,21 +491,38 @@ export class MockTransport implements Transport {
 
   // ---- chat
   private handleChat(g: MockGame, msg: Msg<'chat'>, err: ErrFn) {
-    const early = g.status === 'campaign' && g.cfg.messaging.opensAt === 'campaign';
-    if (!early && g.status !== 'counting' && g.status !== 'postCounting') return err('WRONG_PHASE', 'Chat opens when ' + (g.cfg.messaging.opensAt === 'campaign' ? 'the campaign' : 'counting') + ' starts');
+    const mode = chatModeFor(g.cfg, g.status);
+    if (!mode) return err('WRONG_PHASE', 'Chat opens when ' + (g.cfg.chat.campaigning !== 'OFF' ? 'the campaign' : 'counting') + ' starts');
     if (this.noNegotiation(g)) return err('NEGOTIATION_DISABLED', '2-player game: no chat');
-    const group = g.cfg.messaging.mode === 'group';
-    const everyone = [...g.players.values()].filter(p => p.pub.status !== 'pending' && p.pub.status !== 'rejected').map(p => p.pub.playerId).filter(id => id !== g.me);
-    const to = group ? everyone : (msg.to ?? []).filter(id => g.players.has(id) && id !== g.me);
-    if (!to.length || !msg.text.trim()) return err('BAD_REQUEST', 'Pick recipients and write something');
-    this.emit({ type: 'chat', message: { id: uid(), from: g.me, to, text: msg.text.trim().slice(0, 500), ts: this.now() } });
-    // group chat: one random bot answers everybody; threads: every bot recipient answers
-    const repliers = group ? [pick(to.filter(id => g.players.get(id)!.bot))].filter(Boolean) : to;
-    for (const id of repliers) {
-      if (!g.players.get(id)!.bot) continue;
+    const members = [...g.players.values()].filter(p => p.pub.status !== 'pending' && p.pub.status !== 'rejected');
+    const everyone = members.map(p => p.pub.playerId).filter(id => id !== g.me);
+    const text = msg.text.trim().slice(0, 500);
+    if (!text) return err('BAD_REQUEST', 'Write something');
+    if (mode === 'GROUP') {
+      // one common chat: tags as the server finds them; one random bot answers everybody (a tagged bot first)
+      const mentions = findMentions(text, members.filter(p => p.pub.party).map(p => ({ id: p.pub.playerId, name: p.pub.party!.name })), g.me);
+      this.emit({ type: 'chat', message: { id: uid(), from: g.me, to: everyone, text, ts: this.now(), channel: 'group', ...(mentions.length ? { mentions } : {}) } });
+      // a tagged bot answers and tags you back (so the mention badge can be tried out offline)
+      const tagged = mentions.find(id => g.players.get(id)?.bot);
+      const replier = tagged ?? pick(everyone.filter(id => g.players.get(id)!.bot));
+      if (!replier) return;
+      const myName = g.players.get(g.me)!.pub.party?.name;
+      const tagBack = !!tagged && !!myName;
       this.later(() => this.emit({
-        type: 'chat', message: { id: uid(), from: id, to: [g.me, ...to.filter(x => x !== id)], text: pick(BOT_REPLIES), ts: this.now() },
+        type: 'chat', message: {
+          id: uid(), from: replier, to: everyone.filter(x => x !== replier).concat(g.me), text: (tagBack ? `@${myName} ` : '') + pick(BOT_REPLIES), ts: this.now(),
+          channel: 'group', ...(tagBack ? { mentions: [g.me] } : {}),
+        },
       }), rnd(1500, 3500));
+      return;
+    }
+    // one-to-one: one private copy per recipient; each bot recipient answers in its own chat
+    const to = [...new Set(msg.to ?? [])].filter(id => g.players.has(id) && id !== g.me);
+    if (!to.length) return err('BAD_REQUEST', 'Choose the party to message');
+    for (const id of to) {
+      this.emit({ type: 'chat', message: { id: uid(), from: g.me, to: [id], text, ts: this.now(), channel: 'direct' } });
+      if (!g.players.get(id)!.bot) continue;
+      this.later(() => this.emit({ type: 'chat', message: { id: uid(), from: id, to: [g.me], text: pick(BOT_REPLIES), ts: this.now(), channel: 'direct' } }), rnd(1500, 3500));
     }
   }
 
@@ -538,8 +556,8 @@ export class MockTransport implements Transport {
       const holds = Object.values(pf).some(h => h.includes(id));
       this.later(() => {
         if (offer.status !== 'open') return;
-        if (Math.random() < (holds ? 0.8 : 0.4)) { offer.accepted.push(id); this.checkFormed(g, offer); }
-        else { offer.status = 'declined'; offer.declinedBy = id; this.emit({ type: 'offer', offer }); }
+        if (Math.random() < (holds ? 0.8 : 0.4)) { offer.accepted.push(id); logOfferEvent(offer, 'accepted', id, this.now()); this.checkFormed(g, offer); }
+        else { offer.status = 'declined'; offer.declinedBy = id; logOfferEvent(offer, 'declined', id, this.now()); this.emit({ type: 'offer', offer }); }
       }, rnd(2000, 5000));
     }
   }
@@ -547,13 +565,13 @@ export class MockTransport implements Transport {
     const o = g.offers.find(x => x.offerId === msg.offerId);
     if (!o || o.status !== 'open' || !o.partners.includes(g.me)) return err('OFFER_NOT_FOUND', 'That offer is no longer open');
     if (g.government) return err('ALREADY_COMMITTED', 'A government is already formed');
-    if (!msg.accept) { o.status = 'declined'; o.declinedBy = g.me; this.emit({ type: 'offer', offer: o }); return; }
-    if (!o.accepted.includes(g.me)) o.accepted.push(g.me);
+    if (!msg.accept) { o.status = 'declined'; o.declinedBy = g.me; logOfferEvent(o, 'declined', g.me, this.now()); this.emit({ type: 'offer', offer: o }); return; }
+    if (!o.accepted.includes(g.me)) { o.accepted.push(g.me); logOfferEvent(o, 'accepted', g.me, this.now()); }
     for (const id of o.partners) {
       if (id === g.me || o.accepted.includes(id) || !g.players.get(id)?.bot) continue;
       this.later(() => {
         if (o.status !== 'open' || o.accepted.includes(id)) return;
-        o.accepted.push(id); this.checkFormed(g, o);
+        o.accepted.push(id); logOfferEvent(o, 'accepted', id, this.now()); this.checkFormed(g, o);
       }, rnd(1500, 3500));
     }
     this.checkFormed(g, o);

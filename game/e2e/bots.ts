@@ -267,17 +267,18 @@ async function drainScenario(bot: Bot) {
 /** Bot 1: buys a seat report and a global report and sanity-checks them; also tries things that are not allowed yet. */
 async function analystScenario(bot: Bot) {
   await sleep(timeline.campaignStart + (timeline.campaignEnd - timeline.campaignStart) * 0.3 - Date.now());
-  // messaging.opensAt = campaign (default): the group chat is already open; 2 players never get a chat
-  const chatFromCampaign = CFG.messaging.opensAt === 'campaign';
+  // Chat.Campaigning = GROUP (default): the group chat is already open; INDV = one-to-one; OFF = none; 2 players never get a chat
+  const campaignChat = CFG.chat.campaigning;
   const cText = 'campaign chat ' + SEED;
   const from0 = bots.map(b => b.msgs.length);
   let r = await bot.request({ action: 'chat', to: bots.filter(b => b !== bot).map(b => b.playerId), text: cText }, m => m.type === 'chat' && m.message.text === cText);
   if (N === 2) check(bot.err(r) === 'NEGOTIATION_DISABLED', `${bot.name}: 2 players: campaign chat should be NEGOTIATION_DISABLED, got ${r.type === 'error' ? r.error : r.type}`);
-  else if (chatFromCampaign) {
-    check(r.type === 'chat', `${bot.name}: campaign chat should be allowed (messaging.opensAt=campaign), got ${bot.err(r)}`);
+  else if (campaignChat !== 'OFF') {
+    check(r.type === 'chat', `${bot.name}: campaign chat should be allowed (Chat.Campaigning=${campaignChat}), got ${bot.err(r)}`);
+    if (r.type === 'chat') check(r.message.channel === (campaignChat === 'GROUP' ? 'group' : 'direct'), `${bot.name}: campaign chat channel should follow Chat.Campaigning, got ${r.message.channel}`);
     await sleep(400);
-    bots.forEach((b, i) => { if (b !== bot && b.idx !== 2) check(b.msgs.slice(from0[i]).some(m => m.type === 'chat' && m.message.text === cText), `${b.name}: campaign group chat message not received`); });
-  } else check(bot.err(r) === 'WRONG_PHASE', `${bot.name}: chat during the campaign should be WRONG_PHASE (messaging.opensAt=counting), got ${r.type === 'error' ? r.error : r.type}`);
+    bots.forEach((b, i) => { if (b !== bot && b.idx !== 2) check(b.msgs.slice(from0[i]).some(m => m.type === 'chat' && m.message.text === cText), `${b.name}: campaign chat message not received`); });
+  } else check(bot.err(r) === 'WRONG_PHASE', `${bot.name}: chat during the campaign should be WRONG_PHASE (Chat.Campaigning=OFF), got ${r.type === 'error' ? r.error : r.type}`);
   r = await bot.request({ action: 'proposeGovernment', portfolios: { PM: [bot.playerId] } }, m => m.type === 'offer');
   check(bot.err(r) === 'WRONG_PHASE', `${bot.name}: proposeGovernment during the campaign should be WRONG_PHASE, got ${r.type === 'error' ? r.error : r.type}`);
 
@@ -484,19 +485,20 @@ async function main() {
     check(bot_err(pr) === 'NEGOTIATION_DISABLED', `2 players: proposeGovernment should be NEGOTIATION_DISABLED, got ${pr.type === 'error' ? pr.error : pr.type}`);
     log('2 players: chat and proposeGovernment rejected with NEGOTIATION_DISABLED');
   } else {
-  // messaging.mode = group (the default): ONE chat everybody reads; `to` is only a hint and is ignored
   const from1 = bots.map(b => b.msgs.length);
-  const text = 'open to all ' + SEED;
+  const text = 'counting chat ' + SEED;
   const c = await b0.request({ action: 'chat', to: [b1.playerId], text }, m => m.type === 'chat' && m.message.text === text);
   check(c.type === 'chat', 'chat refused: ' + bot_err(c));
-  await Promise.all(bots.slice(1).map((b, i) => b.waitFor(m => m.type === 'chat' && m.message.text === text, { from: from1[i + 1], what: 'chat delivery' })));
+  // counting and post-counting are always one-to-one: only the recipient (and the sender) get it, and a recipient is required
+  await b1.waitFor(m => m.type === 'chat' && m.message.text === text, { from: from1[1], what: 'chat delivery' });
   await sleep(300);
   bots.forEach((b, i) => {
     const got = b.msgs.slice(from1[i]).some(m => m.type === 'chat' && m.message.text === text);
-    check(got, `${b.name}: group chat message not received`);
+    check(got === (b === b0 || b === b1), `${b.name}: one-to-one message ${got ? 'leaked to' : 'not received by'} this player`);
   });
+  if (c.type === 'chat') check(c.message.channel === 'direct' && c.message.to.length === 1, 'counting chat should be one-to-one (channel direct, one recipient)');
   const noTo = await b1.request({ action: 'chat', text: 'hello all' } as ClientMessage, m => m.type === 'chat' && m.message.text === 'hello all');
-  check(noTo.type === 'chat', 'chat without recipients refused: ' + bot_err(noTo));
+  check(bot_err(noTo) === 'BAD_REQUEST', `one-to-one chat without a recipient should be BAD_REQUEST, got ${noTo.type === 'error' ? noTo.error : noTo.type}`);
   log('chat ok');
 
   // invalid governments are refused while counting

@@ -21,6 +21,8 @@ interface State {
   snapshot: GameSnapshot | null;
   priv: PrivateState | null;
   chat: ChatMessage[];
+  /** Newest item time already read per conversation ('group', 'dm:<id>'): drives the unread badges. Kept per game in localStorage. */
+  chatRead: Record<string, number>;
   clockOffset: number; // serverTime - Date.now()
   link: LinkState; // websocket state (always 'open' for the mock)
   polledSeats: SeatId[]; // seats closed so far (from phaseClosed messages)
@@ -50,12 +52,14 @@ interface State {
   setLink(l: LinkState): void;
   /** Remember what a pending campaign message (by clientRef) was, so its actionAck can extend priv.myActions. */
   trackAction(ref: string, a: { type: ActionType; seat: SeatId }): void;
+  /** A conversation was on screen up to item time `ts` (only ever moves forward). */
+  markChatRead(key: string, ts: number): void;
   reset(): void;
 }
 
 const initial = {
   gameId: null, token: null, me: null, joinCode: null, lobby: null, snapshot: null, priv: null,
-  chat: [] as ChatMessage[], clockOffset: 0, link: 'open' as LinkState, polledSeats: [] as SeatId[], seatShares: {} as Record<SeatId, SeatSharesMessage>, globalReports: null as GlobalReports | null, lobbyPage: 'lobby' as const, selectedSeat: null,
+  chat: [] as ChatMessage[], chatRead: {} as Record<string, number>, clockOffset: 0, link: 'open' as LinkState, polledSeats: [] as SeatId[], seatShares: {} as Record<SeatId, SeatSharesMessage>, globalReports: null as GlobalReports | null, lobbyPage: 'lobby' as const, selectedSeat: null,
   pulse: null as Pulse | null, repGain: null as RepGainState | null, error: null as string | null,
 };
 
@@ -63,12 +67,25 @@ let pulseKey = 0;
 let gainKey = 0;
 const pendingActions = new Map<string, { type: ActionType; seat: SeatId }>();
 
+const readKey = (gameId: string, me: PlayerId) => `hp.chatRead.${gameId}.${me}`;
+/** Read state of this game's chats from an earlier visit (a reload must not bring back every badge); {} when unavailable. */
+function loadChatRead(gameId: string, me: PlayerId): Record<string, number> {
+  try {
+    const v = JSON.parse(localStorage.getItem(readKey(gameId, me)) ?? '{}');
+    return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+  } catch { return {}; }
+}
+function saveChatRead(gameId: string | null, me: PlayerId | null, read: Record<string, number>) {
+  if (!gameId || !me) return;
+  try { localStorage.setItem(readKey(gameId, me), JSON.stringify(read)); } catch { /* private mode / storage full: badges just reset on reload */ }
+}
+
 export const useStore = create<State>((set, get) => ({
   ...initial,
   names: {},
   gamePkg: null,
 
-  setSession: s => set({ ...s, polledSeats: [], seatShares: {}, globalReports: null, lobby: null, snapshot: null, priv: null, chat: [], lobbyPage: 'lobby', selectedSeat: null, repGain: null }),
+  setSession: s => set({ ...s, polledSeats: [], seatShares: {}, globalReports: null, lobby: null, snapshot: null, priv: null, chat: [], chatRead: loadChatRead(s.gameId, s.me), lobbyPage: 'lobby', selectedSeat: null, repGain: null }),
   setLobby: v => set({ lobby: v }),
   setNames: names => set({ names }),
   setGamePkg: gamePkg => set({ gamePkg }),
@@ -77,6 +94,13 @@ export const useStore = create<State>((set, get) => ({
   setError: error => set({ error }),
   setLink: link => set({ link }),
   trackAction: (ref, a) => { pendingActions.set(ref, a); if (pendingActions.size > 200) pendingActions.delete(pendingActions.keys().next().value as string); },
+  markChatRead: (key, ts) => {
+    const { chatRead, gameId, me } = get();
+    if ((chatRead[key] ?? -Infinity) >= ts) return;
+    const next = { ...chatRead, [key]: ts };
+    set({ chatRead: next });
+    saveChatRead(gameId, me, next);
+  },
   reset: () => { pendingActions.clear(); set({ ...initial }); },
 
   applyServer(m) {

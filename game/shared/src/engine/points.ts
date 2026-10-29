@@ -1,8 +1,14 @@
 import { WORLD_CONFIG, majorityOf } from '../mapConfig';
 import type { MapConfig } from '../mapConfig';
 import type {
-  CoalitionOffer, FinalResult, Government, PlayerId, PointsBreakdown, PortfolioAssignment, SeatTally,
+  CoalitionOffer, FinalResult, Government, OfferEvent, PlayerId, PointsBreakdown, PortfolioAssignment, SeatTally,
 } from '../types';
+
+/** Appends what `by` did to the offer (shown in the one-to-one chat between them and the proposer). Mutates and returns it. */
+export function logOfferEvent(offer: CoalitionOffer, type: OfferEvent['type'], by: PlayerId, ts: number): CoalitionOffer {
+  offer.log = [...(offer.log ?? []), { type, by, ts }];
+  return offer;
+}
 
 /**
  * A government must leave at least one party out: true when some contender (a non-eliminated party) is NOT a member.

@@ -14,4 +14,4 @@ export {
   newsTrueProjection, buildGlobalReports,
 } from './newsAgencies';
 export type { NewsAgency, GlobalReportsInput } from './newsAgencies';
-export { validateGovernment, leavesPartyOut, governmentFromOffer, majorityGovernment, finalResult } from './points';
+export { validateGovernment, leavesPartyOut, logOfferEvent, governmentFromOffer, majorityGovernment, finalResult } from './points';

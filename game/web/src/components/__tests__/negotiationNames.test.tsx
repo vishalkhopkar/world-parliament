@@ -1,8 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import { MAP_CONFIGS, WORLD_CONFIG } from '@hp/shared';
+import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import type { GameSnapshot, PlayerPublic } from '@hp/shared';
-import { Chat } from '../Negotiation';
+
+vi.mock('../../net/client', () => ({ chat: vi.fn(), proposeGovernment: vi.fn(), respondOffer: vi.fn(), withdrawOffer: vi.fn() }));
+
+import { ChatSection } from '../ChatSection';
 import { useStore } from '../../state/store';
 
 const players: PlayerPublic[] = [
@@ -11,17 +13,15 @@ const players: PlayerPublic[] = [
   { playerId: 'c', nickname: 'Chitra', isAdmin: false, status: 'active', party: { name: 'Green Leaf', colour: '#1E8C45', symbol: 'leaf' } },
 ];
 
-// the private-thread UI is the 'individual' messaging mode (the default is one group chat, see groupChat.test.tsx)
-MAP_CONFIGS['names-individual'] = { ...WORLD_CONFIG, mapId: 'names-individual', messaging: { mode: 'individual', opensAt: 'counting' } };
-
-describe('private chat shows party names, never nicknames', () => {
-  it('chips, placeholder, thread label and sender use the party name', () => {
-    useStore.setState({ snapshot: { mapId: 'names-individual' }, lobby: null, gamePkg: null, chat: [{ id: 'm1', from: 'b', to: ['a'], text: 'hello', ts: 1000 }] } as any);
-    const { container } = render(<Chat snap={{ players } as GameSnapshot} me="a" />);
-    expect(screen.getAllByRole('button', { name: 'Blue Anchor' }).length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: 'Green Leaf' })).toBeTruthy();
-    fireEvent.click(screen.getAllByRole('button', { name: 'Blue Anchor' })[0]);
-    expect(screen.getByPlaceholderText('Message Blue Anchor')).toBeTruthy();
+describe('one-to-one chats show party names, never nicknames', () => {
+  it('conversation list, placeholder, header and sender use the party name', () => {
+    useStore.setState({ chat: [{ id: 'm1', from: 'b', to: ['a'], text: 'hello', ts: 1000, channel: 'direct' }], chatRead: {} } as never);
+    const snap = { players, offers: [], tally: null } as unknown as GameSnapshot;
+    const { container } = render(<ChatSection snap={snap} me="a" mode="INDV" />);
+    expect(screen.getByRole('tab', { name: /Blue Anchor/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Green Leaf/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /Blue Anchor/ }));
+    expect(screen.getByPlaceholderText('Message Blue Anchor')).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/Asha|Ben\b|Chitra/);
   });
 });

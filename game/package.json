@@ -8,7 +8,8 @@
     "web",
     "infra",
     "sim",
-    "agent"
+    "agent",
+    "chat"
   ],
   "scripts": {
     "gen:maps": "tsx scripts/gen-maps.ts",

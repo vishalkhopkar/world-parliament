@@ -303,13 +303,18 @@ describe('chat / get_chat', () => {
     expect((await err(s, 'chat', args)).code).toBe(code);
     expect(calls.chat).toBeUndefined();
   });
-  it('`to` is optional: without it the message goes to every other living player (group chat)', async () => {
+  it('`to` is optional in the group chat (the campaign default): the message goes to every other living player', async () => {
     const ps = players();
     ps[3] = { ...ps[3], status: 'eliminated' };
-    const { s, calls } = session({ ...counting, players: ps });
+    const { s, calls } = session({ status: 'campaign', players: ps });
     await ok(s, 'chat', { text: 'to the whole table' });
     expect((calls.chat[0][0] as string[]).sort()).toEqual(['c', 'h']);
     expect(calls.chat[0][1]).toBe('to the whole table');
+  });
+  it('`to` is required in the one-to-one chats (the counting default); nothing is sent without it', async () => {
+    const { s, calls } = session(counting);
+    expect((await err(s, 'chat', { text: 'to whom?' })).code).toBe('INVALID_INPUT');
+    expect(calls.chat).toBeUndefined();
   });
   it('get_chat returns everything from the cursor and the next cursor', async () => {
     const { s } = session(counting);

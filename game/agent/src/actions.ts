@@ -1,6 +1,6 @@
 // THE action table. The MCP server (mcp.ts) and the CLI/daemon (cli.ts, daemon.ts) both execute actions only through this
 // table, so they can never diverge. Each action: name, LLM-facing description, zod input schema, handler on an AgentSession.
-import { analystPrice, AVATARS, haversineKm, majorityOf, PARTY_COLOURS, PARTY_SYMBOLS } from '@hp/shared';
+import { analystPrice, AVATARS, chatModeFor, haversineKm, majorityOf, PARTY_COLOURS, PARTY_SYMBOLS } from '@hp/shared';
 import type { ActionType, CoalitionOffer, CommittedView, MapConfig, PartyIdentity, PortfolioAssignment, SeatId } from '@hp/shared';
 import { z } from 'zod';
 import { AgentError, toErrorInfo } from './errors';
@@ -11,7 +11,7 @@ import type { AgentSession } from './session';
 import { EVENT_TYPES, admissionOf } from './state';
 import type { EventType } from './state';
 import {
-  chatView, committedLabel, currentBudget, eventView, rallyCooldownView, rallyReadyAt, governmentView, offerView, playerView, reportView, globalReportsView, round1, stageInfo, stateView, who, winsByName,
+  chatView, namesOf, committedLabel, currentBudget, eventView, rallyCooldownView, rallyReadyAt, governmentView, offerView, playerView, reportView, globalReportsView, round1, stageInfo, stateView, who, winsByName,
 } from './views';
 
 export interface ActionDef<S extends z.ZodObject<z.ZodRawShape> = z.ZodObject<z.ZodRawShape>> {
@@ -100,10 +100,6 @@ function resolveOffer(s: AgentSession, ref: string): CoalitionOffer {
   throw new AgentError('OFFER_NOT_FOUND', `No offer "${ref}" is known to you. Known: ${offers.map((o) => o.offerId).join(', ') || 'none'}. (You only see offers you proposed or were named in.)`);
 }
 
-/** Is chat open in this status? Counting and post-counting always; the campaign only when messaging.opensAt = campaign. */
-function chatOpen(cfg: MapConfig, status: string | undefined): boolean {
-  return status === 'counting' || status === 'postCounting' || (status === 'campaign' && cfg.messaging.opensAt === 'campaign');
-}
 
 /** Preset party options with the party (of another player) that holds each one, or null when free. */
 function partyOptions(s: AgentSession) {
@@ -524,9 +520,9 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'chat',
-    description: 'Send a chat message (chat opens at campaign start (configurable), stays open through counting and post-counting; only in games with 3+ players). By default the game has ONE group chat that everyone in the game reads: just give `text` (`to` is optional and ignored). In games configured for private threads, `to` = list of recipient party names or ids (or ["all"] for everyone else) and only you and the recipients see it.',
+    description: 'Send a chat message (only in games with 3+ players; chat opens at campaign start (configurable) and stays open through counting and post-counting). Which chat depends on the stage (config Chat.Campaigning; counting and post-counting are always one-to-one; by default ONE group chat during the campaign and one-to-one chats from counting on - see `chat_mode` in get_state). GROUP: just give `text`, everyone in the game reads it (`to` is ignored); write "@Party name" to tag a party, which notifies them. INDV (one-to-one): `to` = recipient party names or ids (or ["all"]); each recipient gets a private copy that only you and they see. Government offers are separate (propose_government).',
     schema: z.object({
-      to: z.array(z.string().min(1)).min(1).optional().describe('Recipients (party names / ids, or ["all"]); optional, default = everyone else'),
+      to: z.array(z.string().min(1)).min(1).optional().describe('One-to-one chats: recipients (party names / ids, or ["all"]). Ignored in the group chat.'),
       text: z.string().min(1).max(500),
     }),
     async run(s, i) {
@@ -535,8 +531,10 @@ export const ACTIONS: ActionDef[] = [
       const status = st.snapshot?.status;
       const contenders = s.players().filter((p) => ['active', 'disconnected', 'eliminated'].includes(p.status));
       if (contenders.length < 3) throw new AgentError('NEGOTIATION_DISABLED', 'With 2 players there is no chat.');
-      if (!chatOpen(s.cfg(), status)) throw new AgentError('WRONG_PHASE', s.cfg().messaging.opensAt === 'campaign' ? 'Chat opens when the campaign starts.' : 'Chat opens when counting starts.');
+      const mode = chatModeFor(s.cfg(), status);
+      if (!mode) throw new AgentError('WRONG_PHASE', s.cfg().chat.campaigning !== 'OFF' ? 'Chat opens when the campaign starts.' : 'Chat opens when counting starts.');
       const others = contenders.filter((p) => p.playerId !== s.client.me && p.status !== 'eliminated');
+      if (mode === 'INDV' && !i.to) throw new AgentError('INVALID_INPUT', 'Chats are one-to-one now: give `to` (party names, or ["all"] for a private copy to each party).');
       const ids = new Set<string>();
       for (const ref of i.to ?? ['all']) {
         if (/^(all|everyone|everybody)$/i.test(ref.trim())) others.forEach((p) => ids.add(p.playerId));
@@ -545,7 +543,7 @@ export const ACTIONS: ActionDef[] = [
       ids.delete(s.client.me as string);
       if (!ids.size) throw new AgentError('INVALID_INPUT', 'Choose at least one other player.');
       const m = await s.client.chat([...ids], i.text);
-      return { sent: true, message: chatView(s, m) };
+      return { sent: true, chat_mode: mode, message: chatView(s, m), ...(mode === 'INDV' ? { sent_to: namesOf(s, [...ids]) } : {}) };
     },
   }),
 

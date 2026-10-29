@@ -1,5 +1,5 @@
 // Compact, name-based views of game data for LLMs (ids replaced by party names / seat names, times by seconds).
-import { analystPrice, majorityOf, rallyAvailableAt } from '@hp/shared';
+import { analystPrice, chatModeFor, majorityOf, rallyAvailableAt } from '@hp/shared';
 import type {
   AnalystReport, ChatMessage, GlobalReports, CommittedView, CoalitionOffer, FinalResult, GameTimeline, Government, PlayerPublic, PortfolioAssignment, SeatDeclaration,
 } from '@hp/shared';
@@ -86,7 +86,7 @@ export function who(s: AgentSession, id: string, _withParty = false): string {
   return p.party?.name ?? p.nickname;
 }
 
-const namesOf = (s: AgentSession, ids: string[]): string[] => ids.map((i) => who(s, i));
+export const namesOf = (s: AgentSession, ids: string[]): string[] => ids.map((i) => who(s, i));
 
 export function portfoliosView(s: AgentSession, pf: PortfolioAssignment): Record<string, string[]> {
   const out: Record<string, string[]> = {};
@@ -224,9 +224,15 @@ export function declarationView(s: AgentSession, d: SeatDeclaration, dir: SeatDi
   return { seat: d.seat, seat_name: dir?.name(d.seat) ?? `Seat ${d.seat}`, status: d.status, party: who(s, d.playerId, true) };
 }
 
+/** A chat message: `to` is 'everyone' in the group chat, else the one recipient; tags ("@Party") are listed, with a flag when you are tagged. */
 export function chatView(s: AgentSession, m: ChatMessage) {
-  const group = s.cfg().messaging.mode === 'group';
-  return { id: m.id, from: who(s, m.from), to: group ? 'everyone' : namesOf(s, m.to), text: m.text, time: new Date(m.ts).toISOString().slice(11, 19) + 'Z', you_sent: m.from === s.client.me };
+  const group = (m.channel ?? 'group') === 'group';
+  const me = s.client.me;
+  return {
+    id: m.id, chat: group ? 'group' : 'one-to-one', from: who(s, m.from), to: group ? 'everyone' : namesOf(s, m.to), text: m.text,
+    time: new Date(m.ts).toISOString().slice(11, 19) + 'Z', you_sent: m.from === me,
+    ...(m.mentions?.length ? { tagged: namesOf(s, m.mentions), tags_you: !!me && m.mentions.includes(me) } : {}),
+  };
 }
 
 /** Human-friendly rendering of one logged event. */
@@ -315,6 +321,8 @@ export function stateView(s: AgentSession, dir: SeatDirectory | null) {
       post_counting_ends_in_s: secs(tl.postCountingEnd - now),
     };
     out.polled_phases = [...st.polledPhases].sort((a, b) => a - b).map((p) => p + 1);
+    // which chat this stage has (Chat.Campaigning; always INDV from counting): GROUP, INDV (one-to-one) or null = none now
+    out.chat_mode = (snap?.players.filter((p) => p.status !== 'pending' && p.status !== 'rejected').length ?? 0) >= 3 ? chatModeFor(s.cfg(), status) : null;
     if (dir && snap) {
       const pm = s.phaseMap(dir);
       let open = 0;

@@ -79,7 +79,7 @@ export function Counting() {
         <div className="hud-item"><span>{counting ? 'Counting ends in' : snap.government && snap.status === 'postCounting' ? 'Final result in' : 'Government must form within'}</span><strong>{formatClock(left)}</strong></div>
         <div className="hud-item wide" data-tour="tally"><TallyBar snap={snap} /></div>
       </div>
-      <div className="game-body">
+      <div className="game-body wide-side">
         <div className="map-col" data-tour="map">
           {counting && <div className="result-col"><ResultPanels /></div>}
           <SeatMap names={names} fills={fills} leading={leading} selectedSeat={selected} onSeatClick={selectSeat} />
