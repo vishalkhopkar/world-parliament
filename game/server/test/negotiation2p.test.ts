@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { Ctx } from './helpers';
+import { Ctx, pollAll, setResults } from './helpers';
 
 async function toCounting(c: Ctx, rallies: [number, number][]) {
   for (const [i, s] of rallies) await c.send(i, { action: 'campaign', type: 'rally', seat: s });
+  await c.runCampaignToCountingEnd();
+}
+/** 2 or 3 players with the seats split so that nobody holds a majority (a lone majority ends the game at once). */
+async function toCountingTied(c: Ctx) {
+  await pollAll(c);
+  const n = c.players.length;
+  await setResults(c, Object.fromEntries([...Array(8)].map((_, k) => [k + 1, n === 2 ? Number(k >= 4) : k % n])));
   await c.runCampaignToCountingEnd();
 }
 const all = (i: number) => [...Array(8)].map((_, k): [number, number] => [i, k + 1]);
@@ -10,7 +17,8 @@ const all = (i: number) => [...Array(8)].map((_, k): [number, number] => [i, k +
 describe('2-player games have no negotiation', () => {
   it('rejects chat and government proposals/responses with NEGOTIATION_DISABLED', async () => {
     const c = await new Ctx().started(2, 1);
-    await toCounting(c, all(0));
+    await toCountingTied(c);
+    expect((await c.game()).status).toBe('postCounting');
     await c.send(0, { action: 'chat', to: [c.p[1].playerId], text: 'deal?' });
     expect(c.lastError(0)?.error).toBe('NEGOTIATION_DISABLED');
     expect(await c.repo.listChat(c.gameId)).toHaveLength(0);
@@ -35,10 +43,7 @@ describe('2-player games have no negotiation', () => {
 
   it('finalise gives a draw on an exact tie', async () => {
     const c = await new Ctx().started(2, 1);
-    await toCounting(c, all(0));
-    // force an exact 4-4 split of the stored seat results
-    const rs = await c.repo.listSeatResults(c.gameId);
-    await c.repo.putSeatResults(c.gameId, rs.map((r) => ({ ...r, winner: (r.seat <= 4 ? c.p[0] : c.p[1]).playerId })));
+    await toCountingTied(c); // exact 4-4 split of the stored seat results
     c.clock.set(c.timeline.postCountingEnd);
     await c.svc.finalise(c.gameId);
     const r = (await c.repo.getResult(c.gameId))!;
@@ -48,7 +53,7 @@ describe('2-player games have no negotiation', () => {
 
   it('3-player games can still chat and propose', async () => {
     const c = await new Ctx().started(3, 1);
-    await toCounting(c, all(0));
+    await toCountingTied(c);
     await c.send(0, { action: 'chat', to: [c.p[1].playerId], text: 'deal?' });
     expect(c.notifier.to(c.p[1].playerId, 'chat')).toHaveLength(1);
     await c.send(1, { action: 'proposeGovernment', portfolios: { PM: [c.p[1].playerId], DPM: [c.p[0].playerId] } });

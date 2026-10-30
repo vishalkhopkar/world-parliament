@@ -82,3 +82,9 @@ Rules are in `../FEATURE REQUIREMENTS.docx` (updated in the body); numbers in `c
 - **Unchanged.** Time bonus (1.0 -> 1.05), first-mover bonus (`effects.firstMover.rally/roadshow` = 0.2 each), analyst prices, committed voters, voting model.
 - **Retune.** Balance results under the new rules are in `game/sim/REPORT.md` (written by another agent); read that file rather than the old numbers above.
 
+
+### 2026-10-29 - A lone majority party ends the game at once
+- Rule change (docx Negotiation section): once every seat is declared, a single non-eliminated party with >= majority seats ends the game immediately (outcome `majority`, government = `majorityGovernment`); there is no post-counting wait. An accepted valid coalition is still confirmed first. Hung parliaments (nobody at a majority) keep the full post-counting window.
+- Server: `GameService.evaluateOffers` now calls `loneMajorityHolder` (same guards as `formGovernment`) after `formGovernment` and then `finishGame(gameId, false)`; runs from `countReveal`, `eliminate`, `proposeGovernment`, `respondOffer`. Mock (`web/src/net/mock.ts` `endCounting`) confirms an accepted coalition first, then the lone majority.
+- Tests: `server/test/governmentTiming.test.ts` rewritten/extended; `helpers.ts` `driveTo('postCounting'|'finished')` now spreads seats round-robin so nobody has a majority (deterministic), plus `statusAfterCount`. Several older tests that silently relied on a majority holder sitting in post-counting were adapted.
+- Tour: no change needed (the scripted game has nobody at the majority). RULES.md updated.

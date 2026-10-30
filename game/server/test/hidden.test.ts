@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ServerMessage } from '@hp/shared';
-import { Ctx } from './helpers';
+import { Ctx, driveTo } from './helpers';
 
 type Json = unknown;
 function walk(v: Json, fn: (key: string | null, value: Json, path: string[]) => void, path: string[] = []): void {
@@ -29,7 +29,7 @@ describe('hidden information', () => {
     await c.svc.connect(c.gameId, c.p[1].token, 'c1b');
     c.p[1].conn = 'c1b';
     await c.send(1, { action: 'ping', clientTime: 1 });
-    await c.runCampaignToCountingEnd();
+    await driveTo(c, 'postCounting'); // seats split: a lone majority would end the game before the chat/offer below
     await c.send(0, { action: 'chat', to: [b], text: 'secret deal' });
     await c.send(0, { action: 'proposeGovernment', portfolios: { PM: [a], HOME: [b] } });
     const offer = (await c.repo.listOffers(c.gameId))[0];

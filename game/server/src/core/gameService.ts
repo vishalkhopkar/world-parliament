@@ -1185,7 +1185,25 @@ export class GameService {
    * first confirmed government wins even with concurrent invocations.
    */
   async evaluateOffers(gameId: string): Promise<void> {
-    if (await this.formGovernment(gameId)) await this.finishGame(gameId, false);
+    if (await this.formGovernment(gameId)) { await this.finishGame(gameId, false); return; }
+    if (await this.loneMajorityHolder(gameId)) await this.finishGame(gameId, false); // majorityGovernment fallback
+  }
+
+  /**
+   * Designer's rule: once every seat is declared, a single non-eliminated party holding a majority of the seats ends the
+   * game at once (no need to wait for the post-counting timer). Same guards as formGovernment.
+   */
+  private async loneMajorityHolder(gameId: string): Promise<boolean> {
+    const game = await this.repo.getGame(gameId);
+    if (!game || (game.status !== 'counting' && game.status !== 'postCounting')) return false;
+    if (await this.repo.getGovernment(gameId)) return false;
+    const plan = await this.repo.getCountPlan(gameId);
+    if (!plan || game.revealedStep < plan.steps) return false;
+    const wins = await this.knownWins(game);
+    const { cfg } = this.loadMap(game.mapId);
+    const need = majorityOf(cfg.seatCount);
+    const players = await this.repo.listPlayers(gameId);
+    return players.some((p) => CONTENDER.has(p.status) && (wins[p.playerId] ?? 0) >= need);
   }
 
   /** True once the game is over (or unknown): the local scheduler stops waiting for postCountingEnd. */

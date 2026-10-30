@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { finalResult, majorityGovernment, majorityOf } from '@hp/shared';
 import type { SeatDeclaration, ServerMessage } from '@hp/shared';
-import { Ctx, setResults } from './helpers';
+import { Ctx, setResults, statusAfterCount } from './helpers';
 
 /** Everything polled, counting started (step 0), clock at campaignEnd. */
 async function startCounting(c: Ctx) {
@@ -42,7 +42,7 @@ describe('counting', () => {
     }
     expect(calls).toBeGreaterThan(3);
     expect(c.clock.now()).toBeLessThanOrEqual(c.timeline.countingEnd);
-    expect((await c.game()).status).toBe('postCounting');
+    expect((await c.game()).status).toBe(await statusAfterCount(c));
 
     const updates = c.notifier.to(c.p[2].playerId, 'seatUpdate') as Extract<ServerMessage, { type: 'seatUpdate' }>[];
     const seen = new Map<number, string[]>();
@@ -198,7 +198,7 @@ describe('coalition', () => {
     expect(majorityOf(8)).toBe(5);
   });
 
-  it('a coalition without a majority of seats is never confirmed', async () => {
+  it('a coalition without a majority of seats is never confirmed (the lone majority party ends the game instead)', async () => {
     const c = await new Ctx().started(3, 1);
     await aWinsAll(c); // player 0 holds all seats; 1 + 2 have none
     await startCounting(c);
@@ -207,7 +207,10 @@ describe('coalition', () => {
     await c.send(2, { action: 'respondOffer', offerId: offer.offerId, accept: true });
     c.clock.set(c.timeline.countingEnd);
     await c.svc.countReveal(c.gameId);
-    expect(await c.repo.getGovernment(c.gameId)).toBeNull();
+    const gov = (await c.repo.getGovernment(c.gameId))!;
+    expect(gov.pm).toBe(c.p[0].playerId);
+    expect(gov.viaNegotiation).toBe(false);
+    expect((await c.game()).status).toBe('finished');
     expect((await c.repo.getOffer(c.gameId, offer.offerId))!.status).toBe('accepted');
   });
 
@@ -306,11 +309,12 @@ describe('finalise', () => {
   it('coalition outcome matches finalResult; winner decided by points', async () => {
     const c = await new Ctx().started(3, 1);
     await aWinsAll(c);
-    await c.runCampaignToCountingEnd();
+    await startCounting(c);
     await c.send(1, { action: 'proposeGovernment', portfolios: { PM: [c.p[1].playerId], DPM: [c.p[0].playerId] } });
     const o = (await c.repo.listOffers(c.gameId))[0];
     await c.send(0, { action: 'respondOffer', offerId: o.offerId, accept: true });
-    // all seats are declared: confirmed at acceptance
+    // accepted during counting: the coalition (not the lone majority) is confirmed at the last count step
+    await c.runCampaignToCountingEnd();
     const gov = (await c.repo.getGovernment(c.gameId))!;
     expect(gov.pm).toBe(c.p[1].playerId);
     c.clock.set(c.timeline.postCountingEnd);
@@ -325,8 +329,9 @@ describe('finalise', () => {
   it('no majority and no government -> noGovernment', async () => {
     const c = await new Ctx().started(3, 3);
     // P0 wins 1,2,7; P1 wins 3,4,6,8; P2 wins 5 -> nobody has 5 of 8 (set directly: committed voters make polled winners random)
-    await c.runCampaignToCountingEnd();
+    await startCounting(c);
     await setResults(c, { 1: 0, 2: 0, 7: 0, 3: 1, 4: 1, 6: 1, 8: 1, 5: 2 });
+    await c.runCampaignToCountingEnd();
     c.clock.set(c.timeline.postCountingEnd);
     await c.svc.finalise(c.gameId);
     const result = (await c.repo.getResult(c.gameId))!;

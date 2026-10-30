@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { majorityOf } from '@hp/shared';
 import type { SeatDeclaration, ServerMessage } from '@hp/shared';
-import { Ctx, driveTo, lineMap, pollAll, setResults } from './helpers';
+import { Ctx, driveTo, lineMap, pollAll, setResults, statusAfterCount } from './helpers';
 
 const upd = (c: Ctx, i: number) => c.notifier.to(c.p[i].playerId, 'seatUpdate') as Extract<ServerMessage, { type: 'seatUpdate' }>[];
 
@@ -172,7 +172,7 @@ describe('countReveal', () => {
       for (const m of msgs) { expect(m.tally.declared).toBeGreaterThanOrEqual(declared); declared = m.tally.declared; expect(m.tally.total).toBe(8); }
       expect(declared).toBe(8);
     }
-    expect((await c.game()).status).toBe('postCounting');
+    expect((await c.game()).status).toBe(await statusAfterCount(c));
     expect((c.notifier.to(c.p[0].playerId, 'status') as { status: string }[]).filter((m) => m.status === 'postCounting')).toHaveLength(1);
   });
 
@@ -202,7 +202,7 @@ describe('countReveal', () => {
     expect((await c.game()).status).toBe('counting');
     c.clock.set(plan.startMs + plan.steps * plan.intervalMs);
     expect((await c.svc.countReveal(c.gameId)).done).toBe(true);
-    expect((await c.game()).status).toBe('postCounting');
+    expect((await c.game()).status).toBe(await statusAfterCount(c));
   });
 
   it('a hello in the middle of counting only contains what has been declared so far', async () => {
@@ -242,7 +242,7 @@ describe('finalise', () => {
   it('concurrent finalise calls produce exactly one result broadcast and one stored result', async () => {
     const c = await new Ctx().started(3, 1);
     for (let s = 1; s <= 8; s++) await c.send(0, { action: 'campaign', type: 'rally', seat: s });
-    await c.runCampaignToCountingEnd();
+    await pollAll(c);
     c.notifier.clear();
     await Promise.all(Array.from({ length: 6 }, () => c.svc.finalise(c.gameId)));
     for (let i = 0; i < 3; i++) {

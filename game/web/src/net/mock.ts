@@ -713,9 +713,10 @@ export class MockTransport implements Transport {
     g.status = 'postCounting';
     this.emit({ type: 'status', status: 'postCounting', timeline: g.timeline });
     const wins = Object.entries(g.tally!.wins).sort((a, b) => b[1] - a[1]);
+    // an accepted valid coalition is confirmed first; otherwise a lone party with a majority ends the game at once
+    if (this.confirmAccepted(g)) return;
     if (wins[0][1] >= majorityOf(g.cfg.seatCount) && !g.government) this.finish(g, 'majority');
     else if (wins.length > 1 && wins[0][1] === wins[1][1]) this.finish(g, 'draw');
-    else this.confirmAccepted(g);
   }
   private finish(g: MockGame, outcome: FinalResult['outcome']) {
     const wins = g.tally!.wins;

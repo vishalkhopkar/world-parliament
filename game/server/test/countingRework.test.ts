@@ -5,7 +5,7 @@ import { WORLD_CONFIG } from '@hp/shared';
 import type { SeatDeclaration, ServerMessage } from '@hp/shared';
 import { declaredState, fullTally } from '../src/core/counting';
 import type { CountPlan } from '../src/core/types';
-import { Ctx, TEST_CFG } from './helpers';
+import { Ctx, TEST_CFG, statusAfterCount } from './helpers';
 
 type Update = Extract<ServerMessage, { type: 'seatUpdate' }>;
 const PROD_DURATIONS = { ...TEST_CFG, durations: { ...WORLD_CONFIG.durations, campaignMs: 60_000, postCountingMs: 10_000 } };
@@ -100,7 +100,7 @@ describe('the reveal over time', () => {
     for (const u of ups) if (u.declaration.status === 'won') expect(u.declaration.playerId).toBe(results.find((x) => x.seat === u.declaration.seat)!.winner);
     expect(ups[ups.length - 1].tally.wins).toEqual(fullTally(results));
     expect(ups[ups.length - 1].tally.declared).toBe(decided.length);
-    expect((await c.game()).status).toBe('postCounting');
+    expect((await c.game()).status).toBe(await statusAfterCount(c));
   });
 
   it('every seat has a winner (committed voters), so all are declared by the last step', async () => {
@@ -146,7 +146,7 @@ describe('the reveal over time', () => {
     await lump.svc.countReveal(lump.gameId);
     const wonOf = (c: Ctx) => (c.notifier.to(c.p[0].playerId, 'seatUpdate') as Update[]).filter((u) => u.declaration.status === 'won').map((u) => u.declaration.seat).sort();
     expect(wonOf(lump)).toEqual(wonOf(stepwise));
-    expect((await lump.game()).status).toBe('postCounting');
+    expect((await lump.game()).status).toBe(await statusAfterCount(lump));
   });
 });
 
@@ -183,6 +183,6 @@ describe('eliminating a player mid-count', () => {
     const ups = c.notifier.to(c.p[1].playerId, 'seatUpdate') as Update[];
     for (const u of ups) expect(u.declaration.playerId).not.toBe(victim);
     expect(ups[ups.length - 1].tally.wins).toEqual(fullTally(results));
-    expect((await c.game()).status).toBe('postCounting');
+    expect((await c.game()).status).toBe(await statusAfterCount(c));
   });
 });

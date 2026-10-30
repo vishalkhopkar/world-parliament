@@ -71,6 +71,13 @@ describe('grace period and elimination', () => {
     for (let i = 0; i < 3; i++) await c.send(1, { action: 'campaign', type: 'rally', seat: 2 });
     await c.send(2, { action: 'campaign', type: 'rally', seat: 2 });
     await pollAll(c);
+    // no party at the majority (else the game would already be over): seat 2 goes to p1 with p2 as runner-up
+    const [a, b, d] = c.p.map((x) => x.playerId);
+    await c.repo.putSeatResults(c.gameId, [
+      { seat: 1, phase: 0, winner: a, shares: { [a]: 1 } }, { seat: 3, phase: 0, winner: a, shares: { [a]: 1 } }, { seat: 4, phase: 0, winner: a, shares: { [a]: 1 } },
+      { seat: 2, phase: 0, winner: b, shares: { [b]: 0.6, [d]: 0.4 } }, { seat: 5, phase: 0, winner: b, shares: { [b]: 1 } },
+      { seat: 6, phase: 0, winner: d, shares: { [d]: 1 } }, { seat: 7, phase: 0, winner: d, shares: { [d]: 1 } }, { seat: 8, phase: 0, winner: d, shares: { [d]: 1 } },
+    ]);
     const plan = (await c.repo.getCountPlan(c.gameId))!;
     c.clock.set(plan.startMs + plan.steps * plan.intervalMs);
     await c.svc.countReveal(c.gameId);
@@ -142,8 +149,9 @@ describe('grace period and elimination', () => {
   it('a result never lists an eliminated player as winner and gives them 0 points', async () => {
     const c = await new Ctx().started(4, 1);
     for (let s = 1; s <= 8; s++) await c.send(1, { action: 'campaign', type: 'rally', seat: s });
-    await driveTo(c, 'postCounting');
-    await c.svc.eliminate(c.gameId, c.p[1].playerId);
+    await driveTo(c, 'counting');
+    await c.svc.eliminate(c.gameId, c.p[1].playerId); // p1 held every seat
+    await c.runCampaignToCountingEnd();
     await c.svc.finalise(c.gameId);
     const result = (await c.repo.getResult(c.gameId))!;
     expect(result.winners).not.toContain(c.p[1].playerId);

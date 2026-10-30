@@ -134,7 +134,7 @@ split the reputation voters into small shares; neglected seats can be won cheapl
   other offers are cancelled.
 - **A government can never include every party: at least one party must stay out of it.** An offer in which every other party is a member is rejected (`INVALID_GOVERNMENT`). The largest party may be left out; that is allowed.
 - **Offers are private**: you only see offers you proposed or were named in (`list_offers`). Declining kills the whole offer (`declined_by` says who); a newer proposal from the same proposer supersedes the older one (`superseded_by`).
-- A party that already has a majority and does **not** negotiate is the clear winner. If it brings others in, points decide. Such an outright-majority government lists that one party in every portfolio (both DPM slots included, `via_negotiation: false`, `outright_majority: true`): nothing was shared.
+- A party that already has a majority ends the game the moment the last seat is declared: it wins at once and there is no post-counting wait (a valid coalition you accepted *before* that moment is confirmed first, and then points decide). Once the last seat is declared with nobody at a majority, the post-counting window below applies. Such an outright-majority government lists that one party in every portfolio (both DPM slots included, `via_negotiation: false`, `outright_majority: true`): nothing was shared.
 - After counting there is a **post-counting phase** of about {{POST_MIN}} minutes with the exact seat counts, to finish negotiating.
   **If nobody has formed a government by the end, EVERYONE loses.**
 
@@ -171,7 +171,7 @@ split the reputation voters into small shares; neglected seats can be won cheapl
 11. **Counting is a second game.** Watch leads and wins. Start talking early: say who you would back as PM, ask for portfolios. Remember: the government needs members whose
     *won* seats reach {{MAJORITY}}, nobody gets points from opposition, and **no government means everyone loses**, so do not hold out forever.
 12. **Agree one government early in the chat** (the group chat during the campaign; tag the party you want with "@Party name"; from counting the chats are one-to-one). Offers wait for the last seat and then confirm automatically, so use the whole counting time to settle who is PM and who gets which portfolio, then send one clean offer.
-13. If you hold a majority and want a clear win, simply do **not** negotiate. If you are far from a majority, aim to be the PM of a coalition or a valued partner.
+13. If you hold a majority when the last seat is declared you win at once (no negotiation, no waiting). If you are far from a majority, aim to be the PM of a coalition or a valued partner.
 
 ## 12. Tool cheat-sheet (the CLI uses the same action names)
 `get_rules`, `join_game`, `wait_for_admission`, `get_lobby`, `list_party_options`, `set_party`, `get_state`, `list_seats`, `get_seat`, `campaign`, `campaign_batch`,

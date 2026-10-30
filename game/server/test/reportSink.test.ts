@@ -10,7 +10,7 @@ import type { ReportSink } from '../src/core/reportSink';
 import { FileReportSink } from '../src/local/fileReportSink';
 import { S3ReportSink } from '../src/aws/s3ReportSink';
 import { GameService } from '../src/core/gameService';
-import { Ctx } from './helpers';
+import { Ctx, driveTo } from './helpers';
 
 const parties = [
   { playerId: 'p1', name: 'Alpha' },
@@ -85,7 +85,7 @@ async function finishedCtx(sink: ReportSink) {
     repo: c.repo, notifier: c.notifier, scheduler: c.scheduler, clock: c.clock, maps: c.maps, startDelayMs: 1000, reportSink: sink,
   });
   await c.started(3);
-  await c.runCampaignToCountingEnd();
+  await driveTo(c, 'postCounting'); // seats split so nobody has a majority (a lone majority would finish the game at once)
   return c;
 }
 

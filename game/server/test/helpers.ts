@@ -211,6 +211,17 @@ export async function driveTo(c: Ctx, status: 'campaign' | 'counting' | 'postCou
   if (status === 'campaign') return;
   if (status === 'abandoned') { await c.repo.updateGame(c.gameId, { status: 'abandoned' }); return; }
   if (status === 'counting') { await pollAll(c); return; }
+  // spread the seats round-robin so that NO party holds a majority (a lone majority ends the game at the last count step)
+  await pollAll(c);
+  const n = c.players.length;
+  await setResults(c, Object.fromEntries(c.map.seats.map((st, i) => [st.id, i % n])));
   await c.runCampaignToCountingEnd();
   if (status === 'finished') { c.clock.set(c.timeline.postCountingEnd); await c.svc.finalise(c.gameId); }
+}
+
+/** The status a game is in right after the last seat is declared: finished when one party holds a majority, else postCounting. */
+export async function statusAfterCount(c: Ctx): Promise<'finished' | 'postCounting'> {
+  const wins: Record<string, number> = {};
+  for (const r of await c.repo.listSeatResults(c.gameId)) if (r.winner) wins[r.winner] = (wins[r.winner] ?? 0) + 1;
+  return Math.max(0, ...Object.values(wins)) >= Math.floor(c.map.seatCount / 2) + 1 ? 'finished' : 'postCounting';
 }

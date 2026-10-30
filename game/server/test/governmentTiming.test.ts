@@ -33,6 +33,17 @@ async function fiveForP0(n: number, opts: { opensAt?: 'campaign' | 'counting' } 
   return c;
 }
 
+/** NO party at the majority. 5 players on 8 seats: p0 wins 1-3, p1 4-5, p2 6-7, p3 8, p4 nothing. p1 (PM) + p2 (Home) = 4, short of 5; + p3 = 5. */
+async function split(): Promise<Ctx> {
+  const c = await new Ctx({ map: lineMap(8), cfg: { ...PURE, mapId: 'line', seatCount: 8, chat: { campaigning: 'OFF' } } }).started(5, 1);
+  const owner = [0, 0, 0, 1, 1, 2, 2, 3];
+  for (let s = 1; s <= 8; s++) await c.send(owner[s - 1], { action: 'campaign', type: 'roadshow', seat: s });
+  await pollAll(c);
+  const results = await c.repo.listSeatResults(c.gameId);
+  expect(owner.map((o, i) => results.find((r) => r.seat === i + 1)!.winner === c.p[o].playerId)).toEqual(Array(8).fill(true));
+  return c;
+}
+
 async function propose(c: Ctx, i: number, portfolios: Record<string, number[]>, partners?: number[]): Promise<CoalitionOffer> {
   const ids = (xs: number[]) => xs.map((x) => c.p[x].playerId);
   await c.send(i, { action: 'proposeGovernment', portfolios: Object.fromEntries(Object.entries(portfolios).map(([k, v]) => [k, ids(v)])), ...(partners ? { partners: ids(partners) } : {}) });
@@ -92,34 +103,25 @@ describe('a government forms only after every seat is declared, and then the gam
   });
 
   it('in post-counting the acceptance that completes a valid offer forms the government and finishes the game', async () => {
-    const c = await fiveForP0(4);
+    const c = await split();
     await c.runCampaignToCountingEnd();
     expect((await c.game()).status).toBe('postCounting');
-    const o = await propose(c, 0, { PM: [0], HOME: [1], DEFENCE: [2] });
-    await c.send(1, { action: 'respondOffer', offerId: o.offerId, accept: true });
-    expect((await c.game()).status).toBe('postCounting'); // p2 has not accepted yet
-    c.notifier.clear();
+    const o = await propose(c, 1, { PM: [1], HOME: [2], DEFENCE: [3] });
     await c.send(2, { action: 'respondOffer', offerId: o.offerId, accept: true });
-    expect(errs(c, 2)).toHaveLength(0);
+    expect((await c.game()).status).toBe('postCounting'); // p3 has not accepted yet
+    c.notifier.clear();
+    await c.send(3, { action: 'respondOffer', offerId: o.offerId, accept: true });
+    expect(errs(c, 3)).toHaveLength(0);
     expect((await c.game()).status).toBe('finished');
-    expect((await c.repo.getGovernment(c.gameId))!.members.sort()).toEqual([c.p[0].playerId, c.p[1].playerId, c.p[2].playerId].sort());
-    for (let i = 0; i < 4; i++) {
+    expect((await c.repo.getGovernment(c.gameId))!.members.sort()).toEqual([c.p[1].playerId, c.p[2].playerId, c.p[3].playerId].sort());
+    for (let i = 0; i < 5; i++) {
       expect(msgs(c, i, 'government')).toHaveLength(1);
       expect(msgs(c, i, 'result')).toHaveLength(1);
       expect(statuses(c, i)).toEqual(['finished']);
     }
     // nothing can be negotiated any more
-    await c.send(3, { action: 'proposeGovernment', portfolios: { PM: [c.p[3].playerId] } });
-    expect(errs(c, 3).pop()!.error).toBe('WRONG_PHASE');
-  });
-
-  it('a lone majority party proposing itself in post-counting forms and finishes at once', async () => {
-    const c = await fiveForP0(3);
-    await c.runCampaignToCountingEnd();
-    await propose(c, 0, { PM: [0] });
-    expect((await c.game()).status).toBe('finished');
-    expect((await c.repo.getGovernment(c.gameId))!.viaNegotiation).toBe(true);
-    expect(msgs(c, 1, 'result')).toHaveLength(1);
+    await c.send(4, { action: 'proposeGovernment', portfolios: { PM: [c.p[4].playerId] } });
+    expect(errs(c, 4).pop()!.error).toBe('WRONG_PHASE');
   });
 
   it('in post-counting an elimination that gives an accepted offer its majority forms the government and finishes the game', async () => {
@@ -142,31 +144,102 @@ describe('a government forms only after every seat is declared, and then the gam
     expect(msgs(c, 3, 'result')).toHaveLength(1);
   });
 
-  it('an offer short of the majority keeps the game in post-counting until the timer ends it', async () => {
+  it('an accepted offer short of the majority does not hold the game back: the lone majority party ends it at once', async () => {
     const c = await fiveForP0(4);
-    await c.runCampaignToCountingEnd();
     const o = await propose(c, 1, { PM: [1], HOME: [2] });
     await c.send(2, { action: 'respondOffer', offerId: o.offerId, accept: true });
     expect((await c.repo.getOffer(c.gameId, o.offerId))!.status).toBe('accepted');
-    expect((await c.game()).status).toBe('postCounting');
+    await c.runCampaignToCountingEnd();
+    expect((await c.game()).status).toBe('finished');
+    expect((await c.repo.getResult(c.gameId))!.outcome).toBe('majority');
+  });
+});
+
+describe('a lone party with a majority of the seats ends the game as soon as every seat is declared', () => {
+  it('no offers: finished at the last count step, outcome majority, government = that party, each message once', async () => {
+    const c = await fiveForP0(3);
+    c.notifier.clear();
+    const r = await c.runCampaignToCountingEnd();
+    expect(r.done).toBe(true);
+    expect((await c.game()).status).toBe('finished');
+    const result = (await c.repo.getResult(c.gameId))!;
+    expect(result.outcome).toBe('majority');
+    expect((await c.repo.getGovernment(c.gameId))!.pm).toBe(c.p[0].playerId);
+    for (let i = 0; i < 3; i++) {
+      expect(msgs(c, i, 'government'), `player ${i}`).toHaveLength(1);
+      expect(msgs(c, i, 'result'), `player ${i}`).toHaveLength(1);
+      expect(statuses(c, i)).toEqual(['postCounting', 'finished']);
+    }
+    const before = JSON.stringify(c.notifier.log);
     c.clock.set(c.timeline.postCountingEnd);
     await c.svc.finalise(c.gameId);
-    expect((await c.repo.getResult(c.gameId))!.outcome).toBe('majority'); // p0's lone majority, unchanged path
+    expect(JSON.stringify(c.notifier.log)).toBe(before);
+  });
+
+  it('still waiting while seats are being declared (no early finish before the last step)', async () => {
+    const c = await fiveForP0(3);
+    const plan = (await c.repo.getCountPlan(c.gameId))!;
+    c.clock.set(stepTime(plan, plan.steps - 1));
+    expect((await c.svc.countReveal(c.gameId)).done).toBe(false);
+    await c.svc.evaluateOffers(c.gameId);
+    expect((await c.game()).status).toBe('counting');
+    expect(await c.repo.getGovernment(c.gameId)).toBeNull();
+  });
+
+  it('a majority that arises from an elimination finishes the game', async () => {
+    const c = await new Ctx().started(4, 1);
+    await driveTo(c, 'postCounting');
+    const [a, b, d, e] = c.p.map((p) => p.playerId);
+    await c.repo.putSeatResults(c.gameId, [
+      ...[1, 2, 3, 4].map((seat) => ({ seat, phase: 0, winner: b, shares: { [b]: 1 } })),
+      { seat: 5, phase: 0, winner: d, shares: { [d]: 0.6, [b]: 0.4 } },
+      { seat: 6, phase: 0, winner: e, shares: { [e]: 1 } },
+      { seat: 7, phase: 0, winner: e, shares: { [e]: 1 } },
+      { seat: 8, phase: 0, winner: a, shares: { [a]: 1 } },
+    ]);
+    expect((await c.game()).status).toBe('postCounting');
+    await c.svc.eliminate(c.gameId, d); // seat 5 goes to b: b = 5
+    expect((await c.game()).status).toBe('finished');
+    expect((await c.repo.getGovernment(c.gameId))!.pm).toBe(b);
+    expect((await c.repo.getResult(c.gameId))!.outcome).toBe('majority');
+  });
+
+  it('open and declined offers do not block it', async () => {
+    const c = await fiveForP0(4);
+    const o1 = await propose(c, 1, { PM: [1], HOME: [2] });
+    c.clock.advance(1);
+    const o2 = await propose(c, 2, { PM: [2], HOME: [3] });
+    await c.send(3, { action: 'respondOffer', offerId: o2.offerId, accept: false });
+    expect((await c.repo.getOffer(c.gameId, o1.offerId))!.status).toBe('open');
+    expect((await c.repo.getOffer(c.gameId, o2.offerId))!.status).toBe('declined');
+    await c.runCampaignToCountingEnd();
+    expect((await c.game()).status).toBe('finished');
+    expect((await c.repo.getResult(c.gameId))!.outcome).toBe('majority');
+  });
+
+  it('an eliminated majority holder does not end the game', async () => {
+    const c = await fiveForP0(3);
+    await c.svc.eliminate(c.gameId, c.p[0].playerId);
+    await c.runCampaignToCountingEnd();
+    expect((await c.repo.getResult(c.gameId))?.outcome).not.toBe('majority');
+  });
+
+  it('no party at the majority: the game still waits for the post-counting timer (hung parliament)', async () => {
+    const c = await new Ctx({ map: lineMap(8), cfg: { ...PURE, mapId: 'line', seatCount: 8, chat: { campaigning: 'OFF' } } }).started(4, 1);
+    const owner = [0, 0, 0, 1, 1, 2, 2, 3];
+    for (let s = 1; s <= 8; s++) await c.send(owner[s - 1], { action: 'campaign', type: 'roadshow', seat: s });
+    await pollAll(c);
+    await c.runCampaignToCountingEnd();
+    expect((await c.game()).status).toBe('postCounting');
+    expect(await c.repo.getResult(c.gameId)).toBeNull();
+    c.clock.set(c.timeline.postCountingEnd);
+    await c.svc.finalise(c.gameId);
+    expect((await c.game()).status).toBe('finished');
+    expect((await c.repo.getResult(c.gameId))!.outcome).not.toBe('majority');
   });
 });
 
 describe('partners invited without a portfolio count towards the majority', () => {
-  /** 5 players on 8 seats: p0 wins 1-3, p1 4-5, p2 6-7, p3 8, p4 nothing. p1 (PM) + p2 (Home) = 4, short of 5; + p3 = 5. */
-  async function split(): Promise<Ctx> {
-    const c = await new Ctx({ map: lineMap(8), cfg: { ...PURE, mapId: 'line', seatCount: 8, chat: { campaigning: 'OFF' } } }).started(5, 1);
-    const owner = [0, 0, 0, 1, 1, 2, 2, 3];
-    for (let s = 1; s <= 8; s++) await c.send(owner[s - 1], { action: 'campaign', type: 'roadshow', seat: s });
-    await pollAll(c);
-    const results = await c.repo.listSeatResults(c.gameId);
-    expect(owner.map((o, i) => results.find((r) => r.seat === i + 1)!.winner === c.p[o].playerId)).toEqual(Array(8).fill(true));
-    return c;
-  }
-
   it('accepted during counting: confirmed and finished at the last count step', async () => {
     const c = await split();
     const o = await propose(c, 1, { PM: [1], HOME: [2] }, [3]);
@@ -238,12 +311,13 @@ describe('at least one party must stay out of the government', () => {
   });
 
   it('an accepted offer that covers every remaining contender after an elimination is never confirmed', async () => {
-    const c = await fiveForP0(4);
-    const o = await propose(c, 0, { PM: [0], HOME: [1], DEFENCE: [2] }); // leaves p3 out: valid when made
-    await c.send(1, { action: 'respondOffer', offerId: o.offerId, accept: true });
+    const c = await split();
+    const o = await propose(c, 1, { PM: [1], HOME: [2] }, [3]); // leaves p0 and p4 out: valid when made
     await c.send(2, { action: 'respondOffer', offerId: o.offerId, accept: true });
+    await c.send(3, { action: 'respondOffer', offerId: o.offerId, accept: true });
     expect((await c.repo.getOffer(c.gameId, o.offerId))!.status).toBe('accepted');
-    await c.svc.eliminate(c.gameId, c.p[3].playerId);
+    await c.svc.eliminate(c.gameId, c.p[0].playerId);
+    await c.svc.eliminate(c.gameId, c.p[4].playerId);
     await c.runCampaignToCountingEnd();
     expect(await c.repo.getGovernment(c.gameId)).toBeNull();
     expect((await c.repo.getOffer(c.gameId, o.offerId))!.status).toBe('accepted');
@@ -343,11 +417,13 @@ describe('chat window (Chat.Campaigning: GROUP / INDV = from the campaign, OFF =
 
 describe('isFinished (used by the local scheduler)', () => {
   it('false while the game is running, true once finished or unknown', async () => {
-    const c = await fiveForP0(3);
+    const c = await split();
     expect(await c.svc.isFinished(c.gameId)).toBe(false);
     await c.runCampaignToCountingEnd();
     expect(await c.svc.isFinished(c.gameId)).toBe(false);
-    await propose(c, 0, { PM: [0] });
+    const o = await propose(c, 1, { PM: [1], HOME: [2] }, [3]);
+    await c.send(2, { action: 'respondOffer', offerId: o.offerId, accept: true });
+    await c.send(3, { action: 'respondOffer', offerId: o.offerId, accept: true });
     expect(await c.svc.isFinished(c.gameId)).toBe(true);
     expect(await c.svc.isFinished('nope')).toBe(true);
   });

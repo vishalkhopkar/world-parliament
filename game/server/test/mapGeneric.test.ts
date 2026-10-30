@@ -261,7 +261,7 @@ describe('fake maps play like real ones', () => {
     for (const id of ids) await c.send(0, { action: 'campaign', type: 'rally', seat: id });
     await c.send(0, { action: 'campaign', type: 'rally', seat: 1 }); // 1 is not a seat of this map
     expect(c.lastError(0)?.error).toBe('BAD_REQUEST');
-    await driveTo(c, 'finished');
+    await c.runCampaignToCountingEnd(); // p0's lone majority ends the game at the last count step
     const res = await c.repo.listSeatResults(c.gameId);
     expect(res.map((r) => r.seat).sort((x, y) => x - y)).toEqual(ids);
     const result = (await c.repo.getResult(c.gameId))!;
