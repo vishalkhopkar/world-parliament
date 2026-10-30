@@ -14,8 +14,9 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const gameDir = path.resolve(here, '..');
 const SHOTS = path.join(here, 'shots');
 const CHROME = process.env.CHROME_PATH ?? 'C:/Program Files/Google/Chrome/Application/chrome.exe';
-const API_PORT = 8787, WEB_PORT = 5173;
-const URL_ = `http://localhost:${WEB_PORT}/?server=local`;
+// Ports can be overridden (E2E_API_PORT / E2E_WEB_PORT) when a dev server already holds 8787/5173.
+const API_PORT = Number(process.env.E2E_API_PORT ?? 8787), WEB_PORT = Number(process.env.E2E_WEB_PORT ?? 5173);
+const URL_ = API_PORT === 8787 ? `http://localhost:${WEB_PORT}/?server=local` : `http://localhost:${WEB_PORT}/?server=${encodeURIComponent(`http://localhost:${API_PORT}`)}`;
 
 const children: ChildProcess[] = [];
 const t0 = Date.now();

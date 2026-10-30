@@ -81,6 +81,18 @@ describe('GroupChat (one common chat, Teams-style rows)', () => {
     expect(input.value).toBe('x @Blue Anchor ');
   });
 
+  it('after picking, the caret is placed right away (not in a later frame), so fast typing is not moved back', () => {
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 0); // frames never run
+    render(<GroupChat me="a" people={people} messages={[]} onSend={vi.fn()} />);
+    const input = screen.getByPlaceholderText(/Message everyone/) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: 'Hi @Bl', selectionStart: 6 } });
+    fireEvent.mouseDown(screen.getByRole('option', { name: /Blue Anchor/ }));
+    expect(input.value.endsWith(' ')).toBe(true);
+    expect(input.selectionStart).toBe(input.value.length);
+    expect(document.activeElement).toBe(input);
+    raf.mockRestore();
+  });
+
   it('reports the newest message time as read once on screen', () => {
     const onRead = vi.fn();
     render(<GroupChat me="a" people={people} onSend={vi.fn()} onRead={onRead} messages={[gm('m1', 'b', 'one', 1000), gm('m2', 'c', 'two', 4000)]} />);

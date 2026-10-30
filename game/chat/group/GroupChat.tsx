@@ -1,6 +1,6 @@
 // The common group chat (Chat.Campaigning = GROUP; the campaign only): one conversation everybody reads.
 // Typing @ opens a picker of parties; the tagged party gets a badge (the server works out who was tagged).
-import { useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import type { ChatMessage, PlayerId } from '@hp/shared';
 import { groupItems } from '../common/conversations';
@@ -40,6 +40,14 @@ export function GroupChat({ me, people, messages, onSend, onRead, renderAvatar, 
   const [pick, setPick] = useState(0);
   const [closedAt, setClosedAt] = useState<number | null>(null); // Escape closes the picker for this @
   const input = useRef<HTMLInputElement>(null);
+  // After picking a party the caret goes behind the inserted tag. Done in a layout effect (right after the DOM update,
+  // before the browser can handle the next keystroke); a later requestAnimationFrame moved the caret back while the user was already typing.
+  const [restore, setRestore] = useState(0);
+  useLayoutEffect(() => {
+    const el = input.current;
+    if (restore > 0 && el) { el.focus(); el.setSelectionRange(caret, caret); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restore]);
 
   const q = mentionQuery(text, caret);
   // "@Green Leaf " (a whole name and a space) is a finished tag: no picker
@@ -51,7 +59,7 @@ export function GroupChat({ me, people, messages, onSend, onRead, renderAvatar, 
     if (!q) return;
     const r = insertMention(text, q.start, caret, p.name);
     setText(r.text); setCaret(r.caret); setPick(0);
-    requestAnimationFrame(() => { const el = input.current; if (el) { el.focus(); el.setSelectionRange(r.caret, r.caret); } });
+    setRestore(n => n + 1);
   };
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (!open) return false;
