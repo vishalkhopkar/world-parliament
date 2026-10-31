@@ -90,6 +90,8 @@ export interface ClientState {
   chat: ChatMessage[];
   /** serverTime - local Date.now() (ms). */
   serverOffsetMs: number;
+  /** hello.features of the server (e.g. 'actionRef'); empty for an older server */
+  features: string[];
   link: LinkState;
   /** 0-based polling phases known to be closed (hello snapshot + phaseClosed messages). */
   polledPhases: Set<number>;
@@ -104,7 +106,7 @@ export interface ClientState {
 export function newState(): ClientState {
   return {
     gameId: null, me: null, joinCode: null, nickname: null, lobby: null, snapshot: null, priv: null, chat: [],
-    serverOffsetMs: 0, link: 'idle', polledPhases: new Set(), pendingActions: new Map(), budgetPending: false, globalReports: null,
+    serverOffsetMs: 0, features: [], link: 'idle', polledPhases: new Set(), pendingActions: new Map(), budgetPending: false, globalReports: null,
   };
 }
 
@@ -135,6 +137,7 @@ export function applyMessage(st: ClientState, m: ServerMessage, localNow: number
       st.priv = m.private;
       st.budgetPending = false;
       st.serverOffsetMs = m.serverTime - localNow;
+      st.features = m.features ?? [];
       st.polledPhases = new Set(m.snapshot.polledPhases);
       if (m.chat) st.chat = m.chat; // the conversation so far (kept across a reconnect)
       return [];

@@ -59,3 +59,25 @@ describe('DynamoRepo campaign transaction under contention', () => {
     await expect(repo.addAction('g1', 'p0', 400, act('a2'), 0)).rejects.toThrow('Transaction cancelled');
   });
 });
+
+describe('DynamoRepo idempotency marker (clientRef)', () => {
+  it('a second addAction with the same clientRef is a duplicate, charged once; a rally duplicate is not reported as a cooldown', async () => {
+    const { repo } = flaky();
+    await seed(repo);
+    expect(await repo.addAction('g1', 'p0', 100, { ...act('a1'), type: 'rally' }, 0, { rallyGapMs: 30_000, clientRef: 'r1' })).toBe('ok');
+    expect(await repo.addAction('g1', 'p0', 100, { ...act('a2'), type: 'rally' }, 0, { rallyGapMs: 30_000, clientRef: 'r1' })).toBe('duplicate');
+    expect(await repo.addAction('g1', 'p0', 100, act('a3'), 0, { clientRef: 'r2' })).toBe('ok');
+    expect((await repo.getPlayer('g1', 'p0'))?.budget).toBe(800);
+    expect((await repo.listActions('g1')).length).toBe(2);
+    expect(await repo.hasActionRef('g1', 'p0', 'r1')).toBe(true);
+    expect(await repo.hasActionRef('g1', 'p0', 'nope')).toBe(false);
+    expect(await repo.hasActionRef('g1', 'p1', 'r1')).toBe(false);
+  });
+
+  it('a refused action (insufficient funds) does not record its clientRef', async () => {
+    const { repo } = flaky();
+    await seed(repo);
+    expect(await repo.addAction('g1', 'p0', 5000, act('a1'), 0, { clientRef: 'big' })).toBe('insufficient');
+    expect(await repo.hasActionRef('g1', 'p0', 'big')).toBe(false);
+  });
+});

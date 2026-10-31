@@ -200,14 +200,14 @@ export interface SeatSharesMessage {
 
 export type ServerMessage =
   /** `chat` = the conversation so far that this player may read (newest messages, bounded), so a reconnect keeps it. */
-  | { type: 'hello'; serverTime: number; snapshot: GameSnapshot; private: PrivateState; chat?: ChatMessage[] }
+  | { type: 'hello'; serverTime: number; /** server capabilities; 'actionRef' = campaign messages with a clientRef are applied at most once */ features?: string[]; snapshot: GameSnapshot; private: PrivateState; chat?: ChatMessage[] }
   | { type: 'pong'; clientTime: number; serverTime: number }
   | { type: 'private'; private: PrivateState }
   | { type: 'status'; status: GameStatus; timeline: GameTimeline | null }
   | { type: 'players'; players: PlayerPublic[] }
   | { type: 'news'; item: NewsItem }
   /** `nextRallyAt` = as in PrivateState (server epoch ms of the next allowed rally; null/absent = allowed now). */
-  | { type: 'actionAck'; clientRef?: string; ok: true; budget: number; reputation?: Record<SeatId, number>; nextRallyAt?: number | null }
+  | { type: 'actionAck'; clientRef?: string; /** true when this clientRef had already been applied: nothing was charged again */ duplicate?: true; ok: true; budget: number; reputation?: Record<SeatId, number>; nextRallyAt?: number | null }
   | { type: 'report'; report: AnalystReport; budget: number }
   | { type: 'globalReports'; reports: GlobalReports }
   | { type: 'phaseClosed'; phase: number; seats: SeatId[] }

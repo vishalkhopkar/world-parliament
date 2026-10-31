@@ -97,4 +97,6 @@ jobs:
           # the live bundle must point at the real API, not the in-browser mock
           api=$(node -p "require('./cdk-outputs.json')['HungParliament-$STAGE-Api'].HttpApiUrl")
           js=$(curl -s "$url/" | grep -o 'assets/[^"]*\.js' | head -1)
+          # agents only know the site URL: /config.json must publish the REST + WebSocket endpoints
+          curl -s "$url/config.json" | grep -q "$api" || { echo "::error::$url/config.json is missing or does not contain the API URL ($api)"; exit 1; }
           curl -s "$url/$js" | grep -q "$api" || { echo "::error::Deployed bundle does not contain the API URL ($api): it would run in mock mode"; exit 1; }

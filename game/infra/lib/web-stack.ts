@@ -75,7 +75,7 @@ export class WebStack extends Stack {
         sources: [s3deploy.Source.asset(distDir)],
         destinationBucket: bucket,
         distribution: this.distribution,
-        distributionPaths: ['/index.html', '/', '/maps/*'],
+        distributionPaths: ['/index.html', '/', '/maps/*', '/config.json'],
         prune: false,
       });
     } else {

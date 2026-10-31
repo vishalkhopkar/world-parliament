@@ -166,13 +166,14 @@ export class DynamoRepo implements Repo {
    */
   private async spendAndInsert(
     gameId: string, playerId: PlayerId, cost: number, item: Item, expectClosedPhases: number, rally?: { ts: number; gapMs: number },
+    refKey?: string,
   ): Promise<SpendResult> {
     const ttl = this.ttl();
     // Concurrent actions (several from one player, or all players sharing the game META condition check) make DynamoDB
     // cancel a transaction with TransactionConflict: not a business failure, so retry briefly with jitter. Each retry
     // re-evaluates every condition (budget, rally gap, phase), so a retry can never bypass the rally cooldown.
     for (let attempt = 0; ; attempt++) {
-      try { return await this.spendAndInsertOnce(gameId, playerId, cost, item, expectClosedPhases, ttl, rally); } catch (e) {
+      try { return await this.spendAndInsertOnce(gameId, playerId, cost, item, expectClosedPhases, ttl, rally, refKey); } catch (e) {
         const reasons = (e as { CancellationReasons?: { Code?: string }[] })?.CancellationReasons;
         const isConflict = (e as { name?: string })?.name === 'TransactionCanceledException'
           && !!reasons?.some((r) => r.Code === 'TransactionConflict');
@@ -184,7 +185,7 @@ export class DynamoRepo implements Repo {
 
   private async spendAndInsertOnce(
     gameId: string, playerId: PlayerId, cost: number, item: Item, expectClosedPhases: number, ttl: number,
-    rally?: { ts: number; gapMs: number },
+    rally?: { ts: number; gapMs: number }, refKey?: string,
   ): Promise<SpendResult> {
     const names: Record<string, string> = { '#status': 'status', '#ttl': 'ttl' };
     const values: Record<string, unknown> = { ':cost': cost, ':active': 'active', ':ttl': ttl };
@@ -214,12 +215,17 @@ export class DynamoRepo implements Repo {
             ExpressionAttributeNames: { '#status': 'status' },
             ExpressionAttributeValues: { ':campaign': 'campaign', ':cp': expectClosedPhases },
           } },
+          // idempotency marker (index 3, only when the client sent a clientRef): a second copy of the same message loses here
+          ...(refKey ? [{ Put: {
+            TableName: this.table, Item: { PK: this.gk(gameId), SK: refKey, ttl }, ConditionExpression: 'attribute_not_exists(PK)',
+          } }] : []),
         ],
       }));
       return 'ok';
     } catch (e) {
       const reasons = (e as { CancellationReasons?: { Code?: string }[] })?.CancellationReasons;
       if ((e as { name?: string })?.name === 'TransactionCanceledException' && reasons) {
+        if (refKey && reasons[3]?.Code === 'ConditionalCheckFailed') return 'duplicate'; // wins over cooldown/funds: the first copy already did it
         if (reasons[0]?.Code === 'ConditionalCheckFailed') {
           // the player condition mixes funds, status and the rally gap: a (consistent) re-read tells them apart
           if (rally && rally.gapMs > 0) {
@@ -237,7 +243,12 @@ export class DynamoRepo implements Repo {
   addAction(gameId: string, playerId: PlayerId, cost: number, a: Action, expectClosedPhases: number, opts?: AddActionOptions) {
     return this.spendAndInsert(gameId, playerId, cost, {
       ...a, PK: this.gk(gameId), SK: `ACT#${pad(a.ts, 15)}#${a.playerId}#${a.id}`,
-    }, expectClosedPhases, opts?.rallyGapMs !== undefined ? { ts: a.ts, gapMs: opts.rallyGapMs } : undefined);
+    }, expectClosedPhases, opts?.rallyGapMs !== undefined ? { ts: a.ts, gapMs: opts.rallyGapMs } : undefined,
+    opts?.clientRef !== undefined ? this.refSk(playerId, opts.clientRef) : undefined);
+  }
+  private refSk(playerId: PlayerId, clientRef: string) { return `REF#${playerId}#${clientRef}`; }
+  async hasActionRef(gameId: string, playerId: PlayerId, clientRef: string) {
+    return (await this.get<Item>(this.gk(gameId), this.refSk(playerId, clientRef))) !== null;
   }
   listActions(gameId: string) { return this.query<Action>(this.gk(gameId), 'ACT#'); }
   addReport(gameId: string, playerId: PlayerId, cost: number, rep: StoredReport, expectClosedPhases: number) {

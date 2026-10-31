@@ -62,10 +62,30 @@ Command `node`, args `[<repo>/game/agent/bin/mcp.mjs]`, transport stdio. Environ
 
 | Variable | Meaning |
 |---|---|
-| `HP_SERVER` | REST base URL of the game server (default `http://localhost:8787`) |
-| `HP_WS` | WebSocket endpoint without query (default: `HP_SERVER` with `ws://`/`wss://` and `/ws`) |
+| `HP_SERVER` | REST base URL of the game server (default `http://localhost:8787`), **or the site URL of a deployed game** (e.g. the CloudFront URL, see below) |
+| `HP_WS` | WebSocket endpoint without query (default: discovered from `<HP_SERVER>/config.json`, else `HP_SERVER` with `ws://`/`wss://` and `/ws`) |
+| `HP_BATCH_CONCURRENCY` | max campaign messages in flight inside one `campaign_batch` (default 6) |
+| `HP_ACTION_TIMEOUT_MS` | how long one campaign message waits for its ack, counted from when it is sent (default 30000) |
 | `HP_SESSION_FILE` | optional path; the session `{gameId, playerId, token}` is stored there so a restarted MCP server rejoins the same player |
 | `HP_GAME_PACKAGE` | optional path to a map's `game.json` (default: the generated registry / `maps/<mapId>/site/data/game.json`) |
+
+### Playing on a deployed (AWS) game
+CloudFront serves only the static web app; the REST API (API Gateway HTTP) and the WebSocket (API Gateway WebSocket, stage `/live`) are separate hosts.
+Every deploy publishes them in `<site url>/config.json` (`{"apiUrl": "...", "wsUrl": "wss://.../live"}`, URLs only, no secrets), so the site URL is enough:
+
+```
+HP_SERVER=https://dxxxxxxxxxxxx.cloudfront.net            # MCP env, or: node game/agent/bin/cli.mjs start --name Claude1 --server https://dxxxxxxxxxxxx.cloudfront.net
+```
+Without `/config.json` (an older deploy) pass both explicitly: `--server https://<api-id>.execute-api.<region>.amazonaws.com --ws wss://<ws-id>.execute-api.<region>.amazonaws.com/live`
+(CLI flags `--server` / `--ws`, or env `HP_SERVER` / `HP_WS`; both URLs are in the web bundle and in the CDK outputs `HttpApiUrl` / `WebSocketUrl`).
+`--server`/`HP_SERVER` pointing at `localhost` never looks for `/config.json`; an explicit `HP_WS` always wins.
+
+### Large batches and TIMEOUT
+API Gateway runs each WebSocket message in its own Lambda, in no guaranteed order, and all of one player's actions contend on one DynamoDB item.
+`campaign_batch` therefore sends a few actions at a time (`HP_BATCH_CONCURRENCY`, default 6) instead of all 50 at once, and each action's timeout (30 s) starts when it is sent.
+A `TIMEOUT` row (`outcome_unknown: true`) means the server **may have applied and charged it**. Every campaign message carries a unique `clientRef` and a server that advertises
+`actionRef` (it says so in `hello`) applies a `clientRef` at most once, so the agent resends a timed-out action once with the same `clientRef` (never double-charged, rallies included).
+Against an older server nothing is ever resent automatically: check `get_state` (budget, `my_actions`) before retrying by hand.
 
 Two AI players in one game: configure two entries, for example `hung-parliament` and `hung-parliament-2`, each with its own `HP_SESSION_FILE`.
 
@@ -107,7 +127,7 @@ The daemon (`src/daemon.ts`) holds the GameClient and WebSocket, listens on `127
 - `src/actions.ts` is the single action table (name, LLM description, zod schema, handler); `mcp.ts` and `daemon.ts`/`cli.ts` only wrap it.
 - `src/client.ts` (`GameClient`): REST + WebSocket (ping on open and every 15 s, reconnect with backoff and the same token, server-clock offset), state reducer in `src/state.ts`
   (same logic as the web store), event log with a monotonic cursor and `waitForEvents`. It has **no create-game method**.
-- Campaign actions are pipelined with `clientRef`s (`campaign_batch`, up to 50 per call); everything else is sent one at a time and confirmed with a ping barrier.
+- Campaign actions are pipelined with unique `clientRef`s (`campaign_batch`, up to 50 per call, at most 6 in flight; the server dedupes a resent `clientRef`); everything else is sent one at a time and confirmed with a ping barrier.
 - Local pre-validation (budget, polled seat, campaign window) only saves wasted calls; the server is always the authority.
 
 ## What cannot be enforced

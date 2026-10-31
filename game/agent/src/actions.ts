@@ -396,7 +396,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'campaign_batch',
-    description: 'Place up to 50 campaign actions in ONE call, as fast as the server accepts them (pipelined). actions = [{type:"rally"|"roadshow", seat:<id or name>}, ...]. Each action is pre-checked locally (budget in order, seat not polled, campaign window, rally cooldown) and then sent. Only ONE rally per cooldown period can go through in a batch: if you are not ready, or after the first rally of the batch, later rallies are marked failed locally with RATE_LIMITED (nothing is charged, and they are not sent) while the roadshows are still sent. Put at most one rally in a batch; the response lists per-action ok/error and your new budget. Failed actions cost nothing. Prefer this over many single calls.',
+    description: 'Place up to 50 campaign actions in ONE call, as fast as the server accepts them (pipelined). actions = [{type:"rally"|"roadshow", seat:<id or name>}, ...]. Each action is pre-checked locally (budget in order, seat not polled, campaign window, rally cooldown) and then sent. Only ONE rally per cooldown period can go through in a batch: if you are not ready, or after the first rally of the batch, later rallies are marked failed locally with RATE_LIMITED (nothing is charged, and they are not sent) while the roadshows are still sent. Put at most one rally in a batch; the response lists per-action ok/error and your new budget. Failed actions cost nothing, EXCEPT a result with outcome_unknown:true (TIMEOUT): the server may still have applied it, so call get_state (budget, my_actions) before resending; never resend a rally blindly. The calls are sent a few at a time (HP_BATCH_CONCURRENCY, default 6), so a big batch against the AWS deployment takes a few seconds. Prefer this over many single calls.',
     schema: z.object({
       actions: z.array(z.object({ type: actionType, seat: seatRef })).min(1).max(50).describe('Up to 50 actions, executed in order'),
     }),
@@ -659,7 +659,11 @@ export const ACTIONS: ActionDef[] = [
 export const ACTION_BY_NAME = new Map(ACTIONS.map((a) => [a.name, a]));
 
 // ------------------------------------------------------------------ campaign implementation
-interface CampaignRow { index: number; type: ActionType; seat: number | null; seat_name: string | null; ok: boolean; error?: ErrorInfo & { local?: boolean } }
+interface CampaignRow {
+  index: number; type: ActionType; seat: number | null; seat_name: string | null; ok: boolean; error?: ErrorInfo & { local?: boolean };
+  /** true on a TIMEOUT: the server may or may not have applied (and charged) this action. Check get_state before resending. */
+  outcome_unknown?: true;
+}
 
 async function runCampaign(s: AgentSession, list: { type: ActionType; seat: number | string }[]): Promise<{ results: CampaignRow[] }> {
   await campaignWindow(s);
@@ -709,7 +713,13 @@ async function runCampaign(s: AgentSession, list: { type: ActionType; seat: numb
     out.forEach((r, k) => {
       const row = results[toSend[k].idx];
       if (r.ok) row.ok = true;
-      else { row.ok = false; row.error = toErrorInfo(r.error); }
+      else {
+        row.ok = false; row.error = toErrorInfo(r.error);
+        if (r.unknown) {
+          row.outcome_unknown = true;
+          row.error = { ...row.error, hint: 'No answer in time: the server MAY have applied and charged this. Do NOT resend blindly (a rally costs a lot); call get_state and compare budget / my_actions first.' };
+        }
+      }
     });
   }
   return { results };

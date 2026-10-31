@@ -29,7 +29,20 @@ export interface ClientOptions {
   /** Reconnect backoff base in ms (default 500, doubling up to 10 s). */
   reconnectBaseMs?: number;
   fetchImpl?: typeof fetch;
+  /** Max campaign messages in flight at once inside campaign_batch (default 6, env HP_BATCH_CONCURRENCY). */
+  batchConcurrency?: number;
+  /** How long one campaign message may wait for its ack, counted from the moment it is sent (default 30 s, env HP_ACTION_TIMEOUT_MS). */
+  actionTimeoutMs?: number;
 }
+
+export const DEFAULT_BATCH_CONCURRENCY = 6;
+export const DEFAULT_ACTION_TIMEOUT_MS = 30_000;
+const envInt = (name: string): number | undefined => {
+  const n = Number(typeof process !== 'undefined' ? process.env[name] : undefined);
+  return Number.isInteger(n) && n > 0 ? n : undefined;
+};
+
+export type BatchOutcome = { ok: true; budget: number } | { ok: false; error: AgentError; /** true = the server may or may not have applied it */ unknown?: boolean };
 
 export interface CampaignResult { type: ActionType; seat: SeatId; budget: number }
 
@@ -50,8 +63,11 @@ export class GameClient {
   /** Set when the connection is permanently lost (bad token, game gone, declined, finished). */
   lostReason: string | null = null;
 
-  readonly server: string;
-  readonly wsUrl: string;
+  /** REST base. Replaced once by discover() when HP_SERVER is a site URL that publishes /config.json. */
+  server: string;
+  wsUrl: string;
+  private readonly wsGiven: boolean;
+  private discovering: Promise<void> | null = null;
   private readonly log: (m: string) => void;
   private readonly pingMs: number;
   private readonly reconnectBaseMs: number;
@@ -65,6 +81,10 @@ export class GameClient {
   private helloWaiters: (() => void)[] = [];
   private everHello = false;
   private refCounter = 0;
+  /** Random per-client prefix: clientRefs are unique per player on the server (idempotency key), so a restarted agent must never reuse "a1". */
+  private readonly refPrefix = Math.random().toString(36).slice(2, 7);
+  private readonly batchConcurrency: number;
+  private readonly actionTimeoutMs: number;
   private pendingRefs = new Map<string, { resolve: (budget: number) => void; reject: (e: AgentError) => void; timer: ReturnType<typeof setTimeout> }>();
   private barriers = new Map<number, () => void>();
   private barrierSeq = 0;
@@ -74,11 +94,17 @@ export class GameClient {
   constructor(opts: ClientOptions = {}) {
     this.server = (opts.server ?? 'http://localhost:8787').replace(/\/+$/, '');
     this.wsUrl = (opts.ws ?? defaultWsFor(this.server)).replace(/\/+$/, '');
+    this.wsGiven = !!opts.ws;
     this.log = opts.log ?? (() => undefined);
     this.pingMs = opts.pingMs ?? 15_000;
     this.reconnectBaseMs = opts.reconnectBaseMs ?? 500;
     this.fetchImpl = opts.fetchImpl ?? ((...a) => fetch(...a));
+    this.batchConcurrency = Math.max(1, opts.batchConcurrency ?? envInt('HP_BATCH_CONCURRENCY') ?? DEFAULT_BATCH_CONCURRENCY);
+    this.actionTimeoutMs = opts.actionTimeoutMs ?? envInt('HP_ACTION_TIMEOUT_MS') ?? DEFAULT_ACTION_TIMEOUT_MS;
   }
+
+  /** The server applies a campaign message carrying a clientRef at most once (advertised in `hello.features`). */
+  get serverDedupesActions(): boolean { return this.state.features.includes('actionRef'); }
 
   // ------------------------------------------------------------------ clock
   /** Estimated server epoch ms right now. */
@@ -86,6 +112,34 @@ export class GameClient {
 
   get me(): PlayerId | null { return this.state.me; }
   get admission(): Admission { return admissionOf(this.state); }
+
+  // ------------------------------------------------------------------ endpoint discovery
+  /**
+   * The deployed site (CloudFront) serves only static files; the REST API and the WebSocket live on API Gateway hosts. The deploy
+   * publishes `<site>/config.json` = {apiUrl, wsUrl}; when `server` is such a site this switches to those endpoints, so
+   * `HP_SERVER=https://dxxxx.cloudfront.net` is all an agent needs. Skipped for localhost and when a ws URL was given explicitly;
+   * any failure (404, the SPA's index.html, bad JSON, offline) keeps the URL as given. Looked up at most once.
+   */
+  discover(): Promise<void> {
+    return (this.discovering ??= this.doDiscover());
+  }
+
+  private async doDiscover(): Promise<void> {
+    if (this.wsGiven) return;
+    let host = '';
+    try { host = new URL(this.server).hostname; } catch { return; }
+    if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]') return;
+    try {
+      const res = await this.fetchImpl(this.server + '/config.json', { method: 'GET', signal: AbortSignal.timeout(5000) });
+      if (!res.ok) return;
+      const j = JSON.parse(await res.text()) as { apiUrl?: unknown; wsUrl?: unknown };
+      if (typeof j.apiUrl !== 'string' || typeof j.wsUrl !== 'string') return;
+      if (!/^https?:\/\//i.test(j.apiUrl) || !/^wss?:\/\//i.test(j.wsUrl)) return;
+      this.server = j.apiUrl.replace(/\/+$/, '');
+      this.wsUrl = j.wsUrl.replace(/\/+$/, '');
+      this.log(`endpoints from ${host}/config.json: ${this.server} , ${this.wsUrl}`);
+    } catch { /* keep the URL as given */ }
+  }
 
   // ------------------------------------------------------------------ REST
   private async rest<T>(method: string, path: string, body?: unknown, auth = true): Promise<T> {
@@ -116,6 +170,7 @@ export class GameClient {
    * There is intentionally no way to create a game from here.
    */
   async join(joinCode: string, nickname: string): Promise<Session> {
+    await this.discover();
     if (this.session) throw new AgentError('ALREADY_JOINED', `Already joined game ${this.session.gameId} as "${this.session.nickname}".`);
     const req: JoinGameRequest = { joinCode: joinCode.trim().toUpperCase(), nickname: nickname.trim(), kind: 'agent' };
     const r = await this.rest<JoinGameResponse>('POST', '/games/join', req, false);
@@ -127,6 +182,7 @@ export class GameClient {
 
   /** Re-attach to a game from a stored session (restarted MCP server / daemon). */
   async resume(session: Session): Promise<void> {
+    await this.discover();
     if (this.session) throw new AgentError('ALREADY_JOINED', 'Already attached to a game.');
     this.session = { ...session, server: this.server };
     this.attachSession();
@@ -313,16 +369,20 @@ export class GameClient {
   }
 
   // ------------------------------------------------------------------ campaign
-  /** Send a campaign action; resolves with the new budget when the server acks (matched by clientRef). Pipelined. */
-  campaign(type: ActionType, seat: SeatId, timeoutMs = 15_000): Promise<CampaignResult> {
+  /**
+   * Send a campaign action; resolves with the new budget when the server acks (matched by clientRef). Pipelined.
+   * `ref` lets a caller resend the SAME logical action (a retry after TIMEOUT); only do that when serverDedupesActions.
+   */
+  campaign(type: ActionType, seat: SeatId, timeoutMs = this.actionTimeoutMs, ref: string = `${this.refPrefix}${++this.refCounter}`): Promise<CampaignResult> {
     try { this.requireOpen(); } catch (e) { return Promise.reject(e); }
-    const ref = `a${++this.refCounter}`;
     this.state.pendingActions.set(ref, { type, seat });
     return new Promise<CampaignResult>((resolve, reject) => {
+      // On timeout the pendingActions entry is KEPT: the server may still apply the action and ack late, and that late ack
+      // must still extend myActions (applyMessage consumes the entry).
       const timer = setTimeout(() => {
         this.pendingRefs.delete(ref);
-        this.state.pendingActions.delete(ref);
-        reject(new AgentError('TIMEOUT', `No answer from the server for ${type} in seat ${seat}.`));
+        reject(new AgentError('TIMEOUT', `No answer from the server for ${type} in seat ${seat}.`,
+          'The server may still have applied it (check budget / my_actions in get_state before resending; a resend can double-charge, a rally especially).'));
       }, timeoutMs);
       this.pendingRefs.set(ref, {
         timer, reject,
@@ -337,12 +397,38 @@ export class GameClient {
     });
   }
 
-  /** Send many campaign actions at once (the server processes a connection's messages in order). Results in input order. */
-  async campaignBatch(list: { type: ActionType; seat: SeatId }[]): Promise<({ ok: true; budget: number } | { ok: false; error: AgentError })[]> {
-    const settled = await Promise.allSettled(list.map((a) => this.campaign(a.type, a.seat)));
-    return settled.map((r) => (r.status === 'fulfilled'
-      ? { ok: true as const, budget: r.value.budget }
-      : { ok: false as const, error: r.reason instanceof AgentError ? r.reason : new AgentError('INTERNAL', String(r.reason)) }));
+  /**
+   * Send many campaign actions with at most `batchConcurrency` in flight (API Gateway runs every WebSocket message in its own
+   * Lambda, in no particular order, all contending on one DynamoDB item: 50 at once made most of them time out). Results in input order.
+   * A TIMEOUT means "unknown outcome". If the server advertises actionRef (idempotent clientRef) a timed-out action is resent ONCE
+   * with the same clientRef after the pass (safe: the server charges it at most once); otherwise it is never resent.
+   */
+  async campaignBatch(list: { type: ActionType; seat: SeatId }[]): Promise<BatchOutcome[]> {
+    const out: BatchOutcome[] = new Array(list.length);
+    const refs = list.map(() => `${this.refPrefix}${++this.refCounter}`);
+    const toOutcome = (r: PromiseSettledResult<CampaignResult>): BatchOutcome => {
+      if (r.status === 'fulfilled') return { ok: true, budget: r.value.budget };
+      const error = r.reason instanceof AgentError ? r.reason : new AgentError('INTERNAL', String(r.reason));
+      return { ok: false, error, ...(error.code === 'TIMEOUT' ? { unknown: true } : {}) };
+    };
+    const pool = async (indexes: number[]) => {
+      let next = 0;
+      const worker = async () => {
+        while (next < indexes.length) {
+          const k = indexes[next++];
+          const settled = await this.campaign(list[k].type, list[k].seat, this.actionTimeoutMs, refs[k]).then(
+            (value) => ({ status: 'fulfilled', value }) as const, (reason) => ({ status: 'rejected', reason }) as const);
+          out[k] = toOutcome(settled);
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(this.batchConcurrency, indexes.length) }, worker));
+    };
+    await pool(list.map((_, k) => k));
+    if (this.serverDedupesActions) {
+      const retry = out.map((o, k) => (!o.ok && o.unknown ? k : -1)).filter((k) => k >= 0);
+      if (retry.length) await pool(retry);
+    }
+    return out;
   }
 
   // ------------------------------------------------------------------ one-at-a-time requests (no clientRef on the wire)

@@ -44,6 +44,8 @@ export interface GameServiceDeps {
   startDelayMs?: number;
 }
 
+/** Advertised in `hello` so clients know what is safe to rely on (actionRef = idempotent campaign messages). */
+const SERVER_FEATURES: string[] = ['actionRef'];
 const LIVE: ReadonlySet<string> = new Set(['campaign', 'counting', 'postCounting']);
 const CONTENDER: ReadonlySet<string> = new Set(['active', 'disconnected']);
 /** Players who are part of the game (not pending/rejected). */
@@ -464,7 +466,7 @@ export class GameService {
       // pending player: lobby-level information only
       const members = this.sortedPlayers(players).filter((p) => MEMBER.has(p.status) || p.playerId === player.playerId);
       return {
-        type: 'hello', serverTime: this.now(),
+        type: 'hello', serverTime: this.now(), features: SERVER_FEATURES,
         snapshot: {
           gameId: game.gameId, mapId: game.mapId, status: game.status, phases: game.phases, timeline: game.timeline,
           players: members.map(toPublic), news: [], polledPhases: [], seats: {}, tally: null, offers: [],
@@ -480,7 +482,7 @@ export class GameService {
       for (const d of Object.values(snapshot.seats)) delete d.shares;
     }
     return {
-      type: 'hello', serverTime: this.now(),
+      type: 'hello', serverTime: this.now(), features: SERVER_FEATURES,
       snapshot,
       private: await this.privateState(player.gameId, player.playerId),
       chat: await this.chatHistoryFor(player),
@@ -581,6 +583,9 @@ export class GameService {
   async campaign(player: PlayerRecord, type: unknown, seat: unknown, clientRef?: string): Promise<void> {
     if (type !== 'rally' && type !== 'roadshow') throw new GameError('BAD_REQUEST', 'Unknown action type');
     if (typeof seat !== 'number' || !Number.isInteger(seat)) throw new GameError('BAD_REQUEST', 'Invalid seat');
+    // Idempotency: a well-formed clientRef makes the message safe to resend (e.g. after the client timed out waiting for the ack).
+    const ref = typeof clientRef === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(clientRef) ? clientRef : undefined;
+    if (ref && await this.repo.hasActionRef(player.gameId, player.playerId, ref)) return this.ackDuplicate(player, ref);
     for (let attempt = 0; attempt < 3; attempt++) {
       const game = await this.loadGame(player.gameId);
       const me = await this.repo.getPlayer(player.gameId, player.playerId);
@@ -600,8 +605,10 @@ export class GameService {
       if (me.budget < cost) throw new GameError('INSUFFICIENT_FUNDS', 'Not enough funds');
       const action: Action = { id: newId(4), playerId: me.playerId, type, seat, ts: now };
       const res = await this.repo.addAction(
-        game.gameId, me.playerId, cost, action, game.closedPhases, type === 'rally' ? { rallyGapMs: cfg.cooldowns.rallyMs } : undefined,
+        game.gameId, me.playerId, cost, action, game.closedPhases,
+        type === 'rally' || ref ? { ...(type === 'rally' ? { rallyGapMs: cfg.cooldowns.rallyMs } : {}), ...(ref ? { clientRef: ref } : {}) } : undefined,
       );
+      if (res === 'duplicate') return this.ackDuplicate(me, ref as string);
       if (res === 'conflict') continue;
       if (res === 'cooldown') {
         // lost the race to a concurrent rally of the same player: final, never retried
@@ -621,6 +628,18 @@ export class GameService {
       return;
     }
     throw new GameError('TOO_LATE', 'Polling has just closed, try again');
+  }
+
+  /** The first copy of this clientRef was already applied: confirm again with the current budget, charge nothing. */
+  private async ackDuplicate(player: PlayerRecord, clientRef: string): Promise<void> {
+    const game = await this.loadGame(player.gameId);
+    const me = await this.repo.getPlayer(player.gameId, player.playerId);
+    const { cfg } = this.loadMap(game.mapId);
+    await this.d.notifier.sendToPlayer(game.gameId, player.playerId, {
+      type: 'actionAck', clientRef, ok: true, duplicate: true, budget: me ? me.budget : 0,
+      reputation: await this.reputationFor(game, player.playerId),
+      nextRallyAt: me ? nextRallyAt(me, cfg) : null,
+    });
   }
 
   async buyReport(player: PlayerRecord, scope: unknown, seat: unknown): Promise<void> {

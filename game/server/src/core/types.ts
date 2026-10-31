@@ -83,13 +83,20 @@ export interface StoredChat extends ChatMessage {}
  * 'insufficient' = budget too low or player not active; 'conflict' = the game moved on (status / closedPhases), retry;
  * 'cooldown' = a rally refused because the player's stored lastRallyAt is less than rallyGapMs before it (final, no retry).
  */
-export type SpendResult = 'ok' | 'insufficient' | 'conflict' | 'cooldown';
+export type SpendResult = 'ok' | 'insufficient' | 'conflict' | 'cooldown' | 'duplicate';
 
 /**
  * Rally guard for Repo.addAction (pass it for rallies only): atomically with the budget deduction, require the stored
  * lastRallyAt to be missing or <= action.ts - rallyGapMs, and set lastRallyAt = action.ts. rallyGapMs <= 0 = no check.
  */
-export interface AddActionOptions { rallyGapMs?: number }
+export interface AddActionOptions {
+  rallyGapMs?: number;
+  /**
+   * Idempotency key (client-generated). Recorded atomically with the spend; a second addAction with the same key for the same
+   * player charges nothing and returns 'duplicate' (checked before every other outcome).
+   */
+  clientRef?: string;
+}
 
 export interface Repo {
   // games
@@ -114,6 +121,8 @@ export interface Repo {
 
   // campaign (atomic: deduct budget with budget >= cost AND player active [AND rally gap], insert, check game campaign & closedPhases)
   addAction(gameId: string, playerId: PlayerId, cost: number, action: Action, expectClosedPhases: number, opts?: AddActionOptions): Promise<SpendResult>;
+  /** Has an action with this idempotency key (AddActionOptions.clientRef) already been applied for the player? */
+  hasActionRef(gameId: string, playerId: PlayerId, clientRef: string): Promise<boolean>;
   listActions(gameId: string): Promise<Action[]>;
   addReport(gameId: string, playerId: PlayerId, cost: number, rep: StoredReport, expectClosedPhases: number): Promise<SpendResult>;
   listReports(gameId: string, playerId: PlayerId): Promise<StoredReport[]>;

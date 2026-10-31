@@ -38,6 +38,7 @@ export class AgentSession {
     try {
       const s = JSON.parse(readFileSync(this.sessionFile, 'utf8')) as Session;
       if (!s.gameId || !s.token || !s.playerId) return false;
+      await this.client.discover();
       if (s.server && s.server.replace(/\/+$/, '') !== this.client.server) return false;
       await this.client.resume(s);
       this.log(`restored session for game ${s.gameId}`);

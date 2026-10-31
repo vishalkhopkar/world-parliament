@@ -20,6 +20,7 @@ interface GameData {
   game: GameRecord;
   players: Map<PlayerId, PlayerRecord>;
   actions: Action[];
+  actionRefs: Set<string>;
   reports: StoredReport[];
   results: Map<number, SeatResult>;
   plan: CountPlan | null;
@@ -44,7 +45,7 @@ export class MemoryRepo implements Repo {
   async createGame(game: GameRecord, admin: PlayerRecord): Promise<void> {
     if (this.games.has(game.gameId)) throw new Error('game exists');
     this.games.set(game.gameId, {
-      game: clone(game), players: new Map([[admin.playerId, clone(admin)]]), actions: [], reports: [], results: new Map(),
+      game: clone(game), players: new Map([[admin.playerId, clone(admin)]]), actions: [], actionRefs: new Set(), reports: [], results: new Map(),
       plan: null, chat: [], offers: new Map(), government: null, result: null,
     });
     this.codes.set(game.joinCode, game.gameId);
@@ -90,9 +91,17 @@ export class MemoryRepo implements Repo {
   }
   async addAction(gameId: string, playerId: PlayerId, cost: number, action: Action, expectClosed: number, opts?: AddActionOptions) {
     const rally = opts?.rallyGapMs !== undefined ? { ts: action.ts, gapMs: opts.rallyGapMs } : undefined;
+    const key = opts?.clientRef !== undefined ? `${playerId}#${opts.clientRef}` : undefined;
+    if (key !== undefined && this.d(gameId).actionRefs.has(key)) return 'duplicate';
     const r = this.spend(gameId, playerId, cost, expectClosed, rally);
-    if (r === 'ok') this.d(gameId).actions.push(clone(action));
+    if (r === 'ok') {
+      this.d(gameId).actions.push(clone(action));
+      if (key !== undefined) this.d(gameId).actionRefs.add(key);
+    }
     return r;
+  }
+  async hasActionRef(gameId: string, playerId: PlayerId, clientRef: string) {
+    return this.games.get(gameId)?.actionRefs.has(`${playerId}#${clientRef}`) ?? false;
   }
   async listActions(gameId: string) {
     return [...(this.games.get(gameId)?.actions ?? [])].sort((a, b) => a.ts - b.ts).map(clone);

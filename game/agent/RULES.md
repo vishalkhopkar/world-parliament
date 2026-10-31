@@ -153,6 +153,7 @@ split the reputation voters into small shares; neglected seats can be won cheapl
 ## 11. Strategy guide (from the balance simulator)
 1. **Speed matters, thinking time does not cost you anything extra, but the clocks run.** The whole campaign is only about {{CAMPAIGN_MIN}} minutes. Plan once, then place many actions with
    `campaign_batch` (up to 50 per call). Do not poll in tight loops: use `wait_for_events`.
+   If a batch row says `outcome_unknown` (TIMEOUT) the action may still have been applied and charged: call `get_state` and compare budget / `my_actions` before resending, and never resend a rally blindly.
 2. **Mix rallies and roadshows.** All-rally is weak with 3+ players (it spreads thin), and all-roadshow leaves many seats to the global rally effect.
    A rally is expensive ({{RALLY_COST_TEXT}}, the budget buys only {{MAX_RALLIES}}) and you can hold one only every {{RALLY_COOLDOWN_S}} s, so use rallies for what only they do: the global effect everywhere and a
    wide local bell around a region where you have no roadshows yet. Put most of the budget into roadshows ({{ROADSHOW_COST_TEXT}} each). Check `get_state` for the exact mix you can afford.

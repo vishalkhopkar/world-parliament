@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { apiConfig } from './vite.apiConfig';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const mapsDir = path.resolve(here, '../../maps');
@@ -105,7 +106,7 @@ function siteUrl(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), maps(), avatars(), siteUrl()],
+  plugins: [react(), maps(), avatars(), siteUrl(), apiConfig()],
   server: { port: 5173, fs: { allow: [path.resolve(here, '../..')] } },
   build: { chunkSizeWarningLimit: 1200 },
 });
