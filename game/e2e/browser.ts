@@ -93,7 +93,7 @@ async function setParty(page: Page, name: string, colour: string, symbol: string
 
 async function main() {
   mkdirSync(SHOTS, { recursive: true });
-  for (const f of ['01-home', '02-lobby-admin', '03-party', '04-lobby-ready', '05-campaign-admin', '06-campaign-b-report', '07-campaign-c-seat-report', '07b-campaign-group-chat-tagged', '08-counting', '08b-counting-one-to-one-chat', '09-offer', '09a-offer-everyone-blocked', '10-government', '11-result-admin', '12-result-c']) rmSync(path.join(SHOTS, f + '.png'), { force: true });
+  for (const f of ['01-home', '02-lobby-admin', '03-party', '04-lobby-ready', '05-campaign-admin', '06-campaign-b-report', '07-campaign-c-seat-report', '07b-campaign-group-chat-tagged', '08-counting', '08b-counting-one-to-one-chat', '09-offer', '09a-offer-everyone-blocked', '10-government', '11-result-admin', '12-result-c', '13-play-again-admin']) rmSync(path.join(SHOTS, f + '.png'), { force: true });
   if (!existsSync(CHROME)) throw new Error('Chrome not found at ' + CHROME + ' (set CHROME_PATH)');
   for (const p of [API_PORT, WEB_PORT]) if (!(await portFree(p))) throw new Error(`port ${p} is already in use; stop that server first`);
 
@@ -353,6 +353,19 @@ async function main() {
     await shot(A, '11-result-admin');
     await shot(C, '12-result-c');
     log('result shown');
+
+    // ---- play again: only the host sees it; everybody rolls over with their party and lands in the campaign
+    if (await btn(B, 'Play again').count()) problems.push('a non-host must not see the Play again button');
+    await see(B, 'Waiting for the host to play again');
+    const phasesBefore = await A.locator('select').first().inputValue();
+    await A.locator('select').first().selectOption({ value: phasesBefore === '1' ? '2' : '1' });
+    await btn(A, 'Play again').click();
+    for (const p of [A, B, C]) await see(p, 'Campaign ends in', 30000);
+    for (const [p, n] of [[A, 'A'], [B, 'B'], [C, 'C']] as const) {
+      if (await btn(p, 'Save party').count()) problems.push(`${n}: party setup was shown again after play again`);
+    }
+    await shot(A, '13-play-again-admin');
+    log('play again: everyone is in the new campaign');
   } catch (e) {
     for (const [n, p] of [['A', A], ['B', B], ['C', C]] as const) await p.screenshot({ path: path.join(SHOTS, `fail-${n}.png`) }).catch(() => undefined);
     throw e;

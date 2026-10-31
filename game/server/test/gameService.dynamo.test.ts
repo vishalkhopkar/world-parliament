@@ -35,3 +35,4 @@ import './lobby.test';
 import './campaign.test';
 import './counting.test';
 import './hidden.test';
+import './rematch.test';

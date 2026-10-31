@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { GameSnapshot, PlayerPublic, PrivateState, ServerMessage } from '@hp/shared';
-import { EventLog, admissionOf, applyMessage, newState } from '../src/state';
+import { EVENT_TYPES, EventLog, admissionOf, applyMessage, newState } from '../src/state';
 
 const players: PlayerPublic[] = [
   { playerId: 'h', nickname: 'Host', isAdmin: true, status: 'active' },
@@ -184,6 +184,16 @@ describe('applyMessage (state reducer)', () => {
     expect(admissionOf(st)).toBe('admitted');
     applyMessage(st, { type: 'players', players: [{ ...players[1], status: 'rejected' }] }, 0);
     expect(admissionOf(st)).toBe('declined');
+  });
+});
+
+describe('rematch message', () => {
+  it('is logged as a rematch event with the new and the previous game id', () => {
+    const st = newState();
+    st.gameId = 'g1';
+    const ev = applyMessage(st, { type: 'rematch', gameId: 'g2', joinCode: 'NEW222' }, 0);
+    expect(ev).toEqual([{ type: 'rematch', data: { gameId: 'g2', joinCode: 'NEW222', previousGameId: 'g1' } }]);
+    expect(EVENT_TYPES).toContain('rematch');
   });
 });
 

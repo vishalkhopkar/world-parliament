@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import type { GameSnapshot, PlayerPublic } from '@hp/shared';
 
-vi.mock('../../net/client', () => ({ leaveGame: vi.fn(), peekSeat: vi.fn() }));
+vi.mock('../../net/client', () => ({ leaveGame: vi.fn(), peekSeat: vi.fn(), playAgain: vi.fn(), isTour: false }));
 vi.mock('../../map/SeatMap', () => ({
   SeatMap: (p: { onSeatClick?: (s: number) => void; selectedSeat?: number | null }) => (
     <div data-testid="seatmap" data-selected={String(p.selectedSeat)}>

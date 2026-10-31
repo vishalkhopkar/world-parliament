@@ -55,6 +55,7 @@ export async function handleRest(svc: GameService, req: RestRequest): Promise<Re
           case 'settings': return { status: 200, body: await svc.setSettings(gameId, token, parseBody(req.body)) };
           case 'party': return { status: 200, body: await svc.setParty(gameId, token, parseBody(req.body)) };
           case 'start': return { status: 200, body: await svc.start(gameId, token) };
+          case 'rematch': return { status: 200, body: await svc.rematch(gameId, token, parseBody(req.body)) };
         }
       }
     }

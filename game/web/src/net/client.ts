@@ -101,6 +101,9 @@ function scheduleGapCheck() {
 
 export function onServerMessage(m: ServerMessage) {
   st().applyServer(m);
+  // the host played again (or we reconnected to a finished game that has a successor): follow everyone into the new game
+  if (m.type === 'rematch') switchGame(m.gameId, m.joinCode);
+  else if (m.type === 'hello' && m.snapshot.nextGameId) switchGame(m.snapshot.nextGameId, m.snapshot.nextJoinCode ?? '');
   if (m.type === 'seatUpdate' || m.type === 'status') scheduleGapCheck();
   // being declined: the server reports our own status as 'rejected' (then closes the socket)
   if (m.type === 'players') {
@@ -130,6 +133,28 @@ async function enterGame(r: SavedSession) {
   await refreshLobby();
 }
 
+/**
+ * Move to the next game of a rematch. Players keep their id and token; only gameId and joinCode change.
+ * Idempotent (the REST answer and the pushed `rematch` message both call it). Opening the new socket replaces the old one
+ * inside the transport, so the old socket closing never counts as leaving.
+ */
+function switchGame(gameId: string, joinCode: string) {
+  const { gameId: cur, token, me } = st();
+  if (!token || !me || !gameId || cur === gameId) return;
+  void enterGame({ gameId, playerId: me, token, joinCode });
+}
+
+/** Host only: start the next game with the same players ("Play again"). Returns true once the switch happened. */
+export async function playAgain(phases: number): Promise<boolean> {
+  const r = await guard(async () => {
+    const s = session();
+    const res = await transport.rematch(s.gameId, s.token, { phases });
+    switchGame(res.gameId, res.joinCode);
+    return true;
+  });
+  return !!r;
+}
+
 export async function createGame(nickname: string, phases: number, mapId: string) {
   return guard(async () => {
     const r = await transport.createGame({ nickname, mapId, phases });
@@ -154,9 +179,20 @@ export async function resumeSession(): Promise<boolean> {
   const invited = joinCodeFromSearch();
   if (invited && invited !== saved.joinCode.toUpperCase()) return false;
   try {
-    const lobby = await transport.getLobby(saved.gameId, saved.token);
+    let lobby = await transport.getLobby(saved.gameId, saved.token);
+    // the saved game was played again: follow the chain to the newest game (same token); fall back to the old one if that fails
+    for (let hop = 0; hop < 5 && lobby.nextGameId; hop++) {
+      try {
+        const next = await transport.getLobby(lobby.nextGameId, saved.token);
+        if (!next.players.some(p => p.playerId === saved.playerId)) break;
+        saved.joinCode = lobby.nextJoinCode ?? next.joinCode ?? '';
+        saved.gameId = lobby.nextGameId;
+        lobby = next;
+      } catch { break; }
+    }
     const me = lobby.players.find(p => p.playerId === saved.playerId);
     if (!me || me.status === 'rejected' || lobby.status === 'abandoned') { saveSession(null); return false; }
+    saveSession(saved);
     st().setSession({ gameId: saved.gameId, token: saved.token, me: saved.playerId, joinCode: saved.joinCode || lobby.joinCode });
     st().setLobby(lobby);
     openSocket(saved.gameId, saved.token);

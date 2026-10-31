@@ -250,6 +250,17 @@ export function eventView(s: AgentSession, e: AgentEvent, dir: SeatDirectory | n
     case 'status': return { ...base, status: d.status };
     case 'players': return { ...base, players: (d.players as PlayerPublic[]).map((p) => ({ ...(p.party ? {} : { nickname: p.nickname }), party: p.party?.name ?? null, kind: p.kind ?? 'human', status: p.status, admin: p.isAdmin })) };
     case 'report': return { ...base, report: reportView(s, d.report, dir), budget: d.budget };
+    case 'rematch': {
+      const snap = s.client.state.snapshot;
+      const phases = snap?.timeline?.phaseCloses.length ?? snap?.phases;
+      const mine = s.client.state.me ? s.player(s.client.state.me)?.party?.name : undefined;
+      return {
+        ...base, previous_game_id: d.previousGameId ?? null, game_id: d.gameId, join_code: d.joinCode || null,
+        ...(phases !== undefined ? { polling_phases: phases } : {}),
+        ...(mine ? { your_party: mine } : {}),
+        note: 'The host played again. You are already in the new game with the same party; its campaign has started (no set_party, no join_game needed). Call get_state and campaign now. Do not call leave_game.',
+      };
+    }
     case 'error': return { ...base, code: d.error, message: d.message };
   }
 }
@@ -391,7 +402,7 @@ export function stateView(s: AgentSession, dir: SeatDirectory | null) {
       const inLive = (snap?.offers ?? []).some((o) => (o.status === 'open' || o.status === 'accepted') && [o.proposer, ...o.partners, ...Object.values(o.portfolios).flat()].includes(big ?? ''));
       if (big && !inLive) advice.push(leftOutHint(s, big));
     }
-  } else if (status === 'finished') advice.push(snap?.result ? 'The game is over. Report the result to the human.' : 'The game is finished.');
+  } else if (status === 'finished') advice.push(snap?.result ? 'The game is over. Report the result to the human, then keep calling wait_for_events (types ["rematch"]): the host may play again. If a rematch event arrives you are already in the new campaign with your party: call get_state and campaign at once. Do not call leave_game or join_game.' : 'The game is finished.');
   out.advice = advice;
   return out;
 }

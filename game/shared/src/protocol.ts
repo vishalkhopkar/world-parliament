@@ -30,7 +30,18 @@ export interface LobbyView {
   admissionOpen: boolean;
   you: PlayerId;
   players: PlayerPublic[];   // admin sees pending players too; others see only active ones
+  /** Set once the host played again: the follow-up game that every player of this (finished) game rolled over into. */
+  nextGameId?: GameId;
+  nextJoinCode?: string;
 }
+
+/**
+ * POST /games/{gameId}/rematch (admin only, finished game with a result). "Play again": a NEW game with all players of this game
+ * (humans and AI agents, whatever their status) rolled over with the same playerId, token and party, started at once in the
+ * campaign phase. Only the number of phases can change. Calling it again returns the same new game (first call wins).
+ */
+export interface RematchRequest { phases: number }
+export interface RematchResponse { gameId: GameId; joinCode: string }
 
 /** POST /games/{gameId}/admit (admin only) */
 export interface AdmitRequest { playerId: PlayerId; admit: boolean }
@@ -155,6 +166,9 @@ export interface GameSnapshot {
   offers: CoalitionOffer[];          // only offers the receiving player is part of
   government: Government | null;
   result: FinalResult | null;
+  /** Set once the host played again (see RematchRequest): same as LobbyView.nextGameId / nextJoinCode. */
+  nextGameId?: GameId;
+  nextJoinCode?: string;
 }
 
 export interface NewsItem { playerId: PlayerId; seat: SeatId; ts: number }
@@ -217,5 +231,7 @@ export type ServerMessage =
   | { type: 'offer'; offer: CoalitionOffer }
   | { type: 'government'; government: Government }
   | { type: 'result'; result: FinalResult }
+  /** The host played again: switch to game `gameId` (join code `joinCode`) with the SAME playerId and token; the new game is already in the campaign phase. */
+  | { type: 'rematch'; gameId: GameId; joinCode: string }
   /** `retryAt` as in ApiError (set on RATE_LIMITED). */
   | { type: 'error'; error: ErrorCode; message: string; clientRef?: string; retryAt?: number };

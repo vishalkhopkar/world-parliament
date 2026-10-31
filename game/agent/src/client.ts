@@ -73,6 +73,9 @@ export class GameClient {
   private readonly reconnectBaseMs: number;
   private readonly fetchImpl: typeof fetch;
 
+  /** Called whenever the session changed under us (a rematch moved us to the new game), so the owner can persist it. */
+  onSession?: (s: Session) => void;
+
   private ws: WebSocket | null = null;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -209,11 +212,44 @@ export class GameClient {
   }
 
   async refreshLobby(): Promise<LobbyView> {
-    const s = this.requireSession();
-    const v = await this.rest<LobbyView>('GET', '/games/' + encodeURIComponent(s.gameId));
-    this.state.lobby = v;
-    this.state.joinCode = v.joinCode;
-    return v;
+    for (let hop = 0; ; hop++) {
+      const s = this.requireSession();
+      const v = await this.rest<LobbyView>('GET', '/games/' + encodeURIComponent(s.gameId));
+      // The host played again and we missed the push: follow the new game (same player id and token).
+      if (v.nextGameId && v.nextGameId !== s.gameId && hop < 5 && !this.closedByUs) {
+        this.followRematch(v.nextGameId, v.nextJoinCode ?? '');
+        continue;
+      }
+      this.state.lobby = v;
+      this.state.joinCode = v.joinCode;
+      return v;
+    }
+  }
+
+  /**
+   * The host played again. Move this player to the new game: same playerId and token, new gameId + joinCode; the new game is
+   * already in the campaign with our party. Per-game state is dropped (the event log, clock offset, features and nickname stay),
+   * the old socket is closed and a new one is opened (its hello arrives after our first ping, as always). Idempotent per game id.
+   */
+  private followRematch(gameId: string, joinCode: string): boolean {
+    const s = this.session;
+    if (!s || gameId === s.gameId) return false;
+    for (const l of applyMessage(this.state, { type: 'rematch', gameId, joinCode }, Date.now())) this.events.push(l.type, l.data, this.serverNow());
+    if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
+    if (this.pingTimer) { clearInterval(this.pingTimer); this.pingTimer = null; }
+    this.failPending(new AgentError('NO_CONNECTION', 'The host played again; this action belonged to the previous game.'));
+    const old = this.ws;
+    this.ws = null; // so the old socket's onclose is ignored
+    try { old?.close(); } catch { /* ignore */ }
+    this.session = { ...s, gameId, joinCode: joinCode || undefined };
+    const st = this.state;
+    st.snapshot = null; st.priv = null; st.chat = []; st.polledPhases = new Set(); st.pendingActions.clear();
+    st.budgetPending = false; st.globalReports = null; st.lobby = null;
+    this.attachSession();
+    this.log(`rematch: moved to game ${gameId}`);
+    try { this.onSession?.(this.session); } catch { /* ignore */ }
+    this.openSocket(this.session);
+    return true;
   }
 
   async setParty(party: PartyIdentity): Promise<void> {
@@ -277,9 +313,11 @@ export class GameClient {
 
   private async scheduleReconnect(): Promise<void> {
     if (this.reconnectTimer || this.closedByUs) return;
-    const finished = this.state.snapshot?.status === 'finished' || this.state.snapshot?.status === 'abandoned';
-    if (finished) { this.state.link = 'closed'; return; }
-    const delay = Math.min(10_000, this.reconnectBaseMs * 2 ** Math.min(this.attempts, 5)) + Math.floor(Math.random() * 200);
+    // An abandoned game never comes back. A FINISHED game may get a rematch: keep a (slower) live link / REST check going.
+    if (this.state.snapshot?.status === 'abandoned') { this.state.link = 'closed'; return; }
+    const finished = this.state.snapshot?.status === 'finished';
+    const delay = Math.min(10_000, this.reconnectBaseMs * 2 ** Math.min(this.attempts, 5)) + Math.floor(Math.random() * 200)
+      + (finished ? Math.min(5000, this.reconnectBaseMs * 10) : 0);
     this.attempts++;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
@@ -319,7 +357,12 @@ export class GameClient {
 
   private handle(m: ServerMessage): void {
     const now = Date.now();
+    if (m.type === 'rematch') {
+      if (m.gameId !== this.session?.gameId) this.followRematch(m.gameId, m.joinCode);
+      return;
+    }
     if (m.type === 'hello') {
+      if (m.snapshot.nextGameId && m.snapshot.nextGameId !== this.session?.gameId && this.followRematch(m.snapshot.nextGameId, m.snapshot.nextJoinCode ?? '')) return;
       this.everHello = true;
       const hw = this.helloWaiters;
       this.helloWaiters = [];

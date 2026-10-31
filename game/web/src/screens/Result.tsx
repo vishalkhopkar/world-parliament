@@ -1,13 +1,14 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Outcome, SeatId } from '@hp/shared';
-import { useStore } from '../state/store';
+import { selectIsAdmin, useStore } from '../state/store';
 import { useMapConfig } from '../state/mapConfig';
 import { SeatMap } from '../map/SeatMap';
 import { Card, PartyBadge, PartyTags } from '../components/ui';
 import { SeatSharesModal } from '../components/SeatSharesModal';
 import { SeatShareHint } from '../components/SeatShareHint';
 import { colourHex, playerName } from '../lib';
-import { leaveGame } from '../net/client';
+import { isTour, leaveGame, playAgain } from '../net/client';
+import { PhasesSelect } from '../components/PhasesSelect';
 import './Result.css';
 import { TallyBar } from './Counting';
 
@@ -17,6 +18,24 @@ const HEADLINE: Record<Outcome, string> = {
   draw: 'A dead heat: it is a draw',
   noGovernment: 'No government formed. Everyone loses.',
 };
+
+/** Host: pick the phases and start the next game with the same players. Others: wait. Nothing in the tour or for abandoned games. */
+function PlayAgain({ phases }: { phases: number }) {
+  const cfg = useMapConfig();
+  const isAdmin = useStore(selectIsAdmin);
+  const moved = useStore(s => !!s.snapshot?.nextGameId);
+  const [choice, setChoice] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (!isAdmin) return <p className="hint play-again-wait" data-testid="play-again-wait">Waiting for the host to play again.</p>;
+  if (moved) return <p className="hint play-again-wait" data-testid="play-again-wait">Starting the next game…</p>;
+  const go = async () => { setBusy(true); try { await playAgain(choice ?? phases); } finally { setBusy(false); } };
+  return (
+    <div className="play-again" data-testid="play-again">
+      <PhasesSelect range={cfg.phases} value={choice ?? phases} onChange={setChoice} disabled={busy} />
+      <button className="btn primary" disabled={busy} onClick={() => void go()}>{busy ? 'Starting…' : 'Play again'}</button>
+    </div>
+  );
+}
 
 export function Result() {
   const snap = useStore(s => s.snapshot);
@@ -96,7 +115,10 @@ export function Result() {
         </div>
       </Card>
 
-      <div className="actions"><button className="btn primary" onClick={() => leaveGame()}>Back to start</button></div>
+      <div className="actions">
+        {snap.status === 'finished' && !isTour && <PlayAgain phases={snap.phases} />}
+        <button className={'btn ' + (snap.status === 'finished' && !isTour ? 'ghost' : 'primary')} onClick={() => leaveGame()}>Back to start</button>
+      </div>
     </div>
     </>
   );

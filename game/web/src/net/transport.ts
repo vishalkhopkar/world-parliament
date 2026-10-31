@@ -1,6 +1,6 @@
 import type {
   AdmissionRequest, AdmitRequest, ClientMessage, CreateGameRequest, CreateGameResponse, GameId,
-  JoinGameRequest, JoinGameResponse, LobbyView, PartyRequest, ServerMessage, SettingsRequest, StartResponse,
+  JoinGameRequest, JoinGameResponse, LobbyView, PartyRequest, RematchRequest, RematchResponse, ServerMessage, SettingsRequest, StartResponse,
 } from '@hp/shared';
 
 export type LinkState = 'connecting' | 'open' | 'down';
@@ -25,6 +25,8 @@ export interface Transport {
   setSettings(gameId: GameId, token: string, req: SettingsRequest): Promise<void>;
   setParty(gameId: GameId, token: string, req: PartyRequest): Promise<void>;
   start(gameId: GameId, token: string): Promise<StartResponse>;
+  /** "Play again" (admin only, finished game with a result): creates the next game with the same players; the same token works there. */
+  rematch(gameId: GameId, token: string, req: RematchRequest): Promise<RematchResponse>;
 
   // ---- WebSocket
   /**

@@ -33,6 +33,12 @@ export class Human {
   async admit(playerId: string, admit = true) { return this.api('POST', `/games/${this.gameId}/admit`, { playerId, admit }); }
   async setParty(name: string, colour: string, symbol: string, avatar = 'putin') { return this.api('POST', `/games/${this.gameId}/party`, { party: { name, colour, symbol, avatar } }); }
   start() { return this.api('POST', `/games/${this.gameId}/start`); }
+  /** Host: "Play again" from the finished game; switches this helper to the new game (same player id and token). */
+  async playAgain(phases = 2): Promise<{ status: number; json: any }> {
+    const r = await this.api('POST', `/games/${this.gameId}/rematch`, { phases });
+    if (r.status === 200) Object.assign(this, { gameId: r.json.gameId, joinCode: r.json.joinCode });
+    return r;
+  }
   async pending(): Promise<any[]> { return ((await this.lobby()).json.players as any[]).filter((p) => p.status === 'pending'); }
 }
 

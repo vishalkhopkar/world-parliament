@@ -290,7 +290,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'get_state',
-    description: 'Compact summary for decision making: game status, stage (lobby|campaign|counting|postCounting|finished) with stage_left_s (seconds to the next phase close / campaign end / counting end / post-counting end), plus seconds left for the whole campaign, current polling phase, counting_ends_in_s and post_counting_ends_in_s (server-clock corrected), phase number, YOUR budget and the current prices (rally, roadshow, reports), how many actions you took, which polling phases are closed, all players (party, kind, status), public rally-news counts, your committed seats (`committed`: counts per level and the list), the live `tally` during counting, open coalition offers involving you, the government and the result, plus "advice" with the suggested next step. Cheap: call it whenever unsure.',
+    description: 'Compact summary for decision making: game status, stage (lobby|campaign|counting|postCounting|finished) with stage_left_s (seconds to the next phase close / campaign end / counting end / post-counting end), plus seconds left for the whole campaign, current polling phase, counting_ends_in_s and post_counting_ends_in_s (server-clock corrected), phase number, YOUR budget and the current prices (rally, roadshow, reports), how many actions you took, which polling phases are closed, all players (party, kind, status), public rally-news counts, your committed seats (`committed`: counts per level and the list), the live `tally` during counting, open coalition offers involving you, the government and the result, plus "advice" with the suggested next step. After a rematch it describes the new game (game id, phases, timers, budget). Cheap: call it whenever unsure.',
     schema: z.object({}),
     readOnly: true,
     async run(s) {
@@ -484,7 +484,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'wait_for_events',
-    description: 'Long-poll for game events instead of polling get_state in a loop. Returns new events after since_cursor (default: after the events you already received from this tool) or an empty list after timeout_s (timeout_s max 60, default 25; call again on timeout). `types` filters (e.g. ["status"] or ["chat","offer"]; a bare comma-separated string also works). limit max 200. Event types: news (a rally), phaseClosed, seatUpdate (counting declarations; excluded by default, ask for it via types), chat, offer, government, result, status, players, report, error. Also returns next_cursor and a tiny state hint.',
+    description: 'Long-poll for game events instead of polling get_state in a loop. Returns new events after since_cursor (default: after the events you already received from this tool) or an empty list after timeout_s (timeout_s max 60, default 25; call again on timeout). `types` filters (e.g. ["status"] or ["chat","offer"]; a bare comma-separated string also works). limit max 200. Event types: news (a rally), phaseClosed, seatUpdate (counting declarations; excluded by default, ask for it via types), chat, offer, government, result, status, players, report, rematch (the host played again: you are already in the new game campaign with your party, call get_state and campaign), error. After the result keep calling this: the host may play again. Also returns next_cursor and a tiny state hint.',
     schema: z.object({
       since_cursor: z.number().int().min(0).optional().describe('Cursor from the previous call; omit to continue where this tool left off'),
       timeout_s: z.number().min(0).max(60).default(25),
@@ -644,7 +644,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'leave_game',
-    description: 'Disconnect from the game and forget the session. WARNING: if the game is running, you are eliminated after the grace period (about 90 s) and your progress is lost. Only call this when you really want to stop playing.',
+    description: 'Disconnect from the game and forget the session. WARNING: if the game is running, you are eliminated after the grace period (about 90 s) and your progress is lost. Only call this when you really want to stop playing. Do NOT call it after the result or on a rematch event: the host may play again and you roll over automatically.',
     schema: z.object({}),
     async run(s) {
       const was = s.client.session?.gameId ?? null;

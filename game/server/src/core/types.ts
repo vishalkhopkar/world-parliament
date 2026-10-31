@@ -29,6 +29,9 @@ export interface GameRecord {
    * before it existed: GameService.newsSecretOf then creates and stores one on first use.
    */
   newsSecret?: string;
+  /** Play again: the follow-up game (claimed once with a condition, so a double click returns the same game). */
+  rematchGameId?: string;
+  rematchJoinCode?: string;
 }
 
 export interface PlayerRecord {

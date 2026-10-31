@@ -77,7 +77,7 @@ describe('routing', () => {
 
   it.each([['not json'], ['[]'], ['null'], ['"text"'], ['42'], ['{"a":']])('malformed body %s -> 400 BAD_REQUEST', async (body) => {
     const { call, g } = await world();
-    for (const [path, token] of [['/games', undefined], ['/games/join', undefined], [`/games/${g.gameId}/admit`, g.token], [`/games/${g.gameId}/party`, g.token]] as const) {
+    for (const [path, token] of [['/games', undefined], ['/games/join', undefined], [`/games/${g.gameId}/admit`, g.token], [`/games/${g.gameId}/party`, g.token], [`/games/${g.gameId}/rematch`, g.token]] as const) {
       const r = await call('POST', path, body, token);
       expect(r.status, path).toBe(400);
       expect((r.body as { error: string }).error).toBe('BAD_REQUEST');
@@ -102,7 +102,7 @@ describe('routing', () => {
 describe('authentication', () => {
   const routes: [string, string, unknown][] = [
     ['GET', '', undefined], ['POST', '/admit', { playerId: 'x', admit: true }], ['POST', '/admission', { open: true }],
-    ['POST', '/settings', { phases: 2 }], ['POST', '/party', party(0)], ['POST', '/start', undefined],
+    ['POST', '/settings', { phases: 2 }], ['POST', '/party', party(0)], ['POST', '/start', undefined], ['POST', '/rematch', { phases: 2 }],
   ];
 
   it.each(routes)('%s /games/{id}%s needs a valid bearer token', async (method, suffix, body) => {
@@ -149,6 +149,7 @@ describe('authentication', () => {
 describe('permissions', () => {
   const adminOnly: [string, string, unknown][] = [
     ['POST', '/admit', { playerId: 'x', admit: true }], ['POST', '/admission', { open: false }], ['POST', '/settings', { phases: 3 }], ['POST', '/start', undefined],
+    ['POST', '/rematch', { phases: 2 }],
   ];
 
   it.each(adminOnly)('%s %s is admin-only: active, pending and rejected players get FORBIDDEN, nothing changes', async (_m, suffix, body) => {
@@ -168,7 +169,7 @@ describe('permissions', () => {
   it('admin-only checks run before the lobby-state check (non-admin on a started game is FORBIDDEN, admin is WRONG_PHASE)', async () => {
     const c = await new Ctx().started(3, 2);
     const call = api(c);
-    for (const [suffix, body] of [['/admit', { playerId: c.p[1].playerId, admit: true }], ['/admission', { open: true }], ['/settings', { phases: 2 }], ['/start', undefined]] as const) {
+    for (const [suffix, body] of [['/admit', { playerId: c.p[1].playerId, admit: true }], ['/admission', { open: true }], ['/settings', { phases: 2 }], ['/start', undefined], ['/rematch', { phases: 2 }]] as const) {
       const asPlayer = await call('POST', `/games/${c.gameId}${suffix}`, body, c.p[1].token);
       expect((asPlayer.body as { error: string }).error, suffix).toBe('FORBIDDEN');
       const asAdmin = await call('POST', `/games/${c.gameId}${suffix}`, body, c.p[0].token);
@@ -330,6 +331,45 @@ describe('lobby over REST (validation tables)', () => {
     expect(lobby.admissionOpen).toBe(false);
     // starting twice
     expect((await call('POST', `/games/${g.gameId}/start`, undefined, g.token)).status).toBe(409);
+  });
+});
+
+describe('play again over REST (POST /games/{id}/rematch)', () => {
+  it('admin of a finished game: 200 {gameId, joinCode}; the old lobby links to it; the same token works there; a repeat returns the same game', async () => {
+    const c = await new Ctx().started(3, 2);
+    await driveTo(c, 'finished');
+    const call = api(c);
+    const r = await call('POST', `/games/${c.gameId}/rematch`, { phases: 3 }, c.p[0].token);
+    expect(r.status).toBe(200);
+    const body = r.body as { gameId: string; joinCode: string };
+    expect(Object.keys(body).sort()).toEqual(['gameId', 'joinCode']);
+    expect(body.gameId).not.toBe(c.gameId);
+    const old = (await call('GET', `/games/${c.gameId}`, undefined, c.p[1].token)).body as { status: string; nextGameId?: string; nextJoinCode?: string };
+    expect(old).toMatchObject({ status: 'finished', nextGameId: body.gameId, nextJoinCode: body.joinCode });
+    const next = await call('GET', `/games/${encodeURIComponent(body.gameId)}`, undefined, c.p[1].token);
+    expect(next.status).toBe(200);
+    expect(next.body).toMatchObject({ gameId: body.gameId, joinCode: body.joinCode, status: 'campaign', phases: 3, admissionOpen: false, you: c.p[1].playerId });
+    expect((await call('POST', `/games/${c.gameId}/rematch`, { phases: 1 }, c.p[0].token)).body).toEqual(body);
+    // the server never hands out a token: the body has no token and the new game does not accept a made-up one
+    expect((await call('GET', `/games/${body.gameId}`, undefined, 'nope')).status).toBe(401);
+  });
+
+  it('status codes: 400 bad phases / body, 401 no token, 403 non-admin, 404 unknown game, 409 not finished or too few players', async () => {
+    const c = await new Ctx().started(2, 2);
+    const call = api(c);
+    const path = `/games/${c.gameId}/rematch`;
+    const err = (r: RestResponse) => [r.status, (r.body as { error?: string }).error];
+    expect(err(await call('POST', path, { phases: 2 }, c.p[0].token))).toEqual([409, 'WRONG_PHASE']); // campaign
+    await driveTo(c, 'finished');
+    expect(err(await call('POST', path, { phases: 2 }))).toEqual([401, 'UNAUTHORIZED']);
+    expect(err(await call('POST', path, { phases: 2 }, c.p[1].token))).toEqual([403, 'FORBIDDEN']);
+    expect(err(await call('POST', '/games/nope/rematch', { phases: 2 }, c.p[0].token))).toEqual([404, 'NOT_FOUND']);
+    for (const body of [{}, { phases: 0 }, { phases: 4 }, { phases: '2' }, 'not json', '[]']) {
+      expect(err(await call('POST', path, body, c.p[0].token)), JSON.stringify(body)).toEqual([400, 'BAD_REQUEST']);
+    }
+    c.cfg = { ...c.cfg, players: { ...c.cfg.players, min: 3 } };
+    expect(err(await call('POST', path, { phases: 2 }, c.p[0].token))).toEqual([409, 'NOT_ENOUGH_PLAYERS']);
+    expect((await call('GET', path, undefined, c.p[0].token)).status).toBe(404);
   });
 });
 

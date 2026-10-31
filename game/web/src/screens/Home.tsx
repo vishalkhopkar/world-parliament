@@ -4,6 +4,7 @@ import { createGame, isRemote, joinGame } from '../net/client';
 import { buildTourLink, joinCodeFromSearch } from '../net/share';
 import { Card } from '../components/ui';
 import { MapChooser } from '../components/MapChooser';
+import { PhasesSelect, clampPhases } from '../components/PhasesSelect';
 import { mapConfigFor } from '../state/mapConfig';
 import './Home.css';
 
@@ -26,7 +27,7 @@ export function Home() {
   const [busy, setBusy] = useState(false);
   // phase limits are per map: the chosen map's config (a stale choice is clamped when the map changes)
   const cfg = mapConfigFor(mapId);
-  const phases = Math.min(cfg.phases.max, Math.max(cfg.phases.min, phasesChoice ?? cfg.phases.default));
+  const phases = clampPhases(phasesChoice ?? cfg.phases.default, cfg.phases);
 
   const run = async (f: () => Promise<unknown>) => { setBusy(true); try { await f(); } finally { setBusy(false); } };
   const nickOk = nick.trim().length >= 2;
@@ -58,13 +59,7 @@ export function Home() {
       </Card>
       <div className="grid-2">
         <Card title="Create a game">
-          <label className="field">Polling phases
-            <select className="input" value={phases} onChange={e => setPhases(Number(e.target.value))}>
-              {Array.from({ length: cfg.phases.max - cfg.phases.min + 1 }, (_, i) => i + cfg.phases.min).map(n => (
-                <option key={n} value={n}>{n} phase{n > 1 ? 's' : ''}</option>
-              ))}
-            </select>
-          </label>
+          <PhasesSelect range={cfg.phases} value={phases} onChange={setPhases} />
           <button className="btn primary" disabled={!nickOk || busy} onClick={() => run(() => createGame(nick.trim(), phases, mapId))}>Create game</button>
         </Card>
         <Card title="Join a game">

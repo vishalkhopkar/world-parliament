@@ -28,6 +28,7 @@ export class AgentSession {
   constructor(opts: SessionOptions = {}) {
     this.log = opts.log ?? (() => undefined);
     this.client = new GameClient(opts);
+    this.client.onSession = () => this.persist(); // a rematch moves us to the new game: rewrite the session file
     this.sessionFile = opts.sessionFile;
     this.seatDir = opts.seats ?? null;
   }
@@ -41,7 +42,8 @@ export class AgentSession {
       await this.client.discover();
       if (s.server && s.server.replace(/\/+$/, '') !== this.client.server) return false;
       await this.client.resume(s);
-      this.log(`restored session for game ${s.gameId}`);
+      if (this.client.session && this.client.session.gameId !== s.gameId) this.persist(); // the game had a rematch meanwhile
+      this.log(`restored session for game ${this.client.session?.gameId ?? s.gameId}`);
       return true;
     } catch (e) {
       this.log('could not restore session: ' + (e as Error).message);

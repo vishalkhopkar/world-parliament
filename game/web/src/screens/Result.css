@@ -8,3 +8,8 @@ table.points tr.winner{background:rgba(227,197,102,.35)}
 .winners{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
 .winners .party-badge strong{font-weight:800}
 .gov-members{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+
+.result .actions{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 16px}
+.play-again{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 12px}
+.play-again .field{margin:0}
+.play-again-wait{margin:0;align-self:center}

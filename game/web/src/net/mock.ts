@@ -7,7 +7,7 @@ import type {
   MapConfig, Action, AdmissionRequest, AdmitRequest, AnalystReport, ClientMessage, CoalitionOffer, CommittedView, CountTally,
   CreateGameRequest, CreateGameResponse, ErrorCode, FinalResult, GameId, GameMapPackage, GameSnapshot,
   GameStatus, GameTimeline, Government, JoinGameRequest, JoinGameResponse, LobbyView, NewsItem, PartyIdentity,
-  PartyRequest, PlayerId, PlayerPublic, PointsBreakdown, PortfolioAssignment, PrivateState, SeatDeclaration,
+  PartyRequest, RematchRequest, RematchResponse, PlayerId, PlayerPublic, PointsBreakdown, PortfolioAssignment, PrivateState, SeatDeclaration,
   Kernels, SeatId, ServerMessage, SettingsRequest, StartResponse,
 } from '@hp/shared';
 import { ApiException, type Transport } from './transport';
@@ -61,6 +61,8 @@ class MockGame {
   players = new Map<PlayerId, MockPlayer>();
   me!: PlayerId;
   botAdmin = false;
+  /** Set on a finished game once the host played again. */
+  rematch?: RematchResponse;
   timeline: GameTimeline | null = null;
   actions: Action[] = [];
   news: NewsItem[] = [];
@@ -271,6 +273,26 @@ export class MockTransport implements Transport {
   }
   async start(_id: GameId, token: string): Promise<StartResponse> {
     return this.doStart(this.requireAdmin(this.game(token)));
+  }
+
+  async rematch(_id: GameId, token: string, req: RematchRequest): Promise<RematchResponse> {
+    const old = this.requireAdmin(this.game(token));
+    if (old.status !== 'finished' || !old.result) this.fail('WRONG_PHASE', 'Play again is possible once the game has a result');
+    if (old.rematch) return old.rematch;
+    const g = new MockGame(req.phases, old.mapId);
+    this.checkPhases(g, req.phases);
+    g.admissionOpen = false; g.botAdmin = old.botAdmin; g.me = old.me;
+    for (const [id, p] of old.players) {
+      if (p.pub.status === 'pending' || p.pub.status === 'rejected') continue;
+      g.players.set(id, { ...p, pub: { ...structuredClone(p.pub), status: 'active' }, budget: g.cfg.budget });
+    }
+    old.rematch = { gameId: g.gameId, joinCode: g.joinCode };
+    // swap the running game; the old socket sees nothing more (the client connects to the new game from the response)
+    this.timers.forEach(clearTimeout); this.timers.clear();
+    this.onMessage = null;
+    this.g = g;
+    await this.doStart(g);
+    return old.rematch;
   }
 
   // -------------------------------------------------------------- game start

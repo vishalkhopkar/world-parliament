@@ -6,7 +6,8 @@ player. Numbers below are rendered from this game's live configuration ({{MAP_NA
 
 > Quick start: `get_rules` (this text) -> `join_game` (code from the human host) -> `wait_for_admission` -> `list_party_options`
 > -> `set_party` -> wait for the host to start -> campaign fast (`get_state`, `list_seats`, `campaign_batch`) -> during counting
-> negotiate (`chat`, `propose_government`, `respond_offer`) -> read the result.
+> negotiate (`chat`, `propose_government`, `respond_offer`) -> read the result -> keep calling `wait_for_events`: the host may **play again**
+> (a `rematch` event: you are already in the new campaign with your party, so `get_state` and campaign at once).
 > You can NEVER create or start a game. Only a human host can. Ask the human for the join code.
 
 ## 1. The setting
@@ -27,6 +28,7 @@ player. Numbers below are rendered from this game's live configuration ({{MAP_NA
    Shortcut: `set_party {auto_pick:true}` picks a free unique name, colour, symbol and avatar for you; anything you do pass explicitly is kept.
 5. The host starts the game when {{PLAYERS_MIN}}+ players are admitted and every party is set. Budgets are fixed per map, not chosen by anyone.
    There is a short lead-in (a few seconds) between the start and the first moment you may campaign.
+6. **Play again.** When a game is over the host may click "Play again" (only the number of polling phases can change). Every player, AI agents included, moves to a NEW game with a new join code, the same player id/token and the **same party**; party setup is skipped and the **campaign starts at once** with a fresh budget, fresh committed voters and a fresh seat layout. You get a `rematch` event from `wait_for_events` (fields: game_id, join_code, previous_game_id); then call `get_state` and campaign. Do not call `join_game`, `set_party` or `leave_game` for it. Only the host can start it; you can never do it.
 
 ## 3. Money, prices, actions (campaign phase)
 Every player starts with the same **budget of {{BUDGET_TEXT}}**. **Unused money is worth nothing**: spend it all, but wisely.
@@ -69,6 +71,7 @@ Every action adds **effect** for you in seats. Effects are additive: ten roadsho
 - The campaign time is split **equally** between the phases. Phase k closes at its deadline; `get_state` shows seconds left.
 - When a phase closes, **all its seats are polled and frozen**: you can no longer campaign (or buy a seat report) there, and
   later actions elsewhere have no effect on those seats. Neighbouring seats that are still open keep receiving spill-over.
+- The number of phases can change at a rematch ("Play again"); `get_state` always shows the current game's phases and timers.
 - Total campaign length for this map: about {{CAMPAIGN_MIN}} minutes (the live timers in `get_state` are authoritative).
   There are two clocks: the whole campaign, and the current polling phase.
 - Therefore: **act on seats of the current phase before it closes**; money not spent on early-phase seats can still be spent on later ones.
@@ -149,6 +152,7 @@ split the reputation voters into small shares; neglected seats can be won cheapl
 - Stay connected. If your connection drops, you have a **grace period of {{GRACE_S}} seconds** to reconnect (the MCP server / daemon reconnects automatically
   with the same token). After that you are **eliminated**: your progress is lost and the seats you led go to the runner-up in each seat.
 - `leave_game` disconnects you on purpose, which eliminates you after the grace period. Do not call it unless you mean it.
+- After the result the connection stays up (or is re-established automatically) so you do not miss a **rematch**: if the host plays again your client switches to the new game by itself (same token, new game id and join code, session file rewritten) and a `rematch` event appears in `wait_for_events`. Keep calling `wait_for_events` after the result instead of leaving.
 
 ## 11. Strategy guide (from the balance simulator)
 1. **Speed matters, thinking time does not cost you anything extra, but the clocks run.** The whole campaign is only about {{CAMPAIGN_MIN}} minutes. Plan once, then place many actions with

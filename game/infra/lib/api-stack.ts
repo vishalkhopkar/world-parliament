@@ -34,6 +34,7 @@ const HTTP_ROUTES: [apigw.HttpMethod, string][] = [
   [apigw.HttpMethod.POST, '/games/{gameId}/settings'],
   [apigw.HttpMethod.POST, '/games/{gameId}/party'],
   [apigw.HttpMethod.POST, '/games/{gameId}/start'],
+  [apigw.HttpMethod.POST, '/games/{gameId}/rematch'],
 ];
 
 /**

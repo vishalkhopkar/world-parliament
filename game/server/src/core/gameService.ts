@@ -7,8 +7,8 @@ import {
 import { channelOf, findMentions } from '@hp/chat/common';
 import type {
   Action, AdmissionRequest, AdmitRequest, ChatMessage, ClientMessage, CoalitionOffer, CountTally,
-  CreateGameRequest, CreateGameResponse, GameSnapshot, GlobalReports, JoinGameRequest, JoinGameResponse, LobbyView, MapConfig,
-  PartyIdentity, PartyRequest, PlayerId, PlayerPublic, PortfolioAssignment, PrivateState, SeatDeclaration, SeatId,
+  CreateGameRequest, CreateGameResponse, GameSnapshot, GameTimeline, GlobalReports, JoinGameRequest, JoinGameResponse, LobbyView, MapConfig,
+  PartyIdentity, PartyRequest, PlayerId, PlayerPublic, PortfolioAssignment, PrivateState, RematchRequest, RematchResponse, SeatDeclaration, SeatId,
   SeatResult, ServerMessage, SettingsRequest, StartResponse,
 } from '@hp/shared';
 import { createHash } from 'node:crypto';
@@ -44,8 +44,11 @@ export interface GameServiceDeps {
   startDelayMs?: number;
 }
 
-/** Advertised in `hello` so clients know what is safe to rely on (actionRef = idempotent campaign messages). */
-const SERVER_FEATURES: string[] = ['actionRef'];
+/**
+ * Advertised in `hello` so clients know what is safe to rely on (actionRef = idempotent campaign messages; rematch = the host can
+ * play again: POST /games/{id}/rematch, the 'rematch' message and nextGameId / nextJoinCode on the lobby view and snapshot).
+ */
+const SERVER_FEATURES: string[] = ['actionRef', 'rematch'];
 const LIVE: ReadonlySet<string> = new Set(['campaign', 'counting', 'postCounting']);
 const CONTENDER: ReadonlySet<string> = new Set(['active', 'disconnected']);
 /** Players who are part of the game (not pending/rejected). */
@@ -62,6 +65,11 @@ export function dealCandidateColumns(count: number, columns: number): number[] {
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
   return pool.slice(0, count);
+}
+
+/** nextGameId / nextJoinCode for a game the host played again (LobbyView, GameSnapshot); {} otherwise. */
+function nextGameOf(game: GameRecord): { nextGameId?: string; nextJoinCode?: string } {
+  return game.rematchGameId && game.rematchJoinCode ? { nextGameId: game.rematchGameId, nextJoinCode: game.rematchJoinCode } : {};
 }
 
 export function toPublic(p: PlayerRecord): PlayerPublic {
@@ -194,12 +202,7 @@ export class GameService {
     const { map, cfg } = this.loadMap(mapId);
     const phases = req?.phases === undefined ? cfg.phases.default : req.phases;
     this.checkPhases(cfg, map.phaseGroups, phases);
-    let joinCode = '';
-    for (let i = 0; i < 20; i++) { // the join-code index does not enforce uniqueness: check before use
-      const c = newJoinCode();
-      if (!(await this.repo.findGameByCode(c))) { joinCode = c; break; }
-    }
-    if (!joinCode) throw new GameError('INTERNAL', 'Could not allocate a join code');
+    const joinCode = await this.allocateJoinCode();
     const now = this.now();
     const gameId = newId(5);
     const playerId = newId(4);
@@ -214,6 +217,15 @@ export class GameService {
     await this.repo.createGame(game, admin);
     await this.dealCommittedFor(gameId, playerId);
     return { gameId, joinCode, playerId, token };
+  }
+
+  /** A join code no stored game uses (the join-code index does not enforce uniqueness: check before use). */
+  private async allocateJoinCode(): Promise<string> {
+    for (let i = 0; i < 20; i++) {
+      const c = newJoinCode();
+      if (!(await this.repo.findGameByCode(c))) return c;
+    }
+    throw new GameError('INTERNAL', 'Could not allocate a join code');
   }
 
   private checkPhases(cfg: MapConfig, groups: Record<string, unknown>, phases: unknown): asserts phases is number {
@@ -250,7 +262,7 @@ export class GameService {
       p.playerId === player.playerId || (player.isAdmin ? p.status !== 'rejected' : MEMBER.has(p.status)));
     return {
       gameId, joinCode: game.joinCode, mapId: game.mapId, phases: game.phases, status: game.status,
-      admissionOpen: game.admissionOpen, you: player.playerId, players: visible.map(toPublic),
+      admissionOpen: game.admissionOpen, you: player.playerId, players: visible.map(toPublic), ...nextGameOf(game),
     };
   }
 
@@ -344,7 +356,20 @@ export class GameService {
     for (const p of active) if (!p.committed) await this.dealCommittedFor(gameId, p.playerId);
     const columns = dealCandidateColumns(active.length, cfg.players.max);
     await Promise.all(active.map((p, i) => this.repo.updatePlayer(gameId, p.playerId, { candidateColumn: columns[i] })));
+    const timeline = await this.beginCampaign(game, players, { admissionOpen: true });
+    return { ok: true, timeline };
+  }
 
+  /**
+   * Lobby -> campaign for a game whose roster is final (committed voters and candidate columns dealt): build the timeline, flip the
+   * status (conditional on the lobby), give every active player the budget, reject pending requests, start the lifecycle (on failure
+   * the game goes back to the lobby with `rollback` applied, and the error is rethrown) and tell the connected players.
+   * Shared by start() and rematch().
+   */
+  private async beginCampaign(game: GameRecord, players: PlayerRecord[], rollback: Partial<GameRecord>): Promise<GameTimeline> {
+    const { gameId } = game;
+    const { cfg } = this.loadMap(game.mapId);
+    const active = players.filter((p) => p.status === 'active');
     const now = this.now();
     // counting is shorter with exactly 2 players (no negotiation)
     const timeline = buildTimeline(cfg, game.phases, now + (this.d.startDelayMs ?? 5000), countingMsFor(cfg, active.length), postCountingMsFor(cfg, active.length));
@@ -362,7 +387,7 @@ export class GameService {
     try {
       await this.d.scheduler.startLifecycle(gameId, timeline);
     } catch (e) {
-      await this.repo.updateGame(gameId, { status: 'lobby', timeline: null, admissionOpen: true });
+      await this.repo.updateGame(gameId, { status: 'lobby', timeline: null, ...rollback });
       throw e;
     }
     await this.d.notifier.broadcast(gameId, { type: 'status', status: 'campaign', timeline });
@@ -372,7 +397,66 @@ export class GameService {
         await this.d.notifier.sendToPlayer(gameId, p.playerId, { type: 'private', private: await this.privateState(gameId, p.playerId) });
       }
     }
-    return { ok: true, timeline };
+    return timeline;
+  }
+
+  // ------------------------------------------------------------------ play again
+  /**
+   * "Play again" (admin only, finished game with a stored result): a NEW game (new id, join code, news secret, committed voters and
+   * candidate columns) with every member of this game (active, disconnected, eliminated; humans and agents) rolled over as an active
+   * player with the same playerId, token hash, nickname, kind, admin flag and party, started at once in the campaign phase with
+   * `req.phases` phases; admission is closed. The old game keeps its result and links to the new one (rematchGameId, claimed once
+   * with a condition: a repeated or concurrent call returns the same game). Every connection of the old game is told
+   * ({type:'rematch'}); a later hello / lobby read of the old game carries nextGameId / nextJoinCode.
+   */
+  async rematch(gameId: string, token: string | undefined, req: RematchRequest): Promise<RematchResponse> {
+    const { game, player, players } = await this.auth(gameId, token);
+    this.requireAdmin(game, player);
+    if (game.status !== 'finished' || !(await this.repo.getResult(gameId))) {
+      throw new GameError('WRONG_PHASE', 'You can play again only once the result has been declared');
+    }
+    if (game.rematchGameId && game.rematchJoinCode) return { gameId: game.rematchGameId, joinCode: game.rematchJoinCode };
+    const { map, cfg } = this.loadMap(game.mapId);
+    const phases = req?.phases;
+    this.checkPhases(cfg, map.phaseGroups, phases);
+    const members = this.sortedPlayers(players).filter((p) => MEMBER.has(p.status));
+    if (members.length < cfg.players.min) throw new GameError('NOT_ENOUGH_PLAYERS', `At least ${cfg.players.min} players are needed`);
+    if (members.length > cfg.players.max) throw new GameError('GAME_FULL', `At most ${cfg.players.max} players can play`);
+
+    // the new game, still in the lobby while the roster is copied and the committed voters are dealt (deals need the lobby)
+    const next: GameRecord = {
+      gameId: newId(5), joinCode: await this.allocateJoinCode(), mapId: game.mapId, phases, status: 'lobby', admissionOpen: false,
+      adminId: game.adminId, createdAt: this.now(), timeline: null, closedPhases: 0, revealedStep: 0, newsSecret: newToken(),
+    };
+    const columns = dealCandidateColumns(members.length, cfg.players.max);
+    const copies = members.map((p, i): PlayerRecord => ({
+      gameId: next.gameId, playerId: p.playerId, nickname: p.nickname, tokenHash: p.tokenHash, isAdmin: p.isAdmin,
+      ...(p.kind ? { kind: p.kind } : {}), status: 'active', candidateColumn: columns[i],
+      ...(p.party ? { party: { ...p.party } } : {}), budget: 0, joinedAt: p.joinedAt,
+    }));
+    const admin = copies.find((p) => p.playerId === game.adminId) ?? copies.find((p) => p.playerId === player.playerId)!;
+    await this.repo.createGame(next, admin);
+    for (const p of copies) if (p !== admin) await this.repo.putPlayer(p);
+    for (const p of copies) await this.dealCommittedFor(next.gameId, p.playerId);
+
+    // claim: the first call to link a follow-up game wins; a loser returns the winner's game (its own copy stays an unused lobby)
+    const claimed = await this.repo.updateGame(gameId, { rematchGameId: next.gameId, rematchJoinCode: next.joinCode },
+      { status: 'finished', rematchGameId: undefined });
+    if (!claimed) {
+      const won = await this.loadGame(gameId);
+      if (won.rematchGameId && won.rematchJoinCode) return { gameId: won.rematchGameId, joinCode: won.rematchJoinCode };
+      throw new GameError('WRONG_PHASE', 'The game can no longer be played again');
+    }
+    try {
+      await this.beginCampaign(next, copies, { admissionOpen: false });
+    } catch (e) {
+      // release the claim so the host can try again (the new game is back in a closed lobby, unused)
+      await this.repo.updateGame(gameId, { rematchGameId: undefined, rematchJoinCode: undefined }, { rematchGameId: next.gameId })
+        .catch(() => false);
+      throw e;
+    }
+    await this.d.notifier.broadcast(gameId, { type: 'rematch', gameId: next.gameId, joinCode: next.joinCode });
+    return { gameId: next.gameId, joinCode: next.joinCode };
   }
 
   // ------------------------------------------------------------------ websocket session
@@ -470,7 +554,7 @@ export class GameService {
         snapshot: {
           gameId: game.gameId, mapId: game.mapId, status: game.status, phases: game.phases, timeline: game.timeline,
           players: members.map(toPublic), news: [], polledPhases: [], seats: {}, tally: null, offers: [],
-          government: null, result: null,
+          government: null, result: null, ...nextGameOf(game),
         },
         private: { you: player.playerId, budget: 0, myActions: [], myReports: [] },
       };
@@ -565,6 +649,7 @@ export class GameService {
       news, polledPhases: Array.from({ length: game.closedPhases }, (_, i) => i), seats, tally, offers,
       government: await this.repo.getGovernment(game.gameId),
       result: await this.repo.getResult(game.gameId),
+      ...nextGameOf(game),
     };
   }
 

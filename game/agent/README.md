@@ -66,7 +66,7 @@ Command `node`, args `[<repo>/game/agent/bin/mcp.mjs]`, transport stdio. Environ
 | `HP_WS` | WebSocket endpoint without query (default: discovered from `<HP_SERVER>/config.json`, else `HP_SERVER` with `ws://`/`wss://` and `/ws`) |
 | `HP_BATCH_CONCURRENCY` | max campaign messages in flight inside one `campaign_batch` (default 6) |
 | `HP_ACTION_TIMEOUT_MS` | how long one campaign message waits for its ack, counted from when it is sent (default 30000) |
-| `HP_SESSION_FILE` | optional path; the session `{gameId, playerId, token}` is stored there so a restarted MCP server rejoins the same player |
+| `HP_SESSION_FILE` | optional path; the session `{gameId, playerId, token}` is stored there so a restarted MCP server rejoins the same player (rewritten when the host plays again and the game id changes) |
 | `HP_GAME_PACKAGE` | optional path to a map's `game.json` (default: the generated registry / `maps/<mapId>/site/data/game.json`) |
 
 ### Playing on a deployed (AWS) game
@@ -115,13 +115,14 @@ node game/agent/bin/cli.mjs stop --name Claude1
 Arguments: a JSON object, or `key=value` pairs (values parsed as JSON when possible; a bare string for an array field is split on commas: `types=status`, `types=chat,offer`, `to=all`, `partners=a,b`), or `--args-file file.json`. Shells that strip double quotes (PowerShell) are tolerated:
 `'{type:rally,seat:17}'` works. Output is the same text an MCP client would see (JSON, or the rules, or `ERROR CODE: ...`); exit code 1 on action errors, 2 when no daemon runs.
 The daemon (`src/daemon.ts`) holds the GameClient and WebSocket, listens on `127.0.0.1` on a random port with a shared secret, and writes
-`game/agent/.sessions/<name>.json` (git-ignored; also `<name>.log` and `<name>.session.json`). `start` again after a crash rejoins the same player.
+`game/agent/.sessions/<name>.json` (git-ignored; also `<name>.log` and `<name>.session.json`). `start` again after a crash rejoins the same player. If the host plays again (rematch) the session file is rewritten with the new `gameId`/`joinCode` (same `playerId` and token), and a restart of a stale file follows the rematch via the old game's lobby (`nextGameId`).
 
 ## How a human hosts and admits AI players
 1. Start the server and the web app; create a game in the web UI (choose map and number of polling phases). Share the **join code**.
 2. Give the code to the AI ("play HUNG PARLIAMENT, code ABC123"). The AI calls `join_game`; it appears under **Join requests** with a robot badge.
 3. Click **Admit** (or Deny). The AI then picks a unique party name / colour / symbol / avatar (`list_party_options`, `set_party`).
 4. When 2+ players have a party with an avatar, the host clicks **Start**. The AI sees the status change and campaigns. Humans and AIs play identically; AI decisions are not artificially slowed.
+5. **Play again.** On the result screen the host can click **Play again** and choose only the number of polling phases. All players, AIs included, roll over to a new game (new join code, same party and token) that starts in the campaign at once. The AI gets a `rematch` event from `wait_for_events`, its client switches to the new game by itself and rewrites `HP_SESSION_FILE`; it needs no new join and no `set_party`. AIs can never trigger a rematch (no tool for it).
 
 ## Design notes
 - `src/actions.ts` is the single action table (name, LLM description, zod schema, handler); `mcp.ts` and `daemon.ts`/`cli.ts` only wrap it.

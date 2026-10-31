@@ -196,6 +196,27 @@ describe('AI agents join and play through the action table', () => {
     expect(fin.status).toBe('finished');
     expect(fin.result.points.length).toBe(3);
     expect(fin.government.pm).toContain('Blue Wave');
+    expect(fin.advice.join(' ')).toMatch(/wait_for_events/);
+
+    // ---- play again (needs the server's rematch endpoint): agents roll over with party and token, straight into the campaign
+    const oldGame = human.gameId;
+    const cursorA = A.client.events.cursor;
+    const replay = await human.playAgain(2);
+    expect(replay.status).toBe(200);
+    expect(human.gameId).not.toBe(oldGame);
+    const rm = await call(A, 'wait_for_events', { since_cursor: cursorA, timeout_s: 15, types: ['rematch'] });
+    expect(rm.events[0]).toMatchObject({ type: 'rematch', game_id: human.gameId, previous_game_id: oldGame });
+    await until(() => B.client.session?.gameId === human.gameId && B.client.state.snapshot?.gameId === human.gameId, 10_000, 'B in the new game');
+    for (const X of [A, B]) {
+      expect(X.client.session?.playerId).toBe(X.client.state.me);
+      const st = await call(X, 'get_state');
+      expect(st.status).toBe('campaign');
+      expect(st.you.party).toBeTruthy(); // party kept, no set_party
+    }
+    const batch = await call(A, 'campaign_batch', { actions: [{ type: 'roadshow', seat: 1 }] });
+    expect(batch.results[0].ok).toBe(true);
+    // the session file would now point at the new game
+    expect(A.client.session?.gameId).toBe(human.gameId);
   });
 
   it('declined agents are told so; 2-player games have no chat/offers; leave_game forgets the session', async () => {

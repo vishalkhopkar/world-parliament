@@ -10,7 +10,7 @@
 import { WORLD_CONFIG } from '@hp/shared';
 import type {
   AdmissionRequest, AdmitRequest, ApiError, ClientMessage, CreateGameRequest, CreateGameResponse, GameId,
-  JoinGameRequest, JoinGameResponse, LobbyView, PartyRequest, ServerMessage, SettingsRequest, StartResponse,
+  JoinGameRequest, JoinGameResponse, LobbyView, PartyRequest, RematchRequest, RematchResponse, ServerMessage, SettingsRequest, StartResponse,
 } from '@hp/shared';
 import { ApiException, type LinkState, type Transport } from './transport';
 
@@ -78,6 +78,8 @@ export class RemoteTransport implements Transport {
   async setSettings(id: GameId, token: string, req: SettingsRequest) { await this.rest('POST', this.game(id) + '/settings', token, req); }
   async setParty(id: GameId, token: string, req: PartyRequest) { await this.rest('POST', this.game(id) + '/party', token, req); }
   start(id: GameId, token: string) { return this.rest<StartResponse>('POST', this.game(id) + '/start', token, {}); }
+
+  rematch(id: GameId, token: string, req: RematchRequest) { return this.rest<RematchResponse>('POST', this.game(id) + '/rematch', token, req); }
 
   // ------------------------------------------------------------------ WebSocket
   connect(gameId: GameId, token: string, onMessage: (m: ServerMessage) => void, onState?: (s: LinkState) => void) {

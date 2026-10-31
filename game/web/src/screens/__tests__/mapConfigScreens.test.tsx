@@ -5,7 +5,7 @@ import type { GameSnapshot, PlayerPublic } from '@hp/shared';
 import { FAKE_MAP_ID, registerFakeMap } from '../../../test/fakeMap';
 
 vi.mock('../../net/client', () => ({
-  admit: vi.fn(), refreshLobby: vi.fn(async () => undefined), setAdmission: vi.fn(), setPhases: vi.fn(), start: vi.fn(), leaveGame: vi.fn(),
+  admit: vi.fn(), refreshLobby: vi.fn(async () => undefined), setAdmission: vi.fn(), setPhases: vi.fn(), start: vi.fn(), leaveGame: vi.fn(), playAgain: vi.fn(), isTour: false,
 }));
 vi.mock('../../map/SeatMap', () => ({ SeatMap: () => <div /> }));
 

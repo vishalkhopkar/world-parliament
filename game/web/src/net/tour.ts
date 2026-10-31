@@ -11,7 +11,7 @@ import { findMentions } from '@hp/chat/common';
 import type {
   Action, AdmissionRequest, AdmitRequest, ClientMessage, CoalitionOffer, CommittedSet, CountTally, CreateGameRequest, CreateGameResponse,
   ErrorCode, FinalResult, GlobalReports, GameId, GameMapPackage, GameSnapshot, GameStatus, GameTimeline, Government, JoinGameRequest, JoinGameResponse, Kernels,
-  LobbyView, MapConfig, NewsItem, PartyIdentity, PartyRequest, PlayerId, PlayerPublic, PortfolioAssignment, PrivateState,
+  LobbyView, MapConfig, NewsItem, PartyIdentity, PartyRequest, RematchRequest, RematchResponse, PlayerId, PlayerPublic, PortfolioAssignment, PrivateState,
   Rng, SeatDeclaration, SeatId, ServerMessage, SettingsRequest, StartResponse,
 } from '@hp/shared';
 import { ApiException, type Transport } from './transport';
@@ -255,6 +255,8 @@ export class TourTransport implements Transport {
   async setSettings(_id: GameId, _token: string, _req: SettingsRequest): Promise<void> { this.fail('WRONG_PHASE', 'The practice game has already started'); }
   async setParty(_id: GameId, _token: string, _req: PartyRequest): Promise<void> { this.fail('WRONG_PHASE', 'The practice game has already started'); }
   async start(_id: GameId, _token: string): Promise<StartResponse> { return this.fail('WRONG_PHASE', 'The practice game has already started'); }
+  /** Never called: the Play again button is hidden in the tour. */
+  async rematch(_id: GameId, _token: string, _req: RematchRequest): Promise<RematchResponse> { return this.fail('FORBIDDEN', 'The practice game cannot be played again.'); }
 
   // -------------------------------------------------------------- WebSocket
   connect(gameId: GameId, _token: string, onMessage: (m: ServerMessage) => void) {

@@ -88,3 +88,10 @@ Rules are in `../FEATURE REQUIREMENTS.docx` (updated in the body); numbers in `c
 - Server: `GameService.evaluateOffers` now calls `loneMajorityHolder` (same guards as `formGovernment`) after `formGovernment` and then `finishGame(gameId, false)`; runs from `countReveal`, `eliminate`, `proposeGovernment`, `respondOffer`. Mock (`web/src/net/mock.ts` `endCounting`) confirms an accepted coalition first, then the lone majority.
 - Tests: `server/test/governmentTiming.test.ts` rewritten/extended; `helpers.ts` `driveTo('postCounting'|'finished')` now spreads seats round-robin so nobody has a majority (deterministic), plus `statusAfterCount`. Several older tests that silently relied on a majority holder sitting in post-counting were adapted.
 - Tour: no change needed (the scripted game has nobody at the majority). RULES.md updated.
+
+### 2026-10-31 - Play again (rematch)
+- Rule is in `../FEATURE REQUIREMENTS.docx` (Game setup, new paragraph after the disconnect rule; phases, committed voters and candidate columns paragraphs amended). Status: implementation in progress by other agents; tests follow the usual rule (write first, `npm run verify` before done).
+- Design: after a game finishes with a result, the host's "Play again" (only setting: number of polling phases, 1 to 5 on world-500) creates a NEW linked game (own id and join code, admission closed) that starts straight in the campaign, skipping party setup.
+- Everyone rolls over with the same `playerId`/token and party (name, colour, symbol, avatar), agents and disconnected/eliminated players included; budgets, committed voters and candidate columns are dealt afresh.
+- API: `POST /games/{id}/rematch`, admin only, idempotent (second call returns the same new game); abandoned games refused. Clients get a `rematch` ServerMessage; `nextGameId` on lobby/snapshot covers late joiners and reconnects.
+- Web: host-only "Play again" on the Result screen (hidden in the guided tour, so no tour change). Agents follow automatically through a rematch event.

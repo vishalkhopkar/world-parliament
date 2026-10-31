@@ -4,7 +4,7 @@ import { render, screen, within } from '@testing-library/react';
 import type { GameSnapshot, PlayerPublic, PrivateState } from '@hp/shared';
 
 vi.mock('../../net/client', () => ({
-  buyReport: vi.fn(), chat: vi.fn(), proposeGovernment: vi.fn(), respondOffer: vi.fn(), withdrawOffer: vi.fn(), leaveGame: vi.fn(),
+  buyReport: vi.fn(), chat: vi.fn(), proposeGovernment: vi.fn(), respondOffer: vi.fn(), withdrawOffer: vi.fn(), leaveGame: vi.fn(), playAgain: vi.fn(), isTour: false,
 }));
 vi.mock('../../map/SeatMap', () => ({ SeatMap: () => <div data-testid="seatmap" /> }));
 

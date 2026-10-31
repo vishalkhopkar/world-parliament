@@ -85,7 +85,7 @@ export const useStore = create<State>((set, get) => ({
   names: {},
   gamePkg: null,
 
-  setSession: s => set({ ...s, polledSeats: [], seatShares: {}, globalReports: null, lobby: null, snapshot: null, priv: null, chat: [], chatRead: loadChatRead(s.gameId, s.me), lobbyPage: 'lobby', selectedSeat: null, repGain: null }),
+  setSession: s => { pendingActions.clear(); set({ ...s, polledSeats: [], seatShares: {}, globalReports: null, lobby: null, snapshot: null, priv: null, chat: [], chatRead: loadChatRead(s.gameId, s.me), lobbyPage: 'lobby', selectedSeat: null, repGain: null, pulse: null }); },
   setLobby: v => set({ lobby: v }),
   setNames: names => set({ names }),
   setGamePkg: gamePkg => set({ gamePkg }),

@@ -5,10 +5,10 @@ import type {
 } from '@hp/shared';
 
 export type EventType =
-  | 'news' | 'phaseClosed' | 'seatUpdate' | 'chat' | 'offer' | 'government' | 'result' | 'status' | 'players' | 'report' | 'error';
+  | 'news' | 'phaseClosed' | 'seatUpdate' | 'chat' | 'offer' | 'government' | 'result' | 'status' | 'players' | 'report' | 'rematch' | 'error';
 
 export const EVENT_TYPES: readonly EventType[] = [
-  'news', 'phaseClosed', 'seatUpdate', 'chat', 'offer', 'government', 'result', 'status', 'players', 'report', 'error',
+  'news', 'phaseClosed', 'seatUpdate', 'chat', 'offer', 'government', 'result', 'status', 'players', 'report', 'rematch', 'error',
 ];
 
 export interface AgentEvent {
@@ -199,6 +199,9 @@ export function applyMessage(st: ClientState, m: ServerMessage, localNow: number
     case 'result':
       if (snap) st.snapshot = { ...snap, result: m.result, status: 'finished' };
       return [ev('result', { result: m.result })];
+    case 'rematch':
+      // the host played again: the client (GameClient) switches the session; here only the event is recorded
+      return [ev('rematch', { gameId: m.gameId, joinCode: m.joinCode, previousGameId: st.gameId })];
     case 'error':
       if (m.clientRef) st.pendingActions.delete(m.clientRef);
       return [ev('error', { error: m.error, message: m.message, ...(m.clientRef ? { clientRef: m.clientRef } : {}) })];

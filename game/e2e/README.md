@@ -71,7 +71,7 @@ VERBOSE=1 npx tsx e2e/browser.ts  # also print server / vite output
 CHROME_PATH="C:/Program Files/Google/Chrome/Application/chrome.exe" npx tsx e2e/browser.ts
 ```
 
-Screenshots go to `e2e/shots/` (git-ignored): `01-home`, `02-lobby-admin`, ... `09a-offer-everyone-blocked`, `09-offer`, `11-result-admin`, `12-result-c` (there is no longer a "Government formed" shot: the game finishes immediately);
+Screenshots go to `e2e/shots/` (git-ignored): `01-home`, `02-lobby-admin`, ... `09a-offer-everyone-blocked`, `09-offer`, `11-result-admin`, `12-result-c`, `13-play-again-admin` (there is no longer a "Government formed" shot: the game finishes immediately);
 `fail-A/B/C.png` are written when a step fails.
 
 ## Web app against a server by hand

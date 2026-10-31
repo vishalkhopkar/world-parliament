@@ -563,6 +563,19 @@ async function main() {
 
   // ---- coalition: smallest group (>= 2 parties, and ALWAYS fewer than all: at least one party stays out) with a majority of WON seats
   const need = majorityOf(PKG.seatCount);
+  // a single party with a majority after counting ends the game at once: no coalition talks
+  if (bots.some(b => winsOf(b.playerId) >= need)) {
+    log('one party holds a majority after counting: expecting an immediate majority result, no coalition talks');
+    const resultsMaj: FinalResult[] = [];
+    for (const b of bots) {
+      const m = await b.waitFor(x => x.type === 'result', { ms: Math.max(15000, timeline.postCountingEnd - Date.now() + 15000), what: 'result' });
+      if (m.type === 'result') resultsMaj.push(m.result);
+    }
+    check(resultsMaj.every(x => JSON.stringify(x) === JSON.stringify(resultsMaj[0])), 'all players must receive the same result');
+    check(resultsMaj[0].outcome === 'majority', `a single party held a majority, outcome ${resultsMaj[0].outcome}`);
+    for (const b of bots) for (const v of b.violations) check(false, 'hidden info: ' + v);
+    return;
+  }
   const allPortfolios = (): Record<string, string[]> => {
     const o: Record<string, string[]> = { PM: [bots[0].playerId] };
     const ds = CFG.points.portfolios.filter(p => p.id !== 'PM');
@@ -688,7 +701,52 @@ async function main() {
 
 function bot_err(r: ServerMessage): string | undefined { return r.type === 'error' ? r.error : undefined; }
 
-main().then(() => {
+/** Play again: the host (bots[0]) starts a follow-up game with a different number of phases; everybody rolls over with the same player id, token and party and lands in the campaign. */
+async function rematchCheck() {
+  const oldGameId = gameId, host = bots[0];
+  const phases = PHASES === 1 ? 2 : 1;
+  const mark = bots.map(b => b.msgs.length);
+  const parties = new Map<string, string>();
+  const before = await api('GET', '/games/' + oldGameId, undefined, host.token);
+  for (const pl of before.json.players ?? []) if (pl.party?.name) parties.set(pl.playerId, pl.party.name);
+  check(parties.size === bots.length, `every player should have a party before the rematch (${parties.size}/${bots.length})`);
+
+  const denied = await api('POST', `/games/${oldGameId}/rematch`, { phases }, bots[bots.length - 1].token);
+  check(denied.status === 403, `a non-host rematch should be 403, got ${denied.status}`);
+  const bad = await api('POST', `/games/${oldGameId}/rematch`, { phases: 99 }, host.token);
+  check(bad.status === 400, `rematch with phases 99 should be 400, got ${bad.status}`);
+  const r = await api('POST', `/games/${oldGameId}/rematch`, { phases }, host.token);
+  if (!check(r.status === 200 && !!r.json.gameId, `host rematch should be 200 with a game, got ${r.status}`)) return;
+  check(r.json.gameId !== oldGameId && r.json.joinCode, 'the follow-up game must be a new game with its own join code');
+  const again = await api('POST', `/games/${oldGameId}/rematch`, { phases: phases === 1 ? 2 : 1 }, host.token);
+  check(again.status === 200 && again.json.gameId === r.json.gameId, 'a second rematch click must return the same game');
+
+  for (const [i, b] of bots.entries()) {
+    const m = await b.waitFor(x => x.type === 'rematch', { from: mark[i], ms: 10000, what: 'rematch message' });
+    check(m.type === 'rematch' && m.gameId === r.json.gameId, `${b.name}: rematch message names the new game`);
+  }
+  const old = await api('GET', '/games/' + oldGameId, undefined, host.token);
+  check(old.json.nextGameId === r.json.gameId, 'the old game should point to the new one (nextGameId)');
+
+  // everybody switches game with the SAME token and gets the campaign
+  gameId = r.json.gameId;
+  for (const b of bots) {
+    b.close();
+    b.msgs = [];
+    await b.connect();
+    const h = b.msgs.find((m): m is Extract<ServerMessage, { type: 'hello' }> => m.type === 'hello');
+    check(!!h && h.snapshot.gameId === r.json.gameId, `${b.name}: hello for the new game`);
+    check(h?.snapshot.status === 'campaign', `${b.name}: the new game should be in the campaign, got ${h?.snapshot.status}`);
+    check(h?.snapshot.phases === phases, `${b.name}: the new game should have ${phases} phase(s), got ${h?.snapshot.phases}`);
+    check(h?.private.budget === CFG.budget, `${b.name}: budget is fresh`);
+    check(h?.snapshot.players.find(p => p.playerId === b.playerId)?.party?.name === parties.get(b.playerId), `${b.name}: party carried over`);
+    check((h?.snapshot.players.length ?? 0) === bots.length, `${b.name}: all players rolled over`);
+  }
+  log(`play again: new game ${r.json.gameId} (${phases} phase(s)), ${bots.length} players rolled over`);
+  for (const b of bots) for (const v of b.violations) check(false, 'hidden info (rematch): ' + v);
+}
+
+main().then(rematchCheck).then(() => {
   for (const b of bots) b.close();
   if (failures.length) { console.error(`\n${failures.length} check(s) FAILED`); process.exit(1); }
   console.log(`\nPASS: ${N} players, ${PHASES} phases, seed ${SEED} (${((Date.now() - t0) / 1000).toFixed(0)}s)`);

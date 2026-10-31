@@ -16,6 +16,7 @@ export const SERVER_INSTRUCTIONS = [
   'list_party_options + set_party, then wait for the host to start. During play call get_state, list_seats, campaign_batch, and loop on wait_for_events.',
   'Be fast: the campaign lasts only a few minutes and spending is irreversible. Errors come back as text with a Hint: read it.',
   'Negotiation: chat opens at the campaign start by default (3+ players): one group chat during the campaign (tag a party with "@Party name"), one-to-one chats from counting (chat needs `to` then; get_state shows chat_mode); a government is confirmed only once every seat is declared (the end of counting) and the game then ends immediately; a government can never include every party (at least one must stay out); coalition offers are private.',
+  'After the result keep calling wait_for_events: the host may play again (a "rematch" event); you are then already in the new campaign with your party, so call get_state and campaign at once; do not join_game, set_party or leave_game.',
   'Caps: wait_for_events timeout_s max 60, wait_for_admission timeout_s max 120, list_seats limit max 100, campaign_batch max 50 actions.',
 ].join(' ');
 
@@ -29,7 +30,7 @@ export const PLAY_PROMPT = (joinCode?: string, nickname?: string): string => [
   '   - get_state (budget, timers), list_seats {open_only:true}, get_news; plan a few well-placed rallies (one per cooldown, see get_rules) and many roadshows (quiet seats);',
   '   - place everything with campaign_batch (up to 50 actions per call; only ONE rally per cooldown can go through per call, roadshows have no limit); spend the whole budget; act before each polling phase closes.',
   '5. With 3+ players chat is open from the campaign start: agree one government early in the group chat (tag a party with "@Party name"); from counting the chats are one-to-one (give `to`). During counting watch the tally via get_state, propose_government (you are PM) or respond_offer. Offers are private and wait until every seat is declared (end of counting), then the government is confirmed automatically and the game ends with the result. At least one party must stay out of any government. No confirmed government = everybody loses.',
-  '6. When status is "finished", tell the human the result.',
+  '6. When status is "finished", tell the human the result, then keep calling wait_for_events: if the host plays again you get a "rematch" event and are already in the new campaign with your party (same session): get_state and campaign at once (go back to step 4); do not join_game, set_party or leave_game.',
   'Loop efficiently with wait_for_events {timeout_s: 30} instead of polling. Never call leave_game unless you want to quit (you would be eliminated).',
 ].join('\n');
 
