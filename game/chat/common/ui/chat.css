@@ -37,7 +37,7 @@
 .hpchat-mentions li{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;cursor:pointer}
 .hpchat-mentions li.on,.hpchat-mentions li:hover{background:#efe6cc}
 
-/* one-to-one chats: conversation list + open conversation (stacked when narrow) */
+/* one-to-one chats: conversation list on the left, open conversation on the right (a slimmer list when narrow) */
 .hpchat-direct{container-type:inline-size;flex-direction:row;gap:0;border:1px solid var(--line,rgba(120,96,40,.35));border-radius:8px;background:#fff;overflow:hidden;min-height:340px}
 .hpchat-list{flex:none;width:180px;margin:0;padding:4px;list-style:none;overflow-y:auto;border-right:1px solid var(--line,rgba(120,96,40,.35));background:#faf5e6}
 .hpchat-conv{display:flex;align-items:center;gap:8px;width:100%;padding:6px;border:0;border-radius:6px;background:transparent;text-align:left;cursor:pointer;font:inherit;color:inherit}
@@ -52,13 +52,15 @@
 .hpchat-pane-head{display:flex;align-items:center;gap:8px;padding:2px 2px 6px;border-bottom:1px solid var(--line,rgba(120,96,40,.35))}
 .hpchat-sub{color:var(--muted,#6b6247);font-size:12px;margin-left:auto}
 .hpchat-pane .hpchat-log{border:0;padding:2px 4px;border-radius:0}
+/* a container query only reaches descendants, never .hpchat-direct itself */
 @container (max-width: 459px){
-  .hpchat-direct{flex-direction:column}
-  .hpchat-list{width:auto;display:flex;gap:2px;overflow-x:auto;overflow-y:hidden;border-right:0;border-bottom:1px solid var(--line,rgba(120,96,40,.35))}
-  .hpchat-list li{flex:none}
-  .hpchat-conv{flex-direction:column;gap:2px;width:72px;padding:4px 2px}
-  .hpchat-conv.on{box-shadow:inset 0 -3px 0 var(--green,#0f4c37)}
+  .hpchat-list{width:92px;padding:2px}
+  .hpchat-conv{flex-direction:column;gap:2px;padding:6px 3px;text-align:center}
   .hpchat-conv-text{align-items:center;max-width:100%}
-  .hpchat-conv-text .hpchat-name{font-size:11px;max-width:68px}
+  .hpchat-conv-text .hpchat-name{font-size:11px;line-height:1.2;white-space:normal;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}
   .hpchat-conv-text small{display:none}
+  .hpchat-pane{padding:4px}
+  .hpchat-pane-head{flex-wrap:wrap;row-gap:0}
+  .hpchat-pane-head .hpchat-name{flex:1;min-width:0}
+  .hpchat-sub{margin-left:0;width:100%}
 }

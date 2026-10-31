@@ -10,6 +10,7 @@
 .offer{border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:8px;background:#fff}
 .offer.open{border-color:var(--gold);border-width:2px}
 .offer-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.offer-head .chip.status{flex:none;white-space:nowrap}
 .chip.status.formed,.chip.status.accepted{background:var(--green);color:#fff}
 .chip.status.declined,.chip.status.withdrawn,.chip.status.superseded{background:#e9e1cc;color:var(--muted)}
 .gov-line{display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap}

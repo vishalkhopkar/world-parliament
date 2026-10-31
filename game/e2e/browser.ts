@@ -60,6 +60,7 @@ const see = async (page: Page, text: string | RegExp, ms = 20000) => {
   catch { throw new Error(`expected text not visible: ${String(text)} (url ${page.url()})`); }
 };
 const shot = async (page: Page, name: string) => { await page.screenshot({ path: path.join(SHOTS, name + '.png') }); };
+const PHONE_WIDTH = 390;
 const btn = (page: Page, name: string | RegExp) => page.getByRole('button', { name });
 const budget = async (page: Page) => (await page.locator('.hud-item.budget strong').innerText()).trim();
 
@@ -93,7 +94,7 @@ async function setParty(page: Page, name: string, colour: string, symbol: string
 
 async function main() {
   mkdirSync(SHOTS, { recursive: true });
-  for (const f of ['01-home', '02-lobby-admin', '03-party', '04-lobby-ready', '05-campaign-admin', '06-campaign-b-report', '07-campaign-c-seat-report', '07b-campaign-group-chat-tagged', '08-counting', '08b-counting-one-to-one-chat', '09-offer', '09a-offer-everyone-blocked', '10-government', '11-result-admin', '12-result-c', '13-play-again-admin']) rmSync(path.join(SHOTS, f + '.png'), { force: true });
+  for (const f of ['01-home', '02-lobby-admin', '03-party', '04-lobby-ready', '05-campaign-admin', '06-campaign-b-report', '07-campaign-c-seat-report', '07b-campaign-group-chat-tagged', '08-counting', '08b-counting-one-to-one-chat', '08c-counting-chat-phone', '09-offer', '09b-offer-phone', '09a-offer-everyone-blocked', '10-government', '11-result-admin', '12-result-c', '13-play-again-admin']) rmSync(path.join(SHOTS, f + '.png'), { force: true });
   if (!existsSync(CHROME)) throw new Error('Chrome not found at ' + CHROME + ' (set CHROME_PATH)');
   for (const p of [API_PORT, WEB_PORT]) if (!(await portFree(p))) throw new Error(`port ${p} is already in use; stop that server first`);
 
@@ -293,6 +294,23 @@ async function main() {
     if (await C.getByText('Shall we talk portfolios?').count()) problems.push('a one-to-one message leaked to a third party');
     if (!(await chatCard(A).getByRole('tabpanel', { name: 'Chat with Blue Anchor' }).count())) problems.push('one-to-one chat does not name the other party');
     await shot(A, '08b-counting-one-to-one-chat');
+    // phone width: the names one below the other on the left, the open conversation (with its message box) on the right
+    await B.setViewportSize({ width: PHONE_WIDTH, height: 844 });
+    await chatCard(B).scrollIntoViewIfNeeded();
+    const convTabs = chatCard(B).getByRole('tab');
+    const [listBox, paneBox, tab0, tab1, sendBox] = await Promise.all([
+      chatCard(B).getByRole('tablist').boundingBox(), chatCard(B).getByRole('tabpanel').boundingBox(), convTabs.nth(0).boundingBox(), convTabs.nth(1).boundingBox(),
+      chatCard(B).getByRole('button', { name: 'Send', exact: true }).boundingBox(),
+    ]);
+    if (!listBox || !paneBox || !tab0 || !tab1 || !sendBox) problems.push('phone: a part of the one-to-one chat is not rendered');
+    else {
+      if (listBox.x + listBox.width > paneBox.x + 1) problems.push(`phone: the list of names should be left of the conversation (list ends ${listBox.x + listBox.width}, conversation starts ${paneBox.x})`);
+      if (paneBox.width < 200) problems.push(`phone: the conversation is too narrow (${paneBox.width}px)`);
+      if (tab1.y < tab0.y + tab0.height - 1 || Math.abs(tab1.x - tab0.x) > 1) problems.push('phone: the names should be one below the other');
+      if (sendBox.x + sendBox.width > PHONE_WIDTH) problems.push(`phone: the Send button is off-screen (ends ${sendBox.x + sendBox.width})`);
+    }
+    await shot(B, '08c-counting-chat-phone');
+    await B.setViewportSize({ width: 1400, height: 900 });
     log('one-to-one chats ok');
     await B.waitForFunction(() => /\d+ of 500 seats declared/.test(document.body.innerText) && !/^0 of/.test(document.querySelector('.tally-foot')?.textContent ?? '0 of'), undefined, { timeout: 30000 });
     await shot(B, '08-counting');
@@ -335,6 +353,13 @@ async function main() {
       if (txt.includes(nick)) problems.push(`nickname ${nick} shown in chat card`);
     }
     await shot(PP, '09-offer');
+    // an offer must stay usable in the narrower conversation of a phone
+    await PP.setViewportSize({ width: PHONE_WIDTH, height: 844 });
+    await btn(PP, 'Accept').first().scrollIntoViewIfNeeded();
+    const acceptBox = await btn(PP, 'Accept').first().boundingBox();
+    if (!acceptBox || acceptBox.x + acceptBox.width > PHONE_WIDTH) problems.push(`phone: the Accept button is off-screen (${JSON.stringify(acceptBox)})`);
+    await shot(PP, '09b-offer-phone');
+    await PP.setViewportSize({ width: 1400, height: 900 });
     // all seats are declared, so accepting confirms the government and the game finishes at once: the Result screen replaces the Counting screen
     await btn(PP, 'Accept').first().click();
     log('offer accepted');
