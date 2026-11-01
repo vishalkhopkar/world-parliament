@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { WORLD_CONFIG, chatModeFor, configForMap, validateConfig } from '../src';
+import { WORLD_CONFIG, chatModeFor, configForMap, fullyFieldedBudget, hasPreCampaign, majorityOf, validateConfig } from '../src';
 
 const gameDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const propsFile = path.join(gameDir, 'config/game.properties');
@@ -22,7 +22,7 @@ const b = (k: string) => props.get(k) === 'true';
 describe('game.properties is the source of the game constants', () => {
   it('WORLD_CONFIG carries exactly the values in the properties file', () => {
     expect(WORLD_CONFIG.budget).toBe(n('budget'));
-    expect(WORLD_CONFIG.costs).toEqual({ rally: n('costs.rally'), roadshow: n('costs.roadshow') });
+    expect(WORLD_CONFIG.costs).toEqual({ rally: n('costs.rally'), roadshow: n('costs.roadshow'), minorRally: n('costs.minorRally'), candidate: n('costs.candidate') });
     expect(WORLD_CONFIG.analyst.seatReport).toEqual({ start: n('analyst.seatReport.start'), end: n('analyst.seatReport.end'), enabled: b('analyst.seatReport.enabled') });
     expect(WORLD_CONFIG.analyst.globalReport).toEqual({ start: n('analyst.globalReport.start'), end: n('analyst.globalReport.end'), enabled: b('analyst.globalReport.enabled') });
     expect(WORLD_CONFIG.effects.rally.local).toBe(n('effects.rally.local'));
@@ -33,7 +33,13 @@ describe('game.properties is the source of the game constants', () => {
     expect(WORLD_CONFIG.effects.roadshow.decay).toEqual({ spread: n('effects.roadshow.decay.spread'), maxKm: n('effects.roadshow.decay.maxKm') });
     expect(WORLD_CONFIG.cooldowns).toEqual({ rallyMs: n('cooldowns.rallyMs') });
     expect(WORLD_CONFIG.display.reputationScale).toBe(n('display.reputationScale'));
-    expect(WORLD_CONFIG.effects.firstMover).toEqual({ rally: n('effects.firstMover.rally'), roadshow: n('effects.firstMover.roadshow') });
+    expect(WORLD_CONFIG.effects.minorRally.local).toBe(n('effects.minorRally.local'));
+    expect(WORLD_CONFIG.effects.minorRally.decay).toEqual({ spread: n('effects.minorRally.decay.spread'), maxKm: n('effects.minorRally.decay.maxKm') });
+    expect(WORLD_CONFIG.display.brushRadiusPx).toBe(n('display.brushRadiusPx'));
+    expect(WORLD_CONFIG.durations.preCampaignMs).toBe(n('durations.preCampaignMs'));
+    expect(WORLD_CONFIG.effects.firstMover).toEqual({
+      rally: n('effects.firstMover.rally'), roadshow: n('effects.firstMover.roadshow'), minorRally: n('effects.firstMover.minorRally'),
+    });
     expect(WORLD_CONFIG.timeMultiplier).toEqual({ start: n('timeMultiplier.start'), end: n('timeMultiplier.end') });
     expect(WORLD_CONFIG.durations.campaignMs).toBe(n('durations.campaignMs'));
     expect(WORLD_CONFIG.points.seatMultiplier).toBe(n('points.seatMultiplier'));
@@ -43,13 +49,36 @@ describe('game.properties is the source of the game constants', () => {
     expect(WORLD_CONFIG.currency).toEqual({ name: props.get('currency.name'), symbol: props.get('currency.symbol') });
   });
 
-  it('the agreed values (60,000 budget, round costs, first-mover bonus on)', () => {
-    expect(WORLD_CONFIG.budget).toBe(60_000);
-    expect(WORLD_CONFIG.costs).toEqual({ rally: 8_000, roadshow: 400 });
+  it('the agreed values (85,000 budget with candidates paid from it, round costs, first-mover bonus on)', () => {
+    expect(WORLD_CONFIG.budget).toBe(85_000);
+    expect(WORLD_CONFIG.costs).toEqual({ rally: 8_000, roadshow: 400, minorRally: 2_000, candidate: 50 });
     expect(WORLD_CONFIG.analyst.seatReport).toEqual({ start: 800, end: 1_800, enabled: false });
     expect(WORLD_CONFIG.analyst.globalReport).toEqual({ start: 2_800, end: 6_200, enabled: false });
     expect(WORLD_CONFIG.effects.firstMover.rally).toBeGreaterThan(0);
     expect(WORLD_CONFIG.effects.firstMover.roadshow).toBeGreaterThan(0);
+    expect(WORLD_CONFIG.effects.firstMover.minorRally).toBeGreaterThan(0);
+  });
+
+  it('the agreed minor rally: peak 5, spread 0.2, cut off at 500 km, no global part, costs 2,000 (a quarter of the major rally Gaussian)', () => {
+    const m = WORLD_CONFIG.effects.minorRally;
+    expect(m.local).toBe(5);
+    expect(m.decay).toEqual({ spread: 0.2, maxKm: 500 });
+    expect(WORLD_CONFIG.costs.minorRally).toBe(2_000);
+    expect(Object.keys(m).sort()).toEqual(['decay', 'local']); // no global part
+    // local x pi / spread, the Gaussian area over the plane
+    const area = (e: { local: number; decay: { spread: number } }) => (e.local * Math.PI) / e.decay.spread;
+    expect(area(m) / area(WORLD_CONFIG.effects.rally)).toBeCloseTo(0.25, 6);
+  });
+
+  it('a party pays 50 for a candidate in a seat, the pre-campaign lasts two minutes and the brush is 14 px', () => {
+    expect(WORLD_CONFIG.costs.candidate).toBe(50);
+    expect(WORLD_CONFIG.durations.preCampaignMs).toBe(120_000);
+    expect(WORLD_CONFIG.display.brushRadiusPx).toBe(14);
+  });
+
+  it('fielding every seat leaves 85,000 - 500 x 50 = 60,000 for the campaign, as in the game before the pre-campaign', () => {
+    expect(fullyFieldedBudget(WORLD_CONFIG)).toBe(60_000);
+    expect(fullyFieldedBudget(WORLD_CONFIG)).toBe(WORLD_CONFIG.budget - WORLD_CONFIG.seatCount * WORLD_CONFIG.costs.candidate);
   });
 
   it('the agreed Gaussian spread: rally 0.25 + 10 e^(-0.1 x^2) to 700 km, roadshow purely local (6.25, no spill-over), x in units of 100 km', () => {
@@ -97,6 +126,11 @@ describe('game.properties is the source of the game constants', () => {
   it('chat: one group chat during the campaign, one-to-one chats during counting and post-counting (the designer keys)', () => {
     expect(WORLD_CONFIG.chat).toEqual({ campaigning: props.get('Chat.Campaigning') });
     expect(WORLD_CONFIG.chat).toEqual({ campaigning: 'GROUP' });
+  });
+
+  it('chatModeFor: pre-campaign -> always INDV, whatever Chat.Campaigning says', () => {
+    const cfg = (campaigning: string) => ({ chat: { campaigning } } as never);
+    for (const c of ['GROUP', 'INDV', 'OFF']) expect(chatModeFor(cfg(c), 'preCampaign')).toBe('INDV');
   });
 
   it('chatModeFor: campaign -> Chat.Campaigning (OFF = null), counting / postCounting -> always INDV, other stages none', () => {
@@ -318,18 +352,86 @@ ${k}=1
     expect(r.ok).toBe(false);
     expect(r.err).toContain(k);
   }, 30_000);
+  it.each([
+    'costs.minorRally', 'costs.candidate', 'effects.minorRally.local', 'effects.minorRally.decay.spread', 'effects.minorRally.decay.maxKm',
+    'effects.firstMover.minorRally', 'display.brushRadiusPx', 'durations.preCampaignMs',
+  ])('rejects a missing %s', (k) => {
+    const r = run(propsText.replace(new RegExp(`^${k.replace(/\./g, '\\.')}=.*$`, 'm'), ''));
+    expect(r.ok).toBe(false);
+    expect(r.err).toContain(k);
+  }, 30_000);
+  it.each([
+    ['a non-numeric candidate cost', /^costs\.candidate=.*$/m, 'costs.candidate=cheap', 'costs.candidate'],
+    ['a free candidate', /^costs\.candidate=.*$/m, 'costs.candidate=0', 'costs.candidate'],
+    ['a free minor rally', /^costs\.minorRally=.*$/m, 'costs.minorRally=0', 'costs.minorRally'],
+    ['a zero minor rally spread', /^effects\.minorRally\.decay\.spread=.*$/m, 'effects.minorRally.decay.spread=0', 'effects.minorRally.decay.spread'],
+    ['a negative minor rally cut-off', /^effects\.minorRally\.decay\.maxKm=.*$/m, 'effects.minorRally.decay.maxKm=-1', 'effects.minorRally.decay.maxKm'],
+    ['a zero minor rally peak', /^effects\.minorRally\.local=.*$/m, 'effects.minorRally.local=0', 'effects.minorRally.local'],
+    ['a negative minor rally first-mover bonus', /^effects\.firstMover\.minorRally=.*$/m, 'effects.firstMover.minorRally=-1', 'effects.firstMover.minorRally'],
+    ['a zero brush radius', /^display\.brushRadiusPx=.*$/m, 'display.brushRadiusPx=0', 'display.brushRadiusPx'],
+    ['a zero pre-campaign', /^durations\.preCampaignMs=.*$/m, 'durations.preCampaignMs=0', 'durations.preCampaignMs'],
+  ])('rejects %s', (_label, re, line, key) => {
+    const r = run(propsText.replace(re, line));
+    expect(r.ok).toBe(false);
+    expect(r.err).toContain(key);
+  }, 30_000);
   it('rejects a negative first-mover bonus', () => {
     const r = run(propsText.replace(/^effects\.firstMover\.rally=.*$/m, 'effects.firstMover.rally=-1'));
     expect(r.ok).toBe(false);
   }, 30_000);
 });
 
+describe('hasPreCampaign', () => {
+  it('only games with 3 or more players have a pre-campaign; 2 players start the campaign with every seat fielded', () => {
+    expect(hasPreCampaign(2)).toBe(false);
+    expect(hasPreCampaign(3)).toBe(true);
+    expect(hasPreCampaign(10)).toBe(true);
+    expect(hasPreCampaign(1)).toBe(false);
+    expect(hasPreCampaign(0)).toBe(false);
+  });
+});
+
+describe('fullyFieldedBudget', () => {
+  it('is the budget minus a candidate in every seat of the map, whatever the map', () => {
+    expect(fullyFieldedBudget({ budget: 1_000, seatCount: 10, costs: { ...WORLD_CONFIG.costs, candidate: 20 } })).toBe(800);
+    expect(fullyFieldedBudget({ budget: 85_000, seatCount: 250, costs: { ...WORLD_CONFIG.costs, candidate: 50 } })).toBe(72_500);
+    expect(fullyFieldedBudget({ budget: 500, seatCount: 10, costs: { ...WORLD_CONFIG.costs, candidate: 50 } })).toBe(0);
+  });
+});
+
+describe('majorityOf with vacant seats', () => {
+  it('the majority follows the contested seats, floor(contested / 2) + 1', () => {
+    expect(majorityOf(500)).toBe(251);
+    expect(majorityOf(499)).toBe(250);
+    expect(majorityOf(300)).toBe(151);
+    expect(majorityOf(1)).toBe(1);
+  });
+});
+
 describe('validateConfig', () => {
   it('accepts WORLD_CONFIG', () => { expect(() => validateConfig(WORLD_CONFIG)).not.toThrow(); });
+  it('rejects a budget that cannot pay for a candidate in every seat of the map', () => {
+    const tight = { ...WORLD_CONFIG, budget: WORLD_CONFIG.seatCount * WORLD_CONFIG.costs.candidate };
+    expect(() => validateConfig(tight)).not.toThrow(); // exactly enough: the campaign then starts on 0
+    expect(() => validateConfig({ ...tight, budget: tight.budget - 1 })).toThrow(/budget/);
+    expect(() => validateConfig({ ...WORLD_CONFIG, budget: 24_999 })).toThrow(/budget/);
+    expect(() => validateConfig({ ...WORLD_CONFIG, costs: { ...WORLD_CONFIG.costs, candidate: 200 } })).toThrow(/budget/); // 500 x 200 > 85,000
+  });
+  it('rejects bad pre-campaign and minor rally values at run time', () => {
+    const E = WORLD_CONFIG.effects;
+    expect(() => validateConfig({ ...WORLD_CONFIG, costs: { ...WORLD_CONFIG.costs, candidate: NaN } })).toThrow(/costs.candidate/);
+    expect(() => validateConfig({ ...WORLD_CONFIG, costs: { ...WORLD_CONFIG.costs, minorRally: -1 } })).toThrow(/costs.minorRally/);
+    expect(() => validateConfig({ ...WORLD_CONFIG, effects: { ...E, minorRally: { ...E.minorRally, local: 0 } } })).toThrow(/effects.minorRally.local/);
+    expect(() => validateConfig({ ...WORLD_CONFIG, effects: { ...E, minorRally: { ...E.minorRally, decay: { ...E.minorRally.decay, spread: 0 } } } })).toThrow(/effects.minorRally.decay.spread/);
+    expect(() => validateConfig({ ...WORLD_CONFIG, effects: { ...E, minorRally: undefined } } as never)).toThrow(/effects.minorRally/);
+    expect(() => validateConfig({ ...WORLD_CONFIG, effects: { ...E, firstMover: { ...E.firstMover, minorRally: undefined } } } as never)).toThrow(/firstMover.minorRally/);
+    expect(() => validateConfig({ ...WORLD_CONFIG, display: { ...WORLD_CONFIG.display, brushRadiusPx: 0 } })).toThrow(/display.brushRadiusPx/);
+    expect(() => validateConfig({ ...WORLD_CONFIG, durations: { ...WORLD_CONFIG.durations, preCampaignMs: 0 } })).toThrow(/durations.preCampaignMs/);
+  });
   it('rejects NaN, negative and missing numbers', () => {
     expect(() => validateConfig({ ...WORLD_CONFIG, budget: NaN })).toThrow(/budget/);
     expect(() => validateConfig({ ...WORLD_CONFIG, connection: { retryMs: 200 } })).toThrow(/connection.retryMs/);
-    expect(() => validateConfig({ ...WORLD_CONFIG, costs: { rally: -1, roadshow: 1 } })).toThrow(/costs.rally/);
+    expect(() => validateConfig({ ...WORLD_CONFIG, costs: { ...WORLD_CONFIG.costs, rally: -1 } })).toThrow(/costs.rally/);
     expect(() => validateConfig({ ...WORLD_CONFIG, chat: { ...WORLD_CONFIG.chat, campaigning: 'group' } } as never)).toThrow(/Chat.Campaigning/);
     const counting = (over: object) => ({ ...WORLD_CONFIG, counting: { ...WORLD_CONFIG.counting, ...over } });
     expect(() => validateConfig(counting({ pieRefreshMs: 100 }))).toThrow(/counting.pieRefreshMs/);

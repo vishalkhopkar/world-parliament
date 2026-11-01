@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MAP_CONFIGS, WORLD_CONFIG, majorityOf } from '@hp/shared';
+import { MAP_CONFIGS, WORLD_CONFIG, fullyFieldedBudget, majorityOf } from '@hp/shared';
 import type { GameTimeline, MapConfig } from '@hp/shared';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -38,9 +38,9 @@ export function configForMap(mapId: string | null | undefined): MapConfig {
 
 /** One standard deviation (km) of a Gaussian exp(-spread x^2) with x = km / unitKm: exp(-km^2 / (2 sigma^2)) -> sigma = unit / sqrt(2 spread). */
 const sigmaKm = (unitKm: number, spread: number): number => unitKm / Math.sqrt(2 * spread);
-/** Most rallies one player can hold in a campaign: limited by budget and by the cooldown (the first rally is free of waiting). */
+/** Most rallies one player can hold in a campaign with a candidate on every seat: limited by the budget left and by the cooldown (the first rally is free of waiting). */
 export function maxRallies(cfg: MapConfig, campaignMs: number): number {
-  const byBudget = Math.floor(cfg.budget / cfg.costs.rally);
+  const byBudget = Math.floor(fullyFieldedBudget(cfg) / cfg.costs.rally);
   return cfg.cooldowns.rallyMs > 0 ? Math.min(byBudget, Math.floor(campaignMs / cfg.cooldowns.rallyMs) + 1) : byBudget;
 }
 const trim = (n: number, d = 2): string => String(Number(n.toFixed(d)));
@@ -76,6 +76,8 @@ export function rulesValues(cfg: MapConfig, opts: RenderOptions = {}): Record<st
   const postMs = tl ? tl.postCountingEnd - tl.countingEnd : cfg.durations.postCountingMs;
   const r = cfg.effects.rally;
   const s = cfg.effects.roadshow;
+  const m = cfg.effects.minorRally;
+  const left = fullyFieldedBudget(cfg); // what a party has for the campaign once it has a candidate on every seat
   const exampleSeats = Math.max(1, Math.round(n * 0.24));
   const dpm = cfg.points.portfolios.find((p) => p.id === 'DPM')?.points ?? 50;
   const exampleSeatPts = Math.round((cfg.points.seatMultiplier * exampleSeats) / n);
@@ -103,9 +105,14 @@ export function rulesValues(cfg: MapConfig, opts: RenderOptions = {}): Record<st
     BUDGET_TEXT: money(cfg, cfg.budget),
     RALLY_COST_TEXT: money(cfg, cfg.costs.rally),
     ROADSHOW_COST_TEXT: money(cfg, cfg.costs.roadshow),
-    MAX_RALLIES: String(Math.floor(cfg.budget / cfg.costs.rally)),
+    MINOR_RALLY_COST_TEXT: money(cfg, cfg.costs.minorRally),
+    CANDIDATE_COST_TEXT: money(cfg, cfg.costs.candidate),
+    ALL_CANDIDATES_COST_TEXT: money(cfg, cfg.seatCount * cfg.costs.candidate),
+    CAMPAIGN_BUDGET_TEXT: money(cfg, left),
+    MAX_RALLIES: String(Math.floor(left / cfg.costs.rally)),
     MAX_RALLIES_EFFECTIVE: String(maxRallies(cfg, campaignMs)),
-    MAX_ROADSHOWS: String(Math.floor(cfg.budget / cfg.costs.roadshow)),
+    MAX_MINOR_RALLIES: String(Math.floor(left / cfg.costs.minorRally)),
+    MAX_ROADSHOWS: String(Math.floor(left / cfg.costs.roadshow)),
     SEAT_REPORT_PRICE_TEXT: cfg.analyst.seatReport.enabled
       ? `${money(cfg, cfg.analyst.seatReport.start)} at campaign start, rising linearly to ${money(cfg, cfg.analyst.seatReport.end)} at the end`
       : SWITCHED_OFF,
@@ -122,6 +129,11 @@ export function rulesValues(cfg: MapConfig, opts: RenderOptions = {}): Record<st
     RALLY_SPREAD_KM: String(Math.round(sigmaKm(cfg.effects.distanceUnitKm, r.decay.spread))),
     RALLY_SPREAD: trim(r.decay.spread),
     ROADSHOW_SPREAD: trim(s.decay.spread),
+    MINOR_LOCAL: trim(m.local),
+    MINOR_SPREAD: trim(m.decay.spread),
+    MINOR_SPREAD_KM: String(Math.round(sigmaKm(cfg.effects.distanceUnitKm, m.decay.spread))),
+    MINOR_REACH_KM: String(m.decay.maxKm),
+    MINOR_AT_1UNIT: trim(m.local * Math.exp(-m.decay.spread), 2),
     RALLY_REACH_KM: String(r.decay.maxKm),
     RALLY_AT_1UNIT: trim(r.local * Math.exp(-r.decay.spread), 2),
     ROADSHOW_LOCAL: trim(s.local),
@@ -131,6 +143,7 @@ export function rulesValues(cfg: MapConfig, opts: RenderOptions = {}): Record<st
     RALLY_COOLDOWN_S: String(Math.round(cfg.cooldowns.rallyMs / 1000)),
     FIRST_MOVER_RALLY: trim(cfg.effects.firstMover.rally),
     FIRST_MOVER_ROADSHOW: trim(cfg.effects.firstMover.roadshow),
+    FIRST_MOVER_MINOR: trim(cfg.effects.firstMover.minorRally),
     COST_RATIO: `1/${trim(cfg.costs.rally / cfg.costs.roadshow, 1)}`,
     TM_START: trim(cfg.timeMultiplier.start),
     TM_END: trim(cfg.timeMultiplier.end),
@@ -150,6 +163,7 @@ export function rulesValues(cfg: MapConfig, opts: RenderOptions = {}): Record<st
     COMMITTED_SEATS: String(cfg.committed.bands.reduce((a, b) => a + b.seats, 0)),
     COMMITTED_BAND_COUNT: String(cfg.committed.bands.length),
     COMMITTED_TABLE: bandTable,
+    PRECAMPAIGN_MIN: minutes(cfg.durations.preCampaignMs),
     CAMPAIGN_MIN: minutes(campaignMs),
     COUNTING_MIN: minutes(countingMs),
     COUNTING_MIN_2P: minutes(cfg.durations.countingMsTwoPlayers),

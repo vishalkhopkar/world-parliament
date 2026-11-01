@@ -1,12 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import type { GameSnapshot, PrivateState } from '@hp/shared';
-import { taskDone } from '../tasks';
+import { FIELD_TASK_SEATS, fieldedByMe, taskDone } from '../tasks';
 import type { TaskInput } from '../tasks';
 
 const priv = (over: Partial<PrivateState> = {}): PrivateState => ({ you: 'me', budget: 1, myActions: [], myReports: [], ...over });
 const base = (over: Partial<TaskInput> = {}): TaskInput => ({ selectedSeat: null, priv: priv(), snapshot: null, error: null, now: 1000, ...over });
 const snap = (over: Partial<GameSnapshot> = {}): GameSnapshot => ({
-  gameId: 'g', mapId: 'world-500', status: 'counting', phases: 1, timeline: null, players: [], news: [], polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null, ...over,
+  gameId: 'g', mapId: 'world-500', status: 'counting', phases: 1, timeline: null, players: [], news: [], fielding: {}, contestedSeats: 0, majority: 1, polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null, ...over,
+});
+/** A snapshot where `me` stands in the first `mine` seats and a rival stands in seats 100 and up. */
+const standing = (mine: number, rival = 3) => snap({
+  status: 'preCampaign',
+  fielding: {
+    ...Object.fromEntries(Array.from({ length: mine }, (_, i) => [i + 1, [{ playerId: 'me', name: 'A' }, { playerId: 'rival', name: 'B' }]])),
+    ...Object.fromEntries(Array.from({ length: rival }, (_, i) => [100 + i, [{ playerId: 'rival', name: 'C' }]])),
+  },
 });
 
 describe('taskDone', () => {
@@ -41,5 +49,32 @@ describe('taskDone', () => {
     expect(taskDone('govern', base({ snapshot: snap({ offers: [offer('declined')] }) }))).toBe(false);
     expect(taskDone('govern', base({ snapshot: snap({ offers: [offer('accepted')] }) }))).toBe(true);
     expect(taskDone('govern', base({ snapshot: snap({ status: 'finished' }) }))).toBe(true);
+  });
+
+  // Rule: the painting task is done once a few of your own candidates stand (rivals' do not count).
+  it('field: done when at least the asked number of seats hold a candidate of yours', () => {
+    expect(fieldedByMe(null, 'me')).toBe(0);
+    expect(fieldedByMe(standing(4), 'me')).toBe(4);
+    expect(fieldedByMe(standing(0, 50), 'me')).toBe(0);
+    expect(taskDone('field', base({ snapshot: standing(FIELD_TASK_SEATS - 1, 50) }))).toBe(false);
+    expect(taskDone('field', base({ snapshot: standing(FIELD_TASK_SEATS) }))).toBe(true);
+    expect(taskDone('field', base({ snapshot: null }))).toBe(false);
+  });
+
+  // Rule: the withdraw task is done when you hold fewer candidates than you did at your peak (you fielded, then withdrew).
+  it('withdraw: done once you hold fewer candidates than at your peak', () => {
+    expect(taskDone('withdraw', base({ snapshot: standing(5), peakFielded: 0 }))).toBe(false);
+    expect(taskDone('withdraw', base({ snapshot: standing(5), peakFielded: 5 }))).toBe(false);
+    expect(taskDone('withdraw', base({ snapshot: standing(5), peakFielded: 6 }))).toBe(true);
+    expect(taskDone('withdraw', base({ snapshot: standing(0), peakFielded: 1 }))).toBe(true);
+    expect(taskDone('withdraw', base({ snapshot: standing(0) }))).toBe(false);
+  });
+
+  it('minorRally: a minor rally appears in my actions (a major rally or a roadshow does not count)', () => {
+    expect(taskDone('minorRally', base())).toBe(false);
+    expect(taskDone('minorRally', base({ priv: priv({ myActions: [{ type: 'rally', seat: 1, ts: 1 }, { type: 'roadshow', seat: 1, ts: 2 }] }) }))).toBe(false);
+    expect(taskDone('minorRally', base({ priv: priv({ myActions: [{ type: 'minorRally', seat: 1, ts: 1 }] }) }))).toBe(true);
+    // and a minor rally is not a major one: the rally task stays open
+    expect(taskDone('rally', base({ priv: priv({ myActions: [{ type: 'minorRally', seat: 1, ts: 1 }] }) }))).toBe(false);
   });
 });

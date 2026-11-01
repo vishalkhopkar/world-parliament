@@ -289,8 +289,9 @@ describe('chat window follows Chat.Campaigning (OFF = from counting)', () => {
     expect(e.code).toBe('WRONG_PHASE');
     expect(e.message).toMatch(/counting/);
   });
-  it('descriptions say chat opens at campaign start (configurable)', () => {
-    expect(ACTION_BY_NAME.get('chat')!.description).toMatch(/campaign start \(configurable\)/);
+  it('descriptions say chat opens with the pre-campaign (one-to-one) and that the campaign chat is configurable', () => {
+    expect(ACTION_BY_NAME.get('chat')!.description).toMatch(/chat opens with the pre-campaign/);
+    expect(ACTION_BY_NAME.get('chat')!.description).toMatch(/Chat\.Campaigning decides the campaign/);
   });
 });
 

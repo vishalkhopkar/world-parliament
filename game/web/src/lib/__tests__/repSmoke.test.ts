@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { WORLD_CONFIG } from '@hp/shared';
 import type { GameMapPackage } from '@hp/shared';
-import { selectSmoke } from '../repSmoke';
+import { selectFieldSmoke, selectSmoke } from '../repSmoke';
 
 const cfg = WORLD_CONFIG;
 const G = Math.round(cfg.effects.rally.global * cfg.display.reputationScale);
@@ -32,5 +32,22 @@ describe('selectSmoke', () => {
   it('no label when the global part rounds to 0', () => {
     const c = { ...cfg, effects: { ...cfg.effects, rally: { ...cfg.effects.rally, global: 0 } } };
     expect(selectSmoke({ key: 4, type: 'rally', seat: 1, seats: { 1: 20 } }, null, c).globalText).toBeUndefined();
+  });
+  it('minor rally: every positive seat gets smoke and there is no global label, because it has no global part', () => {
+    const r = selectSmoke({ key: 5, type: 'minorRally', seat: 1, seats: { 1: 5, 2: 2, 3: 0 } }, pkg, cfg);
+    expect(r.seats).toEqual({ 1: 5, 2: 2 });
+    expect(r.globalText).toBeUndefined();
+  });
+});
+
+describe('selectFieldSmoke', () => {
+  const COST = cfg.costs.candidate;
+  it('spends the candidate cost on each seat fielded and refunds it on each seat withdrawn', () => {
+    const r = selectFieldSmoke({ key: 7, spent: [1, 2], refunded: [3] }, COST);
+    expect(r.key).toBe(7);
+    expect(r.spends).toEqual({ 1: COST, 2: COST });
+    expect(r.refunds).toEqual({ 3: COST });
+    expect(r.seats).toEqual({});
+    expect(r.globalText).toBeUndefined();
   });
 });

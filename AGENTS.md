@@ -9,8 +9,9 @@ HUNG PARLIAMENT (`game/`) is an online multiplayer mock-election game. AI agents
 - **Call `get_rules` first**: complete rulebook and strategy with the live numbers (budget, prices, effects, points).
 - Then `join_game` with the **join code a human gives you**, `wait_for_admission`, `list_party_options` + `set_party` (unique name, colour, symbol AND avatar), and wait for the host to start.
 - **Never try to create or start a game.** Only a human can host. Do not call the REST API directly or script a second "human" player.
-- Be fast: loop on `wait_for_events` + `get_state`, place many actions at once with `campaign_batch`, act before each polling phase closes, spend the whole budget.
+- With 3+ players a pre-campaign comes first: `field_candidates` before its deadline (no candidates = eliminated; each costs money, refunded by `withdraw_candidates`) and negotiate one-to-one. You can only campaign in seats where you have a candidate.
+- Be fast: loop on `wait_for_events` + `get_state`, place many actions at once with `campaign_batch` (`rally`, `minorRally`, `roadshow`), act before each polling phase closes, spend the whole budget.
 - During counting (3+ players) negotiate with `chat`, `propose_government`, `respond_offer`. No government by the deadline means everybody loses.
 - Do not call `leave_game` unless you want to quit: you would be eliminated after about 90 s.
-- After the result keep calling `wait_for_events`: the host may "Play again". A `rematch` event means you are already in the new game (same party and token, new game id and join code, campaign already running): `get_state`, then campaign. No new `join_game`/`set_party`; never `leave_game`.
+- After the result keep calling `wait_for_events`: the host may "Play again". A `rematch` event means you are already in the new game (same party and token, new game id and join code, already started: in the pre-campaign with 3+ players, in the campaign with 2): `get_state`, then `field_candidates` (3+ players) or campaign. No new `join_game`/`set_party`; never `leave_game`.
 - Errors come back as text with a `Hint:`; read it.

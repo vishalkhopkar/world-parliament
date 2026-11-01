@@ -12,6 +12,8 @@ export interface Kernels {
   rally: Float32Array;
   /** n*n row-major: roadshow[from*n + to], diagonal = s. */
   roadshow: Float32Array;
+  /** n*n row-major: minorRally[from*n + to] = effects.minorRally.local * decay(dist) (no global part); diagonal = local. */
+  minorRally: Float32Array;
   /** Great-circle km between seat centres (hq when present), n*n. */
   distanceKm: Float32Array;
 }
@@ -21,6 +23,12 @@ export type Committed = Map<PlayerId, Float64Array>;
 
 /** Per-player effect vectors (= reputation): effects.get(playerId)[seatIndex]. */
 export type Effects = Map<PlayerId, Float64Array>;
+
+/**
+ * Who has a candidate in each seat. Passed as the last, optional argument of the vote, analyst and news functions; left
+ * out, every player contests every seat. A seat missing from a given map has no candidates: it is vacant.
+ */
+export type SeatContestants = ReadonlyMap<SeatId, ReadonlySet<PlayerId>>;
 
 export interface EffectOptions {
   /** Ignore actions with ts > upTo (used for polling a phase and for delayed analyst reports). */

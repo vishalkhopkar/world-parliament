@@ -8,7 +8,8 @@ const players: PlayerPublic[] = [
 ];
 const snap = (over: Partial<GameSnapshot> = {}): GameSnapshot => ({
   gameId: 'g1', mapId: 'world-500', status: 'lobby', phases: 3, timeline: null, players, news: [], polledPhases: [],
-  seats: {}, tally: null, offers: [], government: null, result: null, ...over,
+  seats: {}, tally: null, offers: [], government: null, result: null,
+  fielding: {}, contestedSeats: 500, majority: 251, ...over,
 });
 const priv = (over: Partial<PrivateState> = {}): PrivateState => ({ you: 'me', budget: 1000, myActions: [], myReports: [], ...over });
 const hello = (over: Partial<GameSnapshot> = {}, serverTime = 5000): ServerMessage => ({ type: 'hello', serverTime, snapshot: snap(over), private: priv() });

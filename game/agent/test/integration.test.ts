@@ -1,6 +1,8 @@
 // Real dev server (in-process), a scripted human host, and two AI players driven ONLY through the shared action table.
+// Rules: 3+ players start in a timed pre-campaign (field_candidates / withdraw_candidates, no candidate = eliminated, campaigning only where fielded);
+// a 2-player game has no pre-campaign and starts its campaign on budget - seats x candidate price; a rematch of a 3+ player game starts in the pre-campaign.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { WORLD_CONFIG } from '@hp/shared';
+import { WORLD_CONFIG, fullyFieldedBudget } from '@hp/shared';
 import type { DevServer } from '../../server/src/local/devServer';
 import { AgentSession } from '../src/session';
 import { Human, call, callErr, sleep, startServer, until } from './helpers';
@@ -18,11 +20,13 @@ const agent = (): AgentSession => {
 };
 
 beforeAll(async () => { ({ srv, base } = await startServer()); });
-afterAll(async () => { for (const s of sessions) s.client.close(); await srv.close(); });
+const humans: Human[] = [];
+afterAll(async () => { for (const s of sessions) s.client.close(); for (const h of humans) h.close(); await srv.close(); });
 
 describe('AI agents join and play through the action table', () => {
   it('full game: join, admission, parties, campaign_batch, reports, chat, coalition, result', async () => {
     const human = await new Human(base).create('Asha', 2);
+    humans.push(human);
 
     // an agent can never host: the server refuses a create request that claims kind:'agent'
     const forbidden = await human.api('POST', '/games', { nickname: 'Bot', mapId: 'world-500', phases: 2, kind: 'agent' }, '');
@@ -87,15 +91,55 @@ describe('AI agents join and play through the action table', () => {
     const started = await human.start();
     expect(started.status).toBe(200);
     const ev = await call(A, 'wait_for_events', { since_cursor: sinceA, timeout_s: 10, types: ['status'] });
-    expect(ev.events.some((e: any) => e.status === 'campaign')).toBe(true);
+    expect(ev.events.some((e: any) => e.status === 'preCampaign')).toBe(true); // 3 players: the pre-campaign comes first
+
+    // ---- pre-campaign: campaigning is not open yet, candidates are fielded (and are public), chat is one-to-one
+    const pre = await call(A, 'get_state');
+    expect(pre.status).toBe('preCampaign');
+    expect(pre.timers.stage).toBe('preCampaign');
+    expect(pre.timers.pre_campaign_left_s).toBeGreaterThan(0);
+    expect(pre.budget.wr).toBe(WORLD_CONFIG.budget);
+    expect(pre.chat_mode).toBe('INDV');
+    expect(pre.advice.join(' ')).toMatch(/URGENT/);
+    const tooSoon = await callErr(A, 'campaign', { type: 'roadshow', seat: 1 });
+    expect(tooSoon.code).toBe('WRONG_PHASE');
+    expect(tooSoon.hint).toMatch(/field_candidates/);
+    const fA = await call(A, 'field_candidates', { all: true });
+    expect(fA).toMatchObject({ fielded: WORLD_CONFIG.seatCount, skipped: 0, your_candidates: WORLD_CONFIG.seatCount });
+    expect(fA.budget_wr).toBe(fullyFieldedBudget(WORLD_CONFIG));
+    expect((await call(A, 'field_candidates', { seats: [1, 2] })).fielded).toBe(0); // already fielded: skipped, nothing charged
+    await call(B, 'field_candidates', { all: true });
+    const heldBack = [50, 51]; // B gives these two up again (refunded in full)
+    const wB = await call(B, 'withdraw_candidates', { seats: heldBack });
+    expect(wB).toMatchObject({ withdrawn: 2, refunded_wr: 2 * WORLD_CONFIG.costs.candidate, your_candidates: WORLD_CONFIG.seatCount - 2 });
+    expect(wB.budget_wr).toBe(fullyFieldedBudget(WORLD_CONFIG) + 2 * WORLD_CONFIG.costs.candidate);
+    // fielding is public and live: A sees B's count and who stands in a seat
+    await until(async () => (await call(A, 'get_state')).fielding.by_party['Green Deal'] === WORLD_CONFIG.seatCount - 2, 5000, 'A sees the candidates of B');
+    const seat50 = await call(A, 'get_seat', { seat: 50 });
+    expect(seat50.candidates_here.map((c: any) => c.party)).toEqual(['Blue Wave']);
+    expect(seat50.candidates_here[0].you).toBe(true);
+    const seat7 = await call(A, 'get_seat', { seat: 7 });
+    expect(seat7.candidates_here.map((c: any) => c.party).sort()).toEqual(['Blue Wave', 'Green Deal']);
+    const notYet = await call(B, 'list_seats', { not_fielded_only: true, limit: 5 });
+    expect(notYet.rows.map((r: any) => r.id)).toEqual(heldBack);
+    const preChat = await call(A, 'chat', { to: ['Green Deal'], text: 'You keep the east, I take the west?' });
+    expect(preChat.chat_mode).toBe('INDV');
+    expect((await callErr(A, 'chat', { text: 'no recipient' })).code).toBe('INVALID_INPUT');
+    // the human host fields one seat (a party needs a candidate to stay in the game); a lone seat is enough to stay out of a coalition
+    expect((await human.field([1])).added).toHaveLength(1);
+
+    await until(() => A.client.state.snapshot?.status === 'campaign' && B.client.state.snapshot?.status === 'campaign', 15_000, 'campaign started');
+    expect((await callErr(A, 'field_candidates', { seats: [3] })).code).toBe('WRONG_PHASE'); // the line-up is fixed now
+    expect((await call(A, 'get_lobby')).players.find((p: any) => p.party === 'Saffron Front').status).toBe('active'); // it had a candidate
+    expect((await call(A, 'get_state')).contested_seats).toBe(WORLD_CONFIG.seatCount); // every seat has a Blue Wave candidate
 
     // ---- campaign fast: batches of rallies and roadshows (names and ids mixed)
     const st0 = await call(A, 'get_state');
     expect(st0.status).toBe('campaign');
-    expect(st0.budget.wr).toBe(WORLD_CONFIG.budget);
+    expect(st0.budget.wr).toBe(fullyFieldedBudget(WORLD_CONFIG));
     expect(st0.you.party).toBe('Blue Wave');
     expect(st0.you.nickname).toBeUndefined();
-    const open = await call(A, 'list_seats', { open_only: true, limit: 100, phase: 2 });
+    const open = await call(A, 'list_seats', { open_only: true, fielded_only: true, limit: 100, phase: 2 });
     expect(open.rows.length).toBe(100);
     const phase2 = open.rows.map((r: any) => r.id as number);
 
@@ -106,13 +150,13 @@ describe('AI agents join and play through the action table', () => {
     expect(batchA.sent).toBe(21);
     expect(batchA.failed).toBe(0);
     expect(Date.now() - t0).toBeLessThan(5000);
-    expect(batchA.budget_wr).toBe(WORLD_CONFIG.budget - WORLD_CONFIG.costs.rally - 20 * WORLD_CONFIG.costs.roadshow);
+    expect(batchA.budget_wr).toBe(fullyFieldedBudget(WORLD_CONFIG) - WORLD_CONFIG.costs.rally - 20 * WORLD_CONFIG.costs.roadshow);
 
     const named = await call(B, 'get_seat', { seat: phase2[30] });
     const batchB = await call(B, 'campaign_batch', {
-      actions: [{ type: 'roadshow', seat: named.name }, { type: 'rally', seat: phase2[40] }, { type: 'roadshow', seat: phase2[41] }],
+      actions: [{ type: 'roadshow', seat: named.name }, { type: 'rally', seat: phase2[40] }, { type: 'roadshow', seat: phase2[41] }, { type: 'minorRally', seat: phase2[42] }],
     });
-    expect(batchB.sent).toBe(3);
+    expect(batchB.sent).toBe(4);
     expect(batchB.results[0].seat_name).toBe(named.name);
 
     // single campaign + local overspend rejection + unknown seat
@@ -123,13 +167,26 @@ describe('AI agents join and play through the action table', () => {
     expect(tooMany.failed).toBe(50);
     expect(tooMany.results.find((r: any) => !r.ok).error.code).toBe('RATE_LIMITED');
     expect((await callErr(B, 'campaign', { type: 'rally', seat: 'Atlantis' })).code).toBe('UNKNOWN_SEAT');
+    // a minor rally is hidden: mine shows up in my own counts, in nobody's news
+    const minor = await call(B, 'get_seat', { seat: phase2[42] });
+    expect(minor.my_actions_here.minor_rallies).toBe(1);
+    expect(batchB.budget_wr).toBe(fullyFieldedBudget(WORLD_CONFIG) + 2 * WORLD_CONFIG.costs.candidate - WORLD_CONFIG.costs.rally - 2 * WORLD_CONFIG.costs.roadshow - WORLD_CONFIG.costs.minorRally);
+
+    // no candidate, no campaigning: refused locally (nothing sent) ...
+    const noCand = await callErr(B, 'campaign', { type: 'roadshow', seat: heldBack[0] });
+    expect(noCand.code).toBe('NOT_FIELDED');
+    expect(noCand.hint).toMatch(/fielded_only/);
+    // ... and by the server itself when the local check is bypassed
+    await expect(B.client.campaign('minorRally', heldBack[1])).rejects.toMatchObject({ code: 'NOT_FIELDED' });
 
     // my own actions and public news (rallies only)
     const stB = await call(B, 'get_state');
     expect(stB.my_actions.roadshows).toBe(3);
+    expect(stB.my_actions.minor_rallies).toBe(1);
     expect(stB.my_actions.rallies).toBeGreaterThanOrEqual(1);
     const news = await call(A, 'get_news', {});
-    expect(news.total).toBeGreaterThanOrEqual(2);
+    expect(news.total).toBe(2); // the two major rallies only: minor rallies and roadshows are hidden
+    expect(news.items.every((n: any) => n.seat !== phase2[42])).toBe(true);
     expect(news.items.every((n: any) => n.what === 'rally')).toBe(true);
     expect(news.items.some((n: any) => n.party.includes('Green Deal'))).toBe(true);
 
@@ -155,16 +212,17 @@ describe('AI agents join and play through the action table', () => {
     await until(() => A.client.state.snapshot?.status === 'counting', 25_000, 'counting');
 
     // ---- negotiation: chat + coalition (3 players, humans host does not campaign so A+B hold every seat)
+    const cursorB = B.client.events.cursor; // B already holds the pre-campaign message
     const chat = await call(A, 'chat', { to: ['Green Deal'], text: 'Shall we form a government? I will be PM.' });
     expect(chat.sent).toBe(true);
-    const gotChat = await call(B, 'wait_for_events', { timeout_s: 5, types: ['chat'] });
+    const gotChat = await call(B, 'wait_for_events', { since_cursor: cursorB, timeout_s: 5, types: ['chat'] });
     expect(gotChat.events[0].text).toMatch(/government/);
     expect(gotChat.events[0].from).toBe('Blue Wave');
     // counting is always: one-to-one, so `to` is the one recipient
     expect(gotChat.events[0].to).toEqual(['Green Deal']);
     expect(gotChat.events[0].chat).toBe('one-to-one');
     const chats = await call(B, 'get_chat', {});
-    expect(chats.messages.length).toBe(1);
+    expect(chats.messages.length).toBe(2); // the pre-campaign message and this one
     expect((await callErr(A, 'chat', { to: ['nobody'], text: 'hi' })).code).toBe('UNKNOWN_PLAYER');
 
     const prop = await call(A, 'propose_government', { portfolios: { dpm: ['Green Deal'], finance: ['green deal'] } });
@@ -198,7 +256,7 @@ describe('AI agents join and play through the action table', () => {
     expect(fin.government.pm).toContain('Blue Wave');
     expect(fin.advice.join(' ')).toMatch(/wait_for_events/);
 
-    // ---- play again (needs the server's rematch endpoint): agents roll over with party and token, straight into the campaign
+    // ---- play again (needs the server's rematch endpoint): agents roll over with party and token, straight into the PRE-campaign (3 players)
     const oldGame = human.gameId;
     const cursorA = A.client.events.cursor;
     const replay = await human.playAgain(2);
@@ -210,13 +268,48 @@ describe('AI agents join and play through the action table', () => {
     for (const X of [A, B]) {
       expect(X.client.session?.playerId).toBe(X.client.state.me);
       const st = await call(X, 'get_state');
-      expect(st.status).toBe('campaign');
+      expect(st.status).toBe('preCampaign');
       expect(st.you.party).toBeTruthy(); // party kept, no set_party
+      expect(st.fielding.your_candidates).toBe(0); // fielding belongs to each game: field again
+      expect(st.budget.wr).toBe(WORLD_CONFIG.budget);
     }
+    expect(rm.events[0].note).toMatch(/pre-campaign/);
+    await call(A, 'field_candidates', { seats: [1, 2, 3] });
+    await call(B, 'field_candidates', { seats: [1] });
+    await human.field([2]);
+    await until(() => A.client.state.snapshot?.status === 'campaign', 15_000, 'rematch campaign started');
     const batch = await call(A, 'campaign_batch', { actions: [{ type: 'roadshow', seat: 1 }] });
     expect(batch.results[0].ok).toBe(true);
+    expect((await call(A, 'get_state')).contested_seats).toBe(3); // seats 1, 2 and 3 have a candidate; the rest is vacant
     // the session file would now point at the new game
     expect(A.client.session?.gameId).toBe(human.gameId);
+  });
+
+  it('2-player game: no pre-campaign, every seat is fielded for you, the campaign starts on budget minus the candidates, minor rallies work', async () => {
+    const human = await new Human(base).create('Duo', 1);
+    const X = agent();
+    await call(X, 'join_game', { join_code: human.joinCode, nickname: 'Solo' });
+    await until(async () => (await human.pending()).length === 1, 5000, 'pending agent');
+    await human.admit((await human.pending())[0].playerId);
+    await call(X, 'wait_for_admission', { timeout_s: 10 });
+    await call(X, 'set_party', { name: 'Solo Party', colour: 'Green', symbol: 'leaf', avatar: 'kim' });
+    expect((await human.setParty('Duo Party', 'saffron', 'sun')).status).toBe(200);
+    const since = X.client.events.cursor;
+    expect((await human.start()).status).toBe(200);
+    const ev = await call(X, 'wait_for_events', { since_cursor: since, timeout_s: 10, types: ['status'] });
+    expect(ev.events.map((e: any) => e.status)).not.toContain('preCampaign');
+    await until(() => X.client.state.snapshot?.status === 'campaign', 10_000, 'campaign');
+    await until(() => X.client.state.priv?.budget === fullyFieldedBudget(WORLD_CONFIG), 5000, 'budget after the automatic candidates');
+    const st = await call(X, 'get_state');
+    expect(st.budget.wr).toBe(fullyFieldedBudget(WORLD_CONFIG));
+    expect(st.contested_seats).toBe(WORLD_CONFIG.seatCount);
+    expect(st.fielding).toBeUndefined();
+    const e = await callErr(X, 'field_candidates', { seats: [1] });
+    expect(e.code).toBe('WRONG_PHASE');
+    expect(e.message).toMatch(/no pre-campaign/);
+    const r = await call(X, 'campaign_batch', { actions: [{ type: 'minorRally', seat: 1 }, { type: 'roadshow', seat: 2 }] });
+    expect(r.sent).toBe(2);
+    expect(r.budget_wr).toBe(fullyFieldedBudget(WORLD_CONFIG) - WORLD_CONFIG.costs.minorRally - WORLD_CONFIG.costs.roadshow);
   });
 
   it('declined agents are told so; 2-player games have no chat/offers; leave_game forgets the session', async () => {

@@ -15,9 +15,9 @@ const pl = (id: string, colour: string): PlayerPublic => ({ playerId: id, nickna
 const snap = (): GameSnapshot => ({
   gameId: 'g', mapId: 'world-500', status: 'campaign', phases: 1,
   timeline: { campaignStart: 0, phaseCloses: [Date.now() + 1e5], campaignEnd: Date.now() + 1e5, countingEnd: Date.now() + 2e5, postCountingEnd: Date.now() + 3e5 },
-  players: [pl('a', 'blue'), pl('b', 'orange')], news: [], polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null,
+  players: [pl('a', 'blue'), pl('b', 'orange')], news: [], fielding: { 1: [{ playerId: 'a' }], 2: [{ playerId: 'a' }], 3: [{ playerId: 'a' }, { playerId: 'b' }], 4: [{ playerId: 'b' }] }, contestedSeats: 4, majority: 3, polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null,
 });
-const pkg = { phaseGroups: { '1': [[1, 2, 3]] }, seats: [1, 2, 3].map((id) => ({ id, x: id, y: id, lon: id, lat: id, neighbours: [] })) };
+const pkg = { phaseGroups: { '1': [[1, 2, 3, 4]] }, seats: [1, 2, 3, 4].map((id) => ({ id, x: id, y: id, lon: id, lat: id, neighbours: [] })) };
 const priv = (reputation?: PrivateState['reputation']): PrivateState => ({ you: 'a', budget: 100, myActions: [], myReports: [], reputation });
 const setup = (p: PrivateState) =>
   useStore.setState({ me: 'a', gameId: 'g', snapshot: snap(), priv: p, lobby: null, gamePkg: pkg, names: {}, chat: [], selectedSeat: null, polledSeats: [] } as never);
@@ -42,6 +42,11 @@ describe('Campaign reputation badges', () => {
     rerender(<Campaign />);
     expect((mapProps.last?.badges as Badges)[2].text).toBe('20');
     expect((mapProps.last?.badges as Badges)[3].text).toBe('4');
+  });
+  it('hides the badge on a seat where the party has no candidate', () => {
+    setup(priv({ 4: 9 }));
+    render(<Campaign />);
+    expect((mapProps.last?.badges as Badges)[4]).toBeUndefined();
   });
   it("never uses another party's colour", () => {
     setup(priv({ 1: 5 }));

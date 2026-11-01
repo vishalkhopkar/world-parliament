@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { majorityOf } from '@hp/shared';
+import { chatModeFor, fullyFieldedBudget, majorityOf } from '@hp/shared';
 import type { GameSnapshot, PrivateState, ServerMessage } from '@hp/shared';
 import { TOUR_ME_ID, TourTransport } from '../tour';
 import { useTour } from '../../tour/tourStore';
@@ -17,25 +17,33 @@ let msgs: ServerMessage[];
 const of = <T extends ServerMessage['type']>(type: T) => msgs.filter((m): m is Extract<ServerMessage, { type: T }> => m.type === type);
 const settle = (ms = 100) => vi.advanceTimersByTimeAsync(ms);
 
-async function start(opts: ConstructorParameters<typeof TourTransport>[0] = {}) {
+let helloMsg: Extract<ServerMessage, { type: 'hello' }>;
+/** Opens a practice game. By default it is moved on to the campaign (`startCampaign`) and the messages so far are dropped. */
+async function start(opts: ConstructorParameters<typeof TourTransport>[0] = {}, phase: 'preCampaign' | 'campaign' = 'campaign') {
   t = new TourTransport({ pkg, ...opts });
   const r = await t.createGame({ nickname: 'You', mapId: 'world-500', phases: 1 });
   msgs = [];
   t.connect(r.gameId, r.token, m => msgs.push(m));
   await settle(50);
+  helloMsg = of('hello')[0];
+  if (phase === 'campaign') { t.startCampaign(); await settle(50); msgs = []; }
   return r;
 }
-const hello = () => of('hello')[0];
-const campaign = (type: 'rally' | 'roadshow', seat: number, clientRef = 'r' + Math.random()) => { t.send({ action: 'campaign', type, seat, clientRef }); return clientRef; };
+const hello = () => helloMsg;
+/** Rivals that field so slowly that nothing of theirs happens in a test. */
+const IDLE = 1e8;
+const campaign = (type: 'rally' | 'minorRally' | 'roadshow', seat: number, clientRef = 'r' + Math.random()) => { t.send({ action: 'campaign', type, seat, clientRef }); return clientRef; };
+const field = (seats: number[], clientRef = 'f' + Math.random()) => { t.send({ action: 'field', seats, clientRef }); return clientRef; };
+const withdraw = (seats: number[], clientRef = 'w' + Math.random()) => { t.send({ action: 'withdraw', seats, clientRef }); return clientRef; };
 
 beforeEach(() => { vi.useFakeTimers(); useTour.getState().reset(); });
 afterEach(() => { t?.disconnect(); vi.useRealTimers(); });
 
 describe('TourTransport set-up', () => {
-  it('starts straight in the campaign with nine distinct parties and you as the first', async () => {
-    await start();
+  it('starts in the pre-campaign with nine distinct parties and you as the first', async () => {
+    await start({}, 'preCampaign');
     const h = hello();
-    expect(h.snapshot.status).toBe('campaign');
+    expect(h.snapshot.status).toBe('preCampaign');
     expect(h.snapshot.phases).toBe(1);
     const ps = h.snapshot.players;
     expect(ps).toHaveLength(9);
@@ -44,7 +52,7 @@ describe('TourTransport set-up', () => {
     for (const k of ['colour', 'symbol', 'avatar'] as const) expect(new Set(ps.map(p => p.party![k])).size).toBe(9);
     expect(new Set(ps.map(p => p.party!.name)).size).toBe(9);
     expect(h.private.you).toBe(TOUR_ME_ID);
-    expect(h.private.budget).toBe(cfg.budget);
+    expect(h.private.budget).toBe(cfg.budget); // the whole budget: nothing is fielded yet
   });
 
   it('never contacts a server when a map package is supplied', async () => {
@@ -67,33 +75,281 @@ describe('TourTransport set-up', () => {
   });
 
   it('puts the clocks in the far future so nothing closes by itself', async () => {
-    await start();
+    await start({}, 'preCampaign');
     const tl = hello().snapshot.timeline!;
+    expect(tl.preCampaignEnd! - Date.now()).toBeGreaterThan(365 * 24 * 3600 * 1000);
     expect(tl.phaseCloses[0] - Date.now()).toBeGreaterThan(365 * 24 * 3600 * 1000);
     await settle(10 * 60 * 1000);
     expect(of('phaseClosed')).toHaveLength(0);
-    expect(of('status')).toHaveLength(0);
+    expect(of('status')).toHaveLength(0); // the pre-campaign never ends by itself either
   });
 
   it('has no lobby: joining is refused, the lobby view is already a started game', async () => {
-    const r = await start();
+    const r = await start({}, 'preCampaign');
     await expect(t.joinGame({ joinCode: 'ABCD', nickname: 'x' })).rejects.toMatchObject({ code: 'FORBIDDEN' });
     const l = await t.getLobby(r.gameId, r.token);
-    expect(l.status).toBe('campaign');
+    expect(l.status).toBe('preCampaign');
     expect(l.players).toHaveLength(9);
   });
 
   it('registers its controls with the tour store', async () => {
     await start();
     expect(typeof useTour.getState().controls?.startCounting).toBe('function');
+    expect(typeof useTour.getState().controls?.startCampaign).toBe('function');
   });
 
   it('shows rival rallies in the news now and then, never roadshows', async () => {
     await start({ botRallyAt: [1000, 2000, 3000] });
-    await settle(3500);
+    await settle(3500); // counted from the start of the campaign
     const news = of('news');
     expect(news).toHaveLength(3);
     expect(news.every(n => n.item.playerId !== TOUR_ME_ID)).toBe(true);
+  });
+});
+
+// Rule: the tour opens in the pre-campaign: you field candidates (each costs the configured price, withdrawing refunds it), rivals
+// field theirs over time so the live counts move, and the tour moves on to the campaign by fielding the rest for you.
+describe('TourTransport pre-campaign', () => {
+  const lastUpdate = () => of('fieldingUpdate').at(-1)!;
+  const contested = (snapshot: { fielding: Record<number, unknown[]> }) => Object.values(snapshot.fielding).filter(l => l.length > 0).length;
+  type Poke = { g: { budget: number; fielding: Map<number, { playerId: string; name?: string }[]> } };
+  const poke = () => (t as unknown as Poke).g;
+
+  it('opens with the whole budget, no candidate of yours and a live majority that follows the contested seats', async () => {
+    await start({ fieldEveryMs: IDLE }, 'preCampaign');
+    const s = hello().snapshot;
+    expect(s.status).toBe('preCampaign');
+    expect(hello().private.budget).toBe(cfg.budget);
+    expect(Object.values(s.fielding).some(l => l.some(c => c.playerId === TOUR_ME_ID))).toBe(false);
+    expect(s.contestedSeats).toBe(contested(s));
+    expect(s.majority).toBe(majorityOf(s.contestedSeats));
+    expect(chatModeFor(cfg, s.status)).toBe('INDV'); // one-to-one chat for the informal alliances
+  });
+
+  it('field: charges the configured price per seat, answers with the new budget and names, and tells everybody', async () => {
+    await start({ fieldEveryMs: IDLE }, 'preCampaign');
+    field([3, 4, 5], 'f1');
+    await settle();
+    const ack = of('fieldAck')[0];
+    expect(ack).toMatchObject({ clientRef: 'f1', ok: true, budget: cfg.budget - 3 * cfg.costs.candidate, removed: [] });
+    expect(ack.added.map(a => a.seat)).toEqual([3, 4, 5]);
+    expect(ack.added.every(a => !!a.name)).toBe(true);
+    const u = lastUpdate();
+    expect(u).toMatchObject({ playerId: TOUR_ME_ID, removed: [], contestedSeats: 3, majority: majorityOf(3) });
+    expect(u.added).toEqual(ack.added);
+    expect(of('error')).toHaveLength(0);
+  });
+
+  it('field: a seat you already hold is skipped and not charged twice', async () => {
+    await start({ fieldEveryMs: IDLE }, 'preCampaign');
+    field([3, 4]); field([4, 5]);
+    await settle();
+    const [a, b] = of('fieldAck');
+    expect(b.added.map(x => x.seat)).toEqual([5]);
+    expect(b.budget).toBe(a.budget - cfg.costs.candidate);
+  });
+
+  it('field: repeating a clientRef changes nothing and is flagged as a duplicate', async () => {
+    await start({ fieldEveryMs: IDLE }, 'preCampaign');
+    field([3, 4], 'same'); field([3, 4], 'same');
+    await settle();
+    const acks = of('fieldAck');
+    expect(acks).toHaveLength(2);
+    expect(acks[1]).toMatchObject({ duplicate: true, budget: acks[0].budget });
+    expect(of('fieldingUpdate').filter(u => u.playerId === TOUR_ME_ID)).toHaveLength(1);
+  });
+
+  it('field: refuses the whole batch with INSUFFICIENT_FUNDS when the budget cannot pay for all of it', async () => {
+    await start({ fieldEveryMs: IDLE }, 'preCampaign');
+    poke().budget = 2 * cfg.costs.candidate;
+    field([3, 4, 5], 'big');
+    await settle();
+    expect(of('error').find(e => e.clientRef === 'big')?.error).toBe('INSUFFICIENT_FUNDS');
+    expect(of('fieldAck')).toHaveLength(0);
+    field([3, 4]);
+    await settle();
+    expect(of('fieldAck')[0].budget).toBe(0);
+  });
+
+  it('field and withdraw: unknown seats are a BAD_REQUEST', async () => {
+    await start({ fieldEveryMs: IDLE }, 'preCampaign');
+    field([99999]); withdraw([99999]);
+    await settle();
+    expect(of('error').map(e => e.error)).toEqual(['BAD_REQUEST', 'BAD_REQUEST']);
+  });
+
+  it('withdraw: refunds the full price per seat, skips seats without a candidate and updates the majority', async () => {
+    await start({ fieldEveryMs: IDLE }, 'preCampaign');
+    field([3, 4, 5]);
+    await settle();
+    withdraw([4, 5, 6], 'w1');
+    await settle();
+    const ack = of('fieldAck').find(a => a.clientRef === 'w1')!;
+    expect(ack).toMatchObject({ added: [], removed: [4, 5], budget: cfg.budget - cfg.costs.candidate });
+    expect(lastUpdate()).toMatchObject({ playerId: TOUR_ME_ID, removed: [4, 5], contestedSeats: 1, majority: majorityOf(1) });
+  });
+
+  it('rivals field over time, one party at a time, so the counts visibly move and the contested seats only grow', async () => {
+    await start({ fieldEveryMs: 1000, fieldRounds: 5 }, 'preCampaign');
+    expect(of('fieldingUpdate')).toHaveLength(0);
+    await settle(1500);
+    const first = of('fieldingUpdate').length;
+    expect(first).toBeGreaterThan(0);
+    await settle(1000);
+    expect(of('fieldingUpdate').length).toBeGreaterThan(first);
+    await settle(10_000);
+    const ups = of('fieldingUpdate');
+    expect(ups.every(u => u.playerId !== TOUR_ME_ID)).toBe(true);
+    expect(new Set(ups.map(u => u.playerId)).size).toBe(8); // every rival
+    expect(ups.every(u => u.added.length > 0 && u.removed.length === 0 && u.added.every(a => !!a.name))).toBe(true);
+    const counts = ups.map(u => u.contestedSeats);
+    expect(counts).toEqual([...counts].sort((a, b) => a - b));
+    expect(counts.at(-1)).toBeGreaterThan(counts[0]);
+    expect(ups.at(-1)!.majority).toBe(majorityOf(ups.at(-1)!.contestedSeats));
+    await settle(30_000);
+    expect(of('fieldingUpdate')).toHaveLength(ups.length); // they are done
+  });
+
+  it('a seat where a rival and you both stand lists both candidates, yours first among the new ones', async () => {
+    await start({ fieldEveryMs: 500, fieldRounds: 1 }, 'preCampaign');
+    await settle(5000);
+    const seat = [...poke().fielding].find(([, l]) => l.length > 0)![0];
+    const rival = poke().fielding.get(seat)![0].playerId;
+    field([seat]);
+    await settle();
+    const list = poke().fielding.get(seat)!;
+    expect(list.map(c => c.playerId)).toEqual([rival, TOUR_ME_ID]);
+    expect(list.every(c => !!c.name)).toBe(true);
+  });
+
+  it('campaign actions, reports and peeks are refused until the campaign starts', async () => {
+    await start({ fieldEveryMs: IDLE }, 'preCampaign');
+    campaign('rally', 3); campaign('minorRally', 3); campaign('roadshow', 3);
+    t.send({ action: 'globalReports' });
+    t.send({ action: 'peekSeat', seat: 3 });
+    await settle();
+    expect(of('error').map(e => e.error)).toEqual(['WRONG_PHASE', 'WRONG_PHASE', 'WRONG_PHASE', 'WRONG_PHASE', 'WRONG_PHASE']);
+    expect(of('actionAck')).toHaveLength(0);
+    expect(of('globalReports')).toHaveLength(0);
+  });
+
+  it('one-to-one chat works and the rival answers in its own chat', async () => {
+    await start({ fieldEveryMs: IDLE }, 'preCampaign');
+    t.send({ action: 'chat', text: 'Shall we stay out of each other seats?', to: ['p_alliance'] });
+    await settle(4000);
+    const c = of('chat').map(m => m.message);
+    expect(c[0]).toMatchObject({ from: TOUR_ME_ID, to: ['p_alliance'], channel: 'direct' });
+    expect(c[1]).toMatchObject({ from: 'p_alliance', to: [TOUR_ME_ID], channel: 'direct' });
+    t.send({ action: 'chat', text: 'nobody' });
+    await settle();
+    expect(of('error').at(-1)?.error).toBe('BAD_REQUEST');
+  });
+
+  it('startCampaign fields every seat you have not fielded, charges for them, and leaves you the fully fielded budget', async () => {
+    await start({ fieldEveryMs: IDLE }, 'preCampaign');
+    field([3, 4]);
+    await settle();
+    msgs.length = 0;
+    t.startCampaign();
+    await settle();
+    const mine = of('fieldingUpdate').find(u => u.playerId === TOUR_ME_ID)!;
+    expect(mine.added).toHaveLength(N - 2);
+    expect(mine.added.map(a => a.seat)).not.toContain(3);
+    expect(of('private').at(-1)!.private.budget).toBe(fullyFieldedBudget(cfg));
+    expect(fullyFieldedBudget(cfg)).toBe(cfg.budget - N * cfg.costs.candidate);
+    expect(of('fieldingUpdate').at(-1)).toMatchObject({ contestedSeats: N, majority: majorityOf(N) });
+    expect(of('status').at(-1)).toMatchObject({ status: 'campaign' });
+    const tl = of('status').at(-1)!.timeline!;
+    expect(tl.campaignStart).toBeLessThanOrEqual(Date.now());
+    expect(tl.phaseCloses[0] - Date.now()).toBeGreaterThan(365 * 24 * 3600 * 1000);
+  });
+
+  it('after startCampaign every party stands in every seat, and fielding is closed', async () => {
+    await start({ fieldEveryMs: IDLE });
+    expect(poke().fielding.size).toBe(N);
+    for (const list of poke().fielding.values()) expect(list).toHaveLength(9);
+    field([3]); withdraw([3]);
+    await settle();
+    expect(of('error').map(e => e.error)).toEqual(['WRONG_PHASE', 'WRONG_PHASE']);
+    msgs.length = 0;
+    t.startCampaign(); // twice does nothing more
+    await settle();
+    expect(of('status')).toHaveLength(0);
+  });
+
+  it('a hello after the campaign start carries the fixed contested seats, the majority and who stands where', async () => {
+    const r = await start({ fieldEveryMs: IDLE });
+    msgs.length = 0;
+    t.connect(r.gameId, r.token, m => msgs.push(m));
+    await settle();
+    const s = of('hello')[0].snapshot;
+    expect(s.status).toBe('campaign');
+    expect(s.contestedSeats).toBe(N);
+    expect(s.majority).toBe(majorityOf(N));
+    expect(Object.keys(s.fielding)).toHaveLength(N);
+    expect(s.fielding[1].map(c => c.playerId).sort()).toEqual(s.players.map(p => p.playerId).sort());
+  });
+
+  it('rival rallies in the news only begin with the campaign', async () => {
+    await start({ fieldEveryMs: IDLE, botRallyAt: [500, 1000] }, 'preCampaign');
+    await settle(5000);
+    expect(of('news')).toHaveLength(0);
+    t.startCampaign();
+    await settle(1500);
+    expect(of('news')).toHaveLength(2);
+  });
+
+  it('stopping the tour stops the rivals fielding', async () => {
+    await start({ fieldEveryMs: 1000 }, 'preCampaign');
+    t.disconnect();
+    msgs.length = 0;
+    await settle(60_000);
+    expect(msgs).toHaveLength(0);
+  });
+});
+
+// Rule: a minor rally costs the configured price, has no cooldown and no global part, stays out of the news, needs a candidate
+// in the seat, and its effect on your reputation comes from the real engine.
+describe('TourTransport minor rally', () => {
+  it('costs the configured price, has no cooldown, and is not news', async () => {
+    await start({ botRallyAt: [] });
+    campaign('minorRally', 10); campaign('minorRally', 11); campaign('rally', 12);
+    await settle();
+    const acks = of('actionAck');
+    expect(acks).toHaveLength(3);
+    expect(acks[0].budget).toBe(fullyFieldedBudget(cfg) - cfg.costs.minorRally);
+    expect(acks[1].budget).toBe(fullyFieldedBudget(cfg) - 2 * cfg.costs.minorRally);
+    expect(acks[0].nextRallyAt ?? null).toBeNull(); // only a major rally starts the cooldown
+    expect(of('error')).toHaveLength(0);
+    expect(of('news').map(n => n.item.seat)).toEqual([12]); // the major rally only
+    expect(of('private').at(-1)!.private.myActions.map(a => a.type)).toEqual(['minorRally', 'minorRally', 'rally']);
+  });
+
+  it('the ack carries the engine reputation: the peak in its own seat, nothing global', async () => {
+    await start({ botRallyAt: [] });
+    campaign('minorRally', 20);
+    await settle();
+    const rep = of('actionAck')[0].reputation!;
+    expect(rep[20]).toBe(Math.round((cfg.effects.minorRally.local + cfg.effects.firstMover.minorRally) * cfg.display.reputationScale));
+    expect(Object.keys(rep).length).toBeLessThan(N);
+  });
+
+  it('refuses when the budget is gone', async () => {
+    await start({ botRallyAt: [] });
+    (t as unknown as { g: { budget: number } }).g.budget = cfg.costs.minorRally - 1;
+    campaign('minorRally', 20, 'poor');
+    await settle();
+    expect(of('error').find(e => e.clientRef === 'poor')?.error).toBe('INSUFFICIENT_FUNDS');
+  });
+
+  it('is refused with NOT_FIELDED in a seat where you have no candidate (major rally and roadshow too)', async () => {
+    await start({ botRallyAt: [] });
+    const g = (t as unknown as { g: { fielding: Map<number, { playerId: string }[]> } }).g;
+    g.fielding.set(30, g.fielding.get(30)!.filter(c => c.playerId !== TOUR_ME_ID));
+    campaign('minorRally', 30); campaign('rally', 30); campaign('roadshow', 30);
+    await settle();
+    expect(of('error').map(e => e.error)).toEqual(['NOT_FIELDED', 'NOT_FIELDED', 'NOT_FIELDED']);
+    expect(of('actionAck')).toHaveLength(0);
   });
 });
 
@@ -104,7 +360,7 @@ describe('TourTransport campaign', () => {
     await settle();
     const ack = of('actionAck')[0];
     expect(ack.clientRef).toBe('a1');
-    expect(ack.budget).toBe(cfg.budget - cfg.costs.rally);
+    expect(ack.budget).toBe(fullyFieldedBudget(cfg) - cfg.costs.rally);
     const rep = ack.reputation!;
     const expectHeld = Math.round((cfg.effects.rally.local + cfg.effects.rally.global + cfg.effects.firstMover.rally) * cfg.display.reputationScale);
     expect(rep[10]).toBe(expectHeld);
@@ -136,7 +392,7 @@ describe('TourTransport campaign', () => {
     await settle();
     const acks = of('actionAck');
     expect(acks).toHaveLength(2);
-    expect(acks[1].budget).toBe(cfg.budget - 2 * cfg.costs.roadshow);
+    expect(acks[1].budget).toBe(fullyFieldedBudget(cfg) - 2 * cfg.costs.roadshow);
     expect(acks[0].reputation![20]).toBe(Math.round((cfg.effects.roadshow.local + cfg.effects.firstMover.roadshow) * cfg.display.reputationScale));
     expect(Object.keys(acks[0].reputation!)).toEqual(['20']);
     expect(of('news')).toHaveLength(0);
@@ -397,6 +653,9 @@ describe('TourTransport on the real world-500 package', () => {
     const r = await t.createGame({ nickname: 'You', mapId: 'world-500', phases: 1 });
     msgs = [];
     t.connect(r.gameId, r.token, m => msgs.push(m));
+    await settle(50);
+    helloMsg = of('hello')[0];
+    t.startCampaign();
     await settle(50);
     const tally = t.scriptedTally()!;
     expect(Object.values(tally).sort((a, b) => b - a)).toEqual([249, 110, 30, 28, 25, 20, 17, 12, 9]);

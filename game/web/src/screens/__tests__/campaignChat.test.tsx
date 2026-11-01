@@ -19,7 +19,7 @@ MAP_CONFIGS['chat-indv'] = { ...WORLD_CONFIG, mapId: 'chat-indv', chat: { campai
 const pl = (id: string, n: string, status: PlayerPublic['status'] = 'active'): PlayerPublic => ({ playerId: id, nickname: n, isAdmin: id === 'a', status, party: { name: n + ' Party', colour: '#E8710A', symbol: 'sun' } });
 const t = () => ({ campaignStart: 0, phaseCloses: [Date.now() + 1e5], campaignEnd: Date.now() + 1e5, countingEnd: Date.now() + 2e5, postCountingEnd: Date.now() + 3e5 });
 const snap = (mapId: string, players: PlayerPublic[], over: Partial<GameSnapshot> = {}): GameSnapshot => ({
-  gameId: 'g', mapId, status: 'campaign', phases: 1, timeline: t(), players, news: [], polledPhases: [], seats: {},
+  gameId: 'g', mapId, status: 'campaign', phases: 1, timeline: t(), players, news: [], fielding: {}, contestedSeats: 100, majority: 51, polledPhases: [], seats: {},
   tally: null, offers: [], government: null, result: null, ...over,
 });
 const priv = { you: 'a', budget: 100, myActions: [], myReports: [] };

@@ -28,6 +28,8 @@ export interface World {
   /** sparse rally spill rows (incl. diagonal = local), excluding the global c */
   rallyRows: SparseRow[];
   roadRows: SparseRow[];
+  /** sparse minor rally rows (incl. diagonal = local); no global part */
+  minorRows: SparseRow[];
   /** sum of off-diagonal rally weights = how much a rally here spills (density measure) */
   density: Float64Array;
   /** seat indices sorted by distance, nearest first (lazily built) */
@@ -74,6 +76,7 @@ export function buildWorld(map: GameMapPackage, cfg: MapConfig): World {
   }
   const rallyRows = sparse(kernels.rally, n);
   const roadRows = sparse(kernels.roadshow, n);
+  const minorRows = sparse(kernels.minorRally, n);
   const density = new Float64Array(n);
   for (let i = 0; i < n; i++) {
     let s = 0;
@@ -87,5 +90,5 @@ export function buildWorld(map: GameMapPackage, cfg: MapConfig): World {
     order.sort((a, b) => kernels.distanceKm[i * n + a] - kernels.distanceKm[i * n + b]);
     return order.slice(0, m);
   };
-  return { map, cfg, kernels, n, lon, lat, phaseOf, phaseSeats, rallyRows, roadRows, density, nearest };
+  return { map, cfg, kernels, n, lon, lat, phaseOf, phaseSeats, rallyRows, roadRows, minorRows, density, nearest };
 }

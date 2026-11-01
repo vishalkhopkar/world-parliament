@@ -14,8 +14,11 @@
 .side{overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:10px;background:rgba(253,249,238,.55);border-left:1px solid var(--line);min-width:0}
 .map-note{position:absolute;left:10px;bottom:10px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 10px;box-shadow:0 2px 8px rgba(40,30,0,.2);z-index:2}
 @media (min-width:900px){
-  .app.screen-campaign,.app.screen-counting{height:100vh;height:100dvh;overflow:hidden}
+  .app.screen-preCampaign,.app.screen-campaign,.app.screen-counting{height:100vh;height:100dvh;overflow:hidden}
+  /* the pre-campaign and the campaign: the chat takes whatever the side panel has left (the panel scrolls below this floor) */
+  .screen-preCampaign .chat-slot,.screen-campaign .chat-slot{flex:1 1 0;min-height:320px;display:flex;flex-direction:column}
 }
+.my-actions-hidden{display:none}
 /* counting: the side panel holds the one-to-one chats, so it is wider on a desktop */
 @media (min-width:900px){ .game-body.wide-side{grid-template-columns:minmax(0,1fr) 440px} }
 @media (min-width:1200px){ .game-body.wide-side{grid-template-columns:minmax(0,1fr) 560px} }

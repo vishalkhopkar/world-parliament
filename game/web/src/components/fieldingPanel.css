@@ -1,0 +1,6 @@
+/* components/FieldingPanel.tsx: floats over the corner of the map, no backdrop (uses the seat panel's .sam-x / .sam-title / .sam-sub / .sam-committed) */
+.fp-card{position:absolute;left:10px;top:10px;z-index:3;width:min(320px,calc(100% - 64px));max-height:calc(100% - 20px);overflow-y:auto;background:var(--panel);border:2px solid var(--gold);border-radius:12px;padding:14px 14px 12px;box-shadow:0 6px 20px rgba(0,0,0,.3);animation:sam-in .14s ease-out}
+.fp-own{margin:0 0 8px;font-size:.92rem}
+.fp-card .btn{width:100%}
+.fp-reason{margin:6px 0 0}
+.fp-list-title{margin:12px 0 6px;font-family:var(--serif);font-size:.95rem;color:var(--green)}

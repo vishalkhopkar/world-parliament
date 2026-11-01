@@ -204,6 +204,15 @@ describe('SfnScheduler', () => {
     expect(input.phaseClosesIso).toHaveLength(input.timeline.phaseCloses.length);
   });
 
+  it('startLifecycle: a timeline with a pre-campaign adds preCampaignEndIso, which sends the execution through the wait and OpenCampaign', async () => {
+    const t = setupSched();
+    const end = Date.UTC(2026, 9, 20, 8, 58, 0);
+    await t.s.startLifecycle('g_abc', { ...TL, preCampaignEnd: end });
+    const input = JSON.parse((t.sfn.send.mock.calls[0][0] as StartExecutionCommand).input.input as string);
+    expect(input.preCampaignEndIso).toBe('2026-10-20T08:58:00.000Z');
+    expect(input.timeline.preCampaignEnd).toBe(end);
+  });
+
   it('startLifecycle: execution name satisfies the Step Functions naming rules', async () => {
     const t = setupSched();
     await t.s.startLifecycle('0123456789', TL);

@@ -7,6 +7,7 @@ import { Card, PartyBadge, PartyTags } from '../components/ui';
 import { SeatSharesModal } from '../components/SeatSharesModal';
 import { SeatShareHint } from '../components/SeatShareHint';
 import { colourHex, playerName } from '../lib';
+import { vacantSeats } from '../lib/fielding';
 import { isTour, leaveGame, playAgain } from '../net/client';
 import { PhasesSelect } from '../components/PhasesSelect';
 import './Result.css';
@@ -52,6 +53,9 @@ export function Result() {
     if (snap) for (const d of Object.values(snap.seats)) f[d.seat] = colourHex(snap.players.find(p => p.playerId === d.playerId)?.party?.colour);
     return f;
   }, [snap]);
+  // seats nobody contested were never declared: hatched
+  const pkg = useStore(s => s.gamePkg);
+  const vacant = useMemo(() => (snap && pkg ? vacantSeats(snap, pkg.seats.map(s => s.id)) : undefined), [snap, pkg]);
 
   const r = snap?.result;
   if (!snap || !r) return <div className="page"><p className="hint">Waiting for the result…</p></div>;
@@ -74,7 +78,7 @@ export function Result() {
 
       <div className="grid-2 result-grid">
         <div className="result-map">
-          <SeatMap names={names} fills={fills} selectedSeat={selectedSeat} onSeatClick={selectSeat} />
+          <SeatMap names={names} fills={fills} dimmed={vacant} selectedSeat={selectedSeat} onSeatClick={selectSeat} />
           {selectedSeat !== null && <SeatSharesModal seat={selectedSeat} onClose={() => selectSeat(null)} />}
         </div>
         <div>

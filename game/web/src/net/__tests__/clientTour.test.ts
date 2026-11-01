@@ -64,8 +64,10 @@ describe('tour session', () => {
     await boot.startTourGame();
     expect(tour.getState().active).toBe(true);
     expect(tour.getState().frozenClock).toBe(true);
-    await vi.waitFor(() => expect(store.getState().snapshot?.status).toBe('campaign'));
+    await vi.waitFor(() => expect(store.getState().snapshot?.status).toBe('preCampaign'));
     expect(store.getState().snapshot?.players).toHaveLength(9);
+    expect(store.getState().snapshot).toMatchObject({ contestedSeats: expect.any(Number), majority: expect.any(Number), fielding: expect.any(Object) });
+    expect(store.getState().priv?.budget).toBeGreaterThan(0);
     expect(store.getState().priv?.committed?.length).toBeGreaterThan(0);
     // only the map package was fetched: no server call
     expect(fetchMock.mock.calls.every(c => String((c as unknown[])[0]).includes('/maps/'))).toBe(true);

@@ -327,7 +327,7 @@ describe('lobby over REST (validation tables)', () => {
     expect((r.body as { ok: boolean; timeline: { phaseCloses: number[] } }).ok).toBe(true);
     expect((r.body as { timeline: { phaseCloses: number[] } }).timeline.phaseCloses).toHaveLength(2);
     const lobby = (await call('GET', `/games/${g.gameId}`, undefined, g.token)).body as { status: string; admissionOpen: boolean };
-    expect(lobby.status).toBe('campaign');
+    expect(lobby.status).toBe('preCampaign');
     expect(lobby.admissionOpen).toBe(false);
     // starting twice
     expect((await call('POST', `/games/${g.gameId}/start`, undefined, g.token)).status).toBe(409);
@@ -348,7 +348,7 @@ describe('play again over REST (POST /games/{id}/rematch)', () => {
     expect(old).toMatchObject({ status: 'finished', nextGameId: body.gameId, nextJoinCode: body.joinCode });
     const next = await call('GET', `/games/${encodeURIComponent(body.gameId)}`, undefined, c.p[1].token);
     expect(next.status).toBe(200);
-    expect(next.body).toMatchObject({ gameId: body.gameId, joinCode: body.joinCode, status: 'campaign', phases: 3, admissionOpen: false, you: c.p[1].playerId });
+    expect(next.body).toMatchObject({ gameId: body.gameId, joinCode: body.joinCode, status: 'preCampaign', phases: 3, admissionOpen: false, you: c.p[1].playerId });
     expect((await call('POST', `/games/${c.gameId}/rematch`, { phases: 1 }, c.p[0].token)).body).toEqual(body);
     // the server never hands out a token: the body has no token and the new game does not accept a made-up one
     expect((await call('GET', `/games/${body.gameId}`, undefined, 'nope')).status).toBe(401);
@@ -408,6 +408,14 @@ describe('each ErrorCode has a reachable path and its HTTP status', () => {
       c.clock.advance(c.cfg.cooldowns.rallyMs - 1);
       return ws(c, 1, { action: 'campaign', type: 'rally', seat: 2 }); // second rally inside cooldowns.rallyMs
     },
+    NOT_FIELDED: async () => {
+      const c = await new Ctx().inPreCampaign(3, 1);
+      for (const i of [0, 1, 2]) await c.send(i, { action: 'field', seats: [1] });
+      c.clock.set(c.timeline.preCampaignEnd as number);
+      await c.svc.openCampaign(c.gameId);
+      c.clock.set(c.timeline.campaignStart);
+      return ws(c, 1, { action: 'campaign', type: 'roadshow', seat: 2 });
+    },
     INVALID_GOVERNMENT: async () => { const c = await new Ctx().started(3, 1); await driveTo(c, 'counting'); return ws(c, 0, { action: 'proposeGovernment', portfolios: { PM: [c.p[1].playerId] } }); },
     OFFER_NOT_FOUND: async () => { const c = await new Ctx().started(3, 1); await driveTo(c, 'counting'); return ws(c, 1, { action: 'respondOffer', offerId: 'nope', accept: true }); },
     ALREADY_COMMITTED: async () => {
@@ -459,7 +467,7 @@ describe('each ErrorCode has a reachable path and its HTTP status', () => {
     const expected: Record<ErrorCode, number> = {
       BAD_REQUEST: 400, UNAUTHORIZED: 401, FORBIDDEN: 403, NOT_FOUND: 404, GAME_FULL: 409, ADMISSION_CLOSED: 409, NAME_TAKEN: 409,
       COLOUR_TAKEN: 409, SYMBOL_TAKEN: 409, AVATAR_TAKEN: 409, WRONG_PHASE: 409, INSUFFICIENT_FUNDS: 409, SEAT_POLLED: 409, TOO_LATE: 409,
-      RATE_LIMITED: 429, INVALID_GOVERNMENT: 422, OFFER_NOT_FOUND: 404, ALREADY_COMMITTED: 409, NOT_ENOUGH_PLAYERS: 409, INTERNAL: 500,
+      RATE_LIMITED: 429, NOT_FIELDED: 409, INVALID_GOVERNMENT: 422, OFFER_NOT_FOUND: 404, ALREADY_COMMITTED: 409, NOT_ENOUGH_PLAYERS: 409, INTERNAL: 500,
       NEGOTIATION_DISABLED: 409,
     };
     expect(HTTP_STATUS).toEqual(expected);

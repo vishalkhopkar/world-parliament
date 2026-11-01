@@ -1,5 +1,6 @@
 // A campaign message that carries a clientRef is applied at most once per player: a client that timed out and resends the
 // same clientRef (agent retry, flaky network) is acknowledged again but never charged twice. Without a clientRef nothing changes.
+import { fullyFieldedBudget } from '@hp/shared';
 import { describe, expect, it } from 'vitest';
 import { Ctx } from './helpers';
 
@@ -12,7 +13,7 @@ describe('campaign idempotency by clientRef', () => {
     const afterFirst = await c.budget(0);
     await c.send(0, { action: 'campaign', type: 'roadshow', seat: 1, clientRef: 'x-1' });
     expect(await c.budget(0)).toBe(afterFirst);
-    expect(afterFirst).toBe(c.cfg.budget - c.cfg.costs.roadshow);
+    expect(afterFirst).toBe(fullyFieldedBudget(c.cfg) - c.cfg.costs.roadshow);
     expect((await c.repo.listActions(c.gameId)).length).toBe(1);
     const a = acks(c, 0);
     expect(a.map((m) => m.clientRef)).toEqual(['x-1', 'x-1']);
@@ -36,7 +37,7 @@ describe('campaign idempotency by clientRef', () => {
     const c = await new Ctx().started(2, 1);
     await Promise.all([1, 2, 3, 4].map(() => c.send(0, { action: 'campaign', type: 'roadshow', seat: 3, clientRef: 'dup' })));
     expect((await c.repo.listActions(c.gameId)).length).toBe(1);
-    expect(await c.budget(0)).toBe(c.cfg.budget - c.cfg.costs.roadshow);
+    expect(await c.budget(0)).toBe(fullyFieldedBudget(c.cfg) - c.cfg.costs.roadshow);
   });
 
   it('different clientRefs, other players using the same clientRef, and messages without a clientRef are all independent', async () => {

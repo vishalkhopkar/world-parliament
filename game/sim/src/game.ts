@@ -1,5 +1,6 @@
 import {
-  analystPrice, analystReport, buildTimeline, committedMatrix, computeEffects, createRng, dealCommitted, majorityOf, pollSeats, rallyAvailableAt, tallySeats,
+  analystPrice, analystReport, buildTimeline, committedMatrix, computeEffects, createRng, dealCommitted, fullyFieldedBudget, majorityOf, pollSeats,
+  rallyAvailableAt, tallySeats,
 } from '@hp/shared';
 import type { AnalystReport, CommittedSet, SeatResult } from '@hp/shared';
 import { STRATEGIES } from './bots';
@@ -17,6 +18,8 @@ export interface PlayerResult {
   win: number;             // 1 sole winner (most seats), 1/m split on exact ties
   majority: boolean;
   rallies: number;
+  /** minor rallies held (hidden, no cooldown) */
+  minorRallies: number;
   roadshows: number;
   reports: number;
   reportSpend: number;
@@ -56,8 +59,10 @@ export function runGame(w: World, strategies: string[], k: number, seed: string,
   const timeline = buildTimeline(cfg, k, T0);
   const st = new State(w, timeline, k, P);
   const playerIds = strategies.map((_, p) => `P${p}`);
-  const budget = new Array<number>(P).fill(cfg.budget);
-  const counts = strategies.map(() => ({ rally: 0, road: 0, rep: 0, repSpend: 0, rej: 0, cool: 0 }));
+  // the sim models every seat as contested: each player has paid for a candidate in all of them, so the campaign starts on this
+  const startBudget = fullyFieldedBudget(cfg);
+  const budget = new Array<number>(P).fill(startBudget);
+  const counts = strategies.map(() => ({ rally: 0, minor: 0, road: 0, rep: 0, repSpend: 0, rej: 0, cool: 0 }));
   /** timestamp of each player's last ACCEPTED rally (undefined = never), for the rally cooldown */
   const lastRally = new Array<number | undefined>(P).fill(undefined);
   const groups = w.map.phaseGroups[String(k)];
@@ -82,7 +87,7 @@ export function runGame(w: World, strategies: string[], k: number, seed: string,
   const bots: Bot[] = strategies.map((s, p) => {
     const f = STRATEGIES[s];
     if (!f) throw new Error(`unknown strategy ${s}`);
-    return f(w, k, cfg.budget, createRng(`${seed}:bot${p}`), owns[p]);
+    return f(w, k, startBudget, createRng(`${seed}:bot${p}`), owns[p]);
   });
 
   let nowMs = 0;
@@ -101,14 +106,14 @@ export function runGame(w: World, strategies: string[], k: number, seed: string,
       campaignMs,
       get budget() { return budget[p]; },
       costs: cfg.costs,
-      startBudget: cfg.budget,
+      startBudget,
       isOpen: (i) => st.isOpen(i, T0 + nowMs + clock),
       closeFrac: (i) => (phaseOf[i] + 1) / k,
       phaseOf: (i) => phaseOf[i],
       ownEff: (i) => st.eff[p][i],
       rivalPub: (i) => st.rivalPub(p, i),
       ownCommitted: (i) => owns[p].frac[i],
-      visited: (i) => st.visitedRoad[p][i] === 1 || st.rallied[p][i] === 1,
+      visited: (i) => st.visitedRoad[p][i] === 1 || st.visitedMinor[p][i] === 1 || st.rallied[p][i] === 1,
       rallyReady: () => T0 + nowMs + clock >= rallyAvailableAt(lastRally[p], cfg),
       rally(i) {
         if (budget[p] < cfg.costs.rally) return false;
@@ -119,6 +124,12 @@ export function runGame(w: World, strategies: string[], k: number, seed: string,
         st.apply(p, 'rally', i, ts);
         lastRally[p] = ts;
         budget[p] -= cfg.costs.rally; counts[p].rally++;
+        return true;
+      },
+      minorRally(i) {
+        if (budget[p] < cfg.costs.minorRally) return false;
+        if (!st.apply(p, 'minorRally', i, T0 + nowMs + clock++)) { counts[p].rej++; return false; }
+        budget[p] -= cfg.costs.minorRally; counts[p].minor++;
         return true;
       },
       roadshow(i) {
@@ -219,6 +230,7 @@ export function runGame(w: World, strategies: string[], k: number, seed: string,
     win: seatCounts[p] === best ? 1 / nBest : 0,
     majority: seatCounts[p] >= majority,
     rallies: counts[p].rally,
+    minorRallies: counts[p].minor,
     roadshows: counts[p].road,
     reports: counts[p].rep,
     reportSpend: counts[p].repSpend,

@@ -8,7 +8,7 @@ import { leaveTour } from '../net/client';
 import { useTour } from './tourStore';
 import { makeCtx, visibleSteps } from './steps';
 import type { TourStep } from './steps';
-import { taskDone } from './tasks';
+import { fieldedByMe, taskDone } from './tasks';
 import { placeCallout, SHEET_MAX_WIDTH } from './placement';
 import type { Box } from './placement';
 import './tour.css';
@@ -59,7 +59,7 @@ export function TourOverlay() {
   const playerCount = snap?.players.filter(p => p.status === 'active' || p.status === 'disconnected').length ?? 9;
 
   const steps = useMemo<TourStep[]>(
-    () => visibleSteps(() => controls?.startCounting(), cfg, playerCount),
+    () => visibleSteps(() => controls?.startCounting(), cfg, playerCount, () => controls?.startCampaign()),
     [cfg, playerCount, controls],
   );
   const at = Math.min(idx, steps.length - 1);
@@ -68,26 +68,37 @@ export function TourOverlay() {
 
   const ctx = makeCtx({ cfg, snap, priv, me, selectedSeat, repGain, selectSeat });
 
+  // the most candidates of yours that have stood at once: a withdrawal is a drop from it (kept on every step, so nothing is missed)
+  const peakFielded = useRef(0);
+  useEffect(() => {
+    if (!active) return;
+    const note = (s: ReturnType<typeof useStore.getState>) => { peakFielded.current = Math.max(peakFielded.current, fieldedByMe(s.snapshot, s.priv?.you)); };
+    note(useStore.getState());
+    return useStore.subscribe(note);
+  }, [active]);
+
   // task steps: notice what the player does (sticky once done)
   useEffect(() => {
     if (!active || !step?.task) return;
     const id = step.task.id;
     const check = () => {
       const s = useStore.getState();
-      if (taskDone(id, { selectedSeat: s.selectedSeat, priv: s.priv, snapshot: s.snapshot, error: s.error, now: Date.now() + s.clockOffset })) useTour.getState().markDone(id);
+      if (taskDone(id, { selectedSeat: s.selectedSeat, priv: s.priv, snapshot: s.snapshot, error: s.error, now: Date.now() + s.clockOffset, peakFielded: peakFielded.current })) useTour.getState().markDone(id);
     };
     check();
     const h = setInterval(check, 250);
     return () => clearInterval(h);
   }, [active, step]);
 
-  // the game moves the tour on: counting started, or the result is in
+  // the game moves the tour on: the campaign started, counting started, or the result is in
   const status = snap?.status;
   useEffect(() => {
     if (!active || !step) return;
     const first = (phase: TourStep['phase']) => steps.findIndex(s => s.phase === phase);
+    const early = step.phase === 'preCampaign' || step.phase === 'campaign';
     if (status === 'finished' && step.phase !== 'result' && first('result') >= 0) goto(first('result'));
-    else if ((status === 'counting' || status === 'postCounting') && step.phase === 'campaign' && first('counting') >= 0) goto(first('counting'));
+    else if ((status === 'counting' || status === 'postCounting') && early && first('counting') >= 0) goto(first('counting'));
+    else if (status === 'campaign' && step.phase === 'preCampaign' && first('campaign') >= 0) goto(first('campaign'));
   }, [active, status, step, steps, goto]);
 
   // a seat panel left open from the previous step would hide the map

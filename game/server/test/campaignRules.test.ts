@@ -1,6 +1,6 @@
 // Campaign rules: time boundaries, polled seats for every phase count, budget invariants under concurrency, analyst rules.
 import { describe, expect, it } from 'vitest';
-import { analystPrice } from '@hp/shared';
+import { analystPrice, fullyFieldedBudget } from '@hp/shared';
 import type { ServerMessage } from '@hp/shared';
 import { Ctx, lineMap } from './helpers';
 
@@ -53,7 +53,7 @@ describe('time boundaries (server clock decides)', () => {
     c.clock.set(c.timeline.campaignStart - 500);
     await c.send(1, { action: 'campaign', type: 'rally', seat: 1 });
     await c.send(1, { action: 'buyReport', scope: 'global' });
-    expect(await c.budget(1)).toBe(c.cfg.budget);
+    expect(await c.budget(1)).toBe(fullyFieldedBudget(c.cfg));
     expect((await c.repo.listActions(c.gameId)).length).toBe(0);
   });
 });
@@ -97,7 +97,7 @@ describe('polled seats for every phase count', () => {
     await c.svc.phaseClose(c.gameId, 0);
     c.notifier.clear();
     await c.send(1, { action: 'campaign', type: 'rally', seat: 1 });
-    expect(await c.budget(1)).toBe(c.cfg.budget);
+    expect(await c.budget(1)).toBe(fullyFieldedBudget(c.cfg));
     expect(c.notifier.to(c.p[0].playerId, 'news')).toHaveLength(0);
     expect(c.notifier.to(c.p[2].playerId, 'news')).toHaveLength(0);
   });
@@ -106,12 +106,12 @@ describe('polled seats for every phase count', () => {
 describe('budget invariants', () => {
   it('whole numbers only: costs and budget are integers, and spending is exact', async () => {
     const c = await new Ctx().started(2, 1);
-    expect(Number.isInteger(c.cfg.budget)).toBe(true);
+    expect(Number.isInteger(fullyFieldedBudget(c.cfg))).toBe(true);
     await c.send(0, { action: 'campaign', type: 'rally', seat: 1 });
     await c.send(0, { action: 'campaign', type: 'roadshow', seat: 1 });
     const b = await c.budget(0);
     expect(Number.isInteger(b)).toBe(true);
-    expect(b).toBe(c.cfg.budget - c.cfg.costs.rally - c.cfg.costs.roadshow);
+    expect(b).toBe(fullyFieldedBudget(c.cfg) - c.cfg.costs.rally - c.cfg.costs.roadshow);
   });
 
   it('exactly the remaining budget can be spent (budget hits 0, never below)', async () => {
@@ -144,7 +144,7 @@ describe('budget invariants', () => {
 
   it('budget never goes negative and always equals start - sum(costs) under heavy concurrency (3 players, mixed actions and reports)', async () => {
     const c = await new Ctx().started(3, 2);
-    const n = Math.floor(c.cfg.budget / c.cfg.costs.roadshow);
+    const n = Math.floor(fullyFieldedBudget(c.cfg) / c.cfg.costs.roadshow);
     const price = analystPrice(c.cfg, 'global', c.timeline, c.clock.now());
     const jobs: Promise<void>[] = [];
     for (let i = 0; i < 3; i++) {
@@ -167,7 +167,7 @@ describe('budget invariants', () => {
       const spentReports = reports.reduce((s, r) => s + r.report.price, 0);
       const b = await c.budget(i);
       expect(b).toBeGreaterThanOrEqual(0);
-      expect(b).toBe(c.cfg.budget - spentActions - spentReports);
+      expect(b).toBe(fullyFieldedBudget(c.cfg) - spentActions - spentReports);
       expect(reports.every((r) => r.report.price === price)).toBe(true);
     }
   });
@@ -241,7 +241,7 @@ describe('analyst reports', () => {
     const c = await new Ctx().started(2, 1);
     await c.send(0, msg as never);
     expect(c.lastError(0)?.error).toBe('BAD_REQUEST');
-    expect(await c.budget(0)).toBe(c.cfg.budget);
+    expect(await c.budget(0)).toBe(fullyFieldedBudget(c.cfg));
   });
 
   it('reports describe the position delayMs ago: an action taken now is not in a report bought now', async () => {

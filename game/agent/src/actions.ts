@@ -1,6 +1,6 @@
 // THE action table. The MCP server (mcp.ts) and the CLI/daemon (cli.ts, daemon.ts) both execute actions only through this
 // table, so they can never diverge. Each action: name, LLM-facing description, zod input schema, handler on an AgentSession.
-import { analystPrice, AVATARS, chatModeFor, haversineKm, majorityOf, PARTY_COLOURS, PARTY_SYMBOLS } from '@hp/shared';
+import { analystPrice, AVATARS, chatModeFor, haversineKm, PARTY_COLOURS, PARTY_SYMBOLS } from '@hp/shared';
 import type { ActionType, CoalitionOffer, CommittedView, MapConfig, PartyIdentity, PortfolioAssignment, SeatId } from '@hp/shared';
 import { z } from 'zod';
 import { AgentError, toErrorInfo } from './errors';
@@ -11,7 +11,8 @@ import type { AgentSession } from './session';
 import { EVENT_TYPES, admissionOf } from './state';
 import type { EventType } from './state';
 import {
-  chatView, namesOf, committedLabel, currentBudget, eventView, rallyCooldownView, rallyReadyAt, governmentView, offerView, playerView, reportView, globalReportsView, round1, stageInfo, stateView, who, winsByName,
+  candidatesIn, chatView, namesOf, committedLabel, currentBudget, eventView, fieldingSummary, gameHasFielding, iHaveCandidate, majorityNow, rallyCooldownView, rallyReadyAt,
+  governmentView, offerView, playerView, reportView, globalReportsView, round1, stageInfo, stateView, who, winsByName,
 } from './views';
 
 export interface ActionDef<S extends z.ZodObject<z.ZodRawShape> = z.ZodObject<z.ZodRawShape>> {
@@ -58,7 +59,15 @@ async function campaignWindow(s: AgentSession): Promise<void> {
   const snap = c.state.snapshot;
   const status = snap?.status ?? 'lobby';
   if (status === 'lobby' || !snap?.timeline) throw new AgentError('WRONG_PHASE', 'The game has not started yet (only the human host can start it).', 'Call wait_for_events with types ["status"], or get_state.');
+  if (status === 'preCampaign') {
+    const left = snap.timeline.preCampaignEnd !== undefined ? secs(snap.timeline.preCampaignEnd - c.serverNow()) : null;
+    throw new AgentError('WRONG_PHASE', `The campaign has not started yet: the pre-campaign is running${left !== null ? ` (${left} s left)` : ''}. Rallies, roadshows and reports open when the campaign starts.`,
+      'Field your candidates now with field_candidates {seats:[...]} (you can only campaign in seats where you have one; no candidates = eliminated), chat one-to-one, then call wait_for_events {types:["status"]} for the campaign start.');
+  }
   if (status !== 'campaign') throw new AgentError('TOO_LATE', 'The campaign is over.');
+  if (c.state.snapshot?.players.find((p) => p.playerId === c.me)?.status === 'eliminated') {
+    throw new AgentError('FORBIDDEN', 'You are eliminated (no candidate was fielded before the campaign started), so you cannot act any more.', 'You can still read the chat. Keep calling wait_for_events: the host may play again.');
+  }
   const tl = snap.timeline;
   let now = c.serverNow();
   if (now < tl.campaignStart) {
@@ -85,6 +94,7 @@ function budgetView(s: AgentSession) {
   return {
     budget_wr: b,
     rallies_affordable: Math.floor(b / cfg.costs.rally),
+    minor_rallies_affordable: Math.floor(b / cfg.costs.minorRally),
     roadshows_affordable: Math.floor(b / cfg.costs.roadshow),
     ...rallyCooldownView(s),
   };
@@ -124,7 +134,7 @@ function clashError(s: AgentSession, e: AgentError): AgentError {
 
 // ------------------------------------------------------------------ schemas
 const seatRef = z.union([z.number().int(), z.string().min(1)]).describe('Seat id (1..N) or seat name, e.g. 17 or "Delhi West"');
-const actionType = z.enum(['rally', 'roadshow']);
+const actionType = z.enum(['rally', 'minorRally', 'roadshow']);
 
 // ------------------------------------------------------------------ the table
 export const ACTIONS: ActionDef[] = [
@@ -290,7 +300,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'get_state',
-    description: 'Compact summary for decision making: game status, stage (lobby|campaign|counting|postCounting|finished) with stage_left_s (seconds to the next phase close / campaign end / counting end / post-counting end), plus seconds left for the whole campaign, current polling phase, counting_ends_in_s and post_counting_ends_in_s (server-clock corrected), phase number, YOUR budget and the current prices (rally, roadshow, reports), how many actions you took, which polling phases are closed, all players (party, kind, status), public rally-news counts, your committed seats (`committed`: counts per level and the list), the live `tally` during counting, open coalition offers involving you, the government and the result, plus "advice" with the suggested next step. After a rematch it describes the new game (game id, phases, timers, budget). Cheap: call it whenever unsure.',
+    description: 'Compact summary for decision making: game status, stage (lobby|preCampaign|campaign|counting|postCounting|finished) with stage_left_s (seconds to the pre-campaign deadline / next phase close / campaign end / counting end / post-counting end), plus timers.pre_campaign_left_s (3+ players), seconds left for the whole campaign, current polling phase, counting_ends_in_s and post_counting_ends_in_s (server-clock corrected), phase number, contested_seats and majority (live in the pre-campaign: vacant seats lower the majority), `fielding` (3+ players: your candidate count, each party\'s count, candidate price), YOUR budget and the current prices (rally, minor rally, roadshow, candidate, reports), how many actions you took, which polling phases are closed, all players (party, kind, status), public rally-news counts, your committed seats (`committed`: counts per level and the list), the live `tally` during counting, open coalition offers involving you, the government and the result, plus "advice" with the suggested next step. After a rematch it describes the new game (game id, phases, timers, budget). Cheap: call it whenever unsure.',
     schema: z.object({}),
     readOnly: true,
     async run(s) {
@@ -301,11 +311,13 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'list_seats',
-    description: 'List seats as compact rows {id, name, phase (1-based polling phase), polled (closed = frozen), lon, lat, neighbours (count), committed (your own committed voters there as "~30% (HIGH)", only on seats where you have some)}. Filters: phase, committed_only (only seats where you have committed voters), open_only (only seats you can still campaign in), query (name substring, accent-insensitive), near_seat_id (seat id or name; rows sorted by distance and include km). limit max 100.',
+    description: 'List seats as compact rows {id, name, phase (1-based polling phase), polled (closed = frozen), lon, lat, neighbours (count), committed (your own committed voters there as "~30% (HIGH)", only on seats where you have some), and in games with a pre-campaign you_have_candidate + candidates (how many parties stand there)}. Filters: phase, committed_only (only seats where you have committed voters), open_only (only seats whose polling has not closed), fielded_only (only seats where you have a candidate, i.e. where you can campaign), not_fielded_only (only seats where you have none yet: candidates to field), query (name substring, accent-insensitive), near_seat_id (seat id or name; rows sorted by distance and include km). limit max 100.',
     schema: z.object({
       phase: z.number().int().min(1).max(5).optional().describe('Only seats polled in this polling phase (1-based)'),
       open_only: z.boolean().default(false).describe('Only seats whose polling has not closed yet'),
       committed_only: z.boolean().default(false).describe('Only seats where you have committed voters'),
+      fielded_only: z.boolean().default(false).describe('Only seats where you have a candidate (the seats you can campaign in)'),
+      not_fielded_only: z.boolean().default(false).describe('Only seats where you have no candidate yet (what field_candidates could still add)'),
       query: z.string().optional().describe('Name search, e.g. "delhi"'),
       near_seat_id: seatRef.optional().describe('Sort by distance from this seat (id or name) and show km'),
       limit: z.number().int().min(1).max(100).default(30),
@@ -321,6 +333,10 @@ export const ACTIONS: ActionDef[] = [
       if (i.open_only) seats = seats.filter((x) => { const p = pm.get(x.id); return p !== undefined && !s.phaseClosed(p); });
       const mineCommitted = new Map((s.client.state.priv?.committed ?? []).map((c) => [c.seat, c] as const));
       if (i.committed_only) seats = seats.filter((x) => mineCommitted.has(x.id));
+      const have = (id: SeatId): boolean => iHaveCandidate(s, id) ?? true; // no pre-campaign: every seat is fielded for you
+      if (i.fielded_only) seats = seats.filter((x) => have(x.id));
+      if (i.not_fielded_only) seats = seats.filter((x) => !have(x.id));
+      const fielding = gameHasFielding(s);
       let km = new Map<SeatId, number>();
       let anchorName: string | undefined;
       if (i.near_seat_id !== undefined) {
@@ -338,6 +354,7 @@ export const ACTIONS: ActionDef[] = [
           lon: round1(x.lon * 10) / 10, lat: round1(x.lat * 10) / 10, neighbours: x.neighbours.length,
           ...(km.has(x.id) ? { km: km.get(x.id) } : {}),
           ...(mineCommitted.has(x.id) ? { committed: committedLabel(mineCommitted.get(x.id) as CommittedView) } : {}),
+          ...(fielding ? { you_have_candidate: have(x.id), candidates: candidatesIn(s, x.id).length } : {}),
         };
       });
       return { total, offset: i.offset, returned: rows.length, ...(anchorName ? { near: anchorName } : {}), rows, ...(i.offset + rows.length < total ? { next_offset: i.offset + rows.length } : {}) };
@@ -346,7 +363,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'get_seat',
-    description: 'Details of one seat (id or name): polling phase and time until it closes, centre, neighbouring seats (with names and distance), how many rallies/roadshows YOU did there, public rally news held there (by party), and your own committed voters there (e.g. "~30% (HIGH)"), and your analyst reports for it.',
+    description: 'Details of one seat (id or name): polling phase and time until it closes, centre, neighbouring seats (with names and distance), how many rallies/minor rallies/roadshows YOU did there, public rally news held there (by party), your own committed voters there (e.g. "~30% (HIGH)"), your analyst reports for it and, in games with a pre-campaign, whether YOU have a candidate there and which parties stand there with their candidate names (a seat with none is vacant).',
     schema: z.object({ seat: seatRef }),
     readOnly: true,
     async run(s, i) {
@@ -374,7 +391,12 @@ export const ACTIONS: ActionDef[] = [
         }),
         my_committed_voters: ownCommitted ? { committed: committedLabel(ownCommitted), band: ownCommitted.band, level: ownCommitted.level, note: 'Private band figure; the final votes can differ (influence and chance).' } : null,
         my_reputation: priv?.reputation?.[seat.id] ?? 0,
-        my_actions_here: { rallies: mine.filter((a) => a.type === 'rally').length, roadshows: mine.filter((a) => a.type === 'roadshow').length },
+        my_actions_here: { rallies: mine.filter((a) => a.type === 'rally').length, minor_rallies: mine.filter((a) => a.type === 'minorRally').length, roadshows: mine.filter((a) => a.type === 'roadshow').length },
+        you_have_candidate: iHaveCandidate(s, seat.id) ?? true,
+        ...(gameHasFielding(s) ? {
+          candidates_here: candidatesIn(s, seat.id).map((c) => ({ party: who(s, c.playerId, true), candidate: c.name ?? null, you: c.playerId === s.client.me })),
+          vacant: candidatesIn(s, seat.id).length === 0,
+        } : {}),
         public_rallies_here_by_party: rallies,
         my_seat_reports: (priv?.myReports ?? []).filter((r) => r.scope === 'seat' && r.seat === seat.id).map((r) => reportView(s, r, dir)),
         seat_won_by: snap?.seats[seat.id] ? { status: snap.seats[seat.id].status, party: who(s, snap.seats[seat.id].playerId, true) } : null,
@@ -384,7 +406,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'campaign',
-    description: 'Hold ONE campaign action in a seat: type "rally" (public, expensive, wide local spill-over fading over a few hundred km + a small effect everywhere; at most one per cooldown, otherwise RATE_LIMITED) or "roadshow" (hidden, cheap, strong effect in that seat only, no cooldown). Costs money immediately. The seat can be an id or a name. The server decides (seat must not be polled yet, enough budget, rally cooldown over). Returns the remaining budget. To place many actions use campaign_batch.',
+    description: 'Hold ONE campaign action in a seat: type "rally" (the major rally: public, expensive, wide local spill-over fading over a few hundred km + a small effect everywhere; at most one per cooldown, otherwise RATE_LIMITED), "minorRally" (hidden, cheaper, a smaller local bell over a few seats, no global part, no cooldown) or "roadshow" (hidden, cheapest, strong effect in that seat only, no cooldown). Costs money immediately. The seat can be an id or a name. The server decides (seat must not be polled yet, you must have a candidate there or NOT_FIELDED, enough budget, rally cooldown over). Returns the remaining budget. To place many actions use campaign_batch.',
     schema: z.object({ type: actionType, seat: seatRef }),
     async run(s, i) {
       const r = await runCampaign(s, [{ type: i.type, seat: i.seat }]);
@@ -396,7 +418,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'campaign_batch',
-    description: 'Place up to 50 campaign actions in ONE call, as fast as the server accepts them (pipelined). actions = [{type:"rally"|"roadshow", seat:<id or name>}, ...]. Each action is pre-checked locally (budget in order, seat not polled, campaign window, rally cooldown) and then sent. Only ONE rally per cooldown period can go through in a batch: if you are not ready, or after the first rally of the batch, later rallies are marked failed locally with RATE_LIMITED (nothing is charged, and they are not sent) while the roadshows are still sent. Put at most one rally in a batch; the response lists per-action ok/error and your new budget. Failed actions cost nothing, EXCEPT a result with outcome_unknown:true (TIMEOUT): the server may still have applied it, so call get_state (budget, my_actions) before resending; never resend a rally blindly. The calls are sent a few at a time (HP_BATCH_CONCURRENCY, default 6), so a big batch against the AWS deployment takes a few seconds. Prefer this over many single calls.',
+    description: 'Place up to 50 campaign actions in ONE call, as fast as the server accepts them (pipelined). actions = [{type:"rally"|"minorRally"|"roadshow", seat:<id or name>}, ...]. Each action is pre-checked locally (budget in order, seat not polled, you have a candidate there, campaign window, rally cooldown) and then sent. Only ONE (major) rally per cooldown period can go through in a batch: if you are not ready, or after the first rally of the batch, later rallies are marked failed locally with RATE_LIMITED (nothing is charged, and they are not sent) while minor rallies and roadshows (no cooldown) are still sent. Put at most one major rally in a batch; the response lists per-action ok/error and your new budget. Failed actions cost nothing, EXCEPT a result with outcome_unknown:true (TIMEOUT): the server may still have applied it, so call get_state (budget, my_actions) before resending; never resend a rally blindly. The calls are sent a few at a time (HP_BATCH_CONCURRENCY, default 6), so a big batch against the AWS deployment takes a few seconds. Prefer this over many single calls.',
     schema: z.object({
       actions: z.array(z.object({ type: actionType, seat: seatRef })).min(1).max(50).describe('Up to 50 actions, executed in order'),
     }),
@@ -405,6 +427,26 @@ export const ACTIONS: ActionDef[] = [
       const okCount = r.results.filter((x) => x.ok).length;
       return { sent: okCount, failed: r.results.length - okCount, results: r.results, ...budgetView(s) };
     },
+  }),
+
+  def({
+    name: 'field_candidates',
+    description: 'PRE-CAMPAIGN ONLY (games with 3+ players): field a candidate of your party in each of the given seats (ids or names; {all:true} = every seat). A candidate costs money (get_state -> fielding.candidate_cost_wr) and is refunded in full if you withdraw_candidates before the deadline. You can only rally or roadshow in seats where you have a candidate, and a party with NO candidate when the pre-campaign ends is eliminated. Fielding is public and live (get_state fielding, get_seat candidates_here). Seats you already hold are skipped; if the batch costs more than your budget nothing is fielded (INSUFFICIENT_FUNDS). Money you do not spend here is your campaign budget. Refused outside the pre-campaign (WRONG_PHASE; a 2-player game has no pre-campaign, every seat is fielded for you). Returns how many were fielded/skipped, your budget and the time left.',
+    schema: z.object({
+      seats: z.array(seatRef).max(1000).optional().describe('Seats to field a candidate in (ids or names; at most the number of seats on the map)'),
+      all: z.boolean().default(false).describe('Field a candidate in every seat you do not hold yet (instead of listing seats)'),
+    }),
+    async run(s, i) { return runFielding(s, 'field', i); },
+  }),
+
+  def({
+    name: 'withdraw_candidates',
+    description: 'PRE-CAMPAIGN ONLY (games with 3+ players): withdraw your candidate from each of the given seats (ids or names; {all:true} = every seat where you have one). The candidate price is refunded in full. Seats where you have no candidate are skipped. Remember: with no candidates at the end of the pre-campaign you are eliminated, and you cannot campaign in a seat you withdrew from. Returns how many were withdrawn/skipped, your budget and the time left.',
+    schema: z.object({
+      seats: z.array(seatRef).max(1000).optional().describe('Seats to withdraw your candidate from (ids or names)'),
+      all: z.boolean().default(false).describe('Withdraw from every seat where you have a candidate (you would be left with none)'),
+    }),
+    async run(s, i) { return runFielding(s, 'withdraw', i); },
   }),
 
   def({
@@ -454,13 +496,14 @@ export const ACTIONS: ActionDef[] = [
       if (!s.cfg().news.enabled) throw new AgentError('FORBIDDEN', 'News agency reports are switched off in this game.', 'Use get_state, get_news and the paid buy_report instead.');
       const snap = s.client.state.snapshot;
       if (!snap || snap.status === 'lobby' || !snap.timeline) throw new AgentError('WRONG_PHASE', 'The news agencies report from the campaign start.', 'Call wait_for_events with types ["status"], or get_state.');
+      if (snap.status === 'preCampaign') throw new AgentError('WRONG_PHASE', 'The news agencies are not available in the pre-campaign: they report from the campaign start.', 'Field your candidates now (field_candidates), then wait_for_events with types ["status"].');
       return globalReportsView(s, await s.client.globalReports());
     },
   }),
 
   def({
     name: 'get_news',
-    description: 'Public news: every rally held so far by anyone (party, seat name, time). Rallies are the only public action. Use since_cursor (the next_cursor of the previous call) to read only new items. Roadshows never appear here.',
+    description: 'Public news: every major rally held so far by anyone (party, seat name, time). Major rallies are the only public campaign action (who has a candidate where is public too: see get_state / get_seat). Use since_cursor (the next_cursor of the previous call) to read only new items. Minor rallies and roadshows never appear here.',
     schema: z.object({
       since_cursor: z.number().int().min(0).default(0).describe('Number of news items already seen (use next_cursor from the last call)'),
       limit: z.number().int().min(1).max(200).default(50),
@@ -484,7 +527,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'wait_for_events',
-    description: 'Long-poll for game events instead of polling get_state in a loop. Returns new events after since_cursor (default: after the events you already received from this tool) or an empty list after timeout_s (timeout_s max 60, default 25; call again on timeout). `types` filters (e.g. ["status"] or ["chat","offer"]; a bare comma-separated string also works). limit max 200. Event types: news (a rally), phaseClosed, seatUpdate (counting declarations; excluded by default, ask for it via types), chat, offer, government, result, status, players, report, rematch (the host played again: you are already in the new game campaign with your party, call get_state and campaign), error. After the result keep calling this: the host may play again. Also returns next_cursor and a tiny state hint.',
+    description: 'Long-poll for game events instead of polling get_state in a loop. Returns new events after since_cursor (default: after the events you already received from this tool) or an empty list after timeout_s (timeout_s max 60, default 25; call again on timeout). `types` filters (e.g. ["status"] or ["chat","offer"]; a bare comma-separated string also works). limit max 200. Event types: news (a major rally), phaseClosed, seatUpdate (counting declarations; excluded by default, ask for it via types), fielding (someone fielded / withdrew candidates in the pre-campaign, with the new contested_seats and majority; excluded by default, ask for it via types), chat, offer, government, result, status (preCampaign, campaign, counting ...), players, report, rematch (the host played again: you are already in the new game with your party, in the pre-campaign with 3+ players or the campaign with 2: call get_state), error. After the result keep calling this: the host may play again. Also returns next_cursor and a tiny state hint.',
     schema: z.object({
       since_cursor: z.number().int().min(0).optional().describe('Cursor from the previous call; omit to continue where this tool left off'),
       timeout_s: z.number().min(0).max(60).default(25),
@@ -495,7 +538,7 @@ export const ACTIONS: ActionDef[] = [
     async run(s, i) {
       needJoined(s);
       const since = i.since_cursor ?? s.readCursor;
-      const types = i.types ?? EVENT_TYPES.filter((t) => t !== 'seatUpdate');
+      const types = i.types ?? EVENT_TYPES.filter((t) => t !== 'seatUpdate' && t !== 'fielding');
       const r = await s.client.waitForEvents(since, i.timeout_s * 1000, types, i.limit);
       s.readCursor = r.cursor;
       const dir = await s.seatsOrNull();
@@ -520,7 +563,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'chat',
-    description: 'Send a chat message (only in games with 3+ players; chat opens at campaign start (configurable) and stays open through counting and post-counting). Which chat depends on the stage (config Chat.Campaigning; counting and post-counting are always one-to-one; by default ONE group chat during the campaign and one-to-one chats from counting on - see `chat_mode` in get_state). GROUP: just give `text`, everyone in the game reads it (`to` is ignored); write "@Party name" to tag a party, which notifies them. INDV (one-to-one): `to` = recipient party names or ids (or ["all"]); each recipient gets a private copy that only you and they see. Government offers are separate (propose_government).',
+    description: 'Send a chat message (only in games with 3+ players; chat opens with the pre-campaign and stays open through the campaign, counting and post-counting). Which chat depends on the stage (the pre-campaign, counting and post-counting are always one-to-one; config Chat.Campaigning decides the campaign: by default ONE group chat - see `chat_mode` in get_state). Use the pre-campaign chat to agree with other parties who stands where and to form informal alliances. GROUP: just give `text`, everyone in the game reads it (`to` is ignored); write "@Party name" to tag a party, which notifies them. INDV (one-to-one): `to` = recipient party names or ids (or ["all"]); each recipient gets a private copy that only you and they see. Government offers are separate (propose_government).',
     schema: z.object({
       to: z.array(z.string().min(1)).min(1).optional().describe('One-to-one chats: recipients (party names / ids, or ["all"]). Ignored in the group chat.'),
       text: z.string().min(1).max(500),
@@ -532,7 +575,7 @@ export const ACTIONS: ActionDef[] = [
       const contenders = s.players().filter((p) => ['active', 'disconnected', 'eliminated'].includes(p.status));
       if (contenders.length < 3) throw new AgentError('NEGOTIATION_DISABLED', 'With 2 players there is no chat.');
       const mode = chatModeFor(s.cfg(), status);
-      if (!mode) throw new AgentError('WRONG_PHASE', s.cfg().chat.campaigning !== 'OFF' ? 'Chat opens when the campaign starts.' : 'Chat opens when counting starts.');
+      if (!mode) throw new AgentError('WRONG_PHASE', status === 'campaign' || s.cfg().chat.campaigning === 'OFF' ? 'Chat opens when counting starts.' : 'Chat opens when the game starts (with the pre-campaign).');
       const others = contenders.filter((p) => p.playerId !== s.client.me && p.status !== 'eliminated');
       if (mode === 'INDV' && !i.to) throw new AgentError('INVALID_INPUT', 'Chats are one-to-one now: give `to` (party names, or ["all"] for a private copy to each party).');
       const ids = new Set<string>();
@@ -637,7 +680,7 @@ export const ACTIONS: ActionDef[] = [
       return {
         offers: offers.map((o) => offerView(s, o)),
         government: snap?.government ? governmentView(s, snap.government) : null,
-        tally: snap?.tally ? { declared_won: snap.tally.declared, of: snap.tally.total, majority: majorityOf(s.cfg().seatCount), by_party: winsByName(s) } : null,
+        tally: snap?.tally ? { declared_won: snap.tally.declared, of: snap.tally.total, majority: majorityNow(s), by_party: winsByName(s) } : null,
       };
     },
   }),
@@ -657,6 +700,84 @@ export const ACTIONS: ActionDef[] = [
 ];
 
 export const ACTION_BY_NAME = new Map(ACTIONS.map((a) => [a.name, a]));
+
+// ------------------------------------------------------------------ pre-campaign: field / withdraw candidates
+async function runFielding(s: AgentSession, kind: 'field' | 'withdraw', input: { seats?: (number | string)[]; all: boolean }) {
+  needAdmitted(s);
+  const cfg = s.cfg();
+  const c = s.client;
+  const snap = c.state.snapshot;
+  const status = snap?.status ?? 'lobby';
+  const tl = snap?.timeline;
+  const tool = kind === 'field' ? 'field_candidates' : 'withdraw_candidates';
+  if (status === 'lobby' || !tl) throw new AgentError('WRONG_PHASE', 'The game has not started yet (only the human host can start it).', 'Call wait_for_events with types ["status"], or get_state.');
+  if (status !== 'preCampaign') {
+    if (status === 'campaign' && tl.preCampaignEnd === undefined) {
+      throw new AgentError('WRONG_PHASE', `${tool} is not available: a 2-player game has no pre-campaign. A candidate was fielded in every seat for you and charged at the start.`, 'Go straight to campaign_batch (get_state shows your budget).');
+    }
+    throw new AgentError('WRONG_PHASE', `${tool} is only possible during the pre-campaign, which is over: the line-up is fixed.`,
+      status === 'campaign' ? 'Campaign in your fielded seats (list_seats {open_only:true, fielded_only:true}) with campaign_batch.' : 'Call get_state to see the current phase.');
+  }
+  if (c.state.snapshot?.players.find((p) => p.playerId === c.me)?.status === 'eliminated') {
+    throw new AgentError('FORBIDDEN', 'You are eliminated, so you cannot field or withdraw candidates.', 'You can still read the chat. Keep calling wait_for_events: the host may play again.');
+  }
+  const left = tl.preCampaignEnd !== undefined ? tl.preCampaignEnd - c.serverNow() : null;
+  if (left !== null && left <= 0) throw new AgentError('TOO_LATE', 'The pre-campaign deadline has passed.', 'Call get_state: the campaign is about to start (if you had no candidate you are eliminated).');
+
+  // which seats
+  let ids: SeatId[];
+  if (input.all) {
+    if (input.seats?.length) throw new AgentError('INVALID_INPUT', 'Give either seats or all:true, not both.');
+    ids = Array.from({ length: cfg.seatCount }, (_, k) => k + 1);
+  } else {
+    if (!input.seats?.length) throw new AgentError('INVALID_INPUT', `${tool} needs seats (a list of seat ids or names) or all:true.`);
+    if (input.seats.length > cfg.seatCount) throw new AgentError('INVALID_INPUT', `At most ${cfg.seatCount} seats (the number of seats on the map); got ${input.seats.length}.`);
+    ids = [];
+    for (const ref of input.seats) {
+      const id = (await seatOf(s, ref)).id;
+      if (!Number.isInteger(id) || id < 1 || id > cfg.seatCount) throw new AgentError('UNKNOWN_SEAT', `Seat ${id} does not exist in this game (1..${cfg.seatCount}).`);
+      ids.push(id);
+    }
+  }
+  ids = [...new Set(ids)];
+  const mine = new Set<SeatId>(Object.entries(snap?.fielding ?? {}).filter(([, list]) => list.some((x) => x.playerId === c.me)).map(([k]) => Number(k)));
+  const todo = ids.filter((id) => (kind === 'field' ? !mine.has(id) : mine.has(id)));
+  const budget = currentBudget(s) ?? 0;
+  const price = cfg.costs.candidate;
+
+  let changed = 0;
+  let serverSkipped = 0;
+  if (todo.length) {
+    if (kind === 'field' && price * todo.length > budget) {
+      const fit = price > 0 ? Math.floor(budget / price) : todo.length;
+      throw new AgentError('INSUFFICIENT_FUNDS', `${todo.length} candidates cost ${WR(cfg, price * todo.length)} (${WR(cfg, price)} each) but you have ${WR(cfg, budget)}: at most ${fit} more. Nothing was fielded.`,
+        `Field at most ${fit} seats in one call (all or nothing), or withdraw_candidates from seats you do not need first. Remember what you do not spend here is your campaign budget.`);
+    }
+    const r = kind === 'field' ? await c.fieldCandidates(todo) : await c.withdrawCandidates(todo);
+    changed = kind === 'field' ? r.added.length : r.removed.length;
+    serverSkipped = todo.length - changed;
+  }
+  const sum = fieldingSummary(s);
+  const skipped = ids.length - todo.length + serverSkipped;
+  const leftS = tl.preCampaignEnd !== undefined ? secs(tl.preCampaignEnd - c.serverNow()) : null;
+  const now = currentBudget(s) ?? 0;
+  const hint = sum.your_candidates === 0
+    ? 'You have NO candidates: field at least one before the deadline or you are eliminated.'
+    : kind === 'field' ? 'Field more, or chat one-to-one to agree who stands where; what you do not spend is your campaign budget.' : 'Fielded seats can be re-added until the deadline.';
+  return {
+    ok: true,
+    ...(kind === 'field' ? { fielded: changed } : { withdrawn: changed, refunded_wr: changed * price }),
+    skipped,
+    skipped_note: skipped ? (kind === 'field' ? 'Seats where you already have a candidate are skipped (nothing charged).' : 'Seats where you have no candidate are skipped.') : undefined,
+    your_candidates: sum.your_candidates,
+    budget_wr: now,
+    candidate_cost_wr: price,
+    pre_campaign_left_s: leftS,
+    contested_seats: sum.contested_seats,
+    majority: sum.majority,
+    hint,
+  };
+}
 
 // ------------------------------------------------------------------ campaign implementation
 interface CampaignRow {
@@ -688,6 +809,10 @@ async function runCampaign(s: AgentSession, list: { type: ActionType; seat: numb
       row = { ...row, seat: id, seat_name: name };
       const e = precheckSeat(s, id, phaseOf);
       if (e) throw e;
+      if (iHaveCandidate(s, id) === false) {
+        throw new AgentError('NOT_FIELDED', `You have no candidate in ${name} (seat ${id}), so you cannot ${a.type === 'minorRally' ? 'hold a minor rally' : a.type === 'rally' ? 'rally' : 'hold a roadshow'} there. Not sent, nothing charged.`,
+          'Candidates were fielded in the pre-campaign and the line-up is now fixed. Use list_seats {open_only:true, fielded_only:true} to pick seats where you do have a candidate.');
+      }
       const cost = cfg.costs[a.type];
       if (budget < cost) throw new AgentError('INSUFFICIENT_FUNDS', `Not enough budget for a ${a.type} (${WR(cfg, cost)}); ${WR(cfg, budget)} left after the earlier actions in this call.`);
       if (a.type === 'rally') {

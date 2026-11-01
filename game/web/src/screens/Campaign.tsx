@@ -11,7 +11,9 @@ import { chatModeFor } from '@hp/shared';
 import './game.css';
 import { colourHex, useSeatPhases, useServerNow } from '../lib';
 import { committedFills } from '../lib/committedShade';
+import { seatsOfParty } from '../lib/fielding';
 import { selectSmoke } from '../lib/repSmoke';
+import { EliminatedBanner, isEliminated } from '../components/EliminatedBanner';
 
 export function Campaign() {
   const snap = useStore(s => s.snapshot);
@@ -70,24 +72,30 @@ export function Campaign() {
     return { seat: pulseState.seat, key: pulseState.key, colour: colourHex(p?.party?.colour) };
   }, [pulseState, snap]);
 
-  // own committed voters: party colour, darker = stronger; polled seats are left out so they keep the polled hatch
+  // the seats where this party has a candidate: the others are dimmed and show no reputation, which does not count there
+  const fielding = snap?.fielding;
+  const contesting = useMemo(() => seatsOfParty(fielding ?? {}, priv?.you), [fielding, priv?.you]);
+
+  // own committed voters where the party contests: party colour, darker = stronger; polled seats are left out so they keep the polled hatch
   const myColour = colourHex(snap?.players.find(p => p.playerId === priv?.you)?.party?.colour);
   const committedFill = useMemo(() => {
     const all = committedFills(priv?.committed, myColour);
+    for (const key of Object.keys(all)) if (!contesting.has(Number(key))) delete all[Number(key)];
     for (const seat of polled) delete all[seat];
     return Object.keys(all).length ? all : undefined;
-  }, [priv?.committed, myColour, polled]);
+  }, [priv?.committed, myColour, polled, contesting]);
 
-  // own reputation among swing voters: a badge on every seat (0 until something happens there), in the party colour
+  // own reputation among swing voters: a badge on every contested seat (0 until something happens there), in the party colour
   const reputation = priv?.reputation;
-  const badgeSeats = useMemo(() => (pkg ? pkg.seats.map(s => s.id) : Object.keys(reputation ?? {}).map(Number)), [pkg, reputation]);
   const badges = useMemo(() => {
     const out: Record<number, { text: string; colour: string }> = {};
-    for (const id of badgeSeats) out[id] = { text: String(reputation?.[id] ?? 0), colour: myColour };
+    for (const id of contesting) out[id] = { text: String(reputation?.[id] ?? 0), colour: myColour };
     return out;
-  }, [badgeSeats, reputation, myColour]);
+  }, [contesting, reputation, myColour]);
 
   if (!snap || !priv) return <div className="page"><p className="hint">Connecting…</p></div>;
+
+  const out = isEliminated(snap, priv.you);
 
   // Chat.Campaigning: GROUP / INDV chat from the campaign start, OFF = none until counting; never with fewer than 3 players
   const chatMode = snap.players.filter(p => p.status !== 'pending' && p.status !== 'rejected').length >= 3 ? chatModeFor(cfg, 'campaign') : null;
@@ -95,15 +103,17 @@ export function Campaign() {
   return (
     <div className="game">
       <CampaignHud snap={snap} priv={priv} now={now} />
+      <EliminatedBanner snap={snap} priv={priv} />
       <div className="game-body">
         <div className="map-col" data-tour="map">
-          <SeatMap ref={mapRef} names={names} centres={centres} dimmed={polled} fills={committedFill} fillStyle={committedFill ? 'committed' : undefined} blurred={blurred} labels={labels} badges={badges} selectedSeat={selected} onSeatClick={selectSeat} pulse={pulse} gains={gains} />
+          <SeatMap ref={mapRef} names={names} centres={centres} dimmed={polled} fills={committedFill} fillStyle={committedFill ? 'committed' : undefined} blurred={blurred} labels={labels} badges={badges} contesting={contesting} selectedSeat={selected} onSeatClick={selectSeat} pulse={pulse} gains={gains} />
           {selected != null && (
             <SeatActionModal seat={selected} snap={snap} priv={priv} now={now} phaseOf={phaseOf} polled={polled} onClose={closeModal} />
           )}
         </div>
         <aside className="side" data-tour="side">
           <p className="hint">Click a seat to campaign there.</p>
+          {contesting.size < (pkg?.seats.length ?? 0) && <p className="hint">Dimmed seats have no candidate of yours: you cannot campaign or win votes there.</p>}
           {multiPhase && (
             <label className="phase-focus">
               <input type="checkbox" role="switch" checked={focusPhase} onChange={e => setFocusPhase(e.target.checked)} />
@@ -111,12 +121,13 @@ export function Campaign() {
               <span>{phaseIdx >= 0 ? `Focus on phase ${phaseIdx + 1} seats` : 'Focus on current phase'}</span>
             </label>
           )}
-          {cfg.news.enabled && (
+          {cfg.news.enabled && !out && (
             <button type="button" className="btn global-reports-btn" data-tour="global-reports" onClick={() => setReportsOpen(true)}>News agencies</button>
           )}
-          <AnalystShop snap={snap} priv={priv} now={now} />
+          {!out && <AnalystShop snap={snap} priv={priv} now={now} />}
           <ReportToast />
-          <div data-tour="my-actions"><MyActions priv={priv} /></div>
+          {/* kept mounted but hidden: the chat takes this space */}
+          <div data-tour="my-actions" className="my-actions-hidden"><MyActions priv={priv} /></div>
           {chatMode && me && <div data-tour="chat" className="chat-slot"><ChatSection snap={snap} me={me} mode={chatMode} /></div>}
         </aside>
       </div>

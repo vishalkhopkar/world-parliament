@@ -29,6 +29,14 @@ export interface GameRecord {
    * before it existed: GameService.newsSecretOf then creates and stores one on first use.
    */
   newsSecret?: string;
+  /**
+   * Seats with at least one candidate and the majority of that: fixed when the campaign opens (from the start in a 2-player game).
+   * Missing in the lobby and pre-campaign (live values are computed from the players), and on games from before the pre-campaign existed.
+   */
+  contestedSeats?: number;
+  majority?: number;
+  /** openCampaign has finished its work (eliminations, announcements), so a repeated call does nothing. */
+  campaignOpened?: boolean;
   /** Play again: the follow-up game (claimed once with a condition, so a double click returns the same game). */
   rematchGameId?: string;
   rematchJoinCode?: string;
@@ -49,6 +57,10 @@ export interface PlayerRecord {
   committed?: CommittedSet;
   party?: PartyIdentity;
   budget: number;
+  /** Seats where this party has a candidate (public, through GameSnapshot.fielding). Missing = none. Cleared when the player is eliminated. */
+  fielded?: SeatId[];
+  /** Bumped by every Repo.updateFielding: the compare-and-swap guard of the fielded list. Server-internal. */
+  fieldingSeq?: number;
   /**
    * Server time (ms) of this player's last ACCEPTED rally; missing = never rallied (also for records stored before the
    * rally cooldown existed). Written only by Repo.addAction in the same transaction as the budget deduction.
@@ -101,6 +113,25 @@ export interface AddActionOptions {
   clientRef?: string;
 }
 
+/** A batch of Repo.updateFielding. Seats already fielded (`field`) or without a candidate (`withdraw`) are skipped. */
+export interface FieldingChange {
+  op: 'field' | 'withdraw';
+  seats: SeatId[];
+  /** Charged per seat fielded, refunded per seat withdrawn. */
+  costPerSeat: number;
+  /** Idempotency key, recorded with the change and shared with AddActionOptions.clientRef (see Repo.hasActionRef). */
+  clientRef?: string;
+}
+
+/**
+ * 'ok' = applied (`added` / `removed` = the seats that really changed, possibly none); 'duplicate' = this clientRef was already applied;
+ * 'insufficient' = the budget cannot pay for the whole batch (nothing changed); 'inactive' = the player is not active;
+ * 'wrong_phase' = the game is not in the pre-campaign; 'conflict' = still contended after the retries, try again.
+ */
+export type FieldingOutcome =
+  | { result: 'ok'; added: SeatId[]; removed: SeatId[]; budget: number }
+  | { result: 'duplicate' | 'insufficient' | 'inactive' | 'wrong_phase' | 'conflict' };
+
 export interface Repo {
   // games
   createGame(game: GameRecord, admin: PlayerRecord): Promise<void>;
@@ -127,6 +158,8 @@ export interface Repo {
   /** Has an action with this idempotency key (AddActionOptions.clientRef) already been applied for the player? */
   hasActionRef(gameId: string, playerId: PlayerId, clientRef: string): Promise<boolean>;
   listActions(gameId: string): Promise<Action[]>;
+  /** Pre-campaign (atomic: the player's fielded list + budget, player active, game status 'preCampaign', idempotency marker). */
+  updateFielding(gameId: string, playerId: PlayerId, change: FieldingChange): Promise<FieldingOutcome>;
   addReport(gameId: string, playerId: PlayerId, cost: number, rep: StoredReport, expectClosedPhases: number): Promise<SpendResult>;
   listReports(gameId: string, playerId: PlayerId): Promise<StoredReport[]>;
 
@@ -192,6 +225,6 @@ export class GameError extends Error {
 export const HTTP_STATUS: Record<ErrorCode, number> = {
   BAD_REQUEST: 400, UNAUTHORIZED: 401, FORBIDDEN: 403, NOT_FOUND: 404,
   GAME_FULL: 409, ADMISSION_CLOSED: 409, NAME_TAKEN: 409, COLOUR_TAKEN: 409, SYMBOL_TAKEN: 409, AVATAR_TAKEN: 409,
-  WRONG_PHASE: 409, INSUFFICIENT_FUNDS: 409, SEAT_POLLED: 409, TOO_LATE: 409, RATE_LIMITED: 429,
+  WRONG_PHASE: 409, INSUFFICIENT_FUNDS: 409, SEAT_POLLED: 409, TOO_LATE: 409, RATE_LIMITED: 429, NOT_FIELDED: 409,
   INVALID_GOVERNMENT: 422, OFFER_NOT_FOUND: 404, ALREADY_COMMITTED: 409, NOT_ENOUGH_PLAYERS: 409, INTERNAL: 500, NEGOTIATION_DISABLED: 409,
 };

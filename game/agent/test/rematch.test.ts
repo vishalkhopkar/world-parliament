@@ -1,17 +1,18 @@
 // Rematch ("play again") in the agent: offline, with a scripted fake WebSocket (no server, no port).
+// Rule: after a rematch the new game has already started: in the pre-campaign with 3+ players (field candidates, then campaign), in the campaign with 2.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { GameSnapshot, LobbyView, ServerMessage } from '@hp/shared';
-import { WORLD_CONFIG } from '@hp/shared';
+import { WORLD_CONFIG, majorityOf } from '@hp/shared';
 import { AgentSession } from '../src/session';
-import { call, sleep, until } from './helpers';
+import { call, callErr, sleep, until } from './helpers';
 import { players4, seatDir } from './fake';
 
 const cfg = WORLD_CONFIG;
 
-const hooks = { nextOf: (_g: string): { id: string; code: string } | undefined => undefined };
+const hooks = { nextOf: (_g: string): { id: string; code: string } | undefined => undefined, newGameStatus: 'campaign' as GameSnapshot['status'] };
 
 class FakeWS {
   static CONNECTING = 0; static OPEN = 1; static CLOSING = 2; static CLOSED = 3;
@@ -37,21 +38,30 @@ class FakeWS {
       if (!this.helloed) { this.helloed = true; this.emit(helloFor(this.gameId, hooks.nextOf(this.gameId))); }
       else this.emit({ type: 'pong', clientTime: m.clientTime, serverTime: Date.now() });
     } else if (m.action === 'campaign') this.emit({ type: 'actionAck', clientRef: m.clientRef, ok: true, budget: cfg.budget - 1 });
+    else if (m.action === 'field') {
+      const added = (m.seats as number[]).map((seat) => ({ seat, name: `Candidate ${seat}` }));
+      this.emit({ type: 'fieldAck', clientRef: m.clientRef, ok: true, budget: cfg.budget - added.length * cfg.costs.candidate, added, removed: [] });
+      this.emit({ type: 'fieldingUpdate', playerId: 'me', added, removed: [], contestedSeats: added.length, majority: majorityOf(added.length) });
+    }
   }
   close(): void { this.readyState = 3; this.onclose?.(); }
 }
 
 function snapshotFor(gameId: string, status: GameSnapshot['status'], next?: { id: string; code: string }): GameSnapshot {
   const now = Date.now();
+  const pre = status === 'preCampaign';
   return {
-    gameId, mapId: 'world-500', status, phases: 2, players: players4(), news: [], polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null,
-    timeline: { campaignStart: now - 1000, phaseCloses: [now + 100_000, now + 200_000], campaignEnd: now + 200_000, countingEnd: now + 260_000, postCountingEnd: now + 320_000 },
+    gameId, mapId: 'world-500', status, phases: 2, players: players4(), news: [], polledPhases: [], seats: {}, fielding: {}, contestedSeats: cfg.seatCount, majority: majorityOf(cfg.seatCount), tally: null, offers: [], government: null, result: null,
+    timeline: {
+      ...(pre ? { preCampaignEnd: now + 90_000 } : {}), campaignStart: pre ? now + 95_000 : now - 1000,
+      phaseCloses: [now + 100_000, now + 200_000], campaignEnd: now + 200_000, countingEnd: now + 260_000, postCountingEnd: now + 320_000,
+    },
     ...(next ? { nextGameId: next.id, nextJoinCode: next.code } : {}),
   };
 }
 function helloFor(gameId: string, next?: { id: string; code: string }): ServerMessage {
   return {
-    type: 'hello', serverTime: Date.now(), features: ['actionRef', 'rematch'], snapshot: snapshotFor(gameId, gameId === 'g1' ? 'finished' : 'campaign', next),
+    type: 'hello', serverTime: Date.now(), features: ['actionRef', 'rematch'], snapshot: snapshotFor(gameId, gameId === 'g1' ? 'finished' : hooks.newGameStatus, next),
     private: { you: 'me', budget: gameId === 'g1' ? 0 : cfg.budget, myActions: [], myReports: [] },
   };
 }
@@ -81,9 +91,41 @@ beforeEach(() => {
   FakeWS.all = [];
   lobbyNext = undefined;
   hooks.nextOf = () => undefined;
+  hooks.newGameStatus = 'campaign';
   vi.stubGlobal('WebSocket', FakeWS);
 });
 afterEach(() => { vi.unstubAllGlobals(); rmSync(dir, { recursive: true, force: true }); });
+
+describe('rematch into the pre-campaign (3+ players)', () => {
+  it('the new game starts in the pre-campaign: the rematch event says so, get_state advises fielding, campaign actions are refused and field_candidates works on the new socket', async () => {
+    hooks.newGameStatus = 'preCampaign';
+    writeSession('g1', 'OLD111');
+    const s = await mk();
+    await s.restore();
+    await until(() => s.client.state.snapshot?.gameId === 'g1', 2000);
+    const cursor = s.client.events.cursor;
+    live()[0].emit({ type: 'rematch', gameId: 'g2', joinCode: 'NEW222' });
+    await until(() => s.client.state.snapshot?.gameId === 'g2', 2000, 'hello of the new game');
+    expect(s.client.state.snapshot?.status).toBe('preCampaign');
+
+    const w = await call(s, 'wait_for_events', { since_cursor: cursor, timeout_s: 2, types: ['rematch'] });
+    expect(w.events[0].note).toMatch(/pre-campaign/);
+    expect(w.events[0].note).toMatch(/field_candidates/);
+    expect(w.hint_state.stage).toBe('preCampaign');
+
+    const st = await call(s, 'get_state');
+    expect(st.status).toBe('preCampaign');
+    expect(st.advice.join(' ')).toMatch(/PRE-CAMPAIGN/);
+    expect(await callErr(s, 'campaign_batch', { actions: [{ type: 'roadshow', seat: 1 }] })).toMatchObject({ code: 'WRONG_PHASE' });
+
+    const r = await call(s, 'field_candidates', { seats: [1, 2, 3] });
+    expect(r.fielded).toBe(3);
+    expect(live()[0].sent.some((m) => m.action === 'field' && m.seats.length === 3)).toBe(true);
+    expect(live()[0].url).toContain('gameId=g2');
+    expect(s.client.state.snapshot?.contestedSeats).toBe(3);
+    s.client.close();
+  });
+});
 
 describe('rematch push message', () => {
   it('switches to the new game, rewrites the session file, logs a rematch event and campaigning works there', async () => {

@@ -4,10 +4,12 @@ import type {
   GlobalReports, SeatId, SeatSharesMessage, ServerMessage,
 } from '@hp/shared';
 import type { LinkState } from '../net/transport';
+import { applyFielding } from '../lib/fielding';
+import type { FieldFx } from '../lib/repSmoke';
 
-export type Screen = 'home' | 'lobby' | 'party' | 'campaign' | 'counting' | 'result';
+export type Screen = 'home' | 'lobby' | 'party' | 'preCampaign' | 'campaign' | 'counting' | 'result';
 
-export interface RepGainState { key: number; type: 'rally' | 'roadshow'; seat: SeatId; seats: Record<SeatId, number> }
+export interface RepGainState { key: number; type: ActionType; seat: SeatId; seats: Record<SeatId, number> }
 export interface Pulse { seat: SeatId; playerId: PlayerId; key: number }
 
 interface State {
@@ -37,8 +39,12 @@ interface State {
   lobbyPage: 'lobby' | 'party';
   selectedSeat: SeatId | null;
   pulse: Pulse | null;
-  /** Latest rise of the player's own reputation caused by their own rally/roadshow (drives the green "+N" smoke on the map). */
+  /** Latest rise of the player's own reputation caused by their own rally/minor rally/roadshow (drives the green "+N" smoke on the map). */
   repGain: RepGainState | null;
+  /** Latest candidates fielded / withdrawn by this player (drives the red "-cost" and green "+cost" smoke on the map). */
+  fieldFx: FieldFx | null;
+  /** Seats in a field or withdraw message that has not been answered yet. */
+  fieldPending: ReadonlySet<SeatId>;
   error: string | null;
   // actions
   setSession(s: { gameId: string; token: string; me: PlayerId; joinCode: string }): void;
@@ -52,6 +58,8 @@ interface State {
   setLink(l: LinkState): void;
   /** Remember what a pending campaign message (by clientRef) was, so its actionAck can extend priv.myActions. */
   trackAction(ref: string, a: { type: ActionType; seat: SeatId }): void;
+  /** Remember the seats of a pending field / withdraw message (by clientRef) until it is answered. */
+  trackField(ref: string, seats: readonly SeatId[]): void;
   /** A conversation was on screen up to item time `ts` (only ever moves forward). */
   markChatRead(key: string, ts: number): void;
   reset(): void;
@@ -60,12 +68,22 @@ interface State {
 const initial = {
   gameId: null, token: null, me: null, joinCode: null, lobby: null, snapshot: null, priv: null,
   chat: [] as ChatMessage[], chatRead: {} as Record<string, number>, clockOffset: 0, link: 'open' as LinkState, polledSeats: [] as SeatId[], seatShares: {} as Record<SeatId, SeatSharesMessage>, globalReports: null as GlobalReports | null, lobbyPage: 'lobby' as const, selectedSeat: null,
-  pulse: null as Pulse | null, repGain: null as RepGainState | null, error: null as string | null,
+  pulse: null as Pulse | null, repGain: null as RepGainState | null, fieldFx: null as FieldFx | null, fieldPending: new Set<SeatId>() as ReadonlySet<SeatId>, error: null as string | null,
 };
 
 let pulseKey = 0;
 let gainKey = 0;
 const pendingActions = new Map<string, { type: ActionType; seat: SeatId }>();
+let fieldKey = 0;
+const FIELD_ERROR_GAP_MS = 5_000;
+let lastFieldErrorAt = -Infinity;
+const pendingFields = new Map<string, readonly SeatId[]>();
+const inFlight = (): ReadonlySet<SeatId> => new Set([...pendingFields.values()].flat());
+/** The seats still in flight after forgetting `ref` (forgets them all when no ref is given). */
+function settleField(ref?: string): ReadonlySet<SeatId> {
+  if (ref === undefined) pendingFields.clear(); else pendingFields.delete(ref);
+  return inFlight();
+}
 
 const readKey = (gameId: string, me: PlayerId) => `hp.chatRead.${gameId}.${me}`;
 /** Read state of this game's chats from an earlier visit (a reload must not bring back every badge); {} when unavailable. */
@@ -85,7 +103,7 @@ export const useStore = create<State>((set, get) => ({
   names: {},
   gamePkg: null,
 
-  setSession: s => { pendingActions.clear(); set({ ...s, polledSeats: [], seatShares: {}, globalReports: null, lobby: null, snapshot: null, priv: null, chat: [], chatRead: loadChatRead(s.gameId, s.me), lobbyPage: 'lobby', selectedSeat: null, repGain: null, pulse: null }); },
+  setSession: s => { pendingActions.clear(); set({ ...s, polledSeats: [], seatShares: {}, globalReports: null, lobby: null, snapshot: null, priv: null, chat: [], chatRead: loadChatRead(s.gameId, s.me), lobbyPage: 'lobby', selectedSeat: null, repGain: null, fieldFx: null, fieldPending: settleField(), pulse: null }); },
   setLobby: v => set({ lobby: v }),
   setNames: names => set({ names }),
   setGamePkg: gamePkg => set({ gamePkg }),
@@ -94,6 +112,7 @@ export const useStore = create<State>((set, get) => ({
   setError: error => set({ error }),
   setLink: link => set({ link }),
   trackAction: (ref, a) => { pendingActions.set(ref, a); if (pendingActions.size > 200) pendingActions.delete(pendingActions.keys().next().value as string); },
+  trackField: (ref, seats) => { pendingFields.set(ref, seats); set({ fieldPending: inFlight() }); },
   markChatRead: (key, ts) => {
     const { chatRead, gameId, me } = get();
     if ((chatRead[key] ?? -Infinity) >= ts) return;
@@ -101,20 +120,21 @@ export const useStore = create<State>((set, get) => ({
     set({ chatRead: next });
     saveChatRead(gameId, me, next);
   },
-  reset: () => { pendingActions.clear(); set({ ...initial }); },
+  reset: () => { pendingActions.clear(); lastFieldErrorAt = -Infinity; set({ ...initial, fieldPending: settleField() }); },
 
   applyServer(m) {
     const { snapshot: snap, priv } = get();
     switch (m.type) {
       case 'hello':
-        set({ snapshot: m.snapshot, priv: m.private, clockOffset: m.serverTime - Date.now(), ...(m.chat ? { chat: m.chat } : {}) });
+        // a fresh hello replaces everything, so an answer lost with the old socket no longer holds its seats
+        set({ snapshot: m.snapshot, priv: m.private, fieldPending: settleField(), clockOffset: m.serverTime - Date.now(), ...(m.chat ? { chat: m.chat } : {}) });
         break;
       case 'pong':
         set({ clockOffset: m.serverTime - (Date.now() + m.clientTime) / 2 });
         break;
       case 'private': set({ priv: m.private }); break;
       case 'status':
-        if (snap) set({ snapshot: { ...snap, status: m.status, timeline: m.timeline } });
+        if (snap) set({ snapshot: { ...snap, status: m.status, timeline: m.timeline }, ...(m.status !== snap.status ? { fieldPending: settleField() } : {}) });
         break;
       case 'players': if (snap) set({ snapshot: { ...snap, players: m.players } }); break;
       case 'news':
@@ -125,13 +145,28 @@ export const useStore = create<State>((set, get) => ({
         const a = m.clientRef ? pendingActions.get(m.clientRef) : undefined;
         if (m.clientRef) pendingActions.delete(m.clientRef);
         if (priv) set({ priv: { ...priv, budget: m.budget, reputation: m.reputation ?? priv.reputation, nextRallyAt: m.nextRallyAt !== undefined ? m.nextRallyAt : priv.nextRallyAt, myActions: a ? [...priv.myActions, { ...a, ts: Date.now() + get().clockOffset }] : priv.myActions } });
-        if (priv && a && m.reputation && (a.type === 'rally' || a.type === 'roadshow')) {
+        if (priv && a && m.reputation) {
           const seats: Record<SeatId, number> = {};
           for (const [k, v] of Object.entries(m.reputation)) { const d = v - (priv.reputation?.[Number(k)] ?? 0); if (d > 0) seats[Number(k)] = d; }
           if (Object.keys(seats).length) set({ repGain: { key: ++gainKey, type: a.type, seat: a.seat, seats } });
         }
         break;
       }
+      case 'fieldAck': {
+        const you = priv?.you ?? get().me;
+        const changed = !m.duplicate && (m.added.length > 0 || m.removed.length > 0);
+        set({
+          ...(m.clientRef ? { fieldPending: settleField(m.clientRef) } : {}),
+          ...(priv ? { priv: { ...priv, budget: m.budget } } : {}),
+          // the broadcast carries this too; applied here as well so the own figure and the smoke appear together
+          ...(snap && you && changed ? { snapshot: { ...snap, fielding: applyFielding(snap.fielding, you, m.added, m.removed) } } : {}),
+          ...(changed ? { fieldFx: { key: ++fieldKey, spent: m.added.map(a => a.seat), refunded: m.removed } } : {}),
+        });
+        break;
+      }
+      case 'fieldingUpdate':
+        if (snap) set({ snapshot: { ...snap, fielding: applyFielding(snap.fielding, m.playerId, m.added, m.removed), contestedSeats: m.contestedSeats, majority: m.majority } });
+        break;
       case 'report':
         if (priv) set({ priv: { ...priv, budget: m.budget, myReports: [...priv.myReports, m.report] } });
         break;
@@ -154,7 +189,13 @@ export const useStore = create<State>((set, get) => ({
       case 'result': if (snap) set({ snapshot: { ...snap, result: m.result, status: 'finished' } }); break;
       case 'error':
         if (m.clientRef) pendingActions.delete(m.clientRef);
-        set({ error: m.message });
+        {
+          // a running stroke can have several batches refused: their seats are freed at once for a later stroke, with one toast
+          const fieldRefused = !!m.clientRef && pendingFields.has(m.clientRef);
+          const quiet = fieldRefused && Date.now() - lastFieldErrorAt < FIELD_ERROR_GAP_MS;
+          if (fieldRefused && !quiet) lastFieldErrorAt = Date.now();
+          set({ fieldPending: settleField(m.clientRef), ...(quiet ? {} : { error: m.message }) });
+        }
         break;
     }
   },
@@ -166,6 +207,7 @@ export function currentScreen(s: Pick<State, 'gameId' | 'snapshot' | 'lobby' | '
   const status: GameStatus = s.snapshot?.status ?? s.lobby?.status ?? 'lobby';
   switch (status) {
     case 'lobby': return s.lobbyPage;
+    case 'preCampaign': return 'preCampaign';
     case 'campaign': return 'campaign';
     case 'counting': case 'postCounting': return 'counting';
     case 'finished': case 'abandoned': return 'result';

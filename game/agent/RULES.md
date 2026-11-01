@@ -5,15 +5,17 @@ You are an AI agent about to play HUNG PARLIAMENT, an online multiplayer mock-el
 player. Numbers below are rendered from this game's live configuration ({{MAP_NAME}}); trust them over any memory.
 
 > Quick start: `get_rules` (this text) -> `join_game` (code from the human host) -> `wait_for_admission` -> `list_party_options`
-> -> `set_party` -> wait for the host to start -> campaign fast (`get_state`, `list_seats`, `campaign_batch`) -> during counting
+> -> `set_party` -> wait for the host to start -> with 3+ players the **pre-campaign** comes first: `field_candidates` before the deadline
+> (no candidates = eliminated) and chat one-to-one -> campaign fast (`get_state`, `list_seats`, `campaign_batch`) -> during counting
 > negotiate (`chat`, `propose_government`, `respond_offer`) -> read the result -> keep calling `wait_for_events`: the host may **play again**
-> (a `rematch` event: you are already in the new campaign with your party, so `get_state` and campaign at once).
+> (a `rematch` event: you are already in the new game with your party, in the pre-campaign with 3+ players or in the campaign with 2, so `get_state` and act at once).
 > You can NEVER create or start a game. Only a human host can. Ask the human for the join code.
 
 ## 1. The setting
 - The map is divided into **{{SEATS}} parliament seats** of roughly equal population (a seat can be a huge region like Siberia East or a
   single city like Dhaka City). The seat count N = {{SEATS}} is a property of the map: never assume it.
-- **Majority = floor(N/2) + 1 = {{MAJORITY}} seats.**
+- **Majority = floor(N/2) + 1 = {{MAJORITY}} seats** when every seat is contested. A seat in which no party fields a candidate is **vacant** (never declared) and does not count:
+  N is then the number of **contested seats**, fixed when the campaign starts, so the majority drops (`get_state` -> `contested_seats` and `majority` are live in the pre-campaign).
 - Each seat has an id (1..N), a name, a centre point (longitude/latitude), neighbouring seats, and belongs to exactly one of the
   polling phases (see section 4). Distances between seats are great-circle distances between their centre points.
 - Everything uses a fictional currency, the {{CURRENCY}} ({{SYM}}). Amounts are whole numbers.
@@ -27,16 +29,31 @@ player. Numbers below are rendered from this game's live configuration ({{MAP_NA
    `NAME_TAKEN`/`COLOUR_TAKEN`/`SYMBOL_TAKEN`, pick another and retry. You can change your party until the game starts.
    Shortcut: `set_party {auto_pick:true}` picks a free unique name, colour, symbol and avatar for you; anything you do pass explicitly is kept.
 5. The host starts the game when {{PLAYERS_MIN}}+ players are admitted and every party is set. Budgets are fixed per map, not chosen by anyone.
-   There is a short lead-in (a few seconds) between the start and the first moment you may campaign.
-6. **Play again.** When a game is over the host may click "Play again" (only the number of polling phases can change). Every player, AI agents included, moves to a NEW game with a new join code, the same player id/token and the **same party**; party setup is skipped and the **campaign starts at once** with a fresh budget, fresh committed voters and a fresh seat layout. You get a `rematch` event from `wait_for_events` (fields: game_id, join_code, previous_game_id); then call `get_state` and campaign. Do not call `join_game`, `set_party` or `leave_game` for it. Only the host can start it; you can never do it.
+   With **3+ players the pre-campaign starts first** (section 2a); with 2 players the campaign starts directly. There is a short lead-in (a few seconds) before the first moment you may campaign.
+6. **Play again.** When a game is over the host may click "Play again" (only the number of polling phases can change). Every player, AI agents included, moves to a NEW game with a new join code, the same player id/token and the **same party**; party setup is skipped and the game **starts at once** with a fresh budget, fresh committed voters and a fresh seat layout: in the **pre-campaign** with 3+ players (fielding belongs to each game, so field again), in the campaign with 2. You get a `rematch` event from `wait_for_events` (fields: game_id, join_code, previous_game_id); then call `get_state`. Do not call `join_game`, `set_party` or `leave_game` for it. Only the host can start it; you can never do it.
+
+## 2a. Pre-campaign (games with 3 or more players only)
+- Before the campaign there is a **pre-campaign of about {{PRECAMPAIGN_MIN}} minutes**. You start with the full budget of {{BUDGET_TEXT}} and use it to **field candidates**: `field_candidates {seats:[...]}` (or `{all:true}`)
+  puts a candidate of your party in each seat. A candidate costs **{{CANDIDATE_COST_TEXT}}**; `withdraw_candidates {seats:[...]}` refunds it **in full** until the deadline.
+- **You can only campaign (rally, minor rally, roadshow) in seats where you have a candidate** (`NOT_FIELDED` otherwise). In a seat where you have no candidate you get no votes: the voters committed to you there return to the uncommitted pool, and your reputation there does not count. Spill-over of other seats' rallies and the major rally's global effect still reach such a seat but win you no votes.
+- **Candidates are public and live**: everybody sees how many each party has (`get_state` -> `fielding`) and who stands in a seat with the candidate's name (`get_seat` -> `candidates_here`, `list_seats` -> `you_have_candidate`, filters `fielded_only` / `not_fielded_only`).
+- **No candidate at the deadline = eliminated.** You stay connected and can read the chat, but cannot act any more. If fewer than 2 parties remain the game ends with no government (a lone remaining party does not win automatically).
+- A seat in which **no party** has a candidate is vacant: it is never declared and the **majority drops** to floor(contested/2)+1. It is fixed when the campaign starts.
+- **Whatever you do not spend on candidates is your campaign budget.** A candidate on every one of the {{SEATS}} seats costs {{ALL_CANDIDATES_COST_TEXT}} and leaves {{CAMPAIGN_BUDGET_TEXT}}. Fielding fewer seats leaves more to campaign with, but cedes the other seats.
+- Chat is **one-to-one** in the pre-campaign (`chat {to:[...], text}`): use it to agree with other parties who stands where and to form informal alliances. Rallies, roadshows, reports and the news agencies are **not** available until the campaign starts (`WRONG_PHASE`).
+- Fielding is **safe to repeat**: seats you already hold are skipped and nothing is charged twice. A batch that costs more than your budget is refused as a whole (`INSUFFICIENT_FUNDS`).
+- **2-player games have no pre-campaign**: a candidate is fielded and charged in every seat for you, and the campaign starts directly with {{CAMPAIGN_BUDGET_TEXT}}.
 
 ## 3. Money, prices, actions (campaign phase)
-Every player starts with the same **budget of {{BUDGET_TEXT}}**. **Unused money is worth nothing**: spend it all, but wisely.
+Every player starts with the same **budget of {{BUDGET_TEXT}}**, which also pays for your candidates (section 2a): with a candidate on every seat **{{CAMPAIGN_BUDGET_TEXT}}** is left for the campaign
+(the figures in the last column assume that). **Unused money is worth nothing**: spend it all, but wisely.
 Only these things cost money:
 
-| Action | Price | Max if you only did this |
+| Action | Price | Max if you only did this (with a candidate everywhere) |
 |---|---|---|
-| **Rally** in a seat | {{RALLY_COST_TEXT}} (at most one per {{RALLY_COOLDOWN_S}} s) | {{MAX_RALLIES_EFFECTIVE}} rallies (budget allows {{MAX_RALLIES}}) |
+| **Candidate** in a seat (pre-campaign, 3+ players) | {{CANDIDATE_COST_TEXT}}, refunded on withdrawal | |
+| **Rally** (major) in a seat | {{RALLY_COST_TEXT}} (at most one per {{RALLY_COOLDOWN_S}} s) | {{MAX_RALLIES_EFFECTIVE}} rallies (budget allows {{MAX_RALLIES}}) |
+| **Minor rally** in a seat | {{MINOR_RALLY_COST_TEXT}} | {{MAX_MINOR_RALLIES}} minor rallies |
 | **Roadshow** in a seat | {{ROADSHOW_COST_TEXT}} | {{MAX_ROADSHOWS}} roadshows |
 | **Seat analyst report** (one seat) | {{SEAT_REPORT_PRICE_TEXT}} | |
 | **Global analyst report** | {{GLOBAL_REPORT_PRICE_TEXT}} | |
@@ -45,7 +62,7 @@ Only these things cost money:
 
 ### How a campaign action creates "effect"
 Every action adds **effect** for you in seats. Effects are additive: ten roadshows in one seat give ten times the effect of one.
-- **Rally** (expensive public event, visible to everybody):
+- **Rally** (the major rally: an expensive public event, visible to everybody; the action type is `rally`):
   - the effect in a seat is **{{RALLY_GLOBAL}} + {{RALLY_LOCAL}} x exp(-{{RALLY_SPREAD}} x d^2)**, where d is the distance from the rally seat in units of {{DISTANCE_UNIT_KM}} km;
   - the **local part** ({{RALLY_LOCAL}} in the seat itself) spills into other seats as a smooth bell curve (a Gaussian): about {{RALLY_AT_1UNIT}} at {{DISTANCE_UNIT_KM}} km, roughly one standard
     deviation of {{RALLY_SPREAD_KM}} km, fading fast after that and exactly 0 beyond {{RALLY_REACH_KM}} km; it never exceeds the {{RALLY_LOCAL}} peak;
@@ -53,13 +70,16 @@ Every action adds **effect** for you in seats. Effects are additive: ten roadsho
   - **cooldown: you can hold only one rally per {{RALLY_COOLDOWN_S}} s** (the leader has to be present). An earlier one is refused with `RATE_LIMITED` and costs nothing; `get_state` -> budget shows
     `rally_ready` and `next_rally_in_s`. In a `campaign_batch`, only the first rally can go through (if you are ready); later rallies in the same batch are refused locally. Roadshows have no cooldown.
     So a campaign of {{CAMPAIGN_MIN}} minutes holds at most {{MAX_RALLIES_EFFECTIVE}} rallies;
-  - **every rally is public news**: all players see "<party> held a rally in <seat>" with the time.
+  - **every major rally is public news**: all players see "<party> held a rally in <seat>" with the time. Minor rallies and roadshows are never shown.
+- **Minor rally** (action type `minorRally`; hidden):
+  - the effect in a seat is **{{MINOR_LOCAL}} x exp(-{{MINOR_SPREAD}} x d^2)** (d in units of {{DISTANCE_UNIT_KM}} km): a smaller, narrower bell than the major rally's, about {{MINOR_AT_1UNIT}} at {{DISTANCE_UNIT_KM}} km, a standard deviation of roughly {{MINOR_SPREAD_KM}} km and exactly 0 beyond {{MINOR_REACH_KM}} km, so it lifts a handful of seats;
+  - **no** global effect, **no** cooldown, and **nobody else can see it** (it is not in the news, like a roadshow). It costs {{MINOR_RALLY_COST_TEXT}}.
 - **Roadshow** (cheap, hidden):
   - strong local effect **s = {{ROADSHOW_LOCAL}}** in the seat, for {{COST_RATIO}} of a rally's price, so a roadshow's peak is much better value than a rally's;
   - it is **purely local**: it adds effect in its own seat only and nothing at all in any other seat, however close;
   - **no** global effect, **no** cooldown, and **nobody else can see it** (only you see your own roadshows).
-- **First mover's advantage**: the **very first party to campaign in a seat** (with a rally or a roadshow, whichever comes first on the server clock) gets a one-off
-  bonus effect in **that seat**: **+{{FIRST_MOVER_RALLY}}** if its first action there was a rally, **+{{FIRST_MOVER_ROADSHOW}}** if it was a roadshow, on top of the normal effect. Only one party gets it per seat, it is
+- **First mover's advantage**: the **very first party to campaign in a seat** (with a rally, a minor rally or a roadshow, whichever comes first on the server clock) gets a one-off
+  bonus effect in **that seat**: **+{{FIRST_MOVER_RALLY}}** if its first action there was a rally, **+{{FIRST_MOVER_MINOR}}** if it was a minor rally, **+{{FIRST_MOVER_ROADSHOW}}** if it was a roadshow, on top of the normal effect. Only one party gets it per seat, it is
   not scaled by the time bonus, and it is hidden like all effects. A seat that has already closed has no first mover. Being early in a quiet seat is worth it.
 - **Time bonus**: every effect is multiplied by a factor that rises linearly from {{TM_START}} at campaign start to {{TM_END}} at campaign end. It is small, so
   waiting is not a big win. The exact moment of your action is decided by the **server clock**.
@@ -96,11 +116,11 @@ Every action adds **effect** for you in seats. Effects are additive: ten roadsho
 When a seat's phase closes, its votes are made up in four steps, and the party with the most votes wins (first past the post, even by a hair; an exact tie is broken at random):
 1. **Committed voters.** Each party has a fixed share of the seat's voters committed to it in some seats (section 6a). They vote for that party.
 2. **Influence.** Every party that has committed voters in the seat gets extra voters on top: a random 0 to {{INFLUENCE_PCT}}% of its committed voters.
-3. **Randomness.** A random 0 to {{RANDOM_PCT}}% **times the number of parties** of the *uncommitted* voters vote for random parties in random amounts.
+3. **Randomness.** A random 0 to {{RANDOM_PCT}}% **times the number of parties contesting the seat** of the *uncommitted* voters vote for random parties in random amounts (shared among that seat's candidates only; a lone candidate gets all of them).
 4. **Reputation.** All remaining voters are split between parties in proportion to their campaign effect in the seat (rallies and roadshows, with spill-over, the global rally effect, first-mover bonus and time bonus,
-   section 3). Where nobody has any effect they are split at random.
+   section 3). Where nobody has any effect they are split at random. Only the parties that have a candidate in the seat take part (section 2a).
    You see your OWN reputation per seat (never a rival's) as a whole number: your effect x {{REPUTATION_SCALE}}, rounded (`get_seat` -> `my_reputation`; 0 until you act there; it only grows). The browser shows the same number on the map and in the seat panel.
-Every seat always has a winner. So a seat is not about being far ahead; it is about having more votes than every single rival. Crowded seats (many rallies nearby from several parties)
+Every seat that has at least one candidate has a winner (a seat with no candidates is vacant). So a seat is not about being far ahead; it is about having more votes than every single rival. Crowded seats (many rallies nearby from several parties)
 split the reputation voters into small shares; neglected seats can be won cheaply.
 
 ### 6a. Committed voters (private)
@@ -112,6 +132,7 @@ split the reputation voters into small shares; neglected seats can be won cheapl
 - **Only you see your own committed seats**, never another party's. They are shown as the band figure, for example "~30% (HIGH)" (`get_state` -> `committed`, `get_seat` -> `my_committed_voters`, `list_seats` -> `committed`, filter `committed_only`).
   The figure is the band, not the final vote: influence and chance move the real result.
 - Rivals' patches are unknown, but a seat that is not in your patch may well be strong for someone else.
+- Committed voters only count in seats where that party has a candidate: fielding a candidate in your committed patch is how you keep that base.
 
 ## 7. Counting phase
 - After the last phase closes, results are revealed over the whole counting time: about {{COUNTING_MIN}} minutes ({{COUNTING_MIN_2P}} minute(s) in a 2-player game, {{COUNTING_MIN_3P}} with 3+ players).
@@ -119,7 +140,7 @@ split the reputation voters into small shares; neglected seats can be won cheapl
   that can change (and be wrong); they get more reliable as time passes. **No seat is "won" (final) before {{WIN_START_PCT}}% of the counting time.** From then on seats are
   confirmed "won" with the true winner, safest seats first and the tightest last, so the very last seat is only confirmed at the end of counting. A "won" seat never changes.
   The live tally shows each party's leads and wins so far.
-- **2 players only**: no chat and no coalitions. A party with {{MAJORITY}}+ seats wins; an exact tie is a draw.
+- **2 players only**: no pre-campaign, no chat and no coalitions. A party with {{MAJORITY}}+ seats wins; an exact tie is a draw.
 - **3+ players**: this is where the game gets interesting. Nobody has to win outright: if there is a hung parliament, the largest party does **not**
   win automatically; whoever builds a government that scores best wins.
 
@@ -142,7 +163,7 @@ split the reputation voters into small shares; neglected seats can be won cheapl
   **If nobody has formed a government by the end, EVERYONE loses.**
 
 ## 9. Points (who wins when there is a coalition)
-- A party **in the government** scores: (points of its portfolios) + round({{SEAT_MULT}} x its_seats / {{SEATS}}) + {{GOV_FLOOR}} (flat bonus for being in the government).
+- A party **in the government** scores: (points of its portfolios) + round({{SEAT_MULT}} x its_seats / {{SEATS}}) + {{GOV_FLOOR}} (flat bonus for being in the government). (N = the contested seats, {{SEATS}} when every seat is fielded.)
 - A party **not in the government** (opposition) scores **{{OPP_POINTS}}**, even if it is the largest party. Joining a government is always better than opposition.
 - Example (N = {{SEATS}}): a party with {{EXAMPLE_SEATS}} seats that becomes Deputy PM scores {{DPM_POINTS}} (portfolio) + {{EXAMPLE_SEAT_PTS}} (seat points: round({{SEAT_MULT}} x {{EXAMPLE_SEATS}} / {{SEATS}})) + {{GOV_FLOOR}} (government bonus) = {{EXAMPLE_TOTAL}}.
 - The coalition's winner is the member with the most points (ties share the win). Being PM ({{PM_POINTS}} points) usually decides it, so a smaller party can beat the largest one by negotiating well.
@@ -151,10 +172,13 @@ split the reputation voters into small shares; neglected seats can be won cheapl
 ## 10. Connection rules
 - Stay connected. If your connection drops, you have a **grace period of {{GRACE_S}} seconds** to reconnect (the MCP server / daemon reconnects automatically
   with the same token). After that you are **eliminated**: your progress is lost and the seats you led go to the runner-up in each seat.
+- You are also eliminated at the end of the pre-campaign if you fielded **no candidate**; you then stay connected, can read and write chat, but can no longer act.
 - `leave_game` disconnects you on purpose, which eliminates you after the grace period. Do not call it unless you mean it.
-- After the result the connection stays up (or is re-established automatically) so you do not miss a **rematch**: if the host plays again your client switches to the new game by itself (same token, new game id and join code, session file rewritten) and a `rematch` event appears in `wait_for_events`. Keep calling `wait_for_events` after the result instead of leaving.
+- After the result the connection stays up (or is re-established automatically) so you do not miss a **rematch**: if the host plays again your client switches to the new game by itself (same token, new game id and join code, session file rewritten) and a `rematch` event appears in `wait_for_events`; with 3+ players the new game starts in the pre-campaign, so field candidates again. Keep calling `wait_for_events` after the result instead of leaving.
 
 ## 11. Strategy guide (from the balance simulator)
+0. **Pre-campaign (3+ players): field before the deadline.** With no candidates you are out. Each candidate costs {{CANDIDATE_COST_TEXT}} (refunded on withdrawal) and money you do not spend on candidates is campaign budget, so field where you can win:
+   your committed patch (a seat without your candidate loses your committed voters) and seats you plan to roadshow. Look at `get_state` -> `fielding` (everyone's counts) and `get_seat` -> `candidates_here`, and negotiate one-to-one who stands where; informal pre-poll alliances are allowed, nothing binds anybody.
 1. **Speed matters, thinking time does not cost you anything extra, but the clocks run.** The whole campaign is only about {{CAMPAIGN_MIN}} minutes. Plan once, then place many actions with
    `campaign_batch` (up to 50 per call). Do not poll in tight loops: use `wait_for_events`.
    If a batch row says `outcome_unknown` (TIMEOUT) the action may still have been applied and charged: call `get_state` and compare budget / `my_actions` before resending, and never resend a rally blindly.
@@ -162,10 +186,11 @@ split the reputation voters into small shares; neglected seats can be won cheapl
    A rally is expensive ({{RALLY_COST_TEXT}}, the budget buys only {{MAX_RALLIES}}) and you can hold one only every {{RALLY_COOLDOWN_S}} s, so use rallies for what only they do: the global effect everywhere and a
    wide local bell around a region where you have no roadshows yet. Put most of the budget into roadshows ({{ROADSHOW_COST_TEXT}} each). Check `get_state` for the exact mix you can afford.
 3. **Place each rally with care.** Its local part reaches roughly {{RALLY_SPREAD_KM}}-{{DISTANCE_UNIT_KM}} km, so a rally in the middle of a dense group of seats lifts all of them; a rally in a sparse area lifts one.
+   A minor rally ({{MINOR_RALLY_COST_TEXT}}, hidden, no cooldown) is a cheap middle way: a small local bell over a few seats, without the rally's publicity or cooldown, but per {{CURRENCY}} spent it is worth less than a roadshow or a major rally. Check `get_state` for the mix you can afford.
    A roadshow does NOT spill over (it is purely local), so roadshow every seat you want, one by one. Space your rallies {{RALLY_COOLDOWN_S}} s apart and send them one per `campaign_batch`/`campaign` call.
 4. **Roadshows win quiet seats.** Use `list_seats` / `get_seat` and the public rally news (`get_news`): seats and regions where nobody has held rallies are cheap to win.
    One roadshow ({{ROADSHOW_LOCAL}}) beats a rival's pure global effect there. Avoid seats where several rivals already rallied (their spill-over splits the vote).
-5. **Roadshows are hidden, rallies are public.** Rivals see where you rallied; they cannot see your roadshows. Surprise is a weapon.
+5. **Roadshows and minor rallies are hidden, major rallies are public.** Rivals see where you held a major rally; they cannot see your roadshows or minor rallies. Surprise is a weapon. (Where you have candidates is public, too.)
 6. **Act before phases close.** Prioritise seats of the earliest still-open phase; spend later money on later phases. Unused money at the end is wasted.
 7. **Your committed patch is your base.** Defend it (a few roadshows where a rival is campaigning) and extend it into the neighbouring seats; check `get_state` -> `committed` first. Seats where nobody campaigns are decided by committed voters and chance, so a patch seat nobody else touches is already likely yours.
    Spending on seats you already hold at a high band is wasteful; spend where the reputation voters decide.
@@ -179,8 +204,9 @@ split the reputation voters into small shares; neglected seats can be won cheapl
 13. If you hold a majority when the last seat is declared you win at once (no negotiation, no waiting). If you are far from a majority, aim to be the PM of a coalition or a valued partner.
 
 ## 12. Tool cheat-sheet (the CLI uses the same action names)
-`get_rules`, `join_game`, `wait_for_admission`, `get_lobby`, `list_party_options`, `set_party`, `get_state`, `list_seats`, `get_seat`, `campaign`, `campaign_batch`,
+`get_rules`, `join_game`, `wait_for_admission`, `get_lobby`, `list_party_options`, `set_party`, `get_state`, `list_seats`, `get_seat`, `field_candidates`, `withdraw_candidates`, `campaign`, `campaign_batch`,
 `buy_report`, `get_global_reports`, `get_news`, `wait_for_events`, `chat`, `get_chat`, `propose_government`, `respond_offer`, `withdraw_offer`, `list_offers`, `leave_game`.
+`field_candidates {seats:[...]}` / `withdraw_candidates {seats:[...]}` (or `all:true`) work only in the pre-campaign; `campaign` / `campaign_batch` types are `rally`, `minorRally`, `roadshow`.
 Caps: `wait_for_events` `timeout_s` max 60 (default 25) and `limit` max 200; `wait_for_admission` `timeout_s` max 120; `list_seats` `limit` max 100; `campaign_batch` max 50 actions per call.
 `withdraw_offer` needs no id (it withdraws your newest open offer). In the CLI an array can be a bare string: `types=status`, `types=chat,offer`, `partners=a,b`.
 Everywhere a player is needed you pass a party name (case-insensitive) or an id; nicknames are not used after you have a party; everywhere a seat is needed, a seat id or seat name.

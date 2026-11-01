@@ -2,9 +2,10 @@ import {
   DeleteCommand, GetCommand, PutCommand, QueryCommand, TransactWriteCommand, UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+import { applyFieldingChange } from '../core/fielding';
 import type { Action, CoalitionOffer, FinalResult, Government, PlayerId, SeatResult } from '@hp/shared';
 import type {
-  AddActionOptions, ConnectionRecord, CountPlan, GameRecord, PlayerRecord, Repo, SpendResult, StoredChat, StoredReport,
+  AddActionOptions, ConnectionRecord, CountPlan, FieldingChange, FieldingOutcome, GameRecord, PlayerRecord, Repo, SpendResult, StoredChat, StoredReport,
 } from '../core/types';
 
 export const TTL_SECONDS = 7 * 24 * 3600;
@@ -251,6 +252,66 @@ export class DynamoRepo implements Repo {
     return (await this.get<Item>(this.gk(gameId), this.refSk(playerId, clientRef))) !== null;
   }
   listActions(gameId: string) { return this.query<Action>(this.gk(gameId), 'ACT#'); }
+
+  /**
+   * Compare-and-swap on the player's fieldingSeq: read the fielded list, work out the change, write it in one transaction with the
+   * game status check and the idempotency marker. Losing to a concurrent batch of the same player re-reads and starts again, so no
+   * batch is lost and the budget can never go below 0. Every refusal is decided on a fresh, consistent read.
+   */
+  async updateFielding(gameId: string, playerId: PlayerId, change: FieldingChange): Promise<FieldingOutcome> {
+    const refKey = change.clientRef !== undefined ? this.refSk(playerId, change.clientRef) : undefined;
+    if (change.clientRef !== undefined && await this.hasActionRef(gameId, playerId, change.clientRef)) return { result: 'duplicate' };
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const p = await this.getPlayer(gameId, playerId);
+      if (!p || p.status !== 'active') return { result: 'inactive' };
+      const { added, removed, fielded } = applyFieldingChange(p.fielded, change);
+      const delta = (added.length - removed.length) * change.costPerSeat;
+      if (!added.length && !removed.length) {
+        return (await this.getGame(gameId))?.status === 'preCampaign' ? { result: 'ok', added, removed, budget: p.budget } : { result: 'wrong_phase' };
+      }
+      if (delta > p.budget) {
+        return (await this.getGame(gameId))?.status === 'preCampaign' ? { result: 'insufficient' } : { result: 'wrong_phase' };
+      }
+      const ttl = this.ttl();
+      const seq = p.fieldingSeq;
+      try {
+        await this.doc.send(new TransactWriteCommand({
+          TransactItems: [
+            { Update: {
+              TableName: this.table, Key: { PK: this.gk(gameId), SK: `PLAYER#${playerId}` },
+              UpdateExpression: 'SET #f = :f, budget = budget - :d, #seq = :next, #ttl = :ttl',
+              ConditionExpression: `attribute_exists(PK) AND #status = :active AND budget >= :d AND ${seq === undefined ? 'attribute_not_exists(#seq)' : '#seq = :seq'}`,
+              ExpressionAttributeNames: { '#f': 'fielded', '#seq': 'fieldingSeq', '#ttl': 'ttl', '#status': 'status' },
+              ExpressionAttributeValues: {
+                ':f': fielded, ':d': delta, ':next': (seq ?? 0) + 1, ':ttl': ttl, ':active': 'active', ...(seq === undefined ? {} : { ':seq': seq }),
+              },
+            } },
+            { ConditionCheck: {
+              TableName: this.table, Key: { PK: this.gk(gameId), SK: 'META' },
+              ConditionExpression: '#status = :open',
+              ExpressionAttributeNames: { '#status': 'status' },
+              ExpressionAttributeValues: { ':open': 'preCampaign' },
+            } },
+            // idempotency marker (index 2, only with a clientRef): a second copy of the same message loses here
+            ...(refKey ? [{ Put: {
+              TableName: this.table, Item: { PK: this.gk(gameId), SK: refKey, ttl }, ConditionExpression: 'attribute_not_exists(PK)',
+            } }] : []),
+          ],
+        }));
+        return { result: 'ok', added, removed, budget: p.budget - delta };
+      } catch (e) {
+        const reasons = (e as { CancellationReasons?: { Code?: string }[] })?.CancellationReasons;
+        if ((e as { name?: string })?.name !== 'TransactionCanceledException' || !reasons) throw e;
+        if (refKey && reasons[2]?.Code === 'ConditionalCheckFailed') return { result: 'duplicate' };
+        if (reasons[1]?.Code === 'ConditionalCheckFailed') return { result: 'wrong_phase' };
+        // a concurrent batch of this player (condition) or a concurrent write to the same items (TransactionConflict): read and try again
+        if (!reasons.some((r) => r.Code === 'ConditionalCheckFailed' || r.Code === 'TransactionConflict')) throw e;
+        await new Promise((r) => setTimeout(r, 10 * 2 ** Math.min(attempt, 5) * (0.5 + Math.random())));
+      }
+    }
+    return { result: 'conflict' };
+  }
+
   addReport(gameId: string, playerId: PlayerId, cost: number, rep: StoredReport, expectClosedPhases: number) {
     return this.spendAndInsert(gameId, playerId, cost, {
       ...rep, PK: this.gk(gameId), SK: `REP#${playerId}#${pad(rep.ts, 15)}#${reportSuffix()}`,

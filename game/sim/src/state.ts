@@ -4,6 +4,8 @@ import type { World } from './world';
 /**
  * Incremental mirror of the engine's computeEffects (same arithmetic), plus per-component tracking the bots and
  * metrics need. Verified against the engine at the end of each game when `verify` is on.
+ * The three action types are handled explicitly, as in the engine: a rally (kernel row + global constant, public), a minor
+ * rally and a roadshow (kernel row only, hidden). The sim models every seat as contested by every player.
  */
 export class State {
   readonly P: number;
@@ -15,6 +17,7 @@ export class State {
   readonly pub: Float64Array[];      // publicly visible effect = every rally (incl. c), per player
   readonly pubTotal: Float64Array;   // sum of pub over players
   readonly visitedRoad: Uint8Array[];
+  readonly visitedMinor: Uint8Array[];
   readonly rallied: Uint8Array[];
   readonly firstTaken: Uint8Array;   // seat already has its first mover (bonus given)
   readonly actions: Action[] = [];
@@ -32,6 +35,7 @@ export class State {
     this.pubTotal = new Float64Array(n);
     this.firstTaken = new Uint8Array(n);
     this.visitedRoad = Array.from({ length: P }, () => new Uint8Array(n));
+    this.visitedMinor = Array.from({ length: P }, () => new Uint8Array(n));
     this.rallied = Array.from({ length: P }, () => new Uint8Array(n));
   }
 
@@ -72,7 +76,14 @@ export class State {
         }
       }
       this.rallied[p][i] = 1;
-    } else {
+    } else if (type === 'minorRally') {
+      const row = this.w.minorRows[i];
+      for (let q = 0; q < row.idx.length; q++) {
+        const j = row.idx[q];
+        if (close[j] > ts) eff[j] += row.w[q] * m;
+      }
+      this.visitedMinor[p][i] = 1;
+    } else { // 'roadshow'
       const row = this.w.roadRows[i];
       const rd = this.road[p];
       for (let q = 0; q < row.idx.length; q++) {
@@ -87,7 +98,8 @@ export class State {
     if (!this.firstTaken[i]) {
       // first mover's advantage: flat bonus in the seat itself, hidden (not part of the public rally effect)
       this.firstTaken[i] = 1;
-      eff[i] += type === 'rally' ? this.w.cfg.effects.firstMover.rally : this.w.cfg.effects.firstMover.roadshow;
+      const fm = this.w.cfg.effects.firstMover;
+      eff[i] += type === 'rally' ? fm.rally : type === 'minorRally' ? fm.minorRally : fm.roadshow;
     }
     this.actions.push({ id: `a${this.seq++}`, playerId: `P${p}`, type, seat: this.w.kernels.seatIds[i], ts });
     return true;

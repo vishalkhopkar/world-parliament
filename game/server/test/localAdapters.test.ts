@@ -1,6 +1,6 @@
 // Local-server adapters (env overrides, WebSocket notifier, timer scheduler) and core/util helpers.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { WORLD_CONFIG } from '@hp/shared';
+import { WORLD_CONFIG, fullyFieldedBudget } from '@hp/shared';
 import { MAP_MANIFESTS } from '@hp/shared';
 import { applyEnvOverrides, loadLocalMaps, startDelayFromEnv } from '../src/local/localEnv';
 import { LocalNotifier } from '../src/local/localNotifier';
@@ -41,6 +41,9 @@ describe('applyEnvOverrides / startDelayFromEnv', () => {
     const out = applyEnvOverrides(WORLD_CONFIG, { HP_CAMPAIGN_MS: '1' });
     expect(JSON.stringify(WORLD_CONFIG)).toBe(copy);
     expect({ ...out, durations: undefined }).toEqual({ ...WORLD_CONFIG, durations: undefined });
+  });
+  it('HP_PRECAMPAIGN_MS overrides the pre-campaign alone', () => {
+    expect(applyEnvOverrides(WORLD_CONFIG, { HP_PRECAMPAIGN_MS: '1000' }).durations).toEqual({ ...d, preCampaignMs: 1000 });
   });
   it('startDelayFromEnv: default 5000, override, invalid ignored', () => {
     expect(startDelayFromEnv({})).toBe(5000);
@@ -115,6 +118,7 @@ describe('TimerScheduler (fake timers)', () => {
   const stub = () => {
     const calls: string[] = [];
     const svc = {
+      openCampaign: vi.fn(async () => { calls.push(`open@${Date.now()}`); }),
       phaseClose: vi.fn(async (_g: string, p: number) => { calls.push(`phase${p}@${Date.now()}`); }),
       countReveal: vi.fn(async () => { calls.push(`reveal@${Date.now()}`); const done = Date.now() >= T0 + 3000; return { done, nextAtMs: done ? Date.now() : Date.now() + 500 }; }),
       finalise: vi.fn(async (_g: string, opts?: { error?: boolean }) => { calls.push(`finalise${opts?.error ? '(error)' : ''}@${Date.now()}`); }),
@@ -126,6 +130,45 @@ describe('TimerScheduler (fake timers)', () => {
   beforeEach(() => { vi.useFakeTimers(); now = T0; vi.setSystemTime(T0); });
   afterEach(() => { vi.useRealTimers(); });
   const advance = async (ms: number) => { now += ms; await vi.advanceTimersByTimeAsync(ms); };
+
+  it('with a pre-campaign it sleeps to the deadline and opens the campaign before the phases', async () => {
+    const { svc, calls } = stub();
+    const s = new TimerScheduler({ now: () => Date.now() });
+    s.bind(svc as unknown as GameService);
+    await s.startLifecycle('g', { ...timeline, preCampaignEnd: T0 + 50 });
+    await vi.advanceTimersByTimeAsync(49);
+    expect(svc.openCampaign).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(svc.openCampaign).toHaveBeenCalledWith('g');
+    await vi.advanceTimersByTimeAsync(950);
+    expect(calls).toEqual([`open@${T0 + 50}`, `phase0@${T0 + 1000}`]);
+    s.stop();
+  });
+
+  it('a failure opening the campaign ends the game through finalise(error)', async () => {
+    const { svc } = stub();
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    svc.openCampaign.mockRejectedValueOnce(new Error('boom'));
+    const s = new TimerScheduler({ now: () => Date.now() });
+    s.bind(svc as unknown as GameService);
+    await s.startLifecycle('g', { ...timeline, preCampaignEnd: T0 + 50 });
+    await vi.advanceTimersByTimeAsync(50);
+    expect(svc.finalise).toHaveBeenCalledWith('g', { error: true });
+    expect(svc.phaseClose).not.toHaveBeenCalled();
+    s.stop();
+    spy.mockRestore();
+  });
+
+  it('without a pre-campaign (2 players) the campaign is never opened by the scheduler', async () => {
+    const { svc } = stub();
+    const s = new TimerScheduler({ now: () => Date.now() });
+    s.bind(svc as unknown as GameService);
+    await s.startLifecycle('g', timeline);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(svc.openCampaign).not.toHaveBeenCalled();
+    expect(svc.phaseClose).toHaveBeenCalledTimes(1);
+    s.stop();
+  });
 
   it('runs phase closes, then the counting loop, then finalises at postCountingEnd - in that order and at those times', async () => {
     const { svc, calls } = stub();
@@ -263,7 +306,7 @@ describe('MemoryRepo semantics the service relies on', () => {
     const c = await new Ctx().started(2, 1);
     const p = (await c.repo.getPlayer(c.gameId, c.p[0].playerId))!;
     p.budget = -1;
-    expect((await c.repo.getPlayer(c.gameId, c.p[0].playerId))!.budget).toBe(c.cfg.budget);
+    expect((await c.repo.getPlayer(c.gameId, c.p[0].playerId))!.budget).toBe(fullyFieldedBudget(c.cfg));
     const g = (await c.repo.getGame(c.gameId))!;
     g.status = 'finished';
     expect((await c.repo.getGame(c.gameId))!.status).toBe('campaign');

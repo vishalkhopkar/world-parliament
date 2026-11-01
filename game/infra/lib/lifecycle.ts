@@ -10,6 +10,7 @@ import { Construct } from 'constructs';
 export interface LifecycleProps {
   prefix: string;
   isProd: boolean;
+  openCampaign: lambda.IFunction;
   phaseClose: lambda.IFunction;
   countReveal: lambda.IFunction;
   finalise: lambda.IFunction;
@@ -23,7 +24,8 @@ export interface LifecycleProps {
 /**
  * Game lifecycle state machine + EventBridge Scheduler role/group.
  *
- * Input: { gameId, timeline, phaseClosesIso: string[], countingEndIso, postCountingEndIso } (see README).
+ * Input: { gameId, timeline, preCampaignEndIso?, phaseClosesIso: string[], countingEndIso, postCountingEndIso } (see README).
+ * preCampaignEndIso is present only for a game with a pre-campaign (3+ players): such an execution first waits for it and runs OpenCampaign.
  */
 export class Lifecycle extends Construct {
   readonly stateMachine: sfn.StateMachine;
@@ -96,7 +98,21 @@ export class Lifecycle extends Construct {
       .when(sfn.Condition.booleanEquals('$.count.done', true), waitEnd.next(finalise))
       .otherwise(waitNext);
 
-    const definition = phases.next(countReveal).next(choice);
+    const main = phases.next(countReveal).next(choice);
+
+    // ---- pre-campaign (3+ players; a 2-player execution has no preCampaignEndIso and goes straight to the phases)
+    const waitPreCampaign = new sfn.Wait(this, 'WaitPreCampaignEnd', { time: sfn.WaitTime.timestampPath('$.preCampaignEndIso') });
+    const openCampaign = new tasks.LambdaInvoke(this, 'OpenCampaign', {
+      lambdaFunction: p.openCampaign,
+      payload: sfn.TaskInput.fromObject({ gameId: sfn.JsonPath.stringAt('$.gameId') }),
+      payloadResponseOnly: true,
+      resultPath: sfn.JsonPath.DISCARD,
+    });
+    openCampaign.addRetry(retry);
+    openCampaign.addCatch(failFinalise, catchAll);
+    const definition = new sfn.Choice(this, 'HasPreCampaign?')
+      .when(sfn.Condition.isPresent('$.preCampaignEndIso'), waitPreCampaign.next(openCampaign).next(phases))
+      .otherwise(main);
 
     const logGroup = new logs.LogGroup(this, 'SfnLogs', {
       logGroupName: `/aws/vendedlogs/states/${p.stateMachineName}`,

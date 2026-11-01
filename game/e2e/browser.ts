@@ -79,6 +79,68 @@ async function clickSeat(page: Page, k: number): Promise<number> {
   return seat;
 }
 
+
+/** Open the seat panel of seat `id` by dispatching the click to its path (does not paint; small seats are hard to hit with a real mouse). */
+async function openSeat(page: Page, id: number) {
+  await page.evaluate(i => { document.querySelector(`path.seat[data-seat="${i}"]`)!.dispatchEvent(new MouseEvent('click', { bubbles: true })); }, id);
+}
+const digits = (t: string) => Number(t.replace(/\D/g, ''));
+const budgetNum = async (page: Page) => digits(await budget(page));
+const COST = WORLD_CONFIG.costs;
+
+/** A point on land at height `frac` of the map (the first seat found scanning from the left), where a brush stroke can start. */
+async function landStart(page: Page, frac: number): Promise<{ x: number; y: number; w: number }> {
+  const pt = await page.evaluate(f => {
+    const r = document.querySelector('svg.map')!.getBoundingClientRect();
+    const y = r.top + r.height * f;
+    for (let x = r.left + r.width * 0.12; x < r.right - r.width * 0.45; x += 4) {
+      const top = document.elementsFromPoint(x, y)[0];
+      if (top && (top.classList.contains('seat') || top.classList.contains('hit'))) return { x, y, w: r.width };
+    }
+    return null;
+  }, frac);
+  if (!pt) throw new Error('no land found for a brush stroke at height ' + frac);
+  return pt;
+}
+
+/** A real mouse stroke over the map: press on land, drag right by 30% of the map width, release. Checks the brush cursor on the way. */
+async function stroke(page: Page, frac: number, name: string) {
+  const st = await landStart(page, frac);
+  await page.mouse.move(st.x, st.y);
+  if (!(await page.locator('.brush-cursor').isVisible())) problems.push(`${name}: the brush cursor is not shown over the map`);
+  if (!(await page.locator('svg.map.brushing').count())) problems.push(`${name}: the map is not in brush mode on a desktop`);
+  await page.mouse.down();
+  await page.mouse.move(st.x + st.w * 0.15, st.y, { steps: 20 });
+  if (!(await page.locator('.brush-cursor').isVisible())) problems.push(`${name}: the brush cursor vanished during a stroke`);
+  await page.mouse.move(st.x + st.w * 0.3, st.y, { steps: 20 });
+  await page.mouse.up();
+  return st;
+}
+
+/** The party's own candidate count in the side panel (its row is the first and says "(you)"). */
+const ownCount = async (page: Page) => digits(await page.locator('[data-tour="candidate-counts"] li').first().locator('.cc-count').innerText());
+/** Wait until the candidate count is above `above`, has stopped moving and matches the budget (every candidate costs costs.candidate). */
+async function settled(page: Page, name: string, above = 0): Promise<number> {
+  let last = -1;
+  for (let i = 0; i < 60; i++) {
+    const c = await ownCount(page), b = await budgetNum(page);
+    if (c > above && c === last && b === WORLD_CONFIG.budget - COST.candidate * c) return c;
+    last = c;
+    await sleep(250);
+  }
+  const c = await ownCount(page), b = await budgetNum(page);
+  problems.push(`${name}: candidates ${c} and budget ${b} never settled (expected budget ${WORLD_CONFIG.budget - COST.candidate * c})`);
+  return c;
+}
+/** Seats where every party has a candidate (the group has one figure per party; figures may be display:none), biggest first. */
+async function sharedSeats(page: Page, parties: number): Promise<number[]> {
+  return page.evaluate(n => [...document.querySelectorAll<SVGGElement>('g.seat-candidates')]
+    .filter(g => g.querySelectorAll('.candidate-figure').length >= n)
+    .map(g => { const p = document.querySelector<SVGPathElement>(`path.seat[data-seat="${g.dataset.seat}"]`)!; const b = p.getBBox(); return { id: Number(g.dataset.seat), area: b.width * b.height }; })
+    .sort((a, z) => z.area - a.area).map(x => x.id), parties);
+}
+const candidateSeats = (page: Page) => page.evaluate(() => [...document.querySelectorAll<SVGGElement>('g.seat-candidates')].map(g => Number(g.dataset.seat)));
+
 const avatarBtn = (page: Page, label: string) => page.getByRole('radio', { name: label, exact: true });
 
 async function setParty(page: Page, name: string, colour: string, symbol: string, avatar: string) {
@@ -94,13 +156,13 @@ async function setParty(page: Page, name: string, colour: string, symbol: string
 
 async function main() {
   mkdirSync(SHOTS, { recursive: true });
-  for (const f of ['01-home', '02-lobby-admin', '03-party', '04-lobby-ready', '05-campaign-admin', '06-campaign-b-report', '07-campaign-c-seat-report', '07b-campaign-group-chat-tagged', '08-counting', '08b-counting-one-to-one-chat', '08c-counting-chat-phone', '09-offer', '09b-offer-phone', '09a-offer-everyone-blocked', '10-government', '11-result-admin', '12-result-c', '13-play-again-admin']) rmSync(path.join(SHOTS, f + '.png'), { force: true });
+  for (const f of ['01-home', '02-lobby-admin', '03-party', '04-lobby-ready', '05a-precampaign-painted', '05b-precampaign-panel', '05c-precampaign-phone', '05-campaign-admin', '06-campaign-b-report', '07-campaign-c-seat-report', '07b-campaign-group-chat-tagged', '08-counting', '08b-counting-one-to-one-chat', '08c-counting-chat-phone', '09-offer', '09b-offer-phone', '09a-offer-everyone-blocked', '10-government', '11-result-admin', '12-result-c', '13-play-again-admin']) rmSync(path.join(SHOTS, f + '.png'), { force: true });
   if (!existsSync(CHROME)) throw new Error('Chrome not found at ' + CHROME + ' (set CHROME_PATH)');
   for (const p of [API_PORT, WEB_PORT]) if (!(await portFree(p))) throw new Error(`port ${p} is already in use; stop that server first`);
 
   log('starting dev server + vite');
   start('server', [path.join(gameDir, 'node_modules/tsx/dist/cli.mjs'), 'src/local/devServer.ts'], path.join(gameDir, 'server'), {
-    HP_CAMPAIGN_MS: '45000', HP_COUNTING_MS: '20000', HP_POST_MS: '15000', HP_START_DELAY_MS: '2000', HP_PORT: String(API_PORT),
+    HP_PRECAMPAIGN_MS: '45000', HP_CAMPAIGN_MS: '45000', HP_COUNTING_MS: '20000', HP_POST_MS: '15000', HP_START_DELAY_MS: '2000', HP_PORT: String(API_PORT),
   });
   start('vite', [path.join(gameDir, 'node_modules/vite/bin/vite.js'), '--port', String(WEB_PORT), '--strictPort'], path.join(gameDir, 'web'), {});
   await waitHttp(`http://localhost:${API_PORT}/games/x`, 60000);
@@ -189,30 +251,188 @@ async function main() {
     }
     await shot(A, '04-lobby-ready');
     await btn(A, 'Start the campaign').click();
+    for (const p of [A, B, C]) await p.locator('.app.screen-preCampaign').waitFor({ timeout: 20000 });
+    for (const [n, p] of [['A', A], ['B', B], ['C', C]] as const) {
+      if (await budgetNum(p) !== WORLD_CONFIG.budget) problems.push(`${n}: the pre-campaign starts on ${await budget(p)}, expected ${WORLD_CONFIG.budget}`);
+      await see(p, 'Pre-campaign ends in');
+    }
+    log('pre-campaign started');
+
+    // ---- pre-campaign: paint candidates with the real mouse (Asha), then B and C the same way
+    const cc = (p: Page) => p.locator('[data-tour="candidate-counts"]');
+    if ((await ownCount(A)) !== 0) problems.push('Asha starts with candidates');
+    const smoke = A.waitForSelector('g.rep-smoke.seat-spend', { state: 'attached', timeout: 10000 }).catch(() => problems.push('no red -' + COST.candidate + ' smoke (g.rep-smoke.seat-spend) after painting'));
+    const start = await stroke(A, 0.4, 'Asha');
+    const nA = await settled(A, 'Asha');
+    await smoke;
+    if (nA < 2) problems.push(`one stroke fielded only ${nA} candidate(s); the test needs at least 2`);
+    if (!(await A.locator('g.seat-candidates .candidate-figure').count())) problems.push('painted seats show no candidate figure');
+    if (!(await A.locator('g.seat-candidates .candidate-figure').evaluateAll(els => els.some(e => (e as SVGGElement).getBoundingClientRect().width > 0)))) problems.push('no candidate figure is visible on the world map');
+    // the others' counts update live
+    await see(B, new RegExp('Lotus Front'));
+    await B.waitForFunction(n => [...document.querySelectorAll('[data-tour="candidate-counts"] li')].some(li => /Lotus Front/.test(li.textContent ?? '') && Number(li.querySelector('.cc-count')?.textContent) === n), nA, { timeout: 10000 })
+      .catch(() => problems.push(`Ben does not see Lotus Front's ${nA} candidates live`));
+    log(`Asha painted ${nA} candidates`);
+    await shot(A, '05a-precampaign-painted');
+
+    // a click without moving opens the seat panel and paints nothing; Withdraw and Field switch the open panel by themselves
+    const own = await candidateSeats(A);
+    const P = (await A.evaluate(([x, y]) => Number(document.elementsFromPoint(x, y)[0]?.getAttribute('data-seat')), [start.x, start.y])) || own[0];
+    const Q = own.find(x => x !== P)!;
+    const bef = await budgetNum(A);
+    await A.mouse.move(start.x, start.y);
+    await A.mouse.click(start.x, start.y);
+    const panel = A.locator('[data-tour="fielding-panel"]');
+    await panel.waitFor({ state: 'visible', timeout: 5000 });
+    if (!(await panel.locator('.fp-withdraw').isVisible())) problems.push('the panel of a fielded seat has no Withdraw button');
+    if ((await panel.locator('.fp-candidates li[data-player]').count()) < 1) problems.push('the panel does not list who is fielded here');
+    await sleep(600);
+    if ((await budgetNum(A)) !== bef || (await ownCount(A)) !== nA) problems.push('a click without moving painted a candidate');
+    await shot(A, '05b-precampaign-panel');
+    const refund = A.waitForSelector('g.rep-smoke.seat-refund', { state: 'attached', timeout: 10000 }).catch(() => problems.push('no green +' + COST.candidate + ' smoke (g.rep-smoke.seat-refund) after withdrawing'));
+    await panel.locator('.fp-withdraw').click();
+    await panel.locator('.fp-field').waitFor({ state: 'visible', timeout: 5000 }).catch(() => problems.push('the open panel did not switch to Field after Withdraw'));
+    await refund;
+    if ((await settled(A, 'Asha after withdraw', 0)) !== nA - 1) problems.push('withdraw did not lower the candidate count by one');
+    if (!(await panel.isVisible())) problems.push('the panel closed after Withdraw');
+    await panel.locator('.fp-field').click();
+    await panel.locator('.fp-withdraw').waitFor({ state: 'visible', timeout: 5000 }).catch(() => problems.push('the open panel did not switch back to Withdraw after Field'));
+    if ((await settled(A, 'Asha after re-field', 0)) !== nA) problems.push('fielding again did not restore the candidate count');
+    // seat Q stays withdrawn: Asha has no candidate there in the campaign
+    await openSeat(A, Q);
+    await panel.locator('.fp-withdraw').click();
+    await panel.locator('.fp-field').waitFor({ state: 'visible', timeout: 5000 });
+    await settled(A, 'Asha after the second withdraw', 0);
+    await A.keyboard.press('Escape');
+    log(`seat ${P} withdrawn and fielded again, seat ${Q} left empty`);
+
+    // one-to-one chat in the pre-campaign: only the recipient reads it
+    const chatBox = (p: Page) => p.locator('[data-tour="precampaign-chat"]');
+    await chatBox(A).getByRole('tab', { name: /Blue Anchor/ }).click();
+    await chatBox(A).getByPlaceholder('Message Blue Anchor').fill('Pre-campaign pact?');
+    await chatBox(A).getByRole('button', { name: 'Send', exact: true }).click();
+    await chatBox(B).getByRole('tab', { name: /Lotus Front/ }).click();
+    await chatBox(B).getByText('Pre-campaign pact?').last().waitFor({ state: 'visible', timeout: 10000 });
+    await sleep(400);
+    if (await C.getByText('Pre-campaign pact?').count()) problems.push('a pre-campaign one-to-one message leaked to a third party');
+    {
+      const side = await A.locator('aside.side').boundingBox(), slot = await chatBox(A).boundingBox();
+      if (!side || !slot || slot.height < 250 || slot.y + slot.height < side.y + side.height - 40) problems.push(`the pre-campaign chat does not fill the side panel (${JSON.stringify(slot)} in ${JSON.stringify(side)})`);
+    }
+    log('pre-campaign chat ok');
+
+    // Ben and Chitra paint the same rows; Asha adds the second row
+    for (const [n, p] of [['Ben', B], ['Chitra', C]] as const) {
+      await stroke(p, 0.4, n);
+      if ((await settled(p, n)) < 2) problems.push(`${n}'s stroke fielded fewer than 2 candidates`);
+    }
+    for (const [n, p] of [['Asha', A], ['Ben', B], ['Chitra', C]] as const) { await stroke(p, 0.58, n); await settled(p, n, 1); }
+    // the majority shown is the one of the contested seats
+    for (const p of [A, B, C]) {
+      await p.waitForFunction(() => { const m = /Majority:\s*(\d+) of (\d+) contested/.exec(document.querySelector('.cc-majority')?.textContent ?? ''); return !!m && Number(m[2]) > 10 && Number(m[1]) === Math.floor(Number(m[2]) / 2) + 1; }, undefined, { timeout: 10000 })
+        .catch(() => problems.push('the pre-campaign panel does not show majority = floor(contested / 2) + 1'));
+    }
+
+    // seats every party fielded in (figures are hidden in the campaign, so read them now)
+    const shared = await sharedSeats(A, 3);
+
+    // phone: no brush, tap a seat, Field works. It is Asha's own session (same token), so her desktop page reloads afterwards.
+    {
+      const ctx = await browser.newContext({ storageState: await ctxs[0].storageState(), viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+      const ph = await ctx.newPage();
+      try {
+        await ph.goto(URL_);
+        await ph.locator('.app.screen-preCampaign').waitFor({ timeout: 30000 });
+        await ph.waitForFunction(() => document.querySelectorAll('path.seat').length > 400, undefined, { timeout: 60000 });
+        if (await ph.locator('.brush-cursor').count()) problems.push('phone: a brush cursor is shown on a touch screen');
+        if (await ph.locator('svg.map.brushing').count()) problems.push('phone: the map is in brush mode on a touch screen');
+        // a big seat Asha has not fielded, with a point on land that is on screen
+        const target = await ph.evaluate(() => {
+          const fielded = new Set([...document.querySelectorAll<SVGGElement>('g.seat-candidates')].map(g => g.dataset.seat));
+          const vw = innerWidth, vh = innerHeight;
+          const cands = [...document.querySelectorAll<SVGPathElement>('path.seat')].filter(p => !fielded.has(p.dataset.seat)).map(p => { const b = p.getBBox(); return { p, area: b.width * b.height }; }).sort((a, z) => z.area - a.area).slice(0, 40);
+          for (const { p } of cands) {
+            const r = p.getBoundingClientRect();
+            for (let i = 1; i < 10; i++) for (let j = 1; j < 10; j++) {
+              const x = r.left + (r.width * i) / 10, y = r.top + (r.height * j) / 10;
+              if (x < 4 || y < 4 || x > vw - 4 || y > vh - 4) continue;
+              if (document.elementsFromPoint(x, y)[0] === p) return { x, y, seat: Number(p.dataset.seat) };
+            }
+          }
+          return null;
+        });
+        if (!target) problems.push('phone: found no unfielded seat to tap');
+        else {
+          await ph.touchscreen.tap(target.x, target.y);
+          const phPanel = ph.locator('[data-tour="fielding-panel"]');
+          await phPanel.waitFor({ state: 'visible', timeout: 5000 }).catch(() => problems.push('phone: tapping a seat did not open the fielding panel'));
+          await shot(ph, '05c-precampaign-phone');
+          const before = await ownCount(ph);
+          await phPanel.locator('.fp-field').tap();
+          await phPanel.locator('.fp-withdraw').waitFor({ state: 'visible', timeout: 5000 }).catch(() => problems.push('phone: Field in the panel did not fielded a candidate'));
+          if ((await ownCount(ph)) !== before + 1) problems.push('phone: the candidate count did not rise by one after Field');
+        }
+      } finally {
+        await ctx.close();
+      }
+      await A.reload();
+      await A.locator('.app.screen-preCampaign').waitFor({ timeout: 30000 });
+      await A.waitForFunction(() => document.querySelectorAll('path.seat').length > 400, undefined, { timeout: 60000 });
+      await settled(A, 'Asha after the reload', 1);
+      log('phone check ok; Asha reloaded back into the pre-campaign');
+    }
+
+    // ---- the campaign opens: only seats with a candidate can be campaigned in
+    for (const p of [A, B, C]) await p.locator('.app.screen-campaign').waitFor({ timeout: 60000 });
     for (const p of [A, B, C]) await see(p, 'Campaign ends in');
     for (const p of [A, B, C]) await p.getByText('Campaign starts in').first().waitFor({ state: 'hidden', timeout: 15000 });
     log('campaign started');
+    const gone = shared.indexOf(Q);
+    if (gone >= 0) shared.splice(gone, 1);
+    if (shared.length < 8) throw new Error(`only ${shared.length} seats are contested by all three parties`);
+    // "My actions" is hidden (the chat fills its space)
+    if (await A.locator('.my-actions-hidden').isVisible()) problems.push('the My actions panel is visible; the chat should fill its space');
+    {
+      const side = await A.locator('aside.side').boundingBox(), slot = await A.locator('[data-tour="chat"]').boundingBox();
+      if (!side || !slot || slot.height < 250 || slot.y + slot.height < side.y + side.height - 40) problems.push(`the campaign chat does not fill the side panel (${JSON.stringify(slot)} in ${JSON.stringify(side)})`);
+    }
 
-    // ---- campaign: rallies + roadshows
-    const bud0 = await budget(A);
-    const seatA = await clickSeat(A, 0);
-    await A.locator('.sam-rally').click();
-    await see(A, 'My actions (1)');
-    await clickSeat(A, 0);
+    // a seat without my candidate: every action is disabled with "No candidate here", and the seat is dimmed
+    await openSeat(A, Q);
+    for (const k of ['rally', 'minorRally', 'roadshow']) {
+      const o = A.locator('.sam-' + k);
+      await o.waitFor({ state: 'visible', timeout: 5000 });
+      if (!(await o.isDisabled()) || !/No candidate here/.test(await o.innerText())) problems.push(`.sam-${k} is not disabled with "No candidate here" in a seat without a candidate`);
+    }
+    if (!(await A.locator(`path.seat.faded[data-seat="${Q}"]`).count())) problems.push('a seat without a candidate is not dimmed');
+    await A.keyboard.press('Escape');
+
+    // ---- campaign: minor rally (secret), roadshow, rally; checked through the budget
+    const bud0 = await budgetNum(A);
+    await openSeat(A, shared[0]);
+    if (!(await A.locator('.sam-contesting li[data-player]').count())) problems.push('the campaign seat panel does not list who is contesting');
+    await A.locator('.sam-minorRally').click();
+    await A.waitForFunction(b => Number(document.querySelector('.hud-item.budget strong')!.textContent!.replace(/\D/g, '')) === b, bud0 - COST.minorRally, { timeout: 10000 }).catch(() => problems.push(`budget after a minor rally is not ${bud0 - COST.minorRally}`));
+    await openSeat(A, shared[0]);
     await A.locator('.sam-roadshow').click();
-    await see(A, 'My actions (2)');
+    await A.waitForFunction(b => Number(document.querySelector('.hud-item.budget strong')!.textContent!.replace(/\D/g, '')) === b, bud0 - COST.minorRally - COST.roadshow, { timeout: 10000 }).catch(() => problems.push('budget after a roadshow is wrong'));
+    await sleep(800);
+    // a minor rally (like a roadshow) is not news
+    for (const p of [B, C]) if (await p.locator('.nt').getByText(/rallied/).count()) problems.push('a minor rally or roadshow showed up in the news');
+    await openSeat(A, shared[0]);
+    await A.locator('.sam-rally').click();
+    await A.waitForFunction(b => Number(document.querySelector('.hud-item.budget strong')!.textContent!.replace(/\D/g, '')) === b, bud0 - COST.minorRally - COST.roadshow - COST.rally, { timeout: 10000 }).catch(() => problems.push('budget after a major rally is wrong'));
     const bud1 = await budget(A);
-    if (bud0 === bud1) problems.push('budget did not change after campaigning');
-    log(`Asha acted in seat ${seatA}; budget ${bud0} -> ${bud1}`);
+    log(`Asha acted in seat ${shared[0]}; budget ${bud0} -> ${bud1}`);
     if (!(await A.locator('.hud-me .party-avatar img').isVisible())) problems.push('campaign HUD does not show my avatar');
     await shot(A, '05-campaign-admin');
 
-    await clickSeat(B, 3);
+    const bBefore = await budgetNum(B);
+    await openSeat(B, shared[1]);
     await B.locator('.sam-rally').click();
-    await see(B, 'My actions (1)');
-    await clickSeat(B, 4);
+    await openSeat(B, shared[2]);
     await B.locator('.sam-roadshow').click();
-    await see(B, 'My actions (2)');
+    await B.waitForFunction(b => Number(document.querySelector('.hud-item.budget strong')!.textContent!.replace(/\D/g, '')) === b, bBefore - COST.rally - COST.roadshow, { timeout: 10000 }).catch(() => problems.push('Ben: budget after a rally and a roadshow is wrong'));
     await see(A, /rallied in/);                       // Ben's rally is public news on Asha's screen
     await see(B, /Lotus Front.*rallied|Blue Anchor.*rallied/);
     // free news-agency graphs ("News agencies" button, not the paid "Global report (price)" analyst button)
@@ -239,10 +459,11 @@ async function main() {
     } else if (await B.getByRole('button', { name: /^Global report \(/ }).count()) problems.push('the global report is switched off but its button is shown');
     await shot(B, '06-campaign-b-report');
 
-    await clickSeat(C, 6);
+    const cBefore = await budgetNum(C);
+    await openSeat(C, shared[3]);
     await C.locator('.sam-rally').click();
-    await see(C, 'My actions (1)');
-    await clickSeat(C, 6);
+    await C.waitForFunction(b => Number(document.querySelector('.hud-item.budget strong')!.textContent!.replace(/\D/g, '')) === b, cBefore - COST.rally, { timeout: 10000 }).catch(() => problems.push('Chitra: budget after a rally is wrong'));
+    await openSeat(C, shared[3]);
     if (WORLD_CONFIG.analyst.seatReport.enabled) {
       await C.locator('.sam-report').click();
       await C.locator('.report').first().waitFor({ timeout: 10000 });
@@ -252,9 +473,16 @@ async function main() {
     if (await B.locator('.nt').getByText(/roadshow/i).count()) problems.push('a roadshow leaked into the news ticker');
 
     // a reload rejoins the game (session kept in localStorage)
+    const cKept = await budgetNum(C);
     await C.reload();
     await see(C, 'Campaign ends in', 30000);
-    await see(C, 'My actions (1)');
+    await C.locator('path.seat').first().waitFor({ timeout: 30000 });
+    if ((await budgetNum(C)) !== cKept) problems.push(`Chitra's budget changed over the reload (${cKept} -> ${await budgetNum(C)})`);
+    // the fielding survives the reload: a seat she contests can be campaigned in
+    await C.waitForFunction(() => document.querySelectorAll('path.seat').length > 400, undefined, { timeout: 60000 });
+    await openSeat(C, shared[3]);
+    if (await C.locator('.sam-roadshow').isDisabled()) problems.push('Chitra cannot campaign in her own seat after the reload');
+    await C.keyboard.press('Escape');
     log('Chitra reloaded and rejoined');
 
     // campaign-phase chat: the ONE group chat is open from the campaign start (Chat.Campaigning = GROUP); everybody reads it
@@ -312,7 +540,7 @@ async function main() {
     await shot(B, '08c-counting-chat-phone');
     await B.setViewportSize({ width: 1400, height: 900 });
     log('one-to-one chats ok');
-    await B.waitForFunction(() => /\d+ of 500 seats declared/.test(document.body.innerText) && !/^0 of/.test(document.querySelector('.tally-foot')?.textContent ?? '0 of'), undefined, { timeout: 30000 });
+    await B.waitForFunction(() => /\d+ of \d+ seats declared/.test(document.body.innerText) && !/^0 of/.test(document.querySelector('.tally-foot')?.textContent ?? '0 of'), undefined, { timeout: 30000 });
     await shot(B, '08-counting');
     log('first seats declared');
 
@@ -329,7 +557,8 @@ async function main() {
     if (!(await send.isDisabled())) problems.push('Send offer should be disabled when every party is in the government');
     await shot(A, '09a-offer-everyone-blocked');
     // 2) wait until every seat is declared (a government is only confirmed then), then invite the partner that gives a majority; the other party stays in opposition
-    await see(B, /500 of 500 seats declared/, 60000);
+    // every contested seat declared (the total is the contested seats, not the map's seat count)
+    await B.waitForFunction(() => { const m = /(\d+) of (\d+) seats declared/.exec(document.querySelector('.tally-foot')?.textContent ?? ''); return !!m && m[1] === m[2] && Number(m[1]) > 10; }, undefined, { timeout: 60000 });
     await home.selectOption({ value: '' });
     let partner = 'Blue Anchor';
     const combinedGood = async () => A.locator('.combined.good').count().then(n => n > 0);
@@ -385,12 +614,21 @@ async function main() {
     const phasesBefore = await A.locator('select').first().inputValue();
     await A.locator('select').first().selectOption({ value: phasesBefore === '1' ? '2' : '1' });
     await btn(A, 'Play again').click();
-    for (const p of [A, B, C]) await see(p, 'Campaign ends in', 30000);
+    // a new game starts in the pre-campaign for 3+ players: nothing is fielded and the budget is full again, so everybody fields again
+    for (const p of [A, B, C]) await p.locator('.app.screen-preCampaign').waitFor({ timeout: 30000 });
     for (const [p, n] of [[A, 'A'], [B, 'B'], [C, 'C']] as const) {
       if (await btn(p, 'Save party').count()) problems.push(`${n}: party setup was shown again after play again`);
+      if (await budgetNum(p) !== WORLD_CONFIG.budget) problems.push(`${n}: the new game does not start on a full budget (${await budget(p)})`);
+      if ((await ownCount(p)) !== 0) problems.push(`${n}: candidates were carried over to the new game`);
     }
     await shot(A, '13-play-again-admin');
-    log('play again: everyone is in the new campaign');
+    for (const [n, p] of [['Asha', A], ['Ben', B], ['Chitra', C]] as const) {
+      await p.waitForFunction(() => document.querySelectorAll('path.seat').length > 400, undefined, { timeout: 60000 });
+      await stroke(p, 0.4, n);
+      await settled(p, n + ' (new game)');
+    }
+    for (const p of [A, B, C]) await see(p, 'Campaign ends in', 60000);
+    log('play again: everyone fielded again and is in the new campaign');
   } catch (e) {
     for (const [n, p] of [['A', A], ['B', B], ['C', C]] as const) await p.screenshot({ path: path.join(SHOTS, `fail-${n}.png`) }).catch(() => undefined);
     throw e;

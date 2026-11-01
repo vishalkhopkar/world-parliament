@@ -3,6 +3,8 @@ import { create } from 'zustand';
 
 /** What the overlay can ask the tour transport to do. Registered by TourTransport. */
 export interface TourControls {
+  /** End the pre-campaign: the tour fields every seat you have not fielded (charging it) and opens the campaign. */
+  startCampaign(): void;
   /** End the campaign and start the count (the count pauses by itself at the coalition point). */
   startCounting(): void;
 }

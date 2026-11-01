@@ -1,7 +1,7 @@
 // Every action of the table, offline against a fake session: guards (not joined / not admitted), argument validation,
 // name resolution, cursor handling, error texts. The real server is exercised by integration.test.ts.
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { AVATARS, PARTY_COLOURS, PARTY_SYMBOLS, WORLD_CONFIG } from '@hp/shared';
+import { AVATARS, PARTY_COLOURS, PARTY_SYMBOLS, WORLD_CONFIG, fullyFieldedBudget, majorityOf } from '@hp/shared';
 import type { ChatMessage, CoalitionOffer, GameSnapshot, PlayerPublic, ServerMessage } from '@hp/shared';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -44,6 +44,7 @@ function session(opts: Opts = {}) {
   c.state.gameId = 'g'; c.state.me = 'me'; c.state.joinCode = 'ABC123';
   c.state.snapshot = {
     gameId: 'g', mapId: 'world-500', status: opts.status ?? 'campaign', phases: 3, players: list, news: opts.news ?? [], polledPhases: [], seats: {}, tally: null,
+    fielding: {}, contestedSeats: cfg.seatCount, majority: majorityOf(cfg.seatCount),
     offers: opts.offers ?? [], government: null, result: null,
     timeline: { campaignStart: now - 1000, phaseCloses: closes, campaignEnd: closes[2], countingEnd: closes[2] + 1000, postCountingEnd: closes[2] + 2000 },
   };
@@ -51,6 +52,8 @@ function session(opts: Opts = {}) {
   const calls: Record<string, unknown[][]> = {};
   const rec = <T>(name: string, ret: T) => vi.fn(async (...a: unknown[]) => { (calls[name] ??= []).push(a); return ret; });
   c.campaignBatch = rec('campaignBatch', []) as never;
+  c.fieldCandidates = rec('fieldCandidates', { budget: 0, added: [], removed: [] }) as never;
+  c.withdrawCandidates = rec('withdrawCandidates', { budget: 0, added: [], removed: [] }) as never;
   c.chat = vi.fn(async (to: string[], text: string) => { (calls.chat ??= []).push([to, text]); return { id: 'm1', from: 'me', to, text, ts: Date.now() } as ChatMessage; }) as never;
   c.proposeGovernment = vi.fn(async (pf, partners) => {
     (calls.propose ??= []).push([pf, partners]);
@@ -82,6 +85,7 @@ const err = async (s: AgentSession, name: string, args: unknown = {}) => {
 const ARGS: Record<string, unknown> = {
   wait_for_admission: { timeout_s: 1 }, get_lobby: {}, list_party_options: {},
   set_party: { name: 'Blue Wave', colour: 'blue', symbol: 'sun', avatar: 'xi' }, list_seats: {}, get_seat: { seat: 1 },
+  field_candidates: { seats: [1] }, withdraw_candidates: { seats: [1] },
   campaign: { type: 'rally', seat: 1 }, campaign_batch: { actions: [{ type: 'rally', seat: 1 }] }, buy_report: { scope: 'global' },
   get_news: {}, wait_for_events: { timeout_s: 0 }, chat: { to: ['all'], text: 'hi' }, get_chat: {},
   propose_government: { portfolios: { HOME: 'Party Codex' } }, respond_offer: { offer_id: 'x', accept: true }, withdraw_offer: { offer_id: 'x' }, list_offers: {},
@@ -107,7 +111,7 @@ describe('guards: every action that needs a game refuses cleanly before joining'
 });
 
 describe('guards: pending / declined players cannot act (NOT_ADMITTED) but can look', () => {
-  const NEEDS_ADMISSION = ['set_party', 'campaign', 'campaign_batch', 'buy_report', 'chat', 'propose_government', 'respond_offer', 'withdraw_offer'];
+  const NEEDS_ADMISSION = ['set_party', 'field_candidates', 'withdraw_candidates', 'campaign', 'campaign_batch', 'buy_report', 'chat', 'propose_government', 'respond_offer', 'withdraw_offer'];
   for (const admission of ['pending', 'rejected'] as const) {
     it.each(NEEDS_ADMISSION)(`${admission}: %s -> NOT_ADMITTED`, async (name) => {
       const { s, calls } = session({ admission, status: 'lobby' });
@@ -615,7 +619,7 @@ describe('executeAction wrapper', () => {
   });
   it('every action has a unique name, a description, a zod object schema and a readOnly flag only where it changes nothing', () => {
     expect(new Set(ACTIONS.map((a) => a.name)).size).toBe(ACTIONS.length);
-    const mutating = ['join_game', 'set_party', 'campaign', 'campaign_batch', 'buy_report', 'chat', 'propose_government', 'respond_offer', 'withdraw_offer', 'leave_game'];
+    const mutating = ['join_game', 'set_party', 'field_candidates', 'withdraw_candidates', 'campaign', 'campaign_batch', 'buy_report', 'chat', 'propose_government', 'respond_offer', 'withdraw_offer', 'leave_game'];
     for (const a of ACTIONS) {
       expect(typeof a.run).toBe('function');
       expect(a.schema.shape).toBeDefined();
@@ -649,8 +653,8 @@ describe('playtest fixes', () => {
     const { s } = session({ status: 'lobby', budget: 0 }); // lobby-time hello carried budget 0
     push(s, { type: 'status', status: 'campaign', timeline: s.client.state.snapshot!.timeline! } as never); // status arrives BEFORE private
     const w = await ok(s, 'wait_for_events', { timeout_s: 0 });
-    expect(w.hint_state.budget).toBe(cfg.budget);
-    expect((await ok(s, 'get_state')).budget.wr).toBe(cfg.budget);
+    expect(w.hint_state.budget).toBe(fullyFieldedBudget(cfg)); // a game without a pre-campaign: every seat is fielded and charged for you
+    expect((await ok(s, 'get_state')).budget.wr).toBe(fullyFieldedBudget(cfg));
     // once the server tells us, the real number wins
     push(s, { type: 'private', private: { you: 'me', budget: 1234, myActions: [], myReports: [] } } as never);
     expect((await ok(s, 'wait_for_events', { timeout_s: 0 })).hint_state.budget).toBe(1234);

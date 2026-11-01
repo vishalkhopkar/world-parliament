@@ -211,6 +211,97 @@ describe.each(impls)('Repo contract: %s', (_name, make) => {
     expect((await h.repo.listActions('g1')).map((a) => a.id)).toEqual(['a3']);
   });
 
+  describe('updateFielding (pre-campaign)', () => {
+    const open = (repo: Repo) => repo.updateGame('g1', { status: 'preCampaign' });
+    const fieldIt = (repo: Repo, seats: number[], clientRef?: string, id = 'p0') =>
+      repo.updateFielding('g1', id, { op: 'field', seats, costPerSeat: 50, ...(clientRef ? { clientRef } : {}) });
+    const withdrawIt = (repo: Repo, seats: number[], clientRef?: string) =>
+      repo.updateFielding('g1', 'p0', { op: 'withdraw', seats, costPerSeat: 50, ...(clientRef ? { clientRef } : {}) });
+
+    it('fielding charges per new seat and stores the list; already-fielded and repeated seats are skipped', async () => {
+      const h = await seeded(make());
+      await open(h.repo);
+      expect(await fieldIt(h.repo, [1, 2])).toEqual({ result: 'ok', added: [1, 2], removed: [], budget: 900 });
+      expect(await fieldIt(h.repo, [2, 3, 3])).toEqual({ result: 'ok', added: [3], removed: [], budget: 850 });
+      expect(await h.repo.getPlayer('g1', 'p0')).toMatchObject({ fielded: [1, 2, 3], budget: 850 });
+      expect((await h.repo.getPlayer('g1', 'p1'))?.fielded).toBeUndefined();
+    });
+
+    it('withdrawing refunds per seat removed; seats without a candidate are skipped; a batch with nothing to do changes nothing', async () => {
+      const h = await seeded(make());
+      await open(h.repo);
+      await fieldIt(h.repo, [1, 2]);
+      expect(await withdrawIt(h.repo, [2, 9])).toEqual({ result: 'ok', added: [], removed: [2], budget: 950 });
+      expect(await withdrawIt(h.repo, [9])).toEqual({ result: 'ok', added: [], removed: [], budget: 950 });
+      expect(await fieldIt(h.repo, [1])).toEqual({ result: 'ok', added: [], removed: [], budget: 950 });
+      expect(await h.repo.getPlayer('g1', 'p0')).toMatchObject({ fielded: [1], budget: 950 });
+    });
+
+    it('a batch the budget cannot pay for is refused whole, and spending the exact budget is allowed', async () => {
+      const h = await seeded(make(), 1, { budget: 100 });
+      await open(h.repo);
+      expect(await fieldIt(h.repo, [1, 2, 3])).toEqual({ result: 'insufficient' });
+      expect((await h.repo.getPlayer('g1', 'p0'))?.budget).toBe(100);
+      expect((await h.repo.getPlayer('g1', 'p0'))?.fielded).toBeUndefined();
+      expect(await fieldIt(h.repo, [1, 2])).toMatchObject({ result: 'ok', budget: 0 });
+    });
+
+    it.each(['lobby', 'campaign', 'counting', 'finished'] as const)('status %s refuses with wrong_phase, also a batch with nothing to do', async (status) => {
+      const h = await seeded(make());
+      await open(h.repo);
+      await fieldIt(h.repo, [1]);
+      await h.repo.updateGame('g1', { status });
+      expect(await fieldIt(h.repo, [2])).toEqual({ result: 'wrong_phase' });
+      expect(await fieldIt(h.repo, [1])).toEqual({ result: 'wrong_phase' });
+      expect(await h.repo.getPlayer('g1', 'p0')).toMatchObject({ fielded: [1], budget: 950 });
+    });
+
+    it('a player who is not active is refused with inactive', async () => {
+      const h = await seeded(make(), 1, { status: 'disconnected' });
+      await open(h.repo);
+      expect(await fieldIt(h.repo, [1])).toEqual({ result: 'inactive' });
+    });
+
+    it('a clientRef is applied once: the repeat answers duplicate and changes nothing, also after the seat was withdrawn', async () => {
+      const h = await seeded(make());
+      await open(h.repo);
+      expect((await fieldIt(h.repo, [1], 'r1')).result).toBe('ok');
+      expect(await h.repo.hasActionRef('g1', 'p0', 'r1')).toBe(true);
+      await withdrawIt(h.repo, [1]);
+      expect(await fieldIt(h.repo, [1], 'r1')).toEqual({ result: 'duplicate' });
+      expect(await h.repo.getPlayer('g1', 'p0')).toMatchObject({ fielded: [], budget: 1000 });
+      // another player's copy of the ref is its own
+      expect((await fieldIt(h.repo, [1], 'r1', 'p1')).result).toBe('ok');
+    });
+
+    it('concurrent batches of one player all count, with the budget exactly right', async () => {
+      const h = await seeded(make());
+      await open(h.repo);
+      const res = await Promise.all([1, 2, 3, 4, 5, 6].map((s) => fieldIt(h.repo, [s])));
+      expect(res.every((r) => r.result === 'ok')).toBe(true);
+      const p = await h.repo.getPlayer('g1', 'p0');
+      expect([...(p?.fielded ?? [])].sort()).toEqual([1, 2, 3, 4, 5, 6]);
+      expect(p?.budget).toBe(1000 - 6 * 50);
+    });
+
+    it('concurrent batches can never overdraw: exactly those the budget can pay for go through', async () => {
+      const h = await seeded(make(), 1, { budget: 100 });
+      await open(h.repo);
+      const res = await Promise.all([1, 2, 3, 4, 5].map((s) => fieldIt(h.repo, [s])));
+      expect(res.filter((r) => r.result === 'ok')).toHaveLength(2);
+      expect(res.filter((r) => r.result === 'insufficient')).toHaveLength(3);
+      expect((await h.repo.getPlayer('g1', 'p0'))?.budget).toBe(0);
+    });
+
+    it('concurrent copies of one clientRef charge once', async () => {
+      const h = await seeded(make());
+      await open(h.repo);
+      const res = await Promise.all([1, 2, 3, 4].map(() => fieldIt(h.repo, [1, 2], 'same')));
+      expect(res.filter((r) => r.result === 'ok' && r.added.length === 2)).toHaveLength(1);
+      expect((await h.repo.getPlayer('g1', 'p0'))?.budget).toBe(900);
+    });
+  });
+
   it('addAction: concurrent double-spend of the last funds -> exactly one succeeds', async () => {
     const h = await seeded(make(), 1, { budget: 1000 });
     await campaign(h.repo);
@@ -445,6 +536,58 @@ describe('DynamoRepo specifics (against FakeDdb)', () => {
     const ddb = new FakeDdb(opts);
     return { ddb, repo: new DynamoRepo(ddb as never, ddb.tableName, () => NOW) };
   };
+
+  describe('updateFielding', () => {
+    const conflict = () => Object.assign(new Error('conflict'), {
+      name: 'TransactionCanceledException', CancellationReasons: [{ Code: 'TransactionConflict' }, { Code: 'None' }],
+    });
+    const isTransact = (cmd: unknown) => (cmd as object).constructor.name === 'TransactWriteCommand';
+    const change = { op: 'field' as const, seats: [1], costPerSeat: 50 };
+
+    it('retries a TransactionConflict, and the change is applied once', async () => {
+      let left = 0; // createGame is a transaction too: armed once the game exists
+      const h = mk({ beforeSend: (cmd) => { if (isTransact(cmd) && left-- > 0) throw conflict(); } });
+      await h.repo.createGame(game('g1', { status: 'preCampaign' }), player('p0'));
+      left = 2;
+      expect(await h.repo.updateFielding('g1', 'p0', change)).toMatchObject({ result: 'ok', budget: 950 });
+      expect(await h.repo.getPlayer('g1', 'p0')).toMatchObject({ fielded: [1], budget: 950, fieldingSeq: 1 });
+    });
+
+    it("answers 'conflict' when it stays contended, with nothing written", async () => {
+      let armed = false;
+      const h = mk({ beforeSend: (cmd) => { if (armed && isTransact(cmd)) throw conflict(); } });
+      await h.repo.createGame(game('g1', { status: 'preCampaign' }), player('p0'));
+      armed = true;
+      expect(await h.repo.updateFielding('g1', 'p0', change)).toEqual({ result: 'conflict' });
+      expect((await h.repo.getPlayer('g1', 'p0'))?.budget).toBe(1000);
+    }, 20_000);
+
+    it('other errors are not swallowed', async () => {
+      let armed = false;
+      const h = mk({ beforeSend: (cmd) => { if (armed && isTransact(cmd)) throw new Error('ddb down'); } });
+      await h.repo.createGame(game('g1', { status: 'preCampaign' }), player('p0'));
+      armed = true;
+      await expect(h.repo.updateFielding('g1', 'p0', change)).rejects.toThrow('ddb down');
+    });
+
+    it("the status moving on between the read and the write answers 'wrong_phase'", async () => {
+      const h = mk();
+      await h.repo.createGame(game('g1', { status: 'preCampaign' }), player('p0'));
+      const orig = h.ddb.send.bind(h.ddb);
+      h.ddb.send = async (cmd: unknown) => {
+        if (isTransact(cmd)) await h.repo.updateGame('g1', { status: 'campaign' });
+        return orig(cmd);
+      };
+      expect(await h.repo.updateFielding('g1', 'p0', change)).toEqual({ result: 'wrong_phase' });
+      expect((await h.repo.getPlayer('g1', 'p0'))?.budget).toBe(1000);
+    });
+
+    it('addAction still requires the campaign status: nothing can be spent on actions during the pre-campaign', async () => {
+      const h = mk();
+      await h.repo.createGame(game('g1', { status: 'preCampaign' }), player('p0'));
+      expect(await h.repo.addAction('g1', 'p0', 10, { id: 'a', playerId: 'p0', type: 'minorRally', seat: 1, ts: NOW }, 0)).toBe('conflict');
+    });
+  });
 
   it('every written item carries a numeric ttl = now + 7 days, and metadata keys never leak to callers', async () => {
     const { ddb, repo } = mk();

@@ -27,8 +27,8 @@ const SKIP_BOTS = argv.includes('--skip-bots');
 const SKIP_BROWSER = argv.includes('--skip-browser');
 const VERBOSE = !!process.env.VERBOSE;
 
-/** Short game: campaign 45 s, counting 20 s, post-counting 15 s, 2 s lead-in (see e2e/README.md). */
-const SHORT_ENV = { HP_CAMPAIGN_MS: '45000', HP_COUNTING_MS: '20000', HP_POST_MS: '15000', HP_START_DELAY_MS: '2000' };
+/** Short game: pre-campaign 15 s (3+ players), campaign 45 s, counting 20 s, post-counting 15 s, 2 s lead-in (see e2e/README.md). */
+const SHORT_ENV = { HP_PRECAMPAIGN_MS: '15000', HP_CAMPAIGN_MS: '45000', HP_COUNTING_MS: '20000', HP_POST_MS: '15000', HP_START_DELAY_MS: '2000' };
 
 const t0 = Date.now();
 const log = (...a: unknown[]) => console.log(`[e2e ${((Date.now() - t0) / 1000).toFixed(0).padStart(4)}s]`, ...a);
@@ -130,8 +130,9 @@ function detectChrome(): string | undefined {
 }
 
 async function runBrowser(): Promise<boolean> {
-  for (const port of [8787, 5173]) {
-    if (await portInUse(port)) { console.error(`browser e2e needs port ${port} (fixed in e2e/browser.ts) but it is in use; stop whatever uses it and retry`); return false; }
+  // e2e/browser.ts uses :8787 (API) and :5173 (web) unless E2E_API_PORT / E2E_WEB_PORT say otherwise
+  for (const port of [Number(process.env.E2E_API_PORT ?? 8787), Number(process.env.E2E_WEB_PORT ?? 5173)]) {
+    if (await portInUse(port)) { console.error(`browser e2e needs port ${port} but it is in use; stop whatever uses it (or set E2E_API_PORT / E2E_WEB_PORT) and retry`); return false; }
   }
   const chrome = detectChrome();
   if (!chrome) { console.error('browser e2e: no Chrome found; set CHROME_PATH'); return false; }

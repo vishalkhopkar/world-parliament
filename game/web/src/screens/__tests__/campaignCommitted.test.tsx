@@ -15,7 +15,7 @@ const pl = (id: string, colour: string): PlayerPublic => ({ playerId: id, nickna
 const snap = (over: Partial<GameSnapshot> = {}): GameSnapshot => ({
   gameId: 'g', mapId: 'world-500', status: 'campaign', phases: 1,
   timeline: { campaignStart: 0, phaseCloses: [Date.now() + 1e5], campaignEnd: Date.now() + 1e5, countingEnd: Date.now() + 2e5, postCountingEnd: Date.now() + 3e5 },
-  players: [pl('a', '#1F5FBF'), pl('b', '#E8710A')], news: [], polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null, ...over,
+  players: [pl('a', '#1F5FBF'), pl('b', '#E8710A')], news: [], fielding: { 3: [{ playerId: 'a' }], 4: [{ playerId: 'a' }] }, contestedSeats: 2, majority: 2, polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null, ...over,
 });
 const priv = (committed?: PrivateState['committed']): PrivateState => ({ you: 'a', budget: 100, myActions: [], myReports: [], committed });
 const setup = (p: PrivateState, polled: number[] = []) =>
@@ -35,6 +35,11 @@ describe('Campaign map shading of committed voters', () => {
     render(<Campaign />);
     expect(Object.keys(mapProps.last?.fills as object)).toEqual(['4']);
     expect((mapProps.last?.dimmed as Set<number>).has(3)).toBe(true);
+  });
+  it('leaves out a committed seat where the party has no candidate, because those voters returned to the pool', () => {
+    setup(priv([{ seat: 3, band: 5, percent: 50, level: 'HIGH' }, { seat: 9, band: 2, percent: 20, level: 'MEDIUM' }]));
+    render(<Campaign />);
+    expect(Object.keys(mapProps.last?.fills as object)).toEqual(['3']);
   });
   it('passes no fills when nothing is committed', () => {
     setup(priv([]));

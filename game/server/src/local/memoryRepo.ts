@@ -1,6 +1,7 @@
 import type { Action, CoalitionOffer, FinalResult, Government, PlayerId, SeatResult } from '@hp/shared';
+import { applyFieldingChange } from '../core/fielding';
 import type {
-  AddActionOptions, ConnectionRecord, CountPlan, GameRecord, PlayerRecord, Repo, SpendResult, StoredChat, StoredReport,
+  AddActionOptions, ConnectionRecord, CountPlan, FieldingChange, FieldingOutcome, GameRecord, PlayerRecord, Repo, SpendResult, StoredChat, StoredReport,
 } from '../core/types';
 
 const clone = <T>(v: T): T => (v === undefined ? v : structuredClone(v));
@@ -102,6 +103,24 @@ export class MemoryRepo implements Repo {
   }
   async hasActionRef(gameId: string, playerId: PlayerId, clientRef: string) {
     return this.games.get(gameId)?.actionRefs.has(`${playerId}#${clientRef}`) ?? false;
+  }
+  async updateFielding(gameId: string, playerId: PlayerId, change: FieldingChange): Promise<FieldingOutcome> {
+    const g = this.d(gameId);
+    const key = change.clientRef !== undefined ? `${playerId}#${change.clientRef}` : undefined;
+    if (key !== undefined && g.actionRefs.has(key)) return { result: 'duplicate' };
+    const p = g.players.get(playerId);
+    if (!p || p.status !== 'active') return { result: 'inactive' };
+    if (g.game.status !== 'preCampaign') return { result: 'wrong_phase' };
+    const { added, removed, fielded } = applyFieldingChange(p.fielded, change);
+    const delta = (added.length - removed.length) * change.costPerSeat;
+    if (delta > p.budget) return { result: 'insufficient' };
+    if (added.length || removed.length) {
+      p.fielded = fielded;
+      p.budget -= delta;
+      p.fieldingSeq = (p.fieldingSeq ?? 0) + 1;
+      if (key !== undefined) g.actionRefs.add(key);
+    }
+    return { result: 'ok', added, removed, budget: p.budget };
   }
   async listActions(gameId: string) {
     return [...(this.games.get(gameId)?.actions ?? [])].sort((a, b) => a.ts - b.ts).map(clone);

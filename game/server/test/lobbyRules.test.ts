@@ -1,6 +1,6 @@
 // Lobby rules at service level: party identity validation + uniqueness, admission, start conditions, concurrency, rollbacks.
 import { describe, expect, it } from 'vitest';
-import { AVATARS, PARTY_COLOURS, PARTY_SYMBOLS, buildTimeline, countingMsFor, postCountingMsFor } from '@hp/shared';
+import { AVATARS, PARTY_COLOURS, PARTY_SYMBOLS, buildTimeline, countingMsFor, postCountingMsFor, fullyFieldedBudget } from '@hp/shared';
 import type { ErrorCode, PartyIdentity } from '@hp/shared';
 import { GameError } from '../src/core/types';
 import { Ctx } from './helpers';
@@ -201,7 +201,7 @@ describe('start conditions', () => {
     expect((await c.repo.getPlayer(c.gameId, late.playerId))!.status).toBe('rejected');
     expect(c.notifier.closed).toContain('late-c');
     expect((await c.repo.getPlayer(c.gameId, late.playerId))!.budget).toBe(0);
-    for (const p of c.p) expect((await c.repo.getPlayer(c.gameId, p.playerId))!.budget).toBe(c.cfg.budget);
+    for (const p of c.p) expect((await c.repo.getPlayer(c.gameId, p.playerId))!.budget).toBe(fullyFieldedBudget(c.cfg));
     // and cannot join any more
     expect(await code(c.svc.joinGame({ joinCode: c.joinCode, nickname: 'x' }))).toBe('ADMISSION_CLOSED');
   });
@@ -236,7 +236,7 @@ describe('start conditions', () => {
     await c.svc.start(c.gameId, c.p[0].token);
     const priv = c.notifier.to(c.p[1].playerId, 'private') as { private: { budget: number } }[];
     expect(priv).toHaveLength(1);
-    expect(priv[0].private.budget).toBe(c.cfg.budget);
+    expect(priv[0].private.budget).toBe(fullyFieldedBudget(c.cfg));
     expect(c.notifier.to(c.p[1].playerId, 'status')).toHaveLength(1);
     expect(c.notifier.to(c.p[0].playerId, 'private')).toHaveLength(0); // admin has no connection yet: nothing is sent into the void
   });

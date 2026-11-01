@@ -27,6 +27,43 @@ const figures = {
   committedPercent: new Map([['p1', new Map([[1, 30]])], ['p3', new Map([[2, 12.5]])]]),
 };
 
+describe('buildElectionCsv with fielding', () => {
+  it('a party that does not contest a seat has empty cells there, and a vacant seat is empty for every party', () => {
+    const csv = buildElectionCsv([1, 2, 3], {}, [{ playerId: 'a', name: 'A' }, { playerId: 'b', name: 'B' }], {
+      results: [
+        { seat: 1, phase: 0, winner: 'a', shares: { a: 1 } },
+        { seat: 2, phase: 0, winner: 'b', shares: { a: 0.25, b: 0.75 } },
+        { seat: 3, phase: 0, winner: null, shares: {} },
+      ],
+      reputation: new Map([['a', new Map([[1, 5], [2, 6]])], ['b', new Map([[1, 7], [2, 8]])]]),
+      committedPercent: new Map([['a', new Map([[1, 10]])], ['b', new Map([[1, 20]])]]),
+      contestants: new Map([[1, new Set(['a'])], [2, new Set(['a', 'b'])]]),
+    });
+    expect(csv.trim().split('\n').slice(1)).toEqual([
+      '1,Seat 1,100.00,,5,,10.00,',
+      '2,Seat 2,25.00,75.00,6,8,0.00,0.00',
+      '3,Seat 3,,,,,,',
+    ]);
+  });
+
+  it('the report of a finished game leaves the seats a party did not contest empty', async () => {
+    const saved: string[] = [];
+    const c = await new Ctx().inPreCampaign(3, 1);
+    (c.svc as unknown as { d: { reportSink: ReportSink } }).d.reportSink = { saveElectionCsv: async (_n, csv) => { saved.push(csv); } };
+    await c.send(0, { action: 'field', seats: [1, 2] });
+    await c.send(1, { action: 'field', seats: [2] });
+    await c.send(2, { action: 'field', seats: [2] });
+    c.clock.set(c.timeline.preCampaignEnd as number);
+    await c.svc.openCampaign(c.gameId);
+    c.clock.set(c.timeline.campaignStart);
+    await driveTo(c, 'finished');
+    const rows = saved[0].trim().split('\n').map((r) => r.split(','));
+    expect(rows[1].slice(2, 5)[0]).not.toBe(''); // seat 1: party 0 contests
+    expect(rows[1].slice(3, 5)).toEqual(['', '']);
+    expect(rows[8].slice(2).every((x) => x === '')).toBe(true); // seat 8 is vacant
+  });
+});
+
 describe('buildElectionCsv', () => {
   const csv = buildElectionCsv([3, 1, 2], names, parties, figures);
   const lines = csv.trimEnd().split('\n');

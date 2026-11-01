@@ -9,6 +9,17 @@ export interface TaskInput {
   error: string | null;
   /** Server-synchronised time now (ms). */
   now: number;
+  /** The most seats of yours that held a candidate at any moment so far (the overlay keeps it: a withdrawal is a drop from it). */
+  peakFielded?: number;
+}
+
+/** How many seats the painting task asks for ("at least a few"). */
+export const FIELD_TASK_SEATS = 5;
+
+/** Seats where `you` has a candidate. */
+export function fieldedByMe(snapshot: GameSnapshot | null, you: string | undefined): number {
+  if (!snapshot || !you) return 0;
+  return Object.values(snapshot.fielding ?? {}).filter(list => list.some(c => c.playerId === you)).length;
 }
 
 /** The refusal text of a second rally during the cooldown (the mock, the tour and the real server all say "next rally in N s" or "once every"). */
@@ -26,6 +37,12 @@ export function taskDone(id: TaskId, s: TaskInput): boolean {
         || (s.selectedSeat !== null && (s.priv?.nextRallyAt ?? 0) > s.now);
     case 'roadshow':
       return !!s.priv?.myActions.some(a => a.type === 'roadshow');
+    case 'minorRally':
+      return !!s.priv?.myActions.some(a => a.type === 'minorRally');
+    case 'field':
+      return fieldedByMe(s.snapshot, s.priv?.you) >= FIELD_TASK_SEATS;
+    case 'withdraw':
+      return (s.peakFielded ?? 0) > 0 && fieldedByMe(s.snapshot, s.priv?.you) < (s.peakFielded ?? 0);
     case 'govern':
       return s.snapshot?.status === 'finished' || !!s.snapshot?.offers.some(o => o.status === 'accepted' || o.status === 'formed');
   }

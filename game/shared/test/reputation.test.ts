@@ -42,7 +42,7 @@ describe('reputationView (own reputation shown to the player)', () => {
   });
 
   it('the first-mover bonus adds to the own seat', () => {
-    const cfg: MapConfig = { ...TEST_CFG, effects: { ...TEST_CFG.effects, firstMover: { rally: 0.5, roadshow: 0 } } };
+    const cfg: MapConfig = { ...TEST_CFG, effects: { ...TEST_CFG.effects, firstMover: { rally: 0.5, roadshow: 0, minorRally: 0 } } };
     expect(view([act('A', 'rally', 1, T0)], cfg)[1]).toBe(15);
     expect(view([act('B', 'rally', 1, T0), act('A', 'rally', 1, T0 + 1)], cfg)[1]).toBe(10);
   });
@@ -60,9 +60,9 @@ describe('reputationView (own reputation shown to the player)', () => {
   });
 
   it('uses the configured scale', () => {
-    const cfg: MapConfig = { ...TEST_CFG, display: { reputationScale: 100 } };
+    const cfg: MapConfig = { ...TEST_CFG, display: { ...TEST_CFG.display, reputationScale: 100 } };
     expect(view([act('A', 'roadshow', 1, T0)], cfg)[1]).toBe(150);
-    const one: MapConfig = { ...TEST_CFG, display: { reputationScale: 1 } };
+    const one: MapConfig = { ...TEST_CFG, display: { ...TEST_CFG.display, reputationScale: 1 } };
     expect(view([act('A', 'roadshow', 1, T0)], one)[1]).toBe(2); // 1.5 -> 2
   });
 

@@ -29,6 +29,8 @@ export class SfnScheduler implements Scheduler {
     const iso = (ms: number) => new Date(ms).toISOString();
     const input = {
       gameId, timeline,
+      // present only with a pre-campaign: the state machine's Choice skips the wait and OpenCampaign without it
+      ...(timeline.preCampaignEnd !== undefined ? { preCampaignEndIso: iso(timeline.preCampaignEnd) } : {}),
       phaseClosesIso: timeline.phaseCloses.map(iso),
       countingEndIso: iso(timeline.countingEnd),
       postCountingEndIso: iso(timeline.postCountingEnd),

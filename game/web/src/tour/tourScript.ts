@@ -230,3 +230,42 @@ export function replayReveal(plan: RevealPlan, upTo: number): Map<number, { stat
   }
   return out;
 }
+
+// ------------------------------------------------------------------------------------------------ the pre-campaign
+const FIRST_NAMES = [
+  'Aarav', 'Mira', 'Tomas', 'Leila', 'Kofi', 'Ingrid', 'Hana', 'Rafael', 'Zainab', 'Mateo', 'Priya', 'Oleg', 'Amara', 'Jun', 'Sofia', 'Idris',
+];
+const LAST_NAMES = [
+  'Rao', 'Okafor', 'Lindqvist', 'Mendes', 'Tanaka', 'Haddad', 'Novak', 'Banerjee', 'Duarte', 'Kowalski', 'Mwangi', 'Petrov', 'Sato', 'Qureshi', 'Moreau', 'Abara',
+];
+
+/** A made-up candidate name: the same one every time for the same party and seat (the real server draws them from the map's candidates.csv). */
+export function candidateName(partyKey: string, seat: number): string {
+  let h = 2166136261;
+  for (const ch of `${partyKey}:${seat}`) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+  h >>>= 0;
+  return `${FIRST_NAMES[h % FIRST_NAMES.length]} ${LAST_NAMES[Math.floor(h / FIRST_NAMES.length) % LAST_NAMES.length]}`;
+}
+
+/**
+ * Which seats each rival fields in each round of the pre-campaign: all of its own scripted seats plus about half as many
+ * again elsewhere, shuffled, in `rounds` near-equal slices (so the live counts grow step by step). Party index 0 is the
+ * player and is not planned. Seat ids in `seatIds`; `truth` = seat -> party index.
+ */
+export function planRivalFielding(
+  truth: ReadonlyMap<number, number>, seatIds: readonly number[], parties: number, rng: Rng, rounds: number,
+): Map<number, number[][]> {
+  const shuffle = <T,>(xs: T[]) => {
+    for (let i = xs.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [xs[i], xs[j]] = [xs[j], xs[i]]; }
+    return xs;
+  };
+  const out = new Map<number, number[][]>();
+  for (let party = 1; party < parties; party++) {
+    const own = [...truth].filter(([, p]) => p === party).map(([s]) => s);
+    const ownSet = new Set(own);
+    const others = shuffle(seatIds.filter(s => !ownSet.has(s)));
+    const target = shuffle([...own, ...others.slice(0, Math.max(rounds, Math.ceil(own.length * 0.5)))]);
+    out.set(party, Array.from({ length: rounds }, (_, r) => target.slice(Math.floor((r * target.length) / rounds), Math.floor(((r + 1) * target.length) / rounds))));
+  }
+  return out;
+}

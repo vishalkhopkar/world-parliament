@@ -17,6 +17,8 @@ describe('hidden information', () => {
     // a: rally + roadshow + report; b: roadshows only; d: rally + global report
     await c.send(0, { action: 'campaign', type: 'rally', seat: 1 });
     await c.send(0, { action: 'campaign', type: 'roadshow', seat: 2 });
+    await c.send(0, { action: 'campaign', type: 'minorRally', seat: 3 });
+    await c.send(1, { action: 'campaign', type: 'minorRally', seat: 4 });
     await c.send(1, { action: 'campaign', type: 'roadshow', seat: 7 });
     await c.send(1, { action: 'campaign', type: 'roadshow', seat: 7 });
     await c.send(2, { action: 'campaign', type: 'rally', seat: 5 });
@@ -52,20 +54,23 @@ describe('hidden information', () => {
         const text = JSON.stringify(m);
         // roadshows are never visible, not even to their owner outside the owner's own private state
         if (!allowedPrivate.has(m.type)) expect(text).not.toContain('roadshow');
+        // ...and neither are minor rallies
+        if (!allowedPrivate.has(m.type)) expect(text).not.toContain('minorRally');
         // budget / private data only addressed to its owner
         if (m.type === 'hello') {
           expect(m.private.you).toBe(p.playerId);
           expect(JSON.stringify(m.snapshot)).not.toContain('roadshow');
+          expect(JSON.stringify(m.snapshot)).not.toContain('minorRally');
           expect(JSON.stringify(m.snapshot)).not.toContain('budget');
           // snapshot never holds results of undecided seats
           if (m.snapshot.status === 'campaign') expect(Object.keys(m.snapshot.seats)).toHaveLength(0);
-          for (const act of m.private.myActions) expect(['rally', 'roadshow']).toContain(act.type);
+          for (const act of m.private.myActions) expect(['rally', 'minorRally', 'roadshow']).toContain(act.type);
         }
         if (m.type === 'private') expect(m.private.you).toBe(p.playerId);
         // nothing but the owner's own messages carries `budget`
         walk(m, (k, v, path) => {
           if (k === 'budget') {
-            expect(['actionAck', 'report', 'hello', 'private']).toContain(m.type);
+            expect(['actionAck', 'fieldAck', 'report', 'hello', 'private']).toContain(m.type);
             if (m.type === 'hello') expect(path[0]).toBe('private');
           }
           // own rounded reputation: only on the owner's private state / ack

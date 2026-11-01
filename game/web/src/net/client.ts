@@ -228,6 +228,16 @@ export const campaign = (type: ActionType, seat: SeatId) => {
   st().trackAction(clientRef, { type, seat });
   transport.send({ action: 'campaign', type, seat, clientRef });
 };
+function sendField(action: 'field' | 'withdraw', seats: SeatId[]) {
+  if (!seats.length) return;
+  const clientRef = Math.random().toString(36).slice(2, 8);
+  st().trackField(clientRef, seats);
+  transport.send({ action, seats, clientRef });
+}
+/** Pre-campaign: field a candidate in each seat. Answered with a fieldAck, and a fieldingUpdate to everybody. */
+export const fieldCandidates = (seats: SeatId[]) => sendField('field', seats);
+/** Pre-campaign: withdraw the candidate from each seat, refunding its cost. */
+export const withdrawCandidates = (seats: SeatId[]) => sendField('withdraw', seats);
 export const buyReport = (scope: ReportScope, seat?: SeatId) => transport.send({ action: 'buyReport', scope, seat });
 /** Ask for the vote shares + candidates of a seat that has a lead or a result; the answer lands in the store's seatShares. */
 export const peekSeat = (seat: SeatId) => transport.send({ action: 'peekSeat', seat });

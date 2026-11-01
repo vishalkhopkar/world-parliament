@@ -112,7 +112,7 @@ describe('committed voters: privacy', () => {
       const paths = keyPaths(msg, 'committed');
       for (const path of paths) expect(path).toEqual(['private', 'committed']);
       if (paths.length) {
-        expect(msg.type).toBe('hello');
+        expect(['hello', 'private']).toContain(msg.type); // 'private': when the campaign opens
         const i = c.p.findIndex((p) => p.playerId === to);
         expect((msg as Extract<ServerMessage, { type: 'hello' }>).private.committed).toEqual(committedView(all[i], c.cfg));
       }

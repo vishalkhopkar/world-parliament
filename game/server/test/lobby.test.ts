@@ -1,3 +1,4 @@
+import { fullyFieldedBudget } from '@hp/shared';
 import { describe, expect, it } from 'vitest';
 import { Ctx } from './helpers';
 import { GameError } from '../src/core/types';
@@ -17,7 +18,7 @@ describe('lobby', () => {
     const r = await c.svc.start(c.gameId, c.p[0].token);
     expect(r.timeline.phaseCloses).toHaveLength(3);
     expect(c.scheduler.lifecycles).toHaveLength(1);
-    expect((await c.game()).status).toBe('campaign');
+    expect((await c.game()).status).toBe('preCampaign');
     // budgets set
     expect(await c.budget(1)).toBe(c.cfg.budget);
   });
@@ -154,7 +155,7 @@ describe('lobby', () => {
       const priv = c.notifier.to(p.playerId, 'private') as any[];
       expect(priv).toHaveLength(1);
       expect(priv[0].private.you).toBe(p.playerId);
-      expect(priv[0].private.budget).toBe(c.cfg.budget);
+      expect(priv[0].private.budget).toBe(fullyFieldedBudget(c.cfg)); // 2 players: every seat fielded and charged
     }
   });
 });

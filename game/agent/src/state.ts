@@ -1,14 +1,14 @@
 // Client-side game state and event log, maintained by applying every ServerMessage (same idea as web/src/state/store.ts).
 // Pure and synchronous: no network here, so it is unit-testable.
 import type {
-  ActionType, ChatMessage, GameSnapshot, GlobalReports, LobbyView, PlayerId, PrivateState, SeatId, ServerMessage,
+  ActionType, ChatMessage, FieldedCandidate, GameSnapshot, GlobalReports, LobbyView, PlayerId, PrivateState, SeatId, ServerMessage,
 } from '@hp/shared';
 
 export type EventType =
-  | 'news' | 'phaseClosed' | 'seatUpdate' | 'chat' | 'offer' | 'government' | 'result' | 'status' | 'players' | 'report' | 'rematch' | 'error';
+  | 'news' | 'phaseClosed' | 'seatUpdate' | 'chat' | 'offer' | 'government' | 'result' | 'status' | 'players' | 'report' | 'fielding' | 'rematch' | 'error';
 
 export const EVENT_TYPES: readonly EventType[] = [
-  'news', 'phaseClosed', 'seatUpdate', 'chat', 'offer', 'government', 'result', 'status', 'players', 'report', 'rematch', 'error',
+  'news', 'phaseClosed', 'seatUpdate', 'chat', 'offer', 'government', 'result', 'status', 'players', 'report', 'fielding', 'rematch', 'error',
 ];
 
 export interface AgentEvent {
@@ -97,7 +97,7 @@ export interface ClientState {
   polledPhases: Set<number>;
   /** clientRef -> what that campaign message was (so an actionAck can extend myActions). */
   pendingActions: Map<string, { type: ActionType; seat: SeatId }>;
-  /** The campaign started but the server's budget update (sent right after the status event) has not arrived yet. */
+  /** The game started (pre-campaign, or the campaign in a 2-player game) but the server's budget update (sent right after the status event) has not arrived yet. */
   budgetPending: boolean;
   /** The latest answer to a globalReports request (news agencies); not an event, the tool returns it. */
   globalReports: GlobalReports | null;
@@ -120,6 +120,22 @@ export function admissionOf(st: ClientState): Admission {
     case 'rejected': return 'declined';
     default: return 'admitted';
   }
+}
+
+/** A player's candidates added to / removed from the seat -> candidates map (new object; idempotent per player and seat). */
+export function changeFielding(
+  fielding: Record<SeatId, FieldedCandidate[]> | undefined, playerId: PlayerId, added: { seat: SeatId; name?: string }[], removed: SeatId[],
+): Record<SeatId, FieldedCandidate[]> {
+  const out: Record<SeatId, FieldedCandidate[]> = { ...(fielding ?? {}) };
+  for (const seat of removed) {
+    const left = (out[seat] ?? []).filter((c) => c.playerId !== playerId);
+    if (left.length) out[seat] = left; else delete out[seat];
+  }
+  for (const a of added) {
+    const others = (out[a.seat] ?? []).filter((c) => c.playerId !== playerId);
+    out[a.seat] = [...others, { playerId, ...(a.name !== undefined ? { name: a.name } : {}) }];
+  }
+  return out;
 }
 
 export interface Logged { type: EventType; data: Record<string, unknown> }
@@ -150,7 +166,8 @@ export function applyMessage(st: ClientState, m: ServerMessage, localNow: number
       st.budgetPending = false;
       return [];
     case 'status':
-      if (m.status === 'campaign' && snap?.status !== 'campaign' && st.priv && st.priv.budget === 0) st.budgetPending = true;
+      // the budget is granted when the game leaves the lobby: at the pre-campaign (3+ players) or at the campaign (2 players)
+      if ((m.status === 'preCampaign' || m.status === 'campaign') && snap?.status !== 'preCampaign' && snap?.status !== 'campaign' && st.priv && st.priv.budget === 0) st.budgetPending = true;
       if (snap) st.snapshot = { ...snap, status: m.status, timeline: m.timeline };
       return [ev('status', { status: m.status, timeline: m.timeline })];
     case 'players':
@@ -172,6 +189,16 @@ export function applyMessage(st: ClientState, m: ServerMessage, localNow: number
       }
       return [];
     }
+    case 'fieldAck': {
+      st.budgetPending = false;
+      if (st.priv) st.priv = { ...st.priv, budget: m.budget };
+      // fieldingUpdate (to everybody) normally carries the same change; applying it here too is harmless (deduplicated)
+      if (snap && st.me) st.snapshot = { ...snap, fielding: changeFielding(snap.fielding, st.me, m.added, m.removed) };
+      return [];
+    }
+    case 'fieldingUpdate':
+      if (snap) st.snapshot = { ...snap, fielding: changeFielding(snap.fielding, m.playerId, m.added, m.removed), contestedSeats: m.contestedSeats, majority: m.majority };
+      return [ev('fielding', { playerId: m.playerId, added: m.added, removed: m.removed, contestedSeats: m.contestedSeats, majority: m.majority })];
     case 'report':
       st.budgetPending = false;
       if (st.priv) st.priv = { ...st.priv, budget: m.budget, myReports: [...st.priv.myReports, m.report] };

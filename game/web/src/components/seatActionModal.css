@@ -7,6 +7,8 @@
 .sam-sub{margin:0 0 12px;color:var(--muted);font-size:.85rem}
 .sam-committed{margin:-6px 0 10px;font-size:.85rem;font-weight:600;color:var(--green)}
 .sam-reputation{margin:-6px 0 10px;font-size:.85rem;font-weight:600;color:var(--green)}
+.sam-contesting{margin:0 0 12px}
+.sam-contesting h4{margin:0 0 4px;font-family:var(--serif);font-size:.92rem;color:var(--green)}
 .sam-options{display:flex;flex-direction:column;gap:8px}
 .sam-opt{display:flex;flex-direction:column;gap:2px;text-align:left;min-height:52px;padding:9px 12px;border-radius:8px;border:1px solid var(--green);background:var(--ivory);color:var(--ink);cursor:pointer;font:inherit}
 .sam-opt:hover:not(:disabled){background:var(--sandstone);border-color:var(--gold)}

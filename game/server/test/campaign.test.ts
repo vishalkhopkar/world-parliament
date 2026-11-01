@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { analystPrice } from '@hp/shared';
+import { analystPrice, fullyFieldedBudget } from '@hp/shared';
 import { Ctx, TEST_CFG, TEST_MAP } from './helpers';
 
 describe('campaign', () => {
   it('deducts the cost atomically and acks with the new budget', async () => {
     const c = await new Ctx().started(3);
     await c.send(1, { action: 'campaign', type: 'rally', seat: 1, clientRef: 'r1' });
-    expect(await c.budget(1)).toBe(c.cfg.budget - c.cfg.costs.rally);
+    expect(await c.budget(1)).toBe(fullyFieldedBudget(c.cfg) - c.cfg.costs.rally);
     const ack = c.notifier.to(c.p[1].playerId, 'actionAck')[0] as { budget: number; clientRef: string };
-    expect(ack.budget).toBe(c.cfg.budget - c.cfg.costs.rally);
+    expect(ack.budget).toBe(fullyFieldedBudget(c.cfg) - c.cfg.costs.rally);
     expect(ack.clientRef).toBe('r1');
     await c.send(1, { action: 'campaign', type: 'roadshow', seat: 2 });
-    expect(await c.budget(1)).toBe(c.cfg.budget - c.cfg.costs.rally - c.cfg.costs.roadshow);
-    expect(await c.budget(0)).toBe(c.cfg.budget);
+    expect(await c.budget(1)).toBe(fullyFieldedBudget(c.cfg) - c.cfg.costs.rally - c.cfg.costs.roadshow);
+    expect(await c.budget(0)).toBe(fullyFieldedBudget(c.cfg));
   });
 
   it('never overspends', async () => {
@@ -48,7 +48,7 @@ describe('campaign', () => {
     c.clock.set(c.timeline.phaseCloses[0] - 1); // even if the clock were wrong, the stored phase state blocks it
     await c.send(0, { action: 'campaign', type: 'rally', seat: 1 });
     expect(c.lastError(0)?.error).toBe('SEAT_POLLED');
-    expect(await c.budget(0)).toBe(c.cfg.budget - c.cfg.costs.rally);
+    expect(await c.budget(0)).toBe(fullyFieldedBudget(c.cfg) - c.cfg.costs.rally);
   });
 
   it('rejects late actions (server time) and early actions', async () => {
@@ -59,7 +59,7 @@ describe('campaign', () => {
     c.clock.set(c.timeline.campaignEnd);
     await c.send(0, { action: 'campaign', type: 'rally', seat: 1 });
     expect(c.lastError(0)?.error).toBe('TOO_LATE');
-    expect(await c.budget(0)).toBe(c.cfg.budget);
+    expect(await c.budget(0)).toBe(fullyFieldedBudget(c.cfg));
   });
 
   it('rejects malformed actions', async () => {

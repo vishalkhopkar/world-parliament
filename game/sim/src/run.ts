@@ -4,7 +4,7 @@
 // Field mode also prints the seat-balance metrics (landslides >80%, median margin, margin <10 pts).
 // Modes: field (random strategy mix), h2h (2-player matrix), lone, mix (rally-share sweep), checks (analytic), full.
 import fs from 'node:fs';
-import { WORLD_CONFIG, createRng, haversineKm } from '@hp/shared';
+import { WORLD_CONFIG, createRng, fullyFieldedBudget, haversineKm } from '@hp/shared';
 import type { MapConfig } from '@hp/shared';
 import { DEFAULT_POOL, STRATEGIES } from './bots';
 import { runGame } from './game';
@@ -82,7 +82,7 @@ function modeField(w: World, args: Args, out: Record<string, unknown>) {
       }
       if (args.verify) log(`verify: max |incremental - engine| effect diff = ${vmax.toExponential(2)}`);
       log(`\n== FIELD  players=${P} phases=${k} games=${args.games}  (random strategy per seat of the table)  ${(agg.ms / agg.games).toFixed(1)} ms/game`);
-      log(fieldTable(agg, P, w.cfg.seatCount, w.cfg.budget));
+      log(fieldTable(agg, P, w.cfg.seatCount, fullyFieldedBudget(w.cfg)));
       log(`pure-c seats ${pct(agg.pureC / agg.games / w.cfg.seatCount)}   c-only winner == actual winner ${pct(agg.cMatch / agg.games / w.cfg.seatCount)}   actions rejected (frozen seat) ${agg.rejected}   rally cooldown refusals ${agg.cooled}`);
       log(agg.bal.line());
       balP.merge(agg.bal);
@@ -143,8 +143,8 @@ function modeH2H(w: World, args: Args, out: Record<string, unknown>) {
 
 function modeMix(w: World, args: Args, out: Record<string, unknown>) {
   // rally-share sweep: each mix level vs a field of the default pool
-  const levels = ['ROADSHOW', 'MIX10', 'MIX20', 'MIX30', 'MIX50', 'MIX70', 'MIX100E', 'RALLY_EARLY'];
-  const short: Record<string, string> = { ROADSHOW: 'RS', MIX10: 'M10', MIX20: 'M20', MIX30: 'M30', MIX50: 'M50', MIX70: 'M70', RALLY_EARLY: 'RLE', RALLY: 'RL', MIX100E: 'M100E', MIX100: 'M100', MIX50E: 'M50E' };
+  const levels = ['ROADSHOW', 'MIX10', 'MIX20', 'MIX30', 'MIX50', 'MIX70', 'MIX100E', 'RALLY_EARLY', 'MINOR50', 'MINOR100'];
+  const short: Record<string, string> = { ROADSHOW: 'RS', MIX10: 'M10', MIX20: 'M20', MIX30: 'M30', MIX50: 'M50', MIX70: 'M70', RALLY_EARLY: 'RLE', RALLY: 'RL', MIX100E: 'M100E', MIX100: 'M100', MIX50E: 'M50E', MINOR50: 'MN50', MINOR100: 'MN100' };
   for (const P of args.players) {
     for (const k of args.phases) {
       const res: string[] = [];
@@ -248,29 +248,33 @@ function modeLone(w: World, args: Args, out: Record<string, unknown>) {
 
 function modeChecks(w: World, args: Args, out: Record<string, unknown>) {
   const c = w.cfg;
-  const R = c.budget / c.costs.rally;
-  const S = c.budget / c.costs.roadshow;
+  const B = fullyFieldedBudget(c); // what a player has for the campaign once every seat has its candidate (the sim contests all seats)
+  const R = B / c.costs.rally;
+  const S = B / c.costs.roadshow;
   const cR = c.effects.rally.global * R;
   log('== ANALYTIC CHECKS');
-  log(`budget ${c.budget.toLocaleString()}  rally ${c.costs.rally.toLocaleString()} (max ${R.toFixed(1)})  roadshow ${c.costs.roadshow.toLocaleString()} (max ${S.toFixed(1)})  ratio ${(c.costs.rally / c.costs.roadshow).toFixed(2)}`);
+  log(`budget ${c.budget.toLocaleString()} - ${c.seatCount} candidates x ${c.costs.candidate} = campaign budget ${B.toLocaleString()}  rally ${c.costs.rally.toLocaleString()} (max ${R.toFixed(1)})  minor rally ${c.costs.minorRally.toLocaleString()} (max ${(B / c.costs.minorRally).toFixed(1)})  roadshow ${c.costs.roadshow.toLocaleString()} (max ${S.toFixed(1)})  ratio ${(c.costs.rally / c.costs.roadshow).toFixed(2)}`);
   log(`actions affordable: ${R.toFixed(0)} rallies ... ${S.toFixed(0)} roadshows`);
   const tm1 = c.timeMultiplier.end;
   log(`c x R_max = ${cR.toFixed(3)} (x${tm1} late = ${(cR * tm1).toFixed(3)});  s = ${c.effects.roadshow.local};  s / (c R) = ${(c.effects.roadshow.local / cR).toFixed(2)};  s / (${tm1} c R) = ${(c.effects.roadshow.local / (tm1 * cR)).toFixed(2)}`);
   log(`y = ${c.effects.rally.local}, c = ${c.effects.rally.global}; s/y = ${(c.effects.roadshow.local / c.effects.rally.local).toFixed(2)}`);
   const unit = c.effects.distanceUnitKm;
-  log(`Gaussian spill (distance unit ${unit} km): rally ${c.effects.rally.local} x exp(-${c.effects.rally.decay.spread} x^2), 0 beyond ${c.effects.rally.decay.maxKm} km, plus ${c.effects.rally.global} to EVERY seat;  roadshow ${c.effects.roadshow.local} x exp(-${c.effects.roadshow.decay.spread} x^2), 0 beyond ${c.effects.roadshow.decay.maxKm} km, no global part`);
+  log(`Gaussian spill (distance unit ${unit} km): rally ${c.effects.rally.local} x exp(-${c.effects.rally.decay.spread} x^2), 0 beyond ${c.effects.rally.decay.maxKm} km, plus ${c.effects.rally.global} to EVERY seat;  minor rally ${c.effects.minorRally.local} x exp(-${c.effects.minorRally.decay.spread} x^2), 0 beyond ${c.effects.minorRally.decay.maxKm} km, no global part;  roadshow ${c.effects.roadshow.local} x exp(-${c.effects.roadshow.decay.spread} x^2), 0 beyond ${c.effects.roadshow.decay.maxKm} km, no global part`);
   const rcamp = Math.ceil(c.durations.campaignMs / c.cooldowns.rallyMs);
   log(`rally cooldown ${c.cooldowns.rallyMs / 1000} s: at most ${rcamp} rallies per player in a ${c.durations.campaignMs / 1000} s campaign; the budget buys ${Math.floor(R)}, so the cooldown ${rcamp >= Math.floor(R) ? 'never binds on money alone' : 'BINDS before the money runs out'} (it only forces the rallies to be spread out); roadshows have no cooldown`);
   {
     const kk = w.kernels;
-    let rT = 0; let sT = 0;
-    for (let i = 0; i < kk.n; i++) for (let j = 0; j < kk.n; j++) { rT += kk.rally[i * kk.n + j]; sT += kk.roadshow[i * kk.n + j]; }
-    rT = rT / kk.n + c.effects.rally.global * kk.n; sT /= kk.n;
+    let rT = 0; let sT = 0; let mT = 0;
+    for (let i = 0; i < kk.n; i++) for (let j = 0; j < kk.n; j++) { rT += kk.rally[i * kk.n + j]; sT += kk.roadshow[i * kk.n + j]; mT += kk.minorRally[i * kk.n + j]; }
+    rT = rT / kk.n + c.effects.rally.global * kk.n; sT /= kk.n; mT /= kk.n;
     const gaussOnly = rT - c.effects.rally.global * kk.n;
     log(`total effect of one action over all ${kk.n} seats (mean over home seats): rally ${rT.toFixed(1)} (of which the global floor ${(100 * c.effects.rally.global * kk.n / rT).toFixed(0)}%, Gaussian ${gaussOnly.toFixed(1)}), roadshow ${sT.toFixed(2)};  y = ${(rT / sT).toFixed(1)};  price ratio ${(c.costs.rally / c.costs.roadshow).toFixed(1)} = ${((c.costs.rally / c.costs.roadshow) / (rT / sT)).toFixed(2)} y`);
+    const per1000 = (total: number, cost: number) => ((1000 * total) / cost).toFixed(1);
+    log(`minor rally: total effect over all seats ${mT.toFixed(2)} (a rally ${rT.toFixed(1)}, a roadshow ${sT.toFixed(2)}); effect per 1,000 spent: major rally ${per1000(rT, c.costs.rally)}, minor rally ${per1000(mT, c.costs.minorRally)}, roadshow ${per1000(sT, c.costs.roadshow)}`);
   }
   log(`km:     ${[0, 25, 50, 75, 100, 150, 200, 300, 400, 500].map((d) => pad(d, 7)).join('')}`);
   log(`rally:  ${[0, 25, 50, 75, 100, 150, 200, 300, 400, 500].map((d) => pad((d > c.effects.rally.decay.maxKm ? 0 : c.effects.rally.local * Math.exp(-c.effects.rally.decay.spread * (d / unit) ** 2)).toFixed(2), 7)).join('')}   (+${c.effects.rally.global} everywhere)`);
+  log(`minor:  ${[0, 25, 50, 75, 100, 150, 200, 300, 400, 500].map((d) => pad((d > c.effects.minorRally.decay.maxKm ? 0 : c.effects.minorRally.local * Math.exp(-c.effects.minorRally.decay.spread * (d / unit) ** 2)).toFixed(2), 7)).join('')}`);
   log(`road:   ${[0, 25, 50, 75, 100, 150, 200, 300, 400, 500].map((d) => pad((d > c.effects.roadshow.decay.maxKm ? 0 : c.effects.roadshow.local * Math.exp(-c.effects.roadshow.decay.spread * (d / unit) ** 2)).toFixed(2), 7)).join('')}`);
   const cs = c.costs.roadshow;
   log(`seat report ${c.analyst.seatReport.start.toLocaleString()} -> ${c.analyst.seatReport.end.toLocaleString()} = ${(c.analyst.seatReport.start / cs).toFixed(1)} -> ${(c.analyst.seatReport.end / cs).toFixed(1)} roadshows (end/start ${(c.analyst.seatReport.end / c.analyst.seatReport.start).toFixed(2)})`);

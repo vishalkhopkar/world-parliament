@@ -22,7 +22,7 @@ const a: PlayerPublic = { playerId: 'a', nickname: 'Asha', isAdmin: true, status
 const snap = (): GameSnapshot => ({
   gameId: 'g', mapId: 'world-500', status: 'finished', phases: 2,
   timeline: { campaignStart: 0, phaseCloses: [1, 2], campaignEnd: 2, countingEnd: 3, postCountingEnd: 4 },
-  players: [a], news: [], polledPhases: [], seats: { 7: { seat: 7, status: 'won', playerId: 'a' } },
+  players: [a], news: [], fielding: {}, contestedSeats: 100, majority: 51, polledPhases: [], seats: { 7: { seat: 7, status: 'won', playerId: 'a' } },
   tally: { leads: {}, wins: { a: 1 }, declared: 1, total: 500 }, offers: [], government: null,
   result: { outcome: 'majority', tally: { a: 1 }, winners: ['a'], government: null, points: [{ playerId: 'a', portfolioPoints: 0, seatPoints: 1, governmentFloor: 0, total: 1 }] },
 });

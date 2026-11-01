@@ -1,4 +1,4 @@
-import { AVATARS, WORLD_CONFIG, PARTY_COLOURS, PARTY_SYMBOLS, buildKernels } from '@hp/shared';
+import { AVATARS, WORLD_CONFIG, PARTY_COLOURS, PARTY_SYMBOLS, buildKernels, hasPreCampaign } from '@hp/shared';
 import type { ClientMessage, GameMapPackage, GameMapSeat, GameTimeline, MapConfig, PlayerId, ServerMessage } from '@hp/shared';
 import { GameService } from '../src/core/gameService';
 import type { Clock, GameRecord, MapProvider, Notifier, Repo, Scheduler } from '../src/core/types';
@@ -6,25 +6,31 @@ import { MemoryRepo } from '../src/local/memoryRepo';
 
 export const T0 = 1_000_000_000;
 
+const CANDIDATE_COST = 50;
+/** The test budget of a map with `seats` seats: 100,000 left for the campaign after fielding on every seat (fullyFieldedBudget). */
+export function testBudget(seats: number): number { return 100_000 + seats * CANDIDATE_COST; }
+
 export const TEST_CFG: MapConfig = {
   ...WORLD_CONFIG,
   mapId: 'test',
   seatCount: 8,
-  budget: 100_000,
+  // 100,000 is what a party has for the campaign once it has a candidate on all 8 seats (see testBudget)
+  budget: testBudget(8),
   // the long-standing private-chat tests run one-to-one from counting; groupChat.test.ts covers the shipped modes
   chat: { campaigning: 'OFF' },
-  costs: { rally: 1000, roadshow: 300 },
+  costs: { rally: 1000, roadshow: 300, minorRally: 500, candidate: CANDIDATE_COST },
   analyst: { ...WORLD_CONFIG.analyst, seatReport: { start: 100, end: 300, enabled: true }, globalReport: { start: 500, end: 1000, enabled: true }, delayMs: 1000 },
   effects: {
     distanceUnitKm: 100,
     rally: { local: 1.0, global: 0.01, decay: { spread: 0.5, maxKm: 500 } },
     roadshow: { local: 1.5, decay: { spread: 2.8, maxKm: 150 } },
-    firstMover: { rally: 0, roadshow: 0 }, // off in the shared server test config
+    minorRally: { local: 0.5, decay: { spread: 0.5, maxKm: 300 } },
+    firstMover: { rally: 0, roadshow: 0, minorRally: 0 }, // off in the shared server test config
   },
   cooldowns: { rallyMs: 30_000 },
-  display: { reputationScale: 10 }, // a round scale for the tests (the shipped file uses 4)
+  display: { reputationScale: 10, brushRadiusPx: 14 }, // a round scale for the tests (the shipped file uses 4)
   durations: {
-    campaignMs: 60_000, countingMs: 30_000, countingMsTwoPlayers: 10_000, countingStepMs: 1_000, postCountingMs: 10_000, postCountingMsTwoPlayers: 0, graceMs: 5_000,
+    preCampaignMs: 20_000, campaignMs: 60_000, countingMs: 30_000, countingMsTwoPlayers: 10_000, countingStepMs: 1_000, postCountingMs: 10_000, postCountingMsTwoPlayers: 0, graceMs: 5_000,
   },
 };
 
@@ -114,7 +120,7 @@ export class Ctx {
   svc: GameService;
   constructor(opts: CtxOptions = {}) {
     this.map = opts.map ?? TEST_MAP;
-    this.cfg = opts.cfg ?? { ...TEST_CFG, mapId: this.map.mapId, seatCount: this.map.seatCount };
+    this.cfg = opts.cfg ?? { ...TEST_CFG, mapId: this.map.mapId, seatCount: this.map.seatCount, budget: testBudget(this.map.seatCount) };
     this.maps = (id) => (id === this.map.mapId
       ? { map: this.map, cfg: this.cfg, kernels: buildKernels(this.map, this.cfg), ...(opts.candidates ? { candidates: opts.candidates } : {}) }
       : undefined);
@@ -146,11 +152,28 @@ export class Ctx {
     return this;
   }
 
-  /** Lobby + start + everyone connected; clock at campaignStart. */
-  async started(n: number, phases = 3): Promise<this> {
+  /** Lobby + start + everyone connected, status 'preCampaign' with 3+ players ('campaign' with 2), clock untouched. */
+  async inPreCampaign(n: number, phases = 3): Promise<this> {
     await this.lobby(n, phases);
     await this.svc.start(this.gameId, this.players[0].token);
     for (const p of this.players) await this.svc.connect(this.gameId, p.token, p.conn);
+    return this;
+  }
+
+  /** Every player fields on every seat, the pre-campaign deadline passes and the campaign opens (3+ players only). */
+  async fieldEverywhereAndOpen(): Promise<void> {
+    const seats = this.map.seats.map((s) => s.id);
+    for (const p of this.players) {
+      await this.svc.field((await this.repo.getPlayer(this.gameId, p.playerId))!, seats);
+    }
+    this.clock.set(this.timeline.preCampaignEnd as number);
+    await this.svc.openCampaign(this.gameId);
+  }
+
+  /** Lobby + start + everyone connected (with 3+ players: fielded on every seat, through the pre-campaign); clock at campaignStart. */
+  async started(n: number, phases = 3): Promise<this> {
+    await this.inPreCampaign(n, phases);
+    if (hasPreCampaign(n)) await this.fieldEverywhereAndOpen();
     this.clock.set(this.timeline.campaignStart);
     return this;
   }

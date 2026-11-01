@@ -63,14 +63,24 @@ async function main() {
   let rallyAfter = 0;
   const RALLY_MARGIN_MS = 600;
   const offerResponded = new Set<string>();
+  // 3+ players start in the pre-campaign: field a candidate in every seat (the campaign needs one to act there); 2 players are fielded automatically
+  let fieldingSent = false;
+  const fieldEverywhere = () => {
+    if (fieldingSent) return;
+    fieldingSent = true;
+    const ids = PKG.seats.map(x => x.id);
+    for (let i = 0; i < ids.length; i += 100) send({ action: 'field', seats: ids.slice(i, i + 100) });
+    log('pre-campaign: fielding a candidate in every seat');
+  };
   ws.onmessage = ev => {
     const m = JSON.parse(String(ev.data)) as ServerMessage;
     switch (m.type) {
-      case 'hello': budget = m.private.budget; if (m.snapshot.timeline) { campaignStart = m.snapshot.timeline.campaignStart; campaignEnd = m.snapshot.timeline.campaignEnd; } break;
+      case 'hello': budget = m.private.budget; if (m.snapshot.status === 'preCampaign') fieldEverywhere(); if (m.snapshot.timeline) { campaignStart = m.snapshot.timeline.campaignStart; campaignEnd = m.snapshot.timeline.campaignEnd; } break;
       case 'private': budget = m.private.budget; break;
+      case 'fieldAck': budget = m.budget; break;
       case 'actionAck': budget = m.budget; if (m.nextRallyAt) rallyAfter = m.nextRallyAt + RALLY_MARGIN_MS; break;
       case 'report': budget = m.budget; log('report', m.report.scope, m.report.entries.map(e => `${e.rank}.${(e.estimate * (m.report.scope === 'seat' ? 100 : 1)).toFixed(0)}`).join(' ')); break;
-      case 'status': if (m.timeline) { campaignStart = m.timeline.campaignStart; campaignEnd = m.timeline.campaignEnd; } if (m.status === 'campaign') started = true; if (m.status === 'counting') { countingSeen = true; log('counting started'); } break;
+      case 'status': if (m.timeline) { campaignStart = m.timeline.campaignStart; campaignEnd = m.timeline.campaignEnd; } if (m.status === 'preCampaign') fieldEverywhere(); if (m.status === 'campaign') started = true; if (m.status === 'counting') { countingSeen = true; log('counting started'); } break;
       case 'phaseClosed': m.seats.forEach(s => polled.add(s)); log(`phase ${m.phase + 1} closed (${m.seats.length} seats)`); break;
       case 'news': if (m.item.playerId !== playerId) lastSeatName = seatName.get(m.item.seat) ?? ''; break;
       case 'offer':
@@ -94,6 +104,7 @@ async function main() {
   while (!started) await sleep(500);
   await sleep(6000);
   log('campaign running; budget', budget);
+  const campaignBudget = budget; // what is left after the candidates: the campaign spending is paced against this
   // Fast pacing (designer: 4 s per decision was too slow): one decision every TICK_MS, budget spread evenly over the
   // remaining campaign so the bot never runs dry early; a rally roughly every 5th action; two global reports.
   const TICK_MS = Number(flag('tick', '600'));
@@ -104,8 +115,8 @@ async function main() {
     const open = PKG.seats.map(s => s.id).filter(id => !polled.has(id));
     // pace: by time fraction f of the campaign, spend at most f of the (budget minus report reserve), plus one rally of slack
     const f = campaignEnd > campaignStart ? Math.min(1, Math.max(0, (Date.now() - campaignStart) / (campaignEnd - campaignStart))) : 1;
-    const allowedSpent = f * (CFG.budget - reportBudget) + CFG.costs.rally;
-    const spendable = Math.min(budget - (reports < 2 ? reportBudget : 0), allowedSpent - (CFG.budget - budget));
+    const allowedSpent = f * (campaignBudget - reportBudget) + CFG.costs.rally;
+    const spendable = Math.min(budget - (reports < 2 ? reportBudget : 0), allowedSpent - (campaignBudget - budget));
     // a rally roughly every 5th action, but never inside the rally cooldown (30 s): in between it plays roadshows (no cooldown)
     const type = tick % 5 === 0 && spendable >= CFG.costs.rally && Date.now() >= rallyAfter ? 'rally' : 'roadshow';
     if (type === 'rally') rallyAfter = Date.now() + CFG.cooldowns.rallyMs + RALLY_MARGIN_MS; // provisional until the ack names the exact time

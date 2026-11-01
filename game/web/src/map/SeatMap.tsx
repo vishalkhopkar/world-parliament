@@ -10,11 +10,38 @@ import { DEFAULT_MAP_ID } from '@hp/shared';
 import type { SeatId } from '@hp/shared';
 import { coarseTopoUrl, detailTopoUrl, loadTopo, manifestFor } from './mapData';
 import { selectMapId, useStore } from '../state/store';
+import candidateFigureSvg from '../assets/candidate-figure.svg?raw';
+import { FINE_POINTER, brushZoomFilter, interpolateStroke, isDrag, seatsUnderBrush } from '../lib/brush';
+import type { Pt } from '../lib/brush';
+import { FIGURE_WIDTH_PX, MAX_FIGURES, figuresToShow, popsIn } from '../lib/fielding';
+import type { CandidateParty } from '../lib/fielding';
+import type { SmokeGains } from '../lib/repSmoke';
+import { useMediaQuery } from '../lib/useMediaQuery';
 
 const DETAIL_K = 4;
 /** Badges (e.g. reputation) only show once zoomed in this many times past the fitted view; the whole-world view stays uncluttered. */
 const BADGE_MIN_ZOOM = 3;
 const NEUTRAL = '#d3d0c6';
+/** Height of a candidate figure on the map, in screen pixels (its width is FIGURE_WIDTH_PX). */
+const FIGURE_HEIGHT_PX = 16;
+const FIGURE_SYMBOL_ID = 'hp-candidate';
+/** Room for the "+n" after a row of figures, in screen pixels. */
+const MORE_WIDTH_PX = 16;
+
+const figureDoc = () => new DOMParser().parseFromString(candidateFigureSvg, 'image/svg+xml').documentElement;
+/** The candidate figure (assets/candidate-figure.svg) as a shared symbol, with a white halo so it reads on a seat of its own colour. */
+function addFigureSymbol(defs: d3.Selection<SVGDefsElement, unknown, null, undefined>) {
+  const doc = figureDoc();
+  const sym = defs.append('symbol').attr('id', FIGURE_SYMBOL_ID).attr('viewBox', doc.getAttribute('viewBox')).attr('fill', doc.getAttribute('fill'))
+    .attr('stroke-linecap', doc.getAttribute('stroke-linecap')).attr('stroke-linejoin', doc.getAttribute('stroke-linejoin'));
+  const width = Number(doc.getAttribute('stroke-width'));
+  const layer = (stroke: string | null, strokeWidth: number, colour: string | null) => {
+    const g = sym.append('g').attr('stroke', stroke).attr('stroke-width', strokeWidth).attr('color', colour);
+    for (const child of Array.from(doc.children)) g.node()!.appendChild(child.cloneNode(true));
+  };
+  layer('#fff', width * 2, '#fff');
+  layer(doc.getAttribute('stroke'), width, null);
+}
 
 /** Number colour on a badge: white on dark party colours, near-black on light ones. */
 export function badgeInk(hex: string): string {
@@ -49,8 +76,14 @@ export interface SeatMapProps {
   mapId?: string;
   /** Optional seat centres in projected space (map package x,y); falls back to the polygon centroid. */
   centres?: Record<SeatId, [number, number]>;
-  /** Change `key` to float a green "+N" up from each seat in `seats` (own reputation gained); `globalText` = one label at a random visible spot. */
-  gains?: { key: number; seats: Record<SeatId, number>; globalText?: string } | null;
+  /** Change `key` to float smoke up: green "+N" from `seats` (own reputation gained) and `refunds`, red "-N" from `spends`; `globalText` = one label at a random visible spot. */
+  gains?: SmokeGains | null;
+  /** Paint brush (pre-campaign, fine pointers only): a left-button stroke reports the seats under the brush; the map then pans by right-drag or Space+drag. */
+  brush?: { radiusPx: number; onPaint(seats: SeatId[]): void; onStrokeEnd(): void };
+  /** seat -> the parties with a candidate there, drawn as stick figures in this order. */
+  candidates?: Record<SeatId, CandidateParty[]>;
+  /** The seats the player contests: any other seat is faded. Missing = nothing is faded. */
+  contesting?: ReadonlySet<SeatId>;
 }
 export interface SeatMapHandle { zoomToSeat(seat: SeatId): void; reset(): void }
 
@@ -73,6 +106,7 @@ const toFeatures = (topo: Topology): SeatFeature[] => {
 export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(props, ref) {
   const svgRef = useRef<SVGSVGElement>(null);
   const tipRef = useRef<HTMLDivElement>(null);
+  const brushRef = useRef<HTMLDivElement>(null);
   const api = useRef<Api | null>(null);
   const propsRef = useRef(props);
   propsRef.current = props;
@@ -82,6 +116,8 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
   // the map of the current game (store), never a hard-coded one; `props.mapId` overrides it
   const storeMapId = useStore(selectMapId);
   const mapId = props.mapId ?? storeMapId ?? DEFAULT_MAP_ID;
+  const finePointer = useMediaQuery(FINE_POINTER);
+  const brushing = !!props.brush && finePointer;
 
   useImperativeHandle(ref, () => ({
     zoomToSeat: s => api.current?.zoomToSeat(s),
@@ -95,6 +131,7 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
     const svgEl = svgRef.current!, tip = tipRef.current!;
     const svg = d3.select(svgEl);
     const defs = svg.append('defs');
+    addFigureSymbol(defs);
     const hatch = defs.append('pattern').attr('id', 'hp-hatch').attr('patternUnits', 'userSpaceOnUse').attr('width', 6).attr('height', 6);
     hatch.append('rect').attr('width', 6).attr('height', 6).attr('fill', NEUTRAL);
     hatch.append('path').attr('d', 'M-1,1 l2,-2 M0,6 l6,-6 M5,7 l2,-2').attr('stroke', '#7d7a6c').attr('stroke-width', 1);
@@ -104,6 +141,7 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
     const gSeats = gZoom.append('g');
     const gLabels = gZoom.append('g').attr('class', 'seat-labels');
     const gBadges = gZoom.append('g').attr('class', 'seat-badges');
+    const gCandidates = gZoom.append('g').attr('class', 'seat-candidate-figures');
     const gHits = gZoom.append('g');
     const gFx = gZoom.append('g').attr('class', 'fx');
     const hl = gZoom.append('path').attr('class', 'hl').style('display', 'none');
@@ -134,7 +172,8 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
         .classed('won', d => !committed && !!fills[d.properties.seat] && !p.leading?.has(d.properties.seat))
         .classed('committed', d => committed && !!fills[d.properties.seat])
         .classed('selected', d => d.properties.seat === p.selectedSeat)
-        .classed('blurred', d => !!p.blurred?.has(d.properties.seat));
+        .classed('blurred', d => !!p.blurred?.has(d.properties.seat))
+        .classed('faded', d => !!p.contesting && !p.contesting.has(d.properties.seat));
       const sf = p.selectedSeat != null ? featById.get(p.selectedSeat) : undefined;
       if (sf) showPath(sel as PSel, path(sf)); else hidePath(sel as PSel);
     }
@@ -188,6 +227,54 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
       placeBadges();
     }
 
+    // candidate figures: a row of stick figures at the seat's centre, constant on-screen size, as many as the seat has room for
+    type Cand = { id: SeatId; parties: CandidateParty[]; x: number; y: number; size: number; laidOut?: string };
+    let figuresDrawn = false; // what is there when the map first appears does not pop in
+    function placeCandidates() {
+      gCandidates.selectAll<SVGGElement, Cand>('g.seat-candidates')
+        .attr('transform', d => `translate(${d.x},${d.y}) scale(${1 / kNow})`)
+        .each(function (d) {
+          const { shown, extra } = figuresToShow(d.parties.length, d.size * kNow);
+          const key = `${shown}/${extra}`;
+          if (d.laidOut === key) return; // most zoom steps change no row
+          d.laidOut = key;
+          const left = -(shown * FIGURE_WIDTH_PX + (extra ? MORE_WIDTH_PX : 0)) / 2;
+          const g = d3.select(this);
+          g.selectAll<SVGGElement, CandidateParty>('g.candidate-figure')
+            .attr('transform', (_p, i) => `translate(${left + i * FIGURE_WIDTH_PX},${-FIGURE_HEIGHT_PX / 2})`)
+            .style('display', (_p, i) => (i < shown ? null : 'none'));
+          g.select('text.candidate-more').attr('x', left + shown * FIGURE_WIDTH_PX + 1).text(`+${extra}`).style('display', () => (extra ? null : 'none'));
+        });
+    }
+    function drawCandidates() {
+      const candidates = propsRef.current.candidates ?? {};
+      const rows: Cand[] = [];
+      for (const id of Object.keys(candidates).map(Number)) {
+        const f = featById.get(id), c = f && centre(id); if (!f || !c) continue;
+        const b = path.bounds(f);
+        rows.push({ id, parties: candidates[id], x: c[0], y: c[1], size: Math.max(b[1][0] - b[0][0], b[1][1] - b[0][1]) });
+      }
+      // a big arrival (a large hello followed by one update per party, a 2-player start) is not news: only small changes pop in
+      const before = new Map(gCandidates.selectAll<SVGGElement, Cand>('g.seat-candidates').data().map(d => [d.id, d.parties]));
+      const fresh = rows.reduce((n, r) => n + r.parties.slice(0, MAX_FIGURES).filter(p => !before.get(r.id)?.some(o => o.id === p.id)).length, 0);
+      const pop = figuresDrawn && popsIn(fresh);
+      const seatRows = gCandidates.selectAll<SVGGElement, Cand>('g.seat-candidates').data(rows, d => d.id).join(enter => {
+        const e = enter.append('g').attr('class', 'seat-candidates').attr('data-seat', d => d.id);
+        e.append('text').attr('class', 'candidate-more').attr('dy', '0.35em');
+        return e;
+      });
+      seatRows.each(function (d) {
+        d3.select(this).selectAll<SVGGElement, CandidateParty>('g.candidate-figure').data(d.parties.slice(0, MAX_FIGURES), p => p.id).join(enter => {
+          const e = enter.append('g').attr('class', 'candidate-figure' + (pop ? ' pop' : ''))
+            .on('animationend', function () { d3.select(this).classed('pop', false); }); // a figure coming back after a zoom must not pop again
+          e.append('use').attr('href', `#${FIGURE_SYMBOL_ID}`).attr('width', FIGURE_WIDTH_PX).attr('height', FIGURE_HEIGHT_PX);
+          return e;
+        }).style('color', p => p.colour).order();
+      });
+      if (featById.size) figuresDrawn = true;
+      placeCandidates();
+    }
+
     function onMove(e: MouseEvent) {
       tip.style.left = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8) + 'px';
       tip.style.top = (e.clientY + 16) + 'px';
@@ -197,17 +284,18 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
       showPath(hl as PSel, path(f)); tip.textContent = nameOf(id); tip.style.display = 'block'; onMove(e);
     }
     function onLeave() { hidePath(hl as PSel); tip.style.display = 'none'; }
-    const click = (id: SeatId) => propsRef.current.onSeatClick?.(id);
+    let swallowClick = false; // the click the browser sends at the end of a brush stroke
+    const click = (id: SeatId) => { if (!swallowClick) propsRef.current.onSeatClick?.(id); };
 
     function draw() {
       featById.clear(); features.forEach(f => featById.set(f.properties.seat, f));
       gSeats.selectAll<SVGPathElement, SeatFeature>('path.seat').data(features, d => d.properties.seat).join(
-        enter => enter.append('path').attr('class', 'seat')
+        enter => enter.append('path').attr('class', 'seat').attr('data-seat', d => d.properties.seat)
           .on('mouseenter', (e: MouseEvent, d) => onEnter(e, d.properties.seat)).on('mousemove', onMove).on('mouseleave', onLeave)
           .on('click', (_e, d) => click(d.properties.seat)),
         update => update, exit => exit.remove(),
       ).attr('d', path);
-      style(); drawLabels(); drawBadges();
+      style(); drawLabels(); drawBadges(); drawCandidates();
     }
 
     function buildHits() {
@@ -217,7 +305,7 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
         if (Math.max(w, h) < 9) small.push({ id: f.properties.seat, cx: (b[0][0] + b[1][0]) / 2, cy: (b[0][1] + b[1][1]) / 2 });
       });
       gHits.selectAll<SVGCircleElement, { id: SeatId; cx: number; cy: number }>('circle').data(small, d => d.id).join('circle')
-        .attr('class', 'hit').attr('cx', d => d.cx).attr('cy', d => d.cy).attr('r', 7 / kNow)
+        .attr('class', 'hit').attr('data-seat', d => d.id).attr('cx', d => d.cx).attr('cy', d => d.cy).attr('r', 7 / kNow)
         .on('mouseenter', (e: MouseEvent, d) => onEnter(e, d.id)).on('mousemove', onMove).on('mouseleave', onLeave)
         .on('click', (_e, d) => click(d.id));
     }
@@ -250,11 +338,74 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
       blurStd.attr('stdDeviation', 2.5 / t.k);
       const on = kNow / baseT.k >= BADGE_MIN_ZOOM;
       if (on !== badgesShown) { badgesShown = on; setZoomedIn(on); }
-      placeLabels(); placeBadges();
+      placeLabels(); placeBadges(); placeCandidates();
       hatch.attr('patternTransform', `scale(${1 / t.k})`);
       if (t.k / baseT.k > DETAIL_K && !detail && !detailLoading) void loadDetail();
     }
     const endDrag = () => { dragStart = null; svg.classed('dragging', false); };
+
+    // ---- paint brush: fine pointers only. d3-zoom keeps the wheel, right-drag and Space+drag; touch keeps d3's pan and tap.
+    const brushOn = () => !!propsRef.current.brush && typeof window.matchMedia === 'function' && window.matchMedia(FINE_POINTER).matches;
+    let spaceHeld = false, overMap = false;
+    let stroke: { last: Pt; moved: boolean } | null = null;
+    zoom.filter(e => brushZoomFilter(e, brushOn(), spaceHeld));
+    const moveBrush = (e: MouseEvent) => {
+      const b = brushRef.current; if (!b) return;
+      b.style.display = 'block'; b.style.transform = `translate(${e.clientX}px,${e.clientY}px)`;
+    };
+    const hideBrush = () => { if (brushRef.current) brushRef.current.style.display = 'none'; };
+    const paint = (points: Pt[]) => {
+      const b = propsRef.current.brush; if (!b) return;
+      const seats = seatsUnderBrush(points, b.radiusPx, (x, y) => document.elementsFromPoint(x, y), svgEl);
+      if (seats.length) b.onPaint(seats);
+    };
+    function strokeEnd() {
+      window.removeEventListener('pointermove', strokeMove);
+      window.removeEventListener('pointerup', strokeEnd);
+      window.removeEventListener('pointercancel', strokeEnd);
+      const s = stroke; stroke = null;
+      if (!s?.moved) return;
+      propsRef.current.brush?.onStrokeEnd();
+      setTimeout(() => { swallowClick = false; }, 100); // the click comes right after pointerup, if it comes at all (a new press clears this at once)
+    }
+    function strokeMove(e: PointerEvent) {
+      if (!stroke) return;
+      if (e.buttons === 0) { strokeEnd(); return; } // the button came up outside the window
+      moveBrush(e);
+      const p: Pt = [e.clientX, e.clientY];
+      if (!stroke.moved) {
+        if (!isDrag(stroke.last, p)) return;
+        stroke.moved = true; swallowClick = true;
+        paint([stroke.last]);
+      }
+      paint(interpolateStroke(stroke.last, p, propsRef.current.brush?.radiusPx ?? 1));
+      stroke.last = p;
+    }
+    const typingIn = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(t.tagName));
+    const setSpace = (held: boolean) => { spaceHeld = held; svg.classed('brush-pan', held); };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || !brushOn() || !overMap || typingIn(e.target)) return;
+      e.preventDefault(); // no page scroll
+      setSpace(true);
+    };
+    const onKeyUp = (e: KeyboardEvent) => { if (e.code === 'Space') setSpace(false); };
+    const onBlur = () => setSpace(false);
+    svg.on('pointerdown.brush', (e: PointerEvent) => {
+      swallowClick = false;
+      if (!brushOn() || e.pointerType === 'touch' || e.button !== 0 || spaceHeld) return;
+      (document.activeElement as HTMLElement | null)?.blur?.(); // the mousedown below keeps focus from moving, and Space must not type into the chat
+      stroke = { last: [e.clientX, e.clientY], moved: false };
+      window.addEventListener('pointermove', strokeMove);
+      window.addEventListener('pointerup', strokeEnd);
+      window.addEventListener('pointercancel', strokeEnd);
+    });
+    svg.on('mousedown.brush', (e: MouseEvent) => { if (brushOn() && e.button === 0 && !spaceHeld) e.preventDefault(); }); // a stroke selects no text
+    svg.on('contextmenu.brush', (e: MouseEvent) => { if (brushOn()) e.preventDefault(); }); // the right button pans
+    svg.on('pointermove.brush', (e: PointerEvent) => { if (e.pointerType === 'touch') return; overMap = true; moveBrush(e); });
+    svg.on('pointerleave.brush', () => { overMap = false; if (!stroke) hideBrush(); });
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', onBlur);
 
     zoom.on('zoom', zoomed);
     zoom.on('start.drag', (e: d3.D3ZoomEvent<SVGSVGElement, unknown>) => {
@@ -280,7 +431,7 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
     };
 
     api.current = {
-      update: () => { style(); drawLabels(); drawBadges(); },
+      update: () => { style(); drawLabels(); drawBadges(); drawCandidates(); },
       pulse: p => {
         const c = centre(p.seat); if (!c) return;
         const col = p.colour ?? '#e0476a';
@@ -300,6 +451,8 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
         };
         const ids = Object.keys(g.seats).map(Number);
         for (const id of ids) { const c = centre(id); if (c) add(c, `+${g.seats[id]}`, 'seat-gain'); }
+        for (const [id, v] of Object.entries(g.spends ?? {})) { const c = centre(Number(id)); if (c) add(c, `-${v}`, 'seat-spend'); }
+        for (const [id, v] of Object.entries(g.refunds ?? {})) { const c = centre(Number(id)); if (c) add(c, `+${v}`, 'seat-refund'); }
         if (g.globalText) {
           // a random visible seat centre that has no smoke of its own; else a random point of the visible area
           const t = d3.zoomTransform(svgEl), inView = (c: [number, number]) => { const x = t.applyX(c[0]), y = t.applyY(c[1]); return x > 60 && x < W - 60 && y > 30 && y < H - 30; };
@@ -338,14 +491,16 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
     return () => {
       dead = true; ro.disconnect(); api.current = null;
       window.removeEventListener('mouseup', endDrag); window.removeEventListener('blur', endDrag);
-      svg.on('.zoom', null).on('.hl', null).selectAll('*').remove();
+      window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); window.removeEventListener('blur', onBlur);
+      window.removeEventListener('pointermove', strokeMove); window.removeEventListener('pointerup', strokeEnd); window.removeEventListener('pointercancel', strokeEnd);
+      svg.on('.zoom', null).on('.hl', null).on('.brush', null).selectAll('*').remove();
       tip.style.display = 'none';
     };
   }, [mapId]);
 
   // ---- prop updates: restyle only, never re-render paths
-  const { fills, leading, dimmed, blurred, labels, badges, selectedSeat, names, fillStyle } = props;
-  useEffect(() => { api.current?.update(); }, [fills, leading, dimmed, blurred, labels, badges, selectedSeat, names, fillStyle]);
+  const { fills, leading, dimmed, blurred, labels, badges, selectedSeat, names, fillStyle, candidates, contesting } = props;
+  useEffect(() => { api.current?.update(); }, [fills, leading, dimmed, blurred, labels, badges, selectedSeat, names, fillStyle, candidates, contesting]);
   const pulseKey = props.pulse?.key;
   useEffect(() => { if (propsRef.current.pulse) api.current?.pulse(propsRef.current.pulse); }, [pulseKey]);
 
@@ -354,7 +509,8 @@ export const SeatMap = forwardRef<SeatMapHandle, SeatMapProps>(function SeatMap(
 
   return (
     <div className="map-wrap">
-      <svg ref={svgRef} className="map" role="img" aria-label={`${manifestFor(mapId)?.name ?? 'Map'} divided into parliament seats`} />
+      <svg ref={svgRef} className={'map' + (brushing ? ' brushing' : '')} role="img" aria-label={`${manifestFor(mapId)?.name ?? 'Map'} divided into parliament seats`} />
+      {brushing && <div className="brush-cursor" ref={brushRef} style={{ '--brush-r': `${props.brush!.radiusPx}px` } as React.CSSProperties} />}
       <div className="tip" ref={tipRef} />
       <div className="map-zoom">
         <button title="Zoom in" onClick={() => api.current?.zoomBy(1.8)}>+</button>

@@ -1,5 +1,42 @@
 # Simulator report: world map tuning
 
+## 2026-10-31: minor rally and candidates (pre-campaign); where the minor rally lands
+
+**Verdict in one paragraph.** With the agreed numbers (cost 2,000, peak 5, spread 0.2, 500 km, no global part, hidden, no cooldown) the minor rally is the weakest way to spend money on the real map, as the plan warned: it is worth 6.9 effect per 1,000 spent against 15.6 for a roadshow and 21.1 for a major rally. In the sim a bot that puts its whole budget into 30 minor rallies (`MINOR100`) wins about as many seats as a pure roadshow bot in a 2-player game (29 to 32% of the seats, roadshow bot 30 to 31%) and clearly fewer in bigger fields (3 players 17.5 to 19.1% against 22.2% for the roadshow bot; 5 players 10.5 to 11.8% against 16.6 to 17.1%; 10 players 5.8 to 5.9% against 9.3 to 9.5%). Half and half (`MINOR50`: 15 minor rallies plus 75 roadshows) is between the two. Nobody should play minor-rally-heavy: it does not threaten any existing strategy, and the major rally keeps its lead (RALLY_EARLY wins 85 to 93% of the 3 and 5-player games it sits in). Numbers are as measured, nothing retuned.
+
+### What changed in the sim
+- Every player starts the campaign on `fullyFieldedBudget(cfg)` = 85,000 - 500 x 50 = **60,000** (the sim models all seats as contested, as a 2-player game does), so all earlier results still apply to the old 60,000 budget. Bots plan on that figure, `--mode checks` prints it, the field table's `left%` is relative to it.
+- New action `minorRally` in `State.apply` (explicit rally / minorRally / roadshow branches, like `computeEffects`; the incremental state still matches the engine, `verifyDiff` < 1e-9 in the smoke tests), `ctx.minorRally(i)`, a `mino` column in the field table, the world's `minorRows`.
+- New bots: `MINOR100` (all money on minor rallies, placed greedily so their clusters overlap little, spread over the phases) and `MINOR50` (half the money on minor rallies, the rest on random roadshows). `--mode mix` has both as levels (`MN50`, `MN100`).
+
+### Measured (`npx tsx src/run.ts --mode checks`, `--mode mix --games 150`, `--mode field --games 150 --phases 3`, `--mode h2h --games 100 --phases 3`, seed `hp`)
+Analytic (real map, home seat taken in turn over all 500 seats): one action's total effect over the map: major rally 169.1 (of which 74% the global floor), minor rally 13.7, roadshow 6.25; per 1,000 spent 21.1 / 6.9 / 15.6. Profile at 0 / 100 / 200 / 300 / 400 / 500 km: minor 5.00 / 4.09 / 2.25 / 0.83 / 0.20 / 0.03 (the major rally 10.00 / 9.05 / 6.70 / 4.07 / 2.02 / 0.82, +0.25 everywhere).
+
+Seats% / win% of ONE player of the given type against the default pool (`--mode mix`; fair win = 100 / players); `RS` = roadshow bot, `M30` = 30% rallies, `RLE` = rally bot:
+
+| Players, phases | RS | M30 | RLE | MINOR50 | MINOR100 |
+|---|---|---|---|---|---|
+| 2, 1 | 30.8/13 | 47.0/47 | 67.0/84 | 31.3/19 | 32.4/23 |
+| 2, 3 | 31.3/14 | 47.4/47 | 69.3/91 | 31.6/21 | 29.9/15 |
+| 2, 5 | 30.5/10 | 51.2/57 | 69.1/96 | 30.2/18 | 28.9/19 |
+| 3, 1 | 21.6/1 | 28.8/19 | 44.9/65 | 20.6/3 | 18.8/1 |
+| 3, 3 | 22.3/1 | 28.2/17 | 51.5/89 | 21.5/4 | 19.1/1 |
+| 3, 5 | 22.2/2 | 29.8/24 | 48.0/88 | 19.8/2 | 17.5/0 |
+| 5, 1 | 15.9/0 | 17.8/3 | 24.4/52 | 14.0/1 | 10.5/0 |
+| 5, 3 | 17.1/0 | 19.7/13 | 26.9/75 | 14.4/0 | 11.8/0 |
+| 5, 5 | 16.6/0 | 18.9/5 | 25.9/69 | 13.6/0 | 10.5/0 |
+| 10, 3 | 9.3/1 | 10.2/9 | 9.4/5 | 8.0/0 | 5.9/0 |
+| 10, 5 | 9.5/5 | 10.3/9 | 8.9/4 | 7.8/1 | 5.8/0 |
+
+Same game, all strategies at one table (`--mode field`, 150 games, 3 phases, pool of 11; seats%): 3 players MINOR100 19.8, MINOR50 20.4, ROADSHOW 23.0, SNIPER 24.3, ADAPTIVE 33.9, MIX30 35.0, PATCH 34.9, LATE 36.1, CLUSTER 42.2, MIX50 43.5, RALLY_EARLY 53.9; 5 players MINOR100 10.6, MINOR50 14.2, ROADSHOW 17.7, MIX30 20.6, MIX50 25.7, RALLY_EARLY 31.6; 10 players MINOR100 5.9, MINOR50 7.7, ROADSHOW 9.8, MIX30 10.9, PATCH 12.9. Win% of both minor bots is 0 to 2.4% in all three (fair 33 / 20 / 10).
+
+Head to head, 2 players, 3 phases (win%, mean seats of 500): MINOR100 beats ROADSHOW 95% (263 vs 237 seats) and SNIPER 94%, loses 0% to MIX30, CLUSTER and RALLY_EARLY (125, 97, 128 seats); MINOR50 beats ROADSHOW 95%; MINOR100 beats MINOR50 99%. So in a duel with no rally in the field, 30 minor rallies do beat 150 roadshows (they touch about 9 seats each, roadshows exactly one), but one major rally player or one mixed player takes the table.
+
+### Reading
+- Likely reason it falls behind as the field grows (an inference from the numbers above, not tested separately): a minor rally has no global part, and in the field runs 39% / 24% / 7% of the seats (3 / 5 / 10 players) had no local effect from anyone; there the rally players win on their 0.25 floor, the minor rally adds nothing. At 2,000 for a peak of 5 it costs 5 roadshows for 0.8 of a roadshow's effect in the seat itself; only its spill-over (2.25 at 200 km, about 9 seats reached on average) makes up for it.
+- It is not dominated everywhere: against roadshow-only and sniper play in a duel it wins, because of the spill-over.
+- Levers if minor rallies should be a more attractive choice (not applied, per the plan): a lower price, a higher peak, or a small global part. The major rally's global floor is 74% of its total effect (169.1), so the minor rally's 13.7 cannot be compared with it on Gaussian area alone.
+
 ## 2026-10-25: Gaussian rally and roadshow, rally = 20x roadshow, rally cooldown
 
 **Verdict in one paragraph.** The new maths does what it was meant to do (a roadshow now holds exactly the seat it lands in, rallies no longer flood the map), and roadshow-only play is about 3x better off than before (22% -> 30% of seats in a duel, 12% -> 21% with 3 players). But the game is still **not balanced for 2 to 5 players**: an all-rally player wins 100% / 86% / 71% of 2 / 3 / 5-player games (fair 50 / 33 / 20%), as before (96 / 91 / 74%). The cause is unchanged in kind: a seat nobody visited goes to whoever has the most rallies (the 0.25 floor is 88% of a rally's total effect), and a 125-roadshow budget can visit only 25% of the 500 seats. 10-player games are healthy (every strategy 8.5 to 11% of seats, PATCH 13%, no landslides), except that patch-defending play (PATCH) wins 46% of them (fair 10%). The rally cooldown has no measurable effect on balance (6 rallies per budget never come near 20 per campaign). **Suggested fix (not applied): double the budget to `budget=100_000`** (12 rallies or 250 roadshows, same 20x ratio): the best strategy then wins at most 1.8 to 1.9x its fair share at 2, 3 and 5 players (mixed play on top) instead of 1.9x / 2.8x / 4.0x.

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { PARTY_COLOURS, majorityOf } from '@hp/shared';
+import { PARTY_COLOURS } from '@hp/shared';
 import type { PartyIdentity, PlayerId, PlayerPublic, SeatId } from '@hp/shared';
 import { useStore } from './state/store';
 
@@ -55,9 +55,8 @@ export function useSeatPhases(phases: number): Map<SeatId, number> | null {
   }, [pkg, phases]);
 }
 
-/** Seats in the game: the tally total once counting starts, else the map's seat count (`fallback`, from useMapConfig). */
+/** Seats in play: the tally total once counting starts, else `fallback` (the snapshot's contestedSeats). */
 export const seatCountOf = (total: number | undefined, fallback: number) => total ?? fallback;
-export { majorityOf };
 
 export function seatName(names: Record<SeatId, string>, id: SeatId): string {
   return names[id] ?? `Seat ${id}`;

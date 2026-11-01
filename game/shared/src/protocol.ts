@@ -38,7 +38,7 @@ export interface LobbyView {
 /**
  * POST /games/{gameId}/rematch (admin only, finished game with a result). "Play again": a NEW game with all players of this game
  * (humans and AI agents, whatever their status) rolled over with the same playerId, token and party, started at once in the
- * campaign phase. Only the number of phases can change. Calling it again returns the same new game (first call wins).
+ * pre-campaign phase (the campaign phase with 2 players). Only the number of phases can change. Calling it again returns the same new game (first call wins).
  */
 export interface RematchRequest { phases: number }
 export interface RematchResponse { gameId: GameId; joinCode: string }
@@ -68,6 +68,7 @@ export type ErrorCode =
   | 'BAD_REQUEST' | 'UNAUTHORIZED' | 'FORBIDDEN' | 'NOT_FOUND'
   | 'GAME_FULL' | 'ADMISSION_CLOSED' | 'NAME_TAKEN' | 'COLOUR_TAKEN' | 'SYMBOL_TAKEN' | 'AVATAR_TAKEN'
   | 'WRONG_PHASE' | 'INSUFFICIENT_FUNDS' | 'SEAT_POLLED' | 'TOO_LATE' | 'RATE_LIMITED'
+  | 'NOT_FIELDED' // a rally or roadshow in a seat where the party has no candidate
   | 'INVALID_GOVERNMENT' | 'OFFER_NOT_FOUND' | 'ALREADY_COMMITTED' | 'NOT_ENOUGH_PLAYERS' | 'INTERNAL'
   // chat / coalition offers are disabled in 2-player games (majority wins, exact tie = draw)
   | 'NEGOTIATION_DISABLED';
@@ -109,6 +110,10 @@ export interface GlobalReports {
 export type ClientMessage =
   | { action: 'ping'; clientTime: number }
   | { action: 'campaign'; type: ActionType; seat: SeatId; clientRef?: string }
+  /** Pre-campaign: field a candidate in each of `seats` (seats already fielded are skipped). All or nothing if the budget cannot pay for them. Answered with 'fieldAck'. */
+  | { action: 'field'; seats: SeatId[]; clientRef?: string }
+  /** Pre-campaign: withdraw the candidate from each of `seats`, refunding costs.candidate per seat (seats without one are skipped). Answered with 'fieldAck'. */
+  | { action: 'withdraw'; seats: SeatId[]; clientRef?: string }
   | { action: 'buyReport'; scope: ReportScope; seat?: SeatId }
   /** Campaign start onwards (free, every player): the news agencies' noisy projections. Answered, to the requester only, with 'globalReports'. */
   | { action: 'globalReports' }
@@ -156,8 +161,17 @@ export interface GameSnapshot {
   phases: number;
   timeline: GameTimeline | null;
   players: PlayerPublic[];
-  /** Public news so far (every rally). */
+  /** Public news so far (every major rally; minor rallies and roadshows are hidden). */
   news: NewsItem[];
+  /**
+   * Who has a candidate where, public and live: seat -> its candidates. A seat missing here (or with an empty list) has none.
+   * Players with no fielded seats do not appear, and neither do eliminated players once their candidates are removed.
+   */
+  fielding: Record<SeatId, FieldedCandidate[]>;
+  /** Seats with at least one candidate. Live during the pre-campaign, fixed when the campaign starts. Equals the seat count in a 2-player game. */
+  contestedSeats: number;
+  /** Seats needed for a majority: majorityOf(contestedSeats). Moves with contestedSeats. */
+  majority: number;
   /** 0-based indices of polling phases already closed; their seats = map.phaseGroups[String(phases)][index] (same seats as each phaseClosed message). */
   polledPhases: number[];
   /** Counting progress (public once counting starts). */
@@ -173,6 +187,11 @@ export interface GameSnapshot {
 
 export interface NewsItem { playerId: PlayerId; seat: SeatId; ts: number }
 
+/** A party's candidate in a seat. `name` is missing when the map has no candidates.csv. */
+export interface FieldedCandidate { playerId: PlayerId; name?: string }
+/** A candidate just fielded, in 'fieldAck' and 'fieldingUpdate'. */
+export interface FieldedSeat { seat: SeatId; name?: string }
+
 export interface SeatDeclaration {
   seat: SeatId;
   status: 'leading' | 'won';
@@ -183,7 +202,7 @@ export interface SeatDeclaration {
 
 /**
  * leads = seats currently 'leading' (not yet won) per player; wins = seats 'won' per player;
- * declared = number of seats already 'won' (final); total = N.
+ * declared = number of seats already 'won' (final); total = the contested seats (a vacant seat is never declared).
  */
 export interface CountTally { leads: SeatTally; wins: SeatTally; declared: number; total: number }
 
@@ -222,6 +241,10 @@ export type ServerMessage =
   | { type: 'news'; item: NewsItem }
   /** `nextRallyAt` = as in PrivateState (server epoch ms of the next allowed rally; null/absent = allowed now). */
   | { type: 'actionAck'; clientRef?: string; /** true when this clientRef had already been applied: nothing was charged again */ duplicate?: true; ok: true; budget: number; reputation?: Record<SeatId, number>; nextRallyAt?: number | null }
+  /** To the fielding player only. `added` / `removed` = what actually changed (skipped seats are left out). */
+  | { type: 'fieldAck'; clientRef?: string; /** true when this clientRef had already been applied: nothing changed */ duplicate?: true; ok: true; budget: number; added: FieldedSeat[]; removed: SeatId[] }
+  /** To everybody, whenever anyone fields or withdraws, carrying the new contestedSeats and majority. */
+  | { type: 'fieldingUpdate'; playerId: PlayerId; added: FieldedSeat[]; removed: SeatId[]; contestedSeats: number; majority: number }
   | { type: 'report'; report: AnalystReport; budget: number }
   | { type: 'globalReports'; reports: GlobalReports }
   | { type: 'phaseClosed'; phase: number; seats: SeatId[] }
@@ -231,7 +254,7 @@ export type ServerMessage =
   | { type: 'offer'; offer: CoalitionOffer }
   | { type: 'government'; government: Government }
   | { type: 'result'; result: FinalResult }
-  /** The host played again: switch to game `gameId` (join code `joinCode`) with the SAME playerId and token; the new game is already in the campaign phase. */
+  /** The host played again: switch to game `gameId` (join code `joinCode`) with the SAME playerId and token; the new game has already started (in the pre-campaign phase, or the campaign phase with 2 players). */
   | { type: 'rematch'; gameId: GameId; joinCode: string }
   /** `retryAt` as in ApiError (set on RATE_LIMITED). */
   | { type: 'error'; error: ErrorCode; message: string; clientRef?: string; retryAt?: number };

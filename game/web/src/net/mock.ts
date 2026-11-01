@@ -1,11 +1,11 @@
 // MOCK backend: simulates the whole game in the browser. Every message is a ServerMessage from protocol.ts,
 // so replacing this with the real REST + WebSocket transport requires no UI changes.
-// Tunables via URL query: ?campaign=120&counting=60&post=120 (seconds). Defaults: 120 / 60 / 120.
-import { AVATARS, DEFAULT_MAP_ID, buildGlobalReports, MAP_MANIFESTS, PARTY_COLOURS, WORLD_CONFIG, buildKernels, chatModeFor, computeEffects, leavesPartyOut, logOfferEvent, majorityOf, rallyAvailableAt, reputationView } from '@hp/shared';
+// Tunables via URL query: ?precampaign=60&campaign=120&counting=60&post=120 (seconds). Defaults: 60 / 120 / 60 / 120.
+import { AVATARS, DEFAULT_MAP_ID, buildGlobalReports, MAP_MANIFESTS, PARTY_COLOURS, WORLD_CONFIG, buildKernels, chatModeFor, computeEffects, hasPreCampaign, leavesPartyOut, logOfferEvent, majorityOf, rallyAvailableAt, reputationView } from '@hp/shared';
 import { findMentions } from '@hp/chat/common';
 import type {
   MapConfig, Action, AdmissionRequest, AdmitRequest, AnalystReport, ClientMessage, CoalitionOffer, CommittedView, CountTally,
-  CreateGameRequest, CreateGameResponse, ErrorCode, FinalResult, GameId, GameMapPackage, GameSnapshot,
+  CreateGameRequest, CreateGameResponse, ErrorCode, FieldedCandidate, FieldedSeat, FinalResult, GameId, GameMapPackage, GameSnapshot,
   GameStatus, GameTimeline, Government, JoinGameRequest, JoinGameResponse, LobbyView, NewsItem, PartyIdentity,
   PartyRequest, RematchRequest, RematchResponse, PlayerId, PlayerPublic, PointsBreakdown, PortfolioAssignment, PrivateState, SeatDeclaration,
   Kernels, SeatId, ServerMessage, SettingsRequest, StartResponse,
@@ -13,10 +13,12 @@ import type {
 import { ApiException, type Transport } from './transport';
 import { gamePackageUrl, mapDataUrl } from '../map/mapData';
 import { mapConfigFor } from '../state/mapConfig';
+import { candidateName } from '../tour/tourScript';
 
 const q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
 const secs = (k: string, d: number) => { const v = Number(q.get(k)); return (v > 0 ? v : d) * 1000; };
 const OPTS = {
+  preCampaignMs: secs('precampaign', 60),
   campaignMs: secs('campaign', 120),
   countingMs: secs('counting', 60),
   postCountingMs: secs('post', 120),
@@ -66,6 +68,15 @@ class MockGame {
   timeline: GameTimeline | null = null;
   actions: Action[] = [];
   news: NewsItem[] = [];
+  /** seat -> its candidates in the order they were fielded (public, live). A seat missing or empty is vacant. */
+  fielding = new Map<SeatId, FieldedCandidate[]>();
+  /** The field / withdraw requests of the human already applied, by clientRef. */
+  fieldRefs = new Map<string, { added: FieldedSeat[]; removed: SeatId[] }>();
+  /** The bots' fielding plans (seats in the order they will be fielded) and when the pre-campaign started. */
+  botPlans = new Map<PlayerId, SeatId[]>();
+  preStart = 0;
+  /** Set when the campaign opens: contested seats and the majority are fixed from then on. */
+  fixed?: { contested: number; majority: number };
   seatIds: SeatId[] = [];
   seatPhase = new Map<SeatId, number>();
   polledPhases: number[] = [];
@@ -126,10 +137,25 @@ export class MockTransport implements Transport {
       .filter(p => me.pub.isAdmin || p.pub.status !== 'pending' || p.pub.playerId === g.me)
       .map(p => structuredClone(p.pub));
   }
+  /** Seats with at least one candidate now. */
+  private liveContested(g: MockGame): number {
+    let n = 0;
+    for (const list of g.fielding.values()) if (list.length > 0) n++;
+    return n;
+  }
+  /** Contested seats as shown: live during the pre-campaign, fixed once the campaign has opened. */
+  private contested(g: MockGame): number { return g.fixed?.contested ?? this.liveContested(g); }
+  /** The seat base a RESULT is judged on: the fixed contested seats (the full map when nothing was fielded, e.g. a poked test state). */
+  private resultSeats(g: MockGame): number { return g.fixed?.contested ?? (this.liveContested(g) || g.cfg.seatCount); }
+  private majority(g: MockGame): number { return g.fixed?.majority ?? majorityOf(this.contested(g)); }
+  private contesting(g: MockGame, seat: SeatId): PlayerId[] { return (g.fielding.get(seat) ?? []).map(c => c.playerId); }
+  private holds(g: MockGame, who: PlayerId, seat: SeatId) { return !!g.fielding.get(seat)?.some(c => c.playerId === who); }
   private snapshot(g: MockGame): GameSnapshot {
     return {
       gameId: g.gameId, mapId: g.mapId, status: g.status, phases: g.phases, timeline: g.timeline,
-      players: this.publicPlayers(g), news: [...g.news], polledPhases: [...g.polledPhases], seats: { ...g.seats },
+      players: this.publicPlayers(g), news: [...g.news],
+      fielding: Object.fromEntries([...g.fielding].filter(([, l]) => l.length > 0).map(([seat, l]) => [seat, structuredClone(l)])),
+      contestedSeats: this.contested(g), majority: this.majority(g), polledPhases: [...g.polledPhases], seats: { ...g.seats },
       tally: g.tally, offers: g.offers.filter(o => o.proposer === g.me || o.partners.includes(g.me)),
       government: g.government, result: g.result,
     };
@@ -159,10 +185,10 @@ export class MockTransport implements Transport {
       return reputationView(eff.get(g.me), g.kernels, g.cfg);
     }
     const out: Record<SeatId, number> = {};
-    const { rally, roadshow } = g.cfg.effects;
+    const { rally, roadshow, minorRally } = g.cfg.effects;
     for (const a of g.actions) {
       if (a.playerId !== g.me) continue;
-      const raw = a.type === 'rally' ? rally.local + rally.global : roadshow.local;
+      const raw = a.type === 'rally' ? rally.local + rally.global : a.type === 'minorRally' ? minorRally.local : roadshow.local;
       out[a.seat] = (out[a.seat] ?? 0) + Math.round(raw * g.cfg.display.reputationScale);
     }
     return out;
@@ -328,23 +354,121 @@ export class MockTransport implements Transport {
     if (act.length < g.cfg.players.min) this.fail('NOT_ENOUGH_PLAYERS', `Need at least ${g.cfg.players.min} active players`);
     if (act.some(p => !p.pub.party)) this.fail('BAD_REQUEST', 'Every active player needs a party first');
     if (act.some(p => !p.pub.party?.avatar)) this.fail('BAD_REQUEST', 'Every active player needs an avatar first');
-    g.status = 'campaign'; // reserve against double starts while seats load
+    const withPre = hasPreCampaign(act.length);
+    g.status = withPre ? 'preCampaign' : 'campaign'; // reserve against double starts while seats load
     await this.loadSeats(g);
     for (const p of g.players.values()) if (p.pub.status === 'pending') p.pub.status = 'rejected';
-    const start = this.now();
+    const now = this.now();
+    // 3+ players: the pre-campaign comes first and the campaign starts when it ends
+    const start = withPre ? now + OPTS.preCampaignMs : now;
     // exactly 2 players: shorter counting (as the real server); the ?counting= tunable only ever shortens it
     const countingMs = act.length === 2 ? Math.min(OPTS.countingMs, g.cfg.durations.countingMsTwoPlayers) : OPTS.countingMs;
     const closes = Array.from({ length: g.phases }, (_, i) => Math.round(start + (OPTS.campaignMs * (i + 1)) / g.phases));
     g.timeline = {
+      ...(withPre ? { preCampaignEnd: start } : {}),
       campaignStart: start, phaseCloses: closes, campaignEnd: closes[closes.length - 1],
       countingEnd: closes[closes.length - 1] + countingMs,
       postCountingEnd: closes[closes.length - 1] + countingMs + OPTS.postCountingMs,
     };
     g.nextBotRally = start + 1500;
-    this.emit({ type: 'status', status: 'campaign', timeline: g.timeline });
+    if (withPre) {
+      g.preStart = now;
+      for (const p of act) if (p.bot) g.botPlans.set(p.pub.playerId, this.botPlan(g));
+    } else {
+      // a 2-player game has no pre-campaign: every seat is fielded for both players and charged
+      for (const p of act) {
+        for (const seat of g.seatIds) this.putCandidate(g, p.pub.playerId, seat);
+        p.budget -= g.seatIds.length * g.cfg.costs.candidate;
+      }
+      g.fixed = { contested: g.seatIds.length, majority: majorityOf(g.seatIds.length) };
+    }
+    this.emit({ type: 'status', status: g.status, timeline: g.timeline });
     this.emitPlayers(g);
     this.emit({ type: 'private', private: this.priv(g) });
     return { ok: true, timeline: g.timeline };
+  }
+
+  // -------------------------------------------------------------- pre-campaign: fielding
+  private putCandidate(g: MockGame, who: PlayerId, seat: SeatId): FieldedSeat | null {
+    const list = g.fielding.get(seat) ?? [];
+    if (list.some(c => c.playerId === who)) return null;
+    const name = candidateName(who, seat);
+    g.fielding.set(seat, [...list, { playerId: who, name }]);
+    return { seat, name };
+  }
+  private announceFielding(g: MockGame, who: PlayerId, added: FieldedSeat[], removed: SeatId[]) {
+    this.emit({ type: 'fieldingUpdate', playerId: who, added, removed, contestedSeats: this.contested(g), majority: this.majority(g) });
+  }
+  /** A bot stands in about half to three quarters of the seats, in a random order it follows as time passes. */
+  private botPlan(g: MockGame): SeatId[] {
+    const ids = [...g.seatIds];
+    for (let i = ids.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [ids[i], ids[j]] = [ids[j], ids[i]]; }
+    return ids.slice(0, Math.ceil(ids.length * rnd(0.5, 0.75)));
+  }
+  /** Each bot fields its plan evenly over the first 70% of the pre-campaign, paying for every candidate. */
+  private botFielding(g: MockGame, now: number) {
+    const t = g.timeline!;
+    const span = Math.max(1, (t.preCampaignEnd ?? now) - g.preStart);
+    const frac = Math.min(1, (now - g.preStart) / (0.7 * span));
+    for (const [id, plan] of g.botPlans) {
+      const bot = g.players.get(id);
+      if (!bot || bot.pub.status !== 'active') continue;
+      const done = plan.filter(seat => this.holds(g, id, seat)).length;
+      const want = Math.min(plan.length, Math.floor(plan.length * frac), done + Math.floor(bot.budget / g.cfg.costs.candidate));
+      const added: FieldedSeat[] = [];
+      for (const seat of plan) {
+        if (added.length + done >= want) break;
+        const a = this.putCandidate(g, id, seat);
+        if (a) { added.push(a); bot.budget -= g.cfg.costs.candidate; }
+      }
+      if (added.length) this.announceFielding(g, id, added, []);
+    }
+  }
+  private handleField(g: MockGame, msg: Msg<'field'> | Msg<'withdraw'>, err: ErrFn, add: boolean) {
+    const me = g.players.get(g.me)!;
+    if (g.status !== 'preCampaign') return err('WRONG_PHASE', 'Candidates can only be fielded or withdrawn before the campaign', msg.clientRef);
+    if (me.pub.status === 'eliminated') return err('FORBIDDEN', 'You are out of the game', msg.clientRef);
+    const seats = [...new Set(msg.seats ?? [])];
+    if (!seats.length || seats.some(s => !g.seatPhase.has(s))) return err('BAD_REQUEST', 'Unknown seat', msg.clientRef);
+    const done = msg.clientRef ? g.fieldRefs.get(msg.clientRef) : undefined;
+    if (done) return this.emit({ type: 'fieldAck', clientRef: msg.clientRef, duplicate: true, ok: true, budget: me.budget, added: done.added, removed: done.removed });
+    const price = g.cfg.costs.candidate;
+    let added: FieldedSeat[] = [];
+    let removed: SeatId[] = [];
+    if (add) {
+      const fresh = seats.filter(s => !this.holds(g, g.me, s));
+      if (me.budget < fresh.length * price) return err('INSUFFICIENT_FUNDS', 'Not enough funds for those candidates', msg.clientRef);
+      me.budget -= fresh.length * price;
+      added = fresh.map(s => this.putCandidate(g, g.me, s)!);
+    } else {
+      removed = seats.filter(s => this.holds(g, g.me, s));
+      for (const s of removed) g.fielding.set(s, g.fielding.get(s)!.filter(c => c.playerId !== g.me));
+      me.budget += removed.length * price;
+    }
+    if (msg.clientRef) g.fieldRefs.set(msg.clientRef, { added, removed });
+    this.emit({ type: 'fieldAck', clientRef: msg.clientRef, ok: true, budget: me.budget, added, removed });
+    if (added.length || removed.length) this.announceFielding(g, g.me, added, removed);
+  }
+
+  /** The pre-campaign deadline: parties with no candidate are out, the contested seats and the majority are fixed, the campaign opens. */
+  private openCampaign(g: MockGame) {
+    if (g.status !== 'preCampaign') return;
+    const out: PlayerId[] = [];
+    for (const p of this.activePlayers(g)) {
+      if (![...g.fielding.values()].some(l => l.some(c => c.playerId === p.pub.playerId))) { p.pub.status = 'eliminated'; out.push(p.pub.playerId); }
+    }
+    const contested = this.liveContested(g);
+    g.fixed = { contested, majority: majorityOf(contested) };
+    g.status = 'campaign';
+    this.emitPlayers(g);
+    for (const id of out) this.announceFielding(g, id, [], []);
+    this.emit({ type: 'status', status: 'campaign', timeline: g.timeline });
+    this.emit({ type: 'private', private: this.priv(g) });
+    if (this.activePlayers(g).length < 2) { // fewer than 2 parties left: the game ends with no government
+      const act = this.activePlayers(g).map(p => p.pub.playerId);
+      g.tally = { leads: Object.fromEntries(act.map(id => [id, 0])), wins: Object.fromEntries(act.map(id => [id, 0])), declared: 0, total: contested };
+      this.finish(g, 'noGovernment');
+    }
   }
 
   // -------------------------------------------------------------- WebSocket
@@ -363,6 +487,8 @@ export class MockTransport implements Transport {
     switch (msg.action) {
       case 'ping': this.emit({ type: 'pong', clientTime: msg.clientTime, serverTime: this.now() }); break;
       case 'campaign': this.handleCampaign(g, msg, err); break;
+      case 'field': this.handleField(g, msg, err, true); break;
+      case 'withdraw': this.handleField(g, msg, err, false); break;
       case 'buyReport': this.handleReport(g, msg, err); break;
       case 'globalReports': this.handleGlobalReports(g, err); break;
       case 'peekSeat': this.handlePeek(g, msg, err); break;
@@ -379,7 +505,7 @@ export class MockTransport implements Transport {
   }
 
   private handlePeek(g: MockGame, msg: Msg<'peekSeat'>, err: ErrFn) {
-    if (g.status === 'lobby' || g.status === 'campaign') return err('WRONG_PHASE', 'Vote shares are available once counting has started');
+    if (g.status === 'lobby' || g.status === 'preCampaign' || g.status === 'campaign') return err('WRONG_PHASE', 'Vote shares are available once counting has started');
     if (typeof msg.seat !== 'number' || !g.seatPhase.has(msg.seat)) return err('BAD_REQUEST', 'Unknown seat');
     const d = g.seats[msg.seat], truth = g.trueShares[msg.seat];
     if (!d || !truth) return err('NOT_FOUND', 'That seat has no lead yet');
@@ -398,8 +524,10 @@ export class MockTransport implements Transport {
   private handleCampaign(g: MockGame, msg: Msg<'campaign'>, err: ErrFn) {
     const me = g.players.get(g.me)!;
     if (g.status !== 'campaign') return err('WRONG_PHASE', 'The campaign is not running', msg.clientRef);
+    if (me.pub.status === 'eliminated') return err('FORBIDDEN', 'You are out of the game: you can read and write in the chat, but not act', msg.clientRef);
     const ph = g.seatPhase.get(msg.seat);
     if (ph === undefined) return err('BAD_REQUEST', 'Unknown seat', msg.clientRef);
+    if (!this.holds(g, g.me, msg.seat)) return err('NOT_FIELDED', 'You have no candidate in that seat, so you cannot campaign there', msg.clientRef);
     if (g.polledPhases.includes(ph) || this.now() >= g.timeline!.phaseCloses[ph]) return err('SEAT_POLLED', 'That seat has already polled', msg.clientRef);
     if (msg.type === 'rally') {
       const at = this.nextRallyAt(g, g.me);
@@ -431,15 +559,17 @@ export class MockTransport implements Transport {
     // with the map package loaded the actions count through the engine's Gaussian kernel (demo scale: 0.15 per effect point)
     const eff = g.kernels && g.pkg && g.timeline ? computeEffects(g.actions, g.kernels, g.cfg, g.timeline, g.pkg, g.phases, { upTo }) : null;
     const row = g.kernels?.index.get(seat);
+    const standing = new Set(this.contesting(g, seat));
     for (const p of this.activePlayers(g)) {
+      if (!standing.has(p.pub.playerId)) continue; // no candidate, no votes
       let v = 0.6 + 0.8 * hash01(p.pub.playerId + ':' + seat);
       if (eff && row !== undefined) v += 0.15 * (eff.get(p.pub.playerId)?.[row] ?? 0);
       else {
-        const { rally, roadshow } = g.cfg.effects;
+        const { rally, roadshow, minorRally } = g.cfg.effects;
         for (const a of g.actions) {
           if (a.playerId !== p.pub.playerId || a.ts > upTo) continue;
           if (a.type === 'rally') v += (a.seat === seat ? 0.15 * rally.local : 0) + 0.15 * rally.global;
-          else if (a.seat === seat) v += 0.15 * roadshow.local;
+          else if (a.seat === seat) v += 0.15 * (a.type === 'minorRally' ? minorRally.local : roadshow.local);
         }
       }
       w.set(p.pub.playerId, v);
@@ -449,6 +579,7 @@ export class MockTransport implements Transport {
   private handleReport(g: MockGame, msg: Msg<'buyReport'>, err: ErrFn) {
     const me = g.players.get(g.me)!;
     if (g.status !== 'campaign') return err('WRONG_PHASE', 'Reports are sold during the campaign only');
+    if (me.pub.status === 'eliminated') return err('FORBIDDEN', 'You are out of the game');
     if (msg.scope === 'seat' && (msg.seat === undefined || !g.seatPhase.has(msg.seat))) return err('BAD_REQUEST', 'Pick a seat for a seat report');
     if (!(msg.scope === 'seat' ? g.cfg.analyst.seatReport : g.cfg.analyst.globalReport).enabled) {
       return err('FORBIDDEN', msg.scope === 'seat' ? 'Analyst seat reports are switched off in this game' : 'Analyst global reports are switched off in this game');
@@ -488,7 +619,7 @@ export class MockTransport implements Transport {
   /** Free news-agency projections (FR "Global reports"): the shared engine on the mock's own actions and effects; the other parties' committed voters are not simulated (none). */
   private handleGlobalReports(g: MockGame, err: ErrFn) {
     if (!g.cfg.news.enabled) return err('FORBIDDEN', 'News agency reports are switched off in this game');
-    if (g.status === 'lobby' || !g.timeline) return err('WRONG_PHASE', 'News agencies report from the campaign start');
+    if (g.status === 'lobby' || g.status === 'preCampaign' || !g.timeline) return err('WRONG_PHASE', 'News agencies report from the campaign start');
     const players = [...g.players.values()].filter(p => p.pub.status === 'active').map(p => p.pub.playerId);
     let pkg = g.pkg, kernels = g.kernels;
     if ((!pkg || !kernels) && g.standIn) ({ pkg, kernels } = g.standIn);
@@ -505,6 +636,7 @@ export class MockTransport implements Transport {
     const reports = buildGlobalReports({
       gameId: g.gameId, secret: `mock:${g.gameId}`, cfg: g.cfg, map: pkg, kernels, timeline: g.timeline, phases: g.phases, actions: g.actions, players,
       committed: new Map(), decided: [], now: this.now(),
+      ...({ contestants: new Map([...g.fielding].map(([seat, l]) => [seat, new Set(l.map(c => c.playerId))])) } as object), // vacant seats and non-candidates carry no votes
     });
     this.emit({ type: 'globalReports', reports });
   }
@@ -555,6 +687,7 @@ export class MockTransport implements Transport {
   private handlePropose(g: MockGame, msg: Msg<'proposeGovernment'>, err: ErrFn) {
     if (g.status !== 'counting' && g.status !== 'postCounting') return err('WRONG_PHASE', 'Negotiation opens when counting starts');
     if (this.noNegotiation(g)) return err('NEGOTIATION_DISABLED', '2-player game: no coalition-building');
+    if (g.players.get(g.me)!.pub.status === 'eliminated') return err('FORBIDDEN', 'You are out of the game');
     if (g.government) return err('ALREADY_COMMITTED', 'A government is already formed');
     const pf: PortfolioAssignment = { ...msg.portfolios, PM: [g.me] };
     const members = new Set<PlayerId>([g.me]);
@@ -566,7 +699,7 @@ export class MockTransport implements Transport {
     (msg.partners ?? []).forEach(p => { if (g.players.get(p)?.pub.status === 'active') members.add(p); });
     if (!leavesPartyOut([...members], this.activePlayers(g).map(p => p.pub.playerId))) return err('INVALID_GOVERNMENT', 'At least one party must stay out of the government');
     const combined = [...members].reduce((s, id) => s + this.seatsOf(g, id), 0);
-    const maj = majorityOf(g.cfg.seatCount);
+    const maj = this.majority(g);
     if (combined < maj) return err('INVALID_GOVERNMENT', `Combined seats ${combined} are below the majority mark ${maj}`);
     const partners = [...members].filter(id => id !== g.me);
     const offer: CoalitionOffer = { offerId: uid(), proposer: g.me, portfolios: pf, partners, accepted: [], status: 'open', createdAt: this.now() };
@@ -609,7 +742,7 @@ export class MockTransport implements Transport {
   /** Confirms an accepted offer whose members hold a majority of WON seats (all seats are declared) and finishes the game. */
   private confirmAccepted(g: MockGame): boolean {
     if (g.result || g.government) return false;
-    const maj = majorityOf(g.cfg.seatCount);
+    const maj = this.majority(g);
     const o = g.offers.find(x => x.status === 'accepted' && [x.proposer, ...x.partners].reduce((s, id) => s + (g.tally?.wins[id] ?? 0), 0) >= maj);
     if (!o) return false;
     o.status = 'formed';
@@ -641,7 +774,10 @@ export class MockTransport implements Transport {
     const g = this.g;
     if (!g || !g.timeline) return;
     const now = this.now(), t = g.timeline;
-    if (g.status === 'campaign' && g.seatIds.length) {
+    if (g.status === 'preCampaign') {
+      this.botFielding(g, now);
+      if (now >= (t.preCampaignEnd ?? now)) this.openCampaign(g);
+    } else if (g.status === 'campaign' && g.seatIds.length) {
       t.phaseCloses.forEach((c, ph) => {
         if (now >= c && !g.polledPhases.includes(ph)) {
           g.polledPhases.push(ph);
@@ -663,14 +799,15 @@ export class MockTransport implements Transport {
   private botCampaign(g: MockGame, now: number) {
     if (now < g.nextBotRally) return;
     g.nextBotRally = now + rnd(1500, 5000);
-    const bots = this.activePlayers(g).filter(p => p.bot);
+    const bots = this.activePlayers(g).filter(p => p.bot && [...g.fielding.values()].some(l => l.some(c => c.playerId === p.pub.playerId)));
     if (!bots.length) return;
     const bot = pick(bots);
-    const open = g.seatIds.filter(id => !g.polledPhases.includes(g.seatPhase.get(id)!));
+    const open = g.seatIds.filter(id => !g.polledPhases.includes(g.seatPhase.get(id)!) && this.holds(g, bot.pub.playerId, id));
     if (!open.length) return;
     const lastRally = g.actions.reduce((m, x) => (x.playerId === bot.pub.playerId && x.type === 'rally' && x.ts > m ? x.ts : m), -Infinity);
     const mayRally = now >= rallyAvailableAt(Number.isFinite(lastRally) ? lastRally : undefined, g.cfg);
-    const type = mayRally && Math.random() < 0.75 ? 'rally' : 'roadshow';
+    const roll = Math.random();
+    const type: Action['type'] = mayRally && roll < 0.5 ? 'rally' : roll < 0.75 ? 'minorRally' : 'roadshow';
     if (bot.budget < g.cfg.costs[type]) return;
     bot.budget -= g.cfg.costs[type];
     const a: Action = { id: uid(), playerId: bot.pub.playerId, type, seat: pick(open), ts: now };
@@ -683,11 +820,13 @@ export class MockTransport implements Transport {
     const act = this.activePlayers(g).map(p => p.pub.playerId);
     const C = g.timeline!.countingEnd - g.timeline!.campaignEnd, start = g.timeline!.campaignEnd;
     const cc = g.cfg.counting;
-    g.tally = { leads: Object.fromEntries(act.map(id => [id, 0])), wins: Object.fromEntries(act.map(id => [id, 0])), declared: 0, total: g.seatIds.length };
+    // a seat with no candidate is vacant: it is never counted or declared
+    const contestedIds = g.seatIds.filter(seat => this.contesting(g, seat).length > 0);
+    g.tally = { leads: Object.fromEntries(act.map(id => [id, 0])), wins: Object.fromEntries(act.map(id => [id, 0])), declared: 0, total: contestedIds.length };
     g.schedule = [];
     g.trueShares = {};
     // Per seat: true shares and winner, plus a noisy lead that is re-guessed every epoch (noise decays with time).
-    const seatInfo = g.seatIds.map(seat => {
+    const seatInfo = contestedIds.map(seat => {
       const w = this.weights(g, seat, Infinity);
       for (const [id, v] of w) w.set(id, v * (0.85 + Math.random() * 0.3)); // random swing
       const tot = [...w.values()].reduce((a, b) => a + b, 0);
@@ -737,13 +876,13 @@ export class MockTransport implements Transport {
     const wins = Object.entries(g.tally!.wins).sort((a, b) => b[1] - a[1]);
     // an accepted valid coalition is confirmed first; otherwise a lone party with a majority ends the game at once
     if (this.confirmAccepted(g)) return;
-    if (wins[0][1] >= majorityOf(g.cfg.seatCount) && !g.government) this.finish(g, 'majority');
+    if (wins[0][1] >= this.majority(g) && !g.government) this.finish(g, 'majority');
     else if (wins.length > 1 && wins[0][1] === wins[1][1]) this.finish(g, 'draw');
   }
   private finish(g: MockGame, outcome: FinalResult['outcome']) {
     const wins = g.tally!.wins;
     const ids = Object.keys(wins);
-    const N = g.cfg.seatCount;
+    const N = this.resultSeats(g);
     let gov = g.government;
     if (outcome === 'majority') {
       const top = Object.entries(wins).sort((a, b) => b[1] - a[1])[0][0];

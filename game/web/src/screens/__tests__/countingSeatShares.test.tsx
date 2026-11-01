@@ -23,7 +23,7 @@ const b: PlayerPublic = { playerId: 'b', nickname: 'Bhim', isAdmin: false, statu
 const snap = (status: GameSnapshot['status'] = 'counting'): GameSnapshot => ({
   gameId: 'g', mapId: 'world-500', status, phases: 2,
   timeline: { campaignStart: 0, phaseCloses: [1, 2], campaignEnd: 2, countingEnd: Date.now() + 60_000, postCountingEnd: Date.now() + 120_000 },
-  players: [a, b], news: [], polledPhases: [],
+  players: [a, b], news: [], fielding: {}, contestedSeats: 100, majority: 51, polledPhases: [],
   seats: { 1: { seat: 1, status: 'leading', playerId: 'a' }, 2: { seat: 2, status: 'won', playerId: 'b' } },
   tally: { leads: { a: 1 }, wins: { b: 1 }, declared: 1, total: 3 }, offers: [], government: null, result: null,
 });

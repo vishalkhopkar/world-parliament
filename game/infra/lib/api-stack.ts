@@ -23,7 +23,7 @@ export interface ApiStackProps extends StackProps {
   webOrigin: string;
 }
 
-const WS_ACTIONS = ['ping', 'campaign', 'buyReport', 'peekSeat', 'chat', 'proposeGovernment', 'respondOffer', 'withdrawOffer'];
+const WS_ACTIONS = ['ping', 'field', 'withdraw', 'campaign', 'buyReport', 'peekSeat', 'chat', 'proposeGovernment', 'respondOffer', 'withdrawOffer'];
 
 const HTTP_ROUTES: [apigw.HttpMethod, string][] = [
   [apigw.HttpMethod.POST, '/games'],
@@ -138,6 +138,7 @@ export class ApiStack extends Stack {
     const wsConnect = mkFn('ws-connect', 10);
     const wsDisconnect = mkFn('ws-disconnect', 10);
     const wsMessage = mkFn('ws-message', 15);
+    const openCampaign = mkFn('open-campaign', 60);
     const phaseClose = mkFn('phase-close', 60);
     const countReveal = mkFn('count-reveal', 60);
     const finalise = mkFn('finalise', 60);
@@ -167,7 +168,7 @@ export class ApiStack extends Stack {
 
     // ---- lifecycle state machine + scheduler
     const lifecycle = new Lifecycle(this, 'Lifecycle', {
-      prefix: P, isProd: cfg.isProd, phaseClose, countReveal, finalise, graceCheck,
+      prefix: P, isProd: cfg.isProd, openCampaign, phaseClose, countReveal, finalise, graceCheck,
       stateMachineName, schedulerRoleName, scheduleGroupName,
     });
 

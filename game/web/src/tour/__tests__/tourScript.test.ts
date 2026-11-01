@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createRng, majorityOf } from '@hp/shared';
-import { assignSeats, buildReveal, pickCores, quotasInPartyOrder, replayReveal, tourSeatCounts } from '../tourScript';
+import { assignSeats, buildReveal, candidateName, pickCores, planRivalFielding, quotasInPartyOrder, replayReveal, tourSeatCounts } from '../tourScript';
 import { gridPackage } from '../../../test/fakePackage';
 
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
@@ -141,5 +141,55 @@ describe('buildReveal', () => {
     const tally = Array.from({ length: 9 }, () => 0);
     for (const d of at.values()) tally[d.party]++;
     expect(tally).toEqual(quotasInPartyOrder(counts));
+  });
+});
+
+// Rule: in the pre-campaign the rivals field their candidates round by round, so the counts on the right visibly move; each
+// rival stands in all of its own scripted seats plus some others, and every seat is fielded at most once per rival.
+describe('planRivalFielding', () => {
+  const nodes = gridPackage(10, 12).seats.map(s => ({ id: s.id, x: s.x, y: s.y, neighbours: s.neighbours }));
+  const counts = tourSeatCounts(120);
+  const truth = assignSeats(nodes, quotasInPartyOrder(counts), [61, 1, 12, 24, 36, 110, 120, 100, 7], new Map());
+  const ids = nodes.map(s => s.id);
+  const plan = planRivalFielding(truth, ids, 9, createRng('field'), 6);
+
+  it('plans every rival (not the player) in exactly the asked number of rounds', () => {
+    expect([...plan.keys()].sort()).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    for (const rounds of plan.values()) expect(rounds).toHaveLength(6);
+  });
+
+  it('a rival fields all of its own scripted seats, each seat once, and some seats beyond them', () => {
+    for (const [party, rounds] of plan) {
+      const all = rounds.flat();
+      expect(new Set(all).size).toBe(all.length);
+      const own = [...truth].filter(([, p]) => p === party).map(([s]) => s);
+      for (const s of own) expect(all).toContain(s);
+      expect(all.length).toBeGreaterThan(own.length);
+      expect(all.every(s => ids.includes(s))).toBe(true);
+    }
+  });
+
+  it('spreads the seats evenly over the rounds so the counts grow step by step', () => {
+    for (const rounds of plan.values()) {
+      const sizes = rounds.map(r => r.length);
+      expect(Math.max(...sizes) - Math.min(...sizes)).toBeLessThanOrEqual(1);
+      expect(sizes.every(n => n > 0)).toBe(true);
+    }
+  });
+
+  it('is repeatable for the same seed and differs for another', () => {
+    expect(planRivalFielding(truth, ids, 9, createRng('field'), 6)).toEqual(plan);
+    expect(planRivalFielding(truth, ids, 9, createRng('other'), 6)).not.toEqual(plan);
+  });
+});
+
+describe('candidateName', () => {
+  it('is a made-up name that is the same for the same party and seat every time', () => {
+    expect(candidateName('p_s1', 7)).toBe(candidateName('p_s1', 7));
+    expect(candidateName('p_s1', 7).trim().length).toBeGreaterThan(3);
+  });
+  it('differs between parties in the same seat (so the seat panel shows different names)', () => {
+    const names = new Set(['p_you', 'p_alliance', 'p_s1', 'p_s2', 'p_s3', 'p_s4'].map(p => candidateName(p, 12)));
+    expect(names.size).toBeGreaterThanOrEqual(5);
   });
 });

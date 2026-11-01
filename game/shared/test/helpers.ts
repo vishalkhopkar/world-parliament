@@ -13,10 +13,11 @@ export const TEST_CFG: MapConfig = {
     distanceUnitKm: 100,
     rally: { local: 1.0, global: 0.01, decay: { spread: 0.5, maxKm: 500 } },
     roadshow: { local: 1.5, decay: { spread: 2.8, maxKm: 150 } },
-    firstMover: { rally: 0, roadshow: 0 }, // off in the base test config; firstMover.test.ts turns it on
+    minorRally: { local: 0.5, decay: { spread: 1.0, maxKm: 300 } },
+    firstMover: { rally: 0, roadshow: 0, minorRally: 0 }, // off in the base test config; firstMover.test.ts turns it on
   },
   cooldowns: { rallyMs: 30_000 },
-  display: { reputationScale: 10 }, // a round scale for the tests (the shipped file uses 4)
+  display: { reputationScale: 10, brushRadiusPx: 14 }, // a round scale for the tests (the shipped file uses 4)
   timeMultiplier: { start: 1.0, end: 1.2 },
   durations: { ...WORLD_CONFIG.durations, campaignMs: 600_000 }, // pinned: engine tests must not move when the shipped campaign length is tuned
 };
@@ -55,6 +56,6 @@ export function testMap(): GameMapPackage {
 }
 
 let counter = 0;
-export function act(playerId: string, type: 'rally' | 'roadshow', seatId: number, ts: number): Action {
+export function act(playerId: string, type: 'rally' | 'minorRally' | 'roadshow', seatId: number, ts: number): Action {
   return { id: `a${counter++}`, playerId, type, seat: seatId, ts };
 }

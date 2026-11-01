@@ -46,6 +46,15 @@ Rules source of truth: `../FEATURE REQUIREMENTS.docx`. Technical plan: see CLAUD
 
 ## Log
 
+### 2026-10-31 - Pre-campaign phase, minor rally, "My actions" hidden
+- New status `preCampaign` (3+ players, `durations.preCampaignMs`): parties field candidates (`costs.candidate`, full refund on withdrawal) by paint brush (desktop, `display.brushRadiusPx`) or the seat panel, with one-to-one chat. Fielding is public and live. No candidates at the deadline = eliminated (connection kept). 2 players skip it: all seats fielded and charged, campaign starts on `fullyFieldedBudget(cfg)`. Play again goes through it with 3+ players.
+- Only a seat's candidates share its votes (`contestants` argument of the engine functions); no candidates = vacant. Majority = `majorityOf(contestedSeats)`, live in the pre-campaign, fixed at campaign start. Campaigning without a candidate = `NOT_FIELDED`.
+- New action `minorRally`: no cooldown, no global part, hidden, about 1/4 of a major rally's Gaussian area over the map. Budget now 85,000 (60,000 after fielding everywhere). Per 1,000 spent, a minor rally gives 6.9 against a roadshow's 15.6 and a major rally's 21.1; measured results in sim/REPORT.md. Not retuned.
+- "My actions" stays mounted but hidden (`.my-actions-hidden`); chat fills the side panel on desktop.
+- AWS: `OpenCampaign` lambda and `HasPreCampaign?` state in the lifecycle, `field` / `withdraw` routes; takes effect on the next deploy.
+- Agent tools `field_candidates`, `withdraw_candidates`. `E2E_API_PORT` / `E2E_WEB_PORT` let `test:e2e` run while the dev servers hold 8787 / 5173.
+- Tour: needed a change (starts in the pre-campaign with new steps and tasks, minor rally step added, `my-actions` step retired).
+
 ### 2026-10-29 (follow-up) - Counting chat is always one-to-one: `Chat.post-campaigning` removed
 - The designer wants counting and post-counting always private one-to-one, so the `Chat.post-campaigning` key (INDV / GROUP) is gone (a leftover line in `game.properties` is now rejected as an unknown key, like `messaging.*`). `MapConfig.chat` is `{ campaigning }` only; `chatModeFor` returns `'INDV'` for `counting` / `postCounting`.
 - Web: the GROUP-while-counting branch of `Negotiation.tsx` (Parties card, Offers card, group chat) is deleted; counting always shows the one-to-one `ChatSection` (offers live inside it) and the offer builder. Agent rules, e2e, tests and the FR docx updated.

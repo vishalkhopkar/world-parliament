@@ -4,6 +4,7 @@ import { GameError, HTTP_STATUS } from '../src/core/types';
 
 const svc = vi.hoisted(() => ({
   phaseClose: vi.fn(async () => undefined),
+  openCampaign: vi.fn(async () => undefined),
   countReveal: vi.fn(async () => ({ done: false, nextAtMs: 1_700_000_000_000 })),
   finalise: vi.fn(async () => undefined),
   graceCheck: vi.fn(async () => undefined),
@@ -16,6 +17,7 @@ const svc = vi.hoisted(() => ({
 vi.mock('../src/aws/factory', () => ({ getService: () => svc }));
 
 import { handler as phaseClose } from '../src/handlers/phase-close';
+import { handler as openCampaign } from '../src/handlers/open-campaign';
 import { handler as countReveal } from '../src/handlers/count-reveal';
 import { handler as finalise } from '../src/handlers/finalise';
 import { handler as graceCheck } from '../src/handlers/grace-check';
@@ -43,6 +45,21 @@ describe('phase-close (Step Functions, 1-based phase)', () => {
   it('service errors propagate so Step Functions can retry', async () => {
     svc.phaseClose.mockRejectedValueOnce(new Error('ddb throttled'));
     await expect(phaseClose({ gameId: 'g', phase: 1 })).rejects.toThrow('ddb throttled');
+  });
+});
+
+describe('open-campaign (Step Functions, at the pre-campaign deadline)', () => {
+  it('opens the campaign of the given game and returns ok', async () => {
+    expect(await openCampaign({ gameId: 'g' })).toEqual({ ok: true });
+    expect(svc.openCampaign).toHaveBeenCalledWith('g');
+  });
+  it('requires a gameId', async () => {
+    await expect(openCampaign({ gameId: '' })).rejects.toThrow('gameId required');
+    expect(svc.openCampaign).not.toHaveBeenCalled();
+  });
+  it('service errors propagate so Step Functions can retry', async () => {
+    svc.openCampaign.mockRejectedValueOnce(new Error('ddb throttled'));
+    await expect(openCampaign({ gameId: 'g' })).rejects.toThrow('ddb throttled');
   });
 });
 

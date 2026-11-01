@@ -103,6 +103,7 @@ async function counting(withCsv = true, inLobby?: (c: Ctx) => Promise<void>): Pr
     await inLobby(c);
     await c.svc.start(c.gameId, c.players[0].token);
     for (const p of c.players) await c.svc.connect(c.gameId, p.token, p.conn);
+    await c.fieldEverywhereAndOpen();
     c.clock.set(c.timeline.campaignStart);
   } else await c.started(3, 3);
   for (let s = 1; s <= 8; s++) await c.send(0, { action: 'campaign', type: 'rally', seat: s });

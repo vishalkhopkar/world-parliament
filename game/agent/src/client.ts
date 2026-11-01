@@ -1,7 +1,7 @@
 // GameClient: REST + one WebSocket for ONE AI player. Mirrors what the browser client does, nothing more.
 // There is deliberately NO createGame method: an AI agent can only join games created by humans.
 import type {
-  ActionType, AnalystReport, ChatMessage, ClientMessage, CoalitionOffer, ErrorCode, GlobalReports, JoinGameRequest, JoinGameResponse,
+  ActionType, AnalystReport, ChatMessage, ClientMessage, CoalitionOffer, ErrorCode, FieldedSeat, GlobalReports, JoinGameRequest, JoinGameResponse,
   LobbyView, PartyIdentity, PlayerId, PortfolioAssignment, ReportScope, SeatId, ServerMessage,
 } from '@hp/shared';
 import { AgentError } from './errors';
@@ -46,9 +46,14 @@ export type BatchOutcome = { ok: true; budget: number } | { ok: false; error: Ag
 
 export interface CampaignResult { type: ActionType; seat: SeatId; budget: number }
 
+/** What the server did for a field / withdraw message (its fieldAck): the seats that really changed (skipped ones are left out). */
+export interface FieldResult { budget: number; added: FieldedSeat[]; removed: SeatId[]; duplicate?: true }
+
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export const defaultWsFor = (server: string): string => server.replace(/\/+$/, '').replace(/^http/, 'ws') + '/ws';
+
+type AckMessage = Extract<ServerMessage, { type: 'actionAck' | 'fieldAck' }>;
 
 interface Collector {
   errors: { error: ErrorCode; message: string }[];
@@ -88,7 +93,7 @@ export class GameClient {
   private readonly refPrefix = Math.random().toString(36).slice(2, 7);
   private readonly batchConcurrency: number;
   private readonly actionTimeoutMs: number;
-  private pendingRefs = new Map<string, { resolve: (budget: number) => void; reject: (e: AgentError) => void; timer: ReturnType<typeof setTimeout> }>();
+  private pendingRefs = new Map<string, { resolve: (ack: AckMessage) => void; reject: (e: AgentError) => void; timer: ReturnType<typeof setTimeout> }>();
   private barriers = new Map<number, () => void>();
   private barrierSeq = 0;
   private collector: Collector | null = null;
@@ -228,7 +233,7 @@ export class GameClient {
 
   /**
    * The host played again. Move this player to the new game: same playerId and token, new gameId + joinCode; the new game is
-   * already in the campaign with our party. Per-game state is dropped (the event log, clock offset, features and nickname stay),
+   * already started (in the pre-campaign, or the campaign in a 2-player game) with our party. Per-game state is dropped (the event log, clock offset, features and nickname stay),
    * the old socket is closed and a new one is opened (its hello arrives after our first ping, as always). Idempotent per game id.
    */
   private followRematch(gameId: string, joinCode: string): boolean {
@@ -376,10 +381,10 @@ export class GameClient {
       if (b) { this.barriers.delete(m.clientTime); b(); }
       return;
     }
-    if (m.type === 'actionAck' && m.clientRef) {
+    if ((m.type === 'actionAck' || m.type === 'fieldAck') && m.clientRef) {
       const p = this.pendingRefs.get(m.clientRef);
       applyMessage(this.state, m, now);
-      if (p) { clearTimeout(p.timer); this.pendingRefs.delete(m.clientRef); p.resolve(m.budget); }
+      if (p) { clearTimeout(p.timer); this.pendingRefs.delete(m.clientRef); p.resolve(m); }
       return;
     }
     if (m.type === 'error' && m.clientRef) {
@@ -429,7 +434,7 @@ export class GameClient {
       }, timeoutMs);
       this.pendingRefs.set(ref, {
         timer, reject,
-        resolve: (budget) => resolve({ type, seat, budget }),
+        resolve: (ack) => resolve({ type, seat, budget: ack.budget }),
       });
       if (!this.sendRaw({ action: 'campaign', type, seat, clientRef: ref })) {
         clearTimeout(timer);
@@ -438,6 +443,42 @@ export class GameClient {
         reject(new AgentError('NO_CONNECTION', 'The live connection is down.'));
       }
     });
+  }
+
+  /**
+   * Pre-campaign: field (or withdraw) candidates in `seats` in ONE message; resolves with the server's fieldAck. The server skips seats
+   * that are already fielded (or have no candidate to withdraw), so repeating a message is harmless. All or nothing on the budget
+   * (INSUFFICIENT_FUNDS). Matched by clientRef like a campaign action.
+   */
+  private fieldRequest(action: 'field' | 'withdraw', seats: SeatId[], timeoutMs: number, ref: string): Promise<FieldResult> {
+    try { this.requireOpen(); } catch (e) { return Promise.reject(e); }
+    return new Promise<FieldResult>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingRefs.delete(ref);
+        reject(new AgentError('TIMEOUT', `No answer from the server for ${action} of ${seats.length} seat(s).`,
+          'The server may still have applied it. Fielding is safe to repeat (seats already fielded are skipped, nothing is charged twice): call get_state to see your candidates and budget, then send it again.'));
+      }, timeoutMs);
+      this.pendingRefs.set(ref, {
+        timer, reject,
+        resolve: (ack) => {
+          if (ack.type !== 'fieldAck') { reject(new AgentError('INTERNAL', 'Unexpected acknowledgement for a field message.')); return; }
+          resolve({ budget: ack.budget, added: ack.added, removed: ack.removed, ...(ack.duplicate ? { duplicate: true as const } : {}) });
+        },
+      });
+      if (!this.sendRaw({ action, seats, clientRef: ref })) {
+        clearTimeout(timer);
+        this.pendingRefs.delete(ref);
+        reject(new AgentError('NO_CONNECTION', 'The live connection is down.'));
+      }
+    });
+  }
+
+  fieldCandidates(seats: SeatId[], timeoutMs = this.actionTimeoutMs, ref: string = `${this.refPrefix}${++this.refCounter}`): Promise<FieldResult> {
+    return this.fieldRequest('field', seats, timeoutMs, ref);
+  }
+
+  withdrawCandidates(seats: SeatId[], timeoutMs = this.actionTimeoutMs, ref: string = `${this.refPrefix}${++this.refCounter}`): Promise<FieldResult> {
+    return this.fieldRequest('withdraw', seats, timeoutMs, ref);
   }
 
   /**

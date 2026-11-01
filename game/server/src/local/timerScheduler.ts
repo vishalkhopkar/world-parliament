@@ -34,6 +34,11 @@ export class TimerScheduler implements Scheduler {
   async startLifecycle(gameId: string, timeline: GameTimeline): Promise<void> {
     void (async () => {
       try {
+        if (timeline.preCampaignEnd !== undefined) {
+          await this.sleepUntil(timeline.preCampaignEnd);
+          if (this.stopped) return;
+          await this.svc.openCampaign(gameId);
+        }
         for (let p = 0; p < timeline.phaseCloses.length; p++) {
           await this.sleepUntil(timeline.phaseCloses[p]);
           if (this.stopped) return;

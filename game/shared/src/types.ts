@@ -5,7 +5,7 @@
 export type SeatId = number;
 export type PlayerId = string;
 export type GameId = string;
-export type ActionType = 'rally' | 'roadshow';
+export type ActionType = 'rally' | 'minorRally' | 'roadshow';
 
 // ---------------------------------------------------------------- map package
 // Produced per map by maps/<mapId>/source/build/07_game_map.py -> maps/<mapId>/site/data/game.json
@@ -94,10 +94,12 @@ export interface CommittedSet { core: SeatId; seats: CommittedSeat[] }
 
 // ---------------------------------------------------------------- game lifecycle
 
-export type GameStatus = 'lobby' | 'campaign' | 'counting' | 'postCounting' | 'finished' | 'abandoned';
+export type GameStatus = 'lobby' | 'preCampaign' | 'campaign' | 'counting' | 'postCounting' | 'finished' | 'abandoned';
 
 /** All absolute timestamps are server epoch milliseconds. */
 export interface GameTimeline {
+  /** When the pre-campaign closes (the status then flips to 'campaign'). Missing = the game has no pre-campaign (2 players). */
+  preCampaignEnd?: number;
   campaignStart: number;
   /** Close time of each polling phase; the last one equals campaignEnd. Length = number of phases. */
   phaseCloses: number[];
@@ -119,7 +121,7 @@ export interface Action {
 export interface SeatResult {
   seat: SeatId;
   phase: number;                         // 0-based polling phase index
-  winner: PlayerId | null;               // null only if nobody has any effect (no rally anywhere, no roadshow nearby)
+  winner: PlayerId | null;               // null only if the seat has no candidates (it is vacant)
   /** Vote shares 0..1 per player after the random swing; sums to 1 (or empty if winner null). */
   shares: Record<PlayerId, number>;
 }

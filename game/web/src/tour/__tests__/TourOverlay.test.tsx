@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { WORLD_CONFIG } from '@hp/shared';
+import { WORLD_CONFIG, fullyFieldedBudget, majorityOf } from '@hp/shared';
 import type { GameSnapshot, MapConfig, PlayerPublic, PrivateState } from '@hp/shared';
 
 const cfgBox = vi.hoisted(() => ({ cfg: null as unknown as MapConfig }));
@@ -27,7 +27,7 @@ const withReports = (on: boolean): MapConfig => ({
 const snap = (over: Partial<GameSnapshot> = {}): GameSnapshot => ({
   gameId: 'g', mapId: 'world-500', status: 'campaign', phases: 1,
   timeline: { campaignStart: 0, phaseCloses: [Date.now() + 1e11], campaignEnd: Date.now() + 1e11, countingEnd: Date.now() + 1e11, postCountingEnd: Date.now() + 1e11 },
-  players, news: [], polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null, ...over,
+  players, news: [], fielding: {}, contestedSeats: N, majority: majorityOf(N), polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null, ...over,
 });
 const pv = (over: Partial<PrivateState> = {}): PrivateState => ({
   you: 'p0', budget: WORLD_CONFIG.budget, myActions: [], myReports: [], nextRallyAt: null,
@@ -39,8 +39,11 @@ const tally = (): GameSnapshot['tally'] => ({
 
 function setup(over: { snap?: Partial<GameSnapshot>; priv?: Partial<PrivateState>; reports?: boolean; step?: string } = {}) {
   cfgBox.cfg = withReports(over.reports ?? false);
-  useStore.setState({ gameId: 'g', me: 'p0', snapshot: snap(over.snap), priv: pv(over.priv), selectedSeat: null, error: null, clockOffset: 0, repGain: null } as never);
-  useTour.setState({ active: true, step: 0, frozenClock: true, countPaused: false, done: {}, controls: { startCounting: vi.fn() } });
+  // the game is in the pre-campaign while the tour shows its pre-campaign steps, in the campaign otherwise
+  const phase = over.step ? stepsNow().find(s => s.id === over.step)?.phase : 'preCampaign';
+  const status = over.snap?.status ?? (phase === 'preCampaign' ? 'preCampaign' : 'campaign');
+  useStore.setState({ gameId: 'g', me: 'p0', snapshot: snap({ ...over.snap, status }), priv: pv(over.priv), selectedSeat: null, error: null, clockOffset: 0, repGain: null } as never);
+  useTour.setState({ active: true, step: 0, frozenClock: true, countPaused: false, done: {}, controls: { startCounting: vi.fn(), startCampaign: vi.fn() } });
   if (over.step) goTo(over.step);
 }
 const stepsNow = () => visibleSteps(() => undefined, cfgBox.cfg, 9);
@@ -91,12 +94,27 @@ describe('TourOverlay steps', () => {
     expect(callout()).toHaveTextContent('0:00');
   });
 
-  it('budget and costs come from the config', () => {
-    setup({ step: 'budget' });
+  it('budget and costs come from the config: what is left after the candidates, and the three action prices', () => {
+    setup({ step: 'budget', priv: { budget: fullyFieldedBudget(WORLD_CONFIG) } });
     render(<TourOverlay />);
-    expect(callout()).toHaveTextContent((WORLD_CONFIG.budget).toLocaleString('en-IN'));
+    expect(callout()).toHaveTextContent(fullyFieldedBudget(WORLD_CONFIG).toLocaleString('en-IN'));
     expect(callout()).toHaveTextContent((WORLD_CONFIG.costs.rally).toLocaleString('en-IN'));
+    expect(callout()).toHaveTextContent((WORLD_CONFIG.costs.minorRally).toLocaleString('en-IN'));
     expect(callout()).toHaveTextContent((WORLD_CONFIG.costs.roadshow).toLocaleString('en-IN'));
+    expect(callout()).toHaveTextContent(/major rally/i);
+  });
+
+  it('the ticker step says only major rallies are news, minor rallies and roadshows are secret', () => {
+    setup({ step: 'ticker' });
+    render(<TourOverlay />);
+    expect(callout()).toHaveTextContent('Every major rally is public news');
+    expect(callout()).toHaveTextContent('Minor rallies and roadshows are secret');
+  });
+
+  it('the old my-actions step is retired (the panel is hidden in the game)', () => {
+    cfgBox.cfg = WORLD_CONFIG;
+    expect(stepsNow().some(s => s.id === 'my-actions')).toBe(false);
+    expect(stepsNow().some(s => (s.anchor ?? []).some(a => a.includes('my-actions')))).toBe(false);
   });
 
   it('has a free global-reports step (news agencies) anchored on the button, left out when news is switched off', () => {
@@ -134,11 +152,11 @@ describe('TourOverlay steps', () => {
   });
 
   it('never walks through the report step with the default (disabled) config', async () => {
-    setup();
+    setup({ step: 'clocks' });
     const user = userEvent.setup();
     render(<TourOverlay />);
     const seen: string[] = [];
-    for (let i = 0; i < 8; i++) { seen.push(callout().dataset.step!); await user.click(within(callout()).getByRole('button', { name: 'Next' })); }
+    for (let i = 0; i < 5; i++) { seen.push(callout().dataset.step!); await user.click(within(callout()).getByRole('button', { name: 'Next' })); }
     expect(seen).toContain('chat');
     expect(seen).toContain('global-reports');
     expect(seen).not.toContain('analyst');
@@ -169,7 +187,7 @@ describe('TourOverlay steps', () => {
   it('the vote-model step reads the percentages from the config and offers Start counting', async () => {
     setup({ step: 'votes' });
     const start = vi.fn();
-    useTour.setState({ controls: { startCounting: start } });
+    useTour.setState({ controls: { startCounting: start, startCampaign: vi.fn() } });
     const user = userEvent.setup();
     render(<TourOverlay />);
     expect(callout()).toHaveTextContent(`0 to ${WORLD_CONFIG.voting.influenceMaxPercent}%`);
@@ -271,6 +289,237 @@ describe('TourOverlay task steps', () => {
     render(<TourOverlay />);
     await user.click(within(callout()).getByRole('button', { name: 'Skip this step' }));
     expect(callout().dataset.step).toBe('cooldown');
+  });
+});
+
+// Rule: the tour opens with the pre-campaign phase (3+ players): what it is for, painting candidates, their cost, withdrawing,
+// the rivals' live counts, the one-to-one chat, the deadline rule, and Next moves on to the campaign. Numbers come from the config.
+describe('TourOverlay pre-campaign steps', () => {
+  const fieldedBy = (who: string, seats: number[]) => Object.fromEntries(seats.map(s => [s, [{ playerId: who, name: 'Cand ' + s }]]));
+  const ids = () => stepsNow().map(s => s.id);
+  const setPointer = (fine: boolean) => vi.stubGlobal('matchMedia', (q: string) => ({ matches: fine && q.includes('fine'), media: q, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('comes first: the pre-campaign steps in the designed order, then the campaign steps, with the my-actions step gone', () => {
+    cfgBox.cfg = withReports(false);
+    const pre = stepsNow().filter(s => s.phase === 'preCampaign').map(s => s.id);
+    expect(pre).toEqual(['welcome', 'party', 'precampaign', 'field-seats', 'candidate-cost', 'withdraw-seat', 'candidate-counts', 'precampaign-chat', 'no-candidates', 'to-campaign']);
+    expect(ids().slice(0, pre.length)).toEqual(pre);
+    expect(stepsNow()[pre.length].phase).toBe('campaign');
+  });
+
+  it('anchors the steps on the hooks the pre-campaign screen provides', () => {
+    cfgBox.cfg = withReports(false);
+    const anchor = (id: string) => stepsNow().find(s => s.id === id)?.anchor;
+    expect(anchor('candidate-counts')).toEqual(['[data-tour="candidate-counts"]']);
+    expect(anchor('precampaign-chat')).toEqual(['[data-tour="precampaign-chat"]']);
+    expect(anchor('candidate-cost')).toEqual(['[data-tour="hud-budget"]']);
+    expect(anchor('field-seats')).toEqual(['[data-tour="map"]']);
+  });
+
+  it('a 2-player game has no pre-campaign steps', () => {
+    cfgBox.cfg = withReports(false);
+    const two = visibleSteps(() => undefined, cfgBox.cfg, 2);
+    expect(two.some(s => s.phase === 'preCampaign' && s.id !== 'welcome' && s.id !== 'party')).toBe(false);
+    expect(visibleSteps(() => undefined, cfgBox.cfg, 9).some(s => s.id === 'field-seats')).toBe(true);
+  });
+
+  it('explains what the phase is for: where to stand and informal pre-poll alliances, with its length from the config', () => {
+    setup({ step: 'precampaign' });
+    render(<TourOverlay />);
+    expect(callout()).toHaveTextContent('pre-campaign');
+    expect(callout()).toHaveTextContent(`${WORLD_CONFIG.durations.preCampaignMs / 60000} minutes`);
+    expect(callout()).toHaveTextContent('where to stand');
+    expect(callout()).toHaveTextContent('informal pre-poll alliances');
+  });
+
+  it('painting step: the brush wording on a desktop, tap-and-Field wording on a phone', () => {
+    setPointer(true);
+    setup({ step: 'field-seats' });
+    const { unmount } = render(<TourOverlay />);
+    expect(callout()).toHaveTextContent('paint over the map');
+    expect(callout()).not.toHaveTextContent('Tap a seat');
+    unmount();
+    setPointer(false);
+    render(<TourOverlay />);
+    expect(callout()).toHaveTextContent('Tap a seat');
+    expect(callout()).toHaveTextContent('press Field');
+    expect(callout()).not.toHaveTextContent('paint over the map');
+    expect(screen.getByTestId('tour-task')).toHaveTextContent('Field at least 5 seats');
+  });
+
+  it('painting task: done once at least a few of your own seats hold a candidate; the cost comes from the config', async () => {
+    setup({ step: 'field-seats' });
+    render(<TourOverlay />);
+    const mine = (n: number) => fieldedBy('p0', Array.from({ length: n }, (_, i) => i + 1));
+    act(() => useStore.setState({ snapshot: snap({ status: 'preCampaign', fielding: { ...mine(3), ...fieldedBy('p1', [200, 201, 202, 203, 204, 205]) } }) }));
+    await new Promise(r => setTimeout(r, 400));
+    expect(screen.getByTestId('tour-task')).not.toHaveClass('done'); // rivals' candidates do not count
+    expect(screen.getByTestId('tour-task')).toHaveTextContent('3 so far');
+    act(() => useStore.setState({ snapshot: snap({ status: 'preCampaign', fielding: mine(5) }) }));
+    await waitFor(() => expect(screen.getByTestId('tour-task')).toHaveClass('done'));
+    expect(screen.getByTestId('tour-task')).toHaveTextContent('5 seats now have your candidate');
+    expect(screen.getByTestId('tour-task')).toHaveTextContent(WORLD_CONFIG.costs.candidate.toLocaleString('en-IN'));
+  });
+
+  it('cost step: price per candidate, the budget and what a candidate in every seat leaves, all from the config', () => {
+    setup({ step: 'candidate-cost' });
+    render(<TourOverlay />);
+    expect(callout()).toHaveTextContent(WORLD_CONFIG.costs.candidate.toLocaleString('en-IN'));
+    expect(callout()).toHaveTextContent(WORLD_CONFIG.budget.toLocaleString('en-IN'));
+    expect(callout()).toHaveTextContent(fullyFieldedBudget(WORLD_CONFIG).toLocaleString('en-IN'));
+    expect(callout()).not.toHaveTextContent('×');
+  });
+
+  it('withdraw task: done after fielding and then withdrawing (fewer candidates than the peak), refund from the config', async () => {
+    setup({ step: 'withdraw-seat' });
+    render(<TourOverlay />);
+    expect(callout()).toHaveTextContent("candidate's name");
+    expect(callout()).toHaveTextContent('every other party standing there');
+    expect(callout()).toHaveTextContent(WORLD_CONFIG.costs.candidate.toLocaleString('en-IN'));
+    const mine = (n: number) => fieldedBy('p0', Array.from({ length: n }, (_, i) => i + 1));
+    act(() => useStore.setState({ snapshot: snap({ status: 'preCampaign', fielding: mine(4) }) }));
+    await new Promise(r => setTimeout(r, 400));
+    expect(screen.getByTestId('tour-task')).not.toHaveClass('done');
+    act(() => useStore.setState({ snapshot: snap({ status: 'preCampaign', fielding: mine(3) }) }));
+    await waitFor(() => expect(screen.getByTestId('tour-task')).toHaveClass('done'));
+    expect(screen.getByTestId('tour-task')).toHaveTextContent('back in your budget');
+  });
+
+  it('counts step: anchored on the live counts, quoting the current contested seats and majority', () => {
+    setup({ step: 'candidate-counts', snap: { status: 'preCampaign', contestedSeats: 321, majority: 161 } });
+    render(<TourOverlay />);
+    expect(callout()).toHaveTextContent('live');
+    expect(callout()).toHaveTextContent('321');
+    expect(callout()).toHaveTextContent('161');
+    act(() => useStore.setState({ snapshot: snap({ status: 'preCampaign', contestedSeats: 400, majority: 201 }) }));
+    expect(callout()).toHaveTextContent('400');
+    expect(callout()).toHaveTextContent('201');
+  });
+
+  it('chat step: one-to-one, informal, nothing enforces the alliances', () => {
+    setup({ step: 'precampaign-chat' });
+    render(<TourOverlay />);
+    expect(callout()).toHaveTextContent('one-to-one');
+    expect(callout()).toHaveTextContent('informal');
+    expect(callout()).toHaveTextContent('nothing enforces them');
+  });
+
+  it('deadline step: a party with no candidates is out, an unfought seat is vacant, 2-player games skip the phase', () => {
+    setup({ step: 'no-candidates' });
+    render(<TourOverlay />);
+    expect(callout()).toHaveTextContent('no candidate anywhere is out of the game');
+    expect(callout()).toHaveTextContent('vacant');
+    expect(callout()).toHaveTextContent('majority is worked out from the seats that are contested');
+    expect(callout()).toHaveTextContent('only 2 players has no pre-campaign');
+  });
+
+  it('the last step says the tour fields the rest for you, and its Next starts the campaign', async () => {
+    setup({ step: 'to-campaign' });
+    const startCampaign = vi.fn();
+    useTour.setState({ controls: { startCounting: vi.fn(), startCampaign } });
+    const user = userEvent.setup();
+    render(<TourOverlay />);
+    expect(callout()).toHaveTextContent('fields candidates for you');
+    expect(callout()).toHaveTextContent(WORLD_CONFIG.costs.candidate.toLocaleString('en-IN'));
+    await user.click(within(callout()).getByRole('button', { name: 'Next' }));
+    expect(startCampaign).toHaveBeenCalledTimes(1);
+  });
+
+  it('when the campaign starts the tour moves from the pre-campaign steps to the first campaign step', async () => {
+    setup({ step: 'to-campaign' });
+    render(<TourOverlay />);
+    act(() => useStore.setState({ snapshot: snap({ status: 'campaign' }) }));
+    await waitFor(() => expect(callout().dataset.step).toBe('clocks'));
+    expect(within(callout()).queryByRole('button', { name: 'Back' })).toBeNull(); // no way back into the pre-campaign
+  });
+
+  it('Back stays inside the pre-campaign steps and is not offered on the first one', async () => {
+    setup({ step: 'candidate-counts' });
+    const user = userEvent.setup();
+    render(<TourOverlay />);
+    await user.click(within(callout()).getByRole('button', { name: 'Back' }));
+    expect(callout().dataset.step).toBe('withdraw-seat');
+    goTo('welcome');
+    await waitFor(() => expect(within(callout()).queryByRole('button', { name: 'Back' })).toBeNull());
+  });
+
+  it('counting starting while a pre-campaign step is shown still jumps to the counting steps', async () => {
+    setup({ step: 'field-seats' });
+    render(<TourOverlay />);
+    act(() => useStore.setState({ snapshot: snap({ status: 'counting', tally: tally() }) }));
+    await waitFor(() => expect(callout().dataset.step).toBe('counting'));
+  });
+});
+
+// Rule: the campaign steps call the big rally "Major rally", add the cheap, hidden, cooldown-free Minor rally, and say you can
+// only campaign where you have a candidate.
+describe('TourOverlay campaign steps for the new actions', () => {
+  it('the rally steps use the Major rally label and say candidates are needed to campaign', () => {
+    setup({ step: 'rally' });
+    const { unmount } = render(<TourOverlay />);
+    expect(callout()).toHaveTextContent('press Major rally');
+    expect(callout()).toHaveTextContent('only campaign in a seat where your party has a candidate');
+    expect(screen.getByTestId('tour-task')).toHaveTextContent('press Major rally');
+    unmount();
+    goTo('cooldown');
+    render(<TourOverlay />);
+    expect(screen.getByTestId('tour-task')).toHaveTextContent('Major rally button');
+  });
+
+  it('the roadshow step notes the candidate requirement', () => {
+    setup({ step: 'roadshow' });
+    render(<TourOverlay />);
+    expect(callout()).toHaveTextContent('only in a seat where your party has a candidate');
+  });
+
+  it('comes between the cooldown and the roadshow, with no cooldown and no news', () => {
+    cfgBox.cfg = withReports(false);
+    const order = stepsNow().map(s => s.id);
+    expect(order.indexOf('minor-rally')).toBe(order.indexOf('cooldown') + 1);
+    expect(order.indexOf('roadshow')).toBe(order.indexOf('minor-rally') + 1);
+    setup({ step: 'minor-rally' });
+    render(<TourOverlay />);
+    expect(callout()).toHaveTextContent(WORLD_CONFIG.costs.minorRally.toLocaleString('en-IN'));
+    expect(callout()).toHaveTextContent('no cooldown');
+    expect(callout()).toHaveTextContent('secret');
+    expect(callout()).toHaveTextContent('Minor rally');
+  });
+
+  it('minor rally task: done when a minor rally appears; the local effect, the reach and the prices come from the config', async () => {
+    setup({ step: 'minor-rally' });
+    render(<TourOverlay />);
+    expect(screen.getByTestId('tour-task')).not.toHaveClass('done');
+    act(() => useStore.setState({ priv: pv({ myActions: [{ type: 'rally', seat: 5, ts: 1 }] }) }));
+    await new Promise(r => setTimeout(r, 400));
+    expect(screen.getByTestId('tour-task')).not.toHaveClass('done'); // a major rally is not it
+    act(() => useStore.setState({ priv: pv({ myActions: [{ type: 'minorRally', seat: 5, ts: 1 }] }) }));
+    await waitFor(() => expect(screen.getByTestId('tour-task')).toHaveClass('done'));
+    const t = screen.getByTestId('tour-task');
+    const { local, decay } = WORLD_CONFIG.effects.minorRally;
+    expect(t).toHaveTextContent(`+${Math.round(local * WORLD_CONFIG.display.reputationScale)}`);
+    expect(t).toHaveTextContent(`${decay.maxKm} km`);
+    expect(t).toHaveTextContent(WORLD_CONFIG.costs.minorRally.toLocaleString('en-IN'));
+    expect(t).toHaveTextContent(WORLD_CONFIG.costs.rally.toLocaleString('en-IN'));
+    expect(t).toHaveTextContent('rivals never find out');
+    expect(t).not.toHaveTextContent('×');
+  });
+
+  it('shows the reputation jump of the minor rally when the store reports it', async () => {
+    setup({ step: 'minor-rally' });
+    render(<TourOverlay />);
+    act(() => useStore.setState({
+      priv: pv({ myActions: [{ type: 'minorRally', seat: 5, ts: 1 }] }),
+      repGain: { key: 1, type: 'minorRally', seat: 5, seats: { 5: 21 } } as never,
+    }));
+    await waitFor(() => expect(screen.getByTestId('tour-task')).toHaveClass('done'));
+    expect(screen.getByTestId('tour-task')).toHaveTextContent('+21');
+  });
+
+  it('the vote-model step says only the parties with a candidate in a seat take part in its vote', () => {
+    setup({ step: 'votes' });
+    render(<TourOverlay />);
+    expect(callout()).toHaveTextContent('Only the parties that have a candidate in a seat take part in its vote');
   });
 });
 

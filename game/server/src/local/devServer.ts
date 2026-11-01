@@ -1,6 +1,6 @@
 // Single-process local backend: REST lobby on http://localhost:8787 and WebSocket on ws://localhost:8787/ws?gameId=&token=
 // Same GameService as the Lambdas, with in-memory persistence and timers instead of DynamoDB / Step Functions.
-// Short games: HP_CAMPAIGN_MS=60000 HP_COUNTING_MS=20000 HP_POST_MS=20000 HP_GRACE_MS=10000 HP_START_DELAY_MS=3000 npm run dev
+// Short games: HP_PRECAMPAIGN_MS=30000 HP_CAMPAIGN_MS=60000 HP_COUNTING_MS=20000 HP_POST_MS=20000 HP_GRACE_MS=10000 HP_START_DELAY_MS=3000 npm run dev
 import { randomBytes } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { createServer } from 'node:http';

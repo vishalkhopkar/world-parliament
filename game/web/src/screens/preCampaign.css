@@ -1,0 +1,9 @@
+/* screens/PreCampaign.tsx: the live candidate counts in the side panel */
+.precampaign-hint{margin:0}
+.candidate-counts{flex:none;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.candidate-counts ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.candidate-counts li{display:flex;align-items:center;gap:8px;min-width:0}
+.cc-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:.92rem}
+.cc-count{font-variant-numeric:tabular-nums;font-size:1.05rem}
+.cc-majority{margin:6px 0 0;padding-top:6px;border-top:1px dashed var(--line);font-size:.88rem;color:var(--muted)}
+.cc-majority strong{color:var(--ink);font-variant-numeric:tabular-nums}

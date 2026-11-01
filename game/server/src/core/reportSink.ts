@@ -1,5 +1,5 @@
 // Post-election analysis report: one CSV per finished election (per seat and party: vote %, exact reputation, committed %).
-import type { PlayerId, SeatId, SeatResult } from '@hp/shared';
+import type { PlayerId, SeatContestants, SeatId, SeatResult } from '@hp/shared';
 
 export interface ReportSink {
   /** Stores one finished election's CSV under `name` (see electionReportName). May throw; callers swallow failures. */
@@ -20,13 +20,16 @@ export interface ElectionFigures {
   reputation: ReadonlyMap<PlayerId, ReadonlyMap<SeatId, number>>;
   /** Committed voters in percent of the seat's voters. */
   committedPercent: ReadonlyMap<PlayerId, ReadonlyMap<SeatId, number>>;
+  /** Who has a candidate where. A party with no candidate in a seat has empty cells in its row; left out = every party everywhere. */
+  contestants?: SeatContestants;
 }
 
 /**
  * Header `seat,seat_name,<party> vote %,...,<party> reputation,...,<party> committed %,...` (party NAME, never nickname; every party
  * incl. eliminated, in the given order), then one row per seat id in ascending order (seat_name = the map's name, else "Seat <id>").
  * Vote % = the party's share in percent (2 decimals) from the stored SeatResult.shares (post-swing); reputation = the effect x
- * display.reputationScale, unrounded; committed % in percent (2 decimals). Missing figures -> 0.
+ * display.reputationScale, unrounded; committed % in percent (2 decimals). Missing figures -> 0. A party that does not contest a seat
+ * gets empty cells there (all of them in a vacant seat).
  */
 export function buildElectionCsv(
   seatIds: readonly SeatId[], seatNames: Readonly<Record<number, string>>, parties: readonly ReportParty[], f: ElectionFigures,
@@ -38,11 +41,12 @@ export function buildElectionCsv(
   ].map(esc).join(',')];
   for (const seat of [...seatIds].sort((a, b) => a - b)) {
     const shares = bySeat.get(seat)?.shares ?? {};
+    const cell = (p: ReportParty, text: () => string) => (!f.contestants || f.contestants.get(seat)?.has(p.playerId) ? text() : '');
     rows.push([
       String(seat), esc(seatNames[seat] ?? `Seat ${seat}`),
-      ...parties.map((p) => ((shares[p.playerId] ?? 0) * 100).toFixed(2)),
-      ...parties.map((p) => String(f.reputation.get(p.playerId)?.get(seat) ?? 0)),
-      ...parties.map((p) => (f.committedPercent.get(p.playerId)?.get(seat) ?? 0).toFixed(2)),
+      ...parties.map((p) => cell(p, () => ((shares[p.playerId] ?? 0) * 100).toFixed(2))),
+      ...parties.map((p) => cell(p, () => String(f.reputation.get(p.playerId)?.get(seat) ?? 0))),
+      ...parties.map((p) => cell(p, () => (f.committedPercent.get(p.playerId)?.get(seat) ?? 0).toFixed(2))),
     ].join(','));
   }
   return rows.join('\n') + '\n';

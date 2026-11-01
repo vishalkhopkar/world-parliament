@@ -10,7 +10,7 @@ import {
 import { findMentions } from '@hp/chat/common';
 import type {
   Action, AdmissionRequest, AdmitRequest, ClientMessage, CoalitionOffer, CommittedSet, CountTally, CreateGameRequest, CreateGameResponse,
-  ErrorCode, FinalResult, GlobalReports, GameId, GameMapPackage, GameSnapshot, GameStatus, GameTimeline, Government, JoinGameRequest, JoinGameResponse, Kernels,
+  ErrorCode, FieldedCandidate, FieldedSeat, FinalResult, GlobalReports, GameId, GameMapPackage, GameSnapshot, GameStatus, GameTimeline, Government, JoinGameRequest, JoinGameResponse, Kernels,
   LobbyView, MapConfig, NewsItem, PartyIdentity, PartyRequest, RematchRequest, RematchResponse, PlayerId, PlayerPublic, PortfolioAssignment, PrivateState,
   Rng, SeatDeclaration, SeatId, ServerMessage, SettingsRequest, StartResponse,
 } from '@hp/shared';
@@ -18,7 +18,7 @@ import { ApiException, type Transport } from './transport';
 import { gamePackageUrl } from '../map/mapData';
 import { mapConfigFor } from '../state/mapConfig';
 import {
-  SMALL_PARTIES, assignSeats, buildReveal, pickCores, quotasInPartyOrder, tourSeatCounts,
+  SMALL_PARTIES, assignSeats, buildReveal, candidateName, pickCores, planRivalFielding, quotasInPartyOrder, tourSeatCounts,
 } from '../tour/tourScript';
 import type { RevealPlan } from '../tour/tourScript';
 import { useTour } from '../tour/tourStore';
@@ -50,12 +50,22 @@ export interface TourOptions {
   resumeMs?: number;
   /** Delays (ms after the start) of the scripted rallies of rival parties shown in the news ticker. */
   botRallyAt?: number[];
+  /** Real time between two rounds of the rivals fielding their candidates in the pre-campaign (default 2.5 s). */
+  fieldEveryMs?: number;
+  /** How many rounds the rivals take to field all their candidates (default 10). */
+  fieldRounds?: number;
   seed?: string;
 }
 
 const BOT_REPLIES = [
   'Interesting. What portfolios are you thinking of?', 'We could work together if the numbers add up.',
   'Let me talk to the others first.', 'Agreed in principle – send a formal offer.', 'Not before I see the final count.',
+];
+/** What the rivals say in the pre-campaign chat: informal pre-poll alliances, nothing binding. */
+const PRE_REPLIES = [
+  'We would rather not split the vote with you. Which seats are you standing in?',
+  'We are fielding in our strongholds first. Stay clear of them and we stay clear of yours.',
+  'An understanding on seats could help us both after the count.', 'Let us see where everybody stands before we promise anything.',
 ];
 const BOT_RALLIES = [3_500, 9_000, 16_000, 26_000, 38_000, 52_000, 70_000, 95_000];
 
@@ -72,6 +82,10 @@ interface TourGame {
   timeline: GameTimeline;
   players: PlayerPublic[];
   budget: number;
+  /** seat -> its candidates, in the order they were fielded (public, live). */
+  fielding: Map<SeatId, FieldedCandidate[]>;
+  /** The field / withdraw requests already applied, by clientRef (so a repeat changes nothing). */
+  fieldRefs: Map<string, { added: FieldedSeat[]; removed: SeatId[] }>;
   actions: Action[];
   news: NewsItem[];
   committedSet: CommittedSet;
@@ -97,14 +111,14 @@ export class TourTransport implements Transport {
   private onMessage: ((m: ServerMessage) => void) | null = null;
   private timers = new Set<ReturnType<typeof setTimeout>>();
   private ticker: ReturnType<typeof setInterval> | null = null;
-  private opts: Required<Pick<TourOptions, 'revealMs' | 'resumeMs' | 'botRallyAt'>> & TourOptions;
+  private opts: Required<Pick<TourOptions, 'revealMs' | 'resumeMs' | 'botRallyAt' | 'fieldEveryMs' | 'fieldRounds'>> & TourOptions;
   private rng: Rng;
   private uidN = 0;
 
   constructor(opts: TourOptions = {}) {
-    this.opts = { revealMs: 20_000, resumeMs: 9_000, botRallyAt: BOT_RALLIES, ...opts };
+    this.opts = { revealMs: 20_000, resumeMs: 9_000, botRallyAt: BOT_RALLIES, fieldEveryMs: 2_500, fieldRounds: 10, ...opts };
     this.rng = createRng(opts.seed ?? 'hung-parliament-tour');
-    useTour.getState().register({ startCounting: () => this.startCounting() });
+    useTour.getState().register({ startCounting: () => this.startCounting(), startCampaign: () => this.startCampaign() });
   }
 
   // -------------------------------------------------------------- plumbing
@@ -132,10 +146,18 @@ export class TourTransport implements Transport {
   private pid(idx: number) { return PARTY_IDS[idx]; }
 
   // -------------------------------------------------------------- views
+  private contestedSeats(g: TourGame): number {
+    let n = 0;
+    for (const list of g.fielding.values()) if (list.length > 0) n++;
+    return n;
+  }
   private snapshot(g: TourGame): GameSnapshot {
+    const contestedSeats = this.contestedSeats(g);
     return {
       gameId: g.gameId, mapId: g.pkg.mapId, status: g.status, phases: 1, timeline: g.timeline,
-      players: structuredClone(g.players), news: [...g.news], polledPhases: [], seats: { ...g.seats },
+      players: structuredClone(g.players), news: [...g.news],
+      fielding: Object.fromEntries([...g.fielding].filter(([, l]) => l.length > 0).map(([seat, l]) => [seat, structuredClone(l)])),
+      contestedSeats, majority: majorityOf(contestedSeats), polledPhases: [], seats: { ...g.seats },
       tally: g.tally ? structuredClone(g.tally) : null, offers: structuredClone(g.offers), government: g.government, result: g.result,
     };
   }
@@ -201,19 +223,20 @@ export class TourTransport implements Transport {
       playerId: this.pid(i), nickname: i === 0 ? 'You' : party.name, isAdmin: i === 0, kind: 'human', party: { ...party }, status: 'active',
     }));
     const now = Date.now();
+    // the pre-campaign never ends by itself (the tour moves on when you press Next); the campaign clocks are set when it starts
     const timeline: GameTimeline = {
-      campaignStart: now - 1_000, phaseCloses: [now + FAR_MS], campaignEnd: now + FAR_MS,
-      countingEnd: now + FAR_MS + 1, postCountingEnd: now + FAR_MS + 2,
+      preCampaignEnd: now + FAR_MS, campaignStart: now + FAR_MS + 1_000, phaseCloses: [now + 2 * FAR_MS], campaignEnd: now + 2 * FAR_MS,
+      countingEnd: now + 2 * FAR_MS + 1, postCountingEnd: now + 2 * FAR_MS + 2,
     };
     this.g = {
-      gameId: 'tour_' + this.uid('g'), pkg, kernels, cfg, n, status: 'campaign', timeline, players, budget: cfg.budget, actions: [],
+      gameId: 'tour_' + this.uid('g'), pkg, kernels, cfg, n, status: 'preCampaign', timeline, players, budget: cfg.budget,
+      fielding: new Map(), fieldRefs: new Map(), actions: [],
       news: [], committedSet, truth, trueShares: {}, seats: {}, tally: null, offers: [], government: null, plan: null, planIdx: 0,
       vt: 0, lastTick: now, paused: false, released: false, result: null,
     };
     const g = this.g;
     this.buildShares(g, rng);
-    // rivals rally now and then, so the news ticker has something to show
-    this.opts.botRallyAt.forEach((ms, k) => this.later(() => this.botRally(g, k), ms));
+    this.scheduleRivalFielding(g, truth);
     return { gameId: g.gameId, joinCode: '', playerId: TOUR_ME_ID, token: 'tour' };
   }
 
@@ -228,6 +251,36 @@ export class TourTransport implements Transport {
       const tot = raw.reduce((a, b) => a + b, 0);
       g.trueShares[seat] = Object.fromEntries(raw.map((v, i) => [this.pid(i), Math.round((v / tot) * 1000) / 1000]));
     }
+  }
+
+  /** The rivals field their candidates round by round (own random stream, so the scripted result does not change). */
+  private scheduleRivalFielding(g: TourGame, truth: Map<SeatId, number>) {
+    const rounds = Math.max(1, this.opts.fieldRounds);
+    const plan = planRivalFielding(truth, g.pkg.seats.map(s => s.id), PARTY_IDS.length, createRng(`${this.opts.seed ?? 'hung-parliament-tour'}:fielding`), rounds);
+    for (const [party, perRound] of plan) {
+      perRound.forEach((seats, r) => this.later(() => {
+        if (this.g !== g || g.status !== 'preCampaign') return;
+        this.addCandidates(g, this.pid(party), seats);
+      }, this.opts.fieldEveryMs * (r + 1) + party * 150));
+    }
+  }
+
+  /** Puts a candidate of `who` in each of `seats` they do not hold yet, tells everybody, and returns what was added. */
+  private addCandidates(g: TourGame, who: PlayerId, seats: SeatId[], announce = true): FieldedSeat[] {
+    const added: FieldedSeat[] = [];
+    for (const seat of seats) {
+      const list = g.fielding.get(seat) ?? [];
+      if (list.some(c => c.playerId === who)) continue;
+      const name = candidateName(who, seat);
+      g.fielding.set(seat, [...list, { playerId: who, name }]);
+      added.push({ seat, name });
+    }
+    if (announce && added.length) this.announceFielding(g, who, added, []);
+    return added;
+  }
+  private announceFielding(g: TourGame, who: PlayerId, added: FieldedSeat[], removed: SeatId[]) {
+    const contestedSeats = this.contestedSeats(g);
+    this.emit({ type: 'fieldingUpdate', playerId: who, added, removed, contestedSeats, majority: majorityOf(contestedSeats) });
   }
 
   private botRally(g: TourGame, k: number) {
@@ -280,6 +333,8 @@ export class TourTransport implements Transport {
     switch (msg.action) {
       case 'ping': this.emit({ type: 'pong', clientTime: msg.clientTime, serverTime: Date.now() }); break;
       case 'campaign': this.handleCampaign(g, msg, err); break;
+      case 'field': this.handleField(g, msg, err, true); break;
+      case 'withdraw': this.handleField(g, msg, err, false); break;
       case 'buyReport': err('BAD_REQUEST', 'Analyst reports are not part of the tour'); break;
       case 'globalReports': this.handleGlobalReports(g, err); break;
       case 'peekSeat': this.handlePeek(g, msg, err); break;
@@ -307,6 +362,7 @@ export class TourTransport implements Transport {
    */
   private handleGlobalReports(g: TourGame, err: ErrFn) {
     if (!g.cfg.news.enabled) return err('FORBIDDEN', 'News agency reports are switched off in this game');
+    if (g.status === 'preCampaign') return err('WRONG_PHASE', 'News agencies report from the campaign start');
     const ids = g.players.map(p => p.playerId);
     const final = ids.map((_, i) => [...g.truth.values()].filter(w => w === i).length);
     const count = Math.min(g.cfg.news.maxPoints, 3 + g.actions.length);
@@ -334,10 +390,60 @@ export class TourTransport implements Transport {
     this.emit({ type: 'globalReports', reports });
   }
 
+  // ---- pre-campaign: fielding
+  /** `field` (add = true) or `withdraw`: same rules as the server (all or nothing against the budget, repeated clientRefs change nothing). */
+  private handleField(g: TourGame, msg: Msg<'field'> | Msg<'withdraw'>, err: ErrFn, add: boolean) {
+    if (g.status !== 'preCampaign') return err('WRONG_PHASE', 'Candidates can only be fielded or withdrawn before the campaign', msg.clientRef);
+    const seats = [...new Set(msg.seats ?? [])];
+    if (!seats.length || seats.some(s => !g.kernels.index.has(s))) return err('BAD_REQUEST', 'Unknown seat', msg.clientRef);
+    const done = msg.clientRef ? g.fieldRefs.get(msg.clientRef) : undefined;
+    if (done) return this.emit({ type: 'fieldAck', clientRef: msg.clientRef, duplicate: true, ok: true, budget: g.budget, added: done.added, removed: done.removed });
+    const held = (seat: SeatId) => !!g.fielding.get(seat)?.some(c => c.playerId === TOUR_ME_ID);
+    const price = g.cfg.costs.candidate;
+    let added: FieldedSeat[] = [];
+    let removed: SeatId[] = [];
+    if (add) {
+      const fresh = seats.filter(s => !held(s));
+      if (g.budget < fresh.length * price) return err('INSUFFICIENT_FUNDS', 'Not enough funds for those candidates', msg.clientRef);
+      g.budget -= fresh.length * price;
+      added = this.addCandidates(g, TOUR_ME_ID, fresh, false);
+    } else {
+      removed = seats.filter(held);
+      for (const seat of removed) g.fielding.set(seat, g.fielding.get(seat)!.filter(c => c.playerId !== TOUR_ME_ID));
+      g.budget += removed.length * price;
+    }
+    if (msg.clientRef) g.fieldRefs.set(msg.clientRef, { added, removed });
+    this.emit({ type: 'fieldAck', clientRef: msg.clientRef, ok: true, budget: g.budget, added, removed });
+    if (added.length || removed.length) this.announceFielding(g, TOUR_ME_ID, added, removed);
+  }
+
+  /** End of the pre-campaign: the tour fields everything you have not (charging it), then the rivals' rest, and opens the campaign. */
+  startCampaign() {
+    const g = this.g;
+    if (!g || g.status !== 'preCampaign') return;
+    const everySeat = g.pkg.seats.map(s => s.id);
+    const mine = this.addCandidates(g, TOUR_ME_ID, everySeat, false);
+    g.budget -= mine.length * g.cfg.costs.candidate; // = fullyFieldedBudget(cfg) once every seat is yours
+    for (let i = 1; i < PARTY_IDS.length; i++) this.addCandidates(g, this.pid(i), everySeat);
+    g.status = 'campaign';
+    const now = Date.now();
+    g.timeline = {
+      ...g.timeline, preCampaignEnd: now, campaignStart: now - 1_000, phaseCloses: [now + FAR_MS], campaignEnd: now + FAR_MS,
+      countingEnd: now + FAR_MS + 1, postCountingEnd: now + FAR_MS + 2,
+    };
+    if (mine.length) this.announceFielding(g, TOUR_ME_ID, mine, []);
+    this.emit({ type: 'status', status: 'campaign', timeline: g.timeline });
+    this.emit({ type: 'private', private: this.priv(g) });
+    // rivals rally now and then, so the news ticker has something to show
+    this.opts.botRallyAt.forEach((ms, k) => this.later(() => this.botRally(g, k), ms));
+  }
+
   // ---- campaign
   private handleCampaign(g: TourGame, msg: Msg<'campaign'>, err: ErrFn) {
+    if (g.status === 'preCampaign') return err('WRONG_PHASE', 'The campaign has not started yet: field your candidates first', msg.clientRef);
     if (g.status !== 'campaign') return err('WRONG_PHASE', 'The campaign is over', msg.clientRef);
     if (!g.kernels.index.has(msg.seat)) return err('BAD_REQUEST', 'Unknown seat', msg.clientRef);
+    if (!g.fielding.get(msg.seat)?.some(c => c.playerId === TOUR_ME_ID)) return err('NOT_FIELDED', 'You have no candidate in that seat, so you cannot campaign there', msg.clientRef);
     const now = Date.now();
     if (msg.type === 'rally') {
       const at = this.nextRallyAt(g);
@@ -368,7 +474,8 @@ export class TourTransport implements Transport {
     const text = msg.text.trim().slice(0, 500);
     if (!text) return err('BAD_REQUEST', 'Write something');
     const now = Date.now();
-    const reply = () => BOT_REPLIES[Math.floor(this.rng() * BOT_REPLIES.length)];
+    const replies = g.status === 'preCampaign' ? PRE_REPLIES : BOT_REPLIES;
+    const reply = () => replies[Math.floor(this.rng() * replies.length)];
     if (mode === 'GROUP') {
       // everybody reads it; a tagged party answers (tagging you back), otherwise a random one
       const named = g.players.filter(p => p.party).map(p => ({ id: p.playerId, name: p.party!.name }));
@@ -396,7 +503,7 @@ export class TourTransport implements Transport {
 
   // ---- peek (vote-share pie)
   private handlePeek(g: TourGame, msg: Msg<'peekSeat'>, err: ErrFn) {
-    if (g.status === 'campaign') return err('WRONG_PHASE', 'Vote shares are available once counting has started');
+    if (g.status === 'campaign' || g.status === 'preCampaign') return err('WRONG_PHASE', 'Vote shares are available once counting has started');
     const d = g.seats[msg.seat];
     const truth = g.trueShares[msg.seat];
     if (!d || !truth) return err('NOT_FOUND', 'That seat has no lead yet');

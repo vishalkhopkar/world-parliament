@@ -23,7 +23,7 @@ const snap = (tl?: { start: number; end: number }): GameSnapshot => ({
   timeline: tl
     ? { campaignStart: tl.start, phaseCloses: [tl.end], campaignEnd: tl.end, countingEnd: tl.end + 1e6, postCountingEnd: tl.end + 2e6 }
     : { campaignStart: 1000, phaseCloses: [Date.now() + 1e6], campaignEnd: Date.now() + 1e6, countingEnd: Date.now() + 2e6, postCountingEnd: Date.now() + 3e6 },
-  players: [pl('a', 'blue', 'Alpha'), pl('b', 'orange', 'Bravo')], news: [], polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null,
+  players: [pl('a', 'blue', 'Alpha'), pl('b', 'orange', 'Bravo')], news: [], fielding: {}, contestedSeats: 100, majority: 51, polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null,
 });
 const pkg = { phaseGroups: { '1': [[1]] }, seats: [{ id: 1, x: 1, y: 1, lon: 1, lat: 1, neighbours: [] }] };
 const priv: PrivateState = { you: 'a', budget: 100, myActions: [], myReports: [] };

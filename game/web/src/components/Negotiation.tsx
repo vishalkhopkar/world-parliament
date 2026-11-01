@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { leavesPartyOut, majorityOf } from '@hp/shared';
+import { leavesPartyOut } from '@hp/shared';
 import type { CoalitionOffer, GameSnapshot, PlayerId, PortfolioAssignment } from '@hp/shared';
 import { useStore } from '../state/store';
 import { useMapConfig } from '../state/mapConfig';
 import { proposeGovernment, respondOffer, withdrawOffer } from '../net/client';
 import { Card, PartyTags } from './ui';
 import { ChatSection } from './ChatSection';
+import { isEliminated } from './EliminatedBanner';
 import './Negotiation.css';
-import { playerName, seatCountOf } from '../lib';
+import { playerName } from '../lib';
 
 // ---------------------------------------------------------------- offers
 function seatsOf(snap: GameSnapshot, id: PlayerId) {
@@ -34,9 +35,10 @@ export function OfferView({ o, snap, me }: { o: CoalitionOffer; snap: GameSnapsh
   const portfolios = cfg.points.portfolios;
   const members = [o.proposer, ...o.partners];
   const combined = members.reduce((s, id) => s + seatsOf(snap, id), 0);
-  const maj = majorityOf(seatCountOf(snap.tally?.total, cfg.seatCount));
+  const maj = snap.majority;
   const mineIncoming = o.proposer !== me;
   const iAccepted = o.accepted.includes(me);
+  const out = isEliminated(snap, me);
   return (
     <div className={'offer ' + o.status}>
       <div className="offer-head">
@@ -54,7 +56,7 @@ export function OfferView({ o, snap, me }: { o: CoalitionOffer; snap: GameSnapsh
       {o.status === 'declined' && o.declinedBy && <div className="hint">Declined by {playerName(snap.players, o.declinedBy)}</div>}
       {o.status === 'superseded' && o.supersededBy && <div className="hint">Replaced by a newer offer</div>}
       <LargestLeftOut snap={snap} members={members} />
-      {o.status === 'open' && mineIncoming && !iAccepted && (
+      {o.status === 'open' && mineIncoming && !iAccepted && !out && (
         <div className="actions">
           <button className="btn primary sm" onClick={() => respondOffer(o.offerId, true)}>Accept</button>
           <button className="btn ghost sm" onClick={() => respondOffer(o.offerId, false)}>Decline</button>
@@ -62,7 +64,7 @@ export function OfferView({ o, snap, me }: { o: CoalitionOffer; snap: GameSnapsh
       )}
       {o.status === 'open' && mineIncoming && iAccepted && <div className="hint">You accepted. Waiting for the others.</div>}
       {o.status === 'accepted' && <div className="hint">Everyone accepted. The government is confirmed once ALL seats are declared, if its members hold a majority of WON seats.</div>}
-      {(o.status === 'open' || o.status === 'accepted') && !mineIncoming && (
+      {(o.status === 'open' || o.status === 'accepted') && !mineIncoming && !out && (
         <div className="actions"><button className="btn ghost sm" onClick={() => withdrawOffer(o.offerId)}>Withdraw</button></div>
       )}
     </div>
@@ -87,8 +89,7 @@ function OfferBuilder({ snap, me }: { snap: GameSnapshot; me: PlayerId }) {
   }
   const partners = [...new Set([...Object.values(portfolios).flat(), ...extra])].filter(id => id !== me);
   const members = [me, ...partners];
-  const total = seatCountOf(snap.tally?.total, cfg.seatCount);
-  const maj = majorityOf(total);
+  const maj = snap.majority;
   const combined = members.reduce((s, id) => s + seatsOf(snap, id), 0);
   const contenders = others.map(p => p.playerId);
   const everyoneIn = partners.length > 0 && !leavesPartyOut(members, [me, ...contenders]);
@@ -152,7 +153,7 @@ export function Negotiation({ snap }: { snap: GameSnapshot }) {
       <div data-tour="chat" className="chat-slot">
         <ChatSection snap={snap} me={me} mode="INDV" renderOffer={o => <OfferView o={o} snap={snap} me={me} />} />
       </div>
-      {!gov && <OfferBuilder snap={snap} me={me} />}
+      {!gov && !isEliminated(snap, me) && <OfferBuilder snap={snap} me={me} />}
     </>
   );
 }

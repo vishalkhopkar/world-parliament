@@ -25,18 +25,19 @@ const CHECK = argv.includes('--check');
 type Kind = 'number' | 'string' | 'boolean';
 /** Every key the game understands (portfolios and committed-voter bands are numbered: points.portfolios.<1..n>.<field>, committed.bands.<1..n>.<field>). */
 const NUMBER_KEYS = [
-  'budget', 'costs.rally', 'costs.roadshow',
+  'budget', 'costs.rally', 'costs.roadshow', 'costs.minorRally', 'costs.candidate',
   'analyst.seatReport.start', 'analyst.seatReport.end', 'analyst.globalReport.start', 'analyst.globalReport.end',
   'analyst.delayMs', 'analyst.noise', 'analyst.marginFactor',
   'effects.distanceUnitKm',
   'effects.rally.local', 'effects.rally.global', 'effects.rally.decay.spread', 'effects.rally.decay.maxKm',
   'effects.roadshow.local', 'effects.roadshow.decay.spread', 'effects.roadshow.decay.maxKm',
+  'effects.minorRally.local', 'effects.minorRally.decay.spread', 'effects.minorRally.decay.maxKm',
   'cooldowns.rallyMs',
-  'effects.firstMover.rally', 'effects.firstMover.roadshow',
+  'effects.firstMover.rally', 'effects.firstMover.roadshow', 'effects.firstMover.minorRally',
   'timeMultiplier.start', 'timeMultiplier.end',
-  'committed.seatMaxPercent', 'voting.influenceMaxPercent', 'voting.randomMaxPercent', 'display.reputationScale',
+  'committed.seatMaxPercent', 'voting.influenceMaxPercent', 'voting.randomMaxPercent', 'display.reputationScale', 'display.brushRadiusPx',
   'phases.min', 'phases.max', 'phases.default', 'players.min', 'players.max',
-  'durations.campaignMs', 'durations.countingMs', 'durations.countingMsTwoPlayers', 'durations.countingStepMs',
+  'durations.preCampaignMs', 'durations.campaignMs', 'durations.countingMs', 'durations.countingMsTwoPlayers', 'durations.countingStepMs',
   'durations.postCountingMs', 'durations.postCountingMsTwoPlayers', 'durations.graceMs',
   'connection.retryMs',
   'counting.winStartFraction', 'counting.allLeadsByFraction', 'counting.leadNoiseStart', 'counting.leadNoiseExponent',
@@ -125,16 +126,18 @@ const rule = (ok: boolean, msg: string) => { if (!ok) errors.push(msg); };
 if (!errors.length) {
   rule(val('budget') > 0, 'budget must be > 0');
   rule(val('display.reputationScale') > 0, 'display.reputationScale must be > 0');
-  for (const k of ['costs.rally', 'costs.roadshow']) rule(val(k) > 0, `${k} must be > 0`);
+  rule(val('display.brushRadiusPx') > 0, 'display.brushRadiusPx must be > 0');
+  rule(val('durations.preCampaignMs') > 0, 'durations.preCampaignMs must be > 0');
+  for (const k of ['costs.rally', 'costs.roadshow', 'costs.minorRally', 'costs.candidate']) rule(val(k) > 0, `${k} must be > 0`);
   rule(val('effects.distanceUnitKm') > 0, 'effects.distanceUnitKm must be > 0');
-  for (const k of ['effects.rally', 'effects.roadshow']) {
+  for (const k of ['effects.rally', 'effects.roadshow', 'effects.minorRally']) {
     rule(val(`${k}.local`) > 0, `${k}.local must be > 0`);
     rule(val(`${k}.decay.spread`) > 0, `${k}.decay.spread must be > 0`);
     rule(val(`${k}.decay.maxKm`) >= 0, `${k}.decay.maxKm must be >= 0`);
   }
   rule(val('effects.rally.global') >= 0, 'effects.rally.global must be >= 0');
   rule(val('cooldowns.rallyMs') >= 0, 'cooldowns.rallyMs must be >= 0');
-  for (const k of ['effects.firstMover.rally', 'effects.firstMover.roadshow']) rule(val(k) >= 0, `${k} must be >= 0`);
+  for (const k of ['effects.firstMover.rally', 'effects.firstMover.roadshow', 'effects.firstMover.minorRally']) rule(val(k) >= 0, `${k} must be >= 0`);
   rule(val('players.min') >= 2 && val('players.max') >= val('players.min'), 'players: need 2 <= min <= max');
   rule(val('phases.min') >= 1 && val('phases.max') >= val('phases.min'), 'phases: need 1 <= min <= max');
   rule(val('phases.default') >= val('phases.min') && val('phases.default') <= val('phases.max'), 'phases.default must be within min..max');

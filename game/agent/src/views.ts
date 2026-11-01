@@ -1,7 +1,7 @@
 // Compact, name-based views of game data for LLMs (ids replaced by party names / seat names, times by seconds).
-import { analystPrice, chatModeFor, majorityOf, rallyAvailableAt } from '@hp/shared';
+import { analystPrice, chatModeFor, fullyFieldedBudget, majorityOf, rallyAvailableAt } from '@hp/shared';
 import type {
-  AnalystReport, ChatMessage, GlobalReports, CommittedView, CoalitionOffer, FinalResult, GameTimeline, Government, PlayerPublic, PortfolioAssignment, SeatDeclaration,
+  AnalystReport, FieldedCandidate, SeatId, ChatMessage, GlobalReports, CommittedView, CoalitionOffer, FinalResult, GameTimeline, Government, PlayerPublic, PortfolioAssignment, SeatDeclaration,
 } from '@hp/shared';
 import { admissionOf } from './state';
 import type { AgentEvent } from './state';
@@ -12,15 +12,63 @@ export const round1 = (n: number): number => Math.round(n * 10) / 10;
 const secs = (ms: number): number => Math.max(0, Math.round(ms / 1000));
 
 /**
- * The player's budget. The server grants it at the campaign start and sends the status event BEFORE the private update,
- * so for a moment the lobby-time 0 is still in the state (state.budgetPending): that is a gap, not an empty purse, so report
- * the configured budget until the real number arrives.
+ * The player's budget. The server grants it when the game leaves the lobby (the pre-campaign with 3+ players, else the campaign)
+ * and sends the status event BEFORE the private update, so for a moment the lobby-time 0 is still in the state
+ * (state.budgetPending): that is a gap, not an empty purse, so report the number it will be until the real one arrives:
+ * the full budget in a pre-campaign, what is left after a candidate on every seat in a 2-player campaign.
  */
 export function currentBudget(s: AgentSession): number | null {
   const priv = s.client.state.priv;
   if (!priv) return null;
-  if (priv.budget === 0 && s.client.state.budgetPending && s.client.state.snapshot?.status === 'campaign') return s.cfg().budget;
+  const snap = s.client.state.snapshot;
+  if (priv.budget === 0 && s.client.state.budgetPending && (snap?.status === 'campaign' || snap?.status === 'preCampaign')) {
+    return snap.timeline?.preCampaignEnd !== undefined ? s.cfg().budget : fullyFieldedBudget(s.cfg());
+  }
   return priv.budget;
+}
+
+/** Seats needed for a majority right now: the server's figure (it drops with vacant seats), else the whole map's. */
+export const majorityNow = (s: AgentSession): number => s.client.state.snapshot?.majority ?? majorityOf(s.cfg().seatCount);
+
+// ------------------------------------------------------------------ fielding (pre-campaign)
+/** True when this game has a pre-campaign (3+ players): fielding is then explicit. A 2-player game fields every seat automatically. */
+export const gameHasFielding = (s: AgentSession): boolean => {
+  const snap = s.client.state.snapshot;
+  return snap?.timeline?.preCampaignEnd !== undefined && !!snap.fielding;
+};
+
+/** Candidates standing in a seat (empty = vacant, or the game has no pre-campaign). */
+export const candidatesIn = (s: AgentSession, seat: SeatId): FieldedCandidate[] => s.client.state.snapshot?.fielding?.[seat] ?? [];
+
+/** Does this player have a candidate in the seat? null = not applicable (no pre-campaign: every seat is fielded) or unknown. */
+export function iHaveCandidate(s: AgentSession, seat: SeatId): boolean | null {
+  const snap = s.client.state.snapshot;
+  if (!gameHasFielding(s) || !snap?.fielding || !s.client.me) return null;
+  return candidatesIn(s, seat).some((c) => c.playerId === s.client.me);
+}
+
+/** How many seats have a candidate of this player, per player id. */
+export function fieldedCounts(s: AgentSession): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const list of Object.values(s.client.state.snapshot?.fielding ?? {})) for (const c of list) out.set(c.playerId, (out.get(c.playerId) ?? 0) + 1);
+  return out;
+}
+
+/** The pre-campaign numbers shared by get_state, the field tools and wait_for_events. */
+export function fieldingSummary(s: AgentSession) {
+  const snap = s.client.state.snapshot;
+  const cfg = s.cfg();
+  const counts = fieldedCounts(s);
+  const by_party: Record<string, number> = {};
+  for (const p of s.players().filter((x) => ['active', 'disconnected', 'eliminated'].includes(x.status))) by_party[who(s, p.playerId)] = counts.get(p.playerId) ?? 0;
+  return {
+    your_candidates: counts.get(s.client.me ?? '') ?? 0,
+    candidate_cost_wr: cfg.costs.candidate,
+    by_party,
+    contested_seats: snap?.contestedSeats ?? 0,
+    majority: majorityNow(s),
+    seats_total: cfg.seatCount,
+  };
 }
 
 /**
@@ -45,13 +93,14 @@ export function rallyCooldownView(s: AgentSession): { rally_ready: boolean; next
   return { rally_ready: left <= 0, next_rally_in_s: Math.ceil(left / 1000), rally_cooldown_s: Math.round(cfg.cooldowns.rallyMs / 1000) };
 }
 
-export type Stage = 'lobby' | 'campaign' | 'counting' | 'postCounting' | 'finished';
+export type Stage = 'lobby' | 'preCampaign' | 'campaign' | 'counting' | 'postCounting' | 'finished';
 
-/** Which stage the game is in and the seconds until the NEXT milestone of that stage (null in the lobby, 0 when finished). */
+/** Which stage the game is in and the seconds until the NEXT milestone of that stage (the pre-campaign deadline, the next phase close, ...; null in the lobby, 0 when finished). */
 export function stageInfo(status: string | undefined, tl: GameTimeline | null | undefined, now: number): { stage: Stage; stage_left_s: number | null } {
-  const stage = (['lobby', 'campaign', 'counting', 'postCounting', 'finished'].includes(status ?? '') ? status : 'lobby') as Stage;
+  const stage = (['lobby', 'preCampaign', 'campaign', 'counting', 'postCounting', 'finished'].includes(status ?? '') ? status : 'lobby') as Stage;
   if (!tl) return { stage, stage_left_s: stage === 'finished' ? 0 : null };
   switch (stage) {
+    case 'preCampaign': return { stage, stage_left_s: tl.preCampaignEnd !== undefined ? secs(tl.preCampaignEnd - now) : secs(tl.campaignStart - now) };
     case 'campaign': {
       const next = tl.phaseCloses.find((x) => x > now);
       return { stage, stage_left_s: secs((next ?? tl.campaignEnd) - now) };
@@ -128,7 +177,7 @@ export function offerView(s: AgentSession, o: CoalitionOffer) {
   const live = o.status === 'open' || o.status === 'accepted';
   const memberSeats = members.reduce((a, m) => a + (wins[m] ?? 0), 0);
   const memberLeads = members.reduce((a, m) => a + (leads[m] ?? 0), 0);
-  const need = majorityOf(s.cfg().seatCount);
+  const need = majorityNow(s);
   const me = s.client.me;
   const big = live ? largestParty(s) : null;
   const leftOut = big !== null && !members.includes(big) ? ` ${leftOutHint(s, big)}` : '';
@@ -247,7 +296,17 @@ export function eventView(s: AgentSession, e: AgentEvent, dir: SeatDirectory | n
     case 'offer': return { ...base, ...offerView(s, d.offer) };
     case 'government': return { ...base, ...governmentView(s, d.government) };
     case 'result': return { ...base, ...resultView(s, d.result) };
-    case 'status': return { ...base, status: d.status };
+    case 'status': {
+      const note = ({
+        preCampaign: 'The pre-campaign has started: field candidates now (field_candidates). With no candidate by the deadline you are eliminated. Campaign actions open when it ends.',
+        campaign: 'The campaign is on: rallies, minor rallies and roadshows, only in seats where you have a candidate.',
+      } as Record<string, string>)[d.status];
+      return { ...base, status: d.status, ...(note ? { note } : {}) };
+    }
+    case 'fielding': return {
+      ...base, party: who(s, d.playerId, true), fielded: (d.added as unknown[]).length, withdrawn: (d.removed as unknown[]).length,
+      contested_seats: d.contestedSeats, majority: d.majority,
+    };
     case 'players': return { ...base, players: (d.players as PlayerPublic[]).map((p) => ({ ...(p.party ? {} : { nickname: p.nickname }), party: p.party?.name ?? null, kind: p.kind ?? 'human', status: p.status, admin: p.isAdmin })) };
     case 'report': return { ...base, report: reportView(s, d.report, dir), budget: d.budget };
     case 'rematch': {
@@ -258,7 +317,7 @@ export function eventView(s: AgentSession, e: AgentEvent, dir: SeatDirectory | n
         ...base, previous_game_id: d.previousGameId ?? null, game_id: d.gameId, join_code: d.joinCode || null,
         ...(phases !== undefined ? { polling_phases: phases } : {}),
         ...(mine ? { your_party: mine } : {}),
-        note: 'The host played again. You are already in the new game with the same party; its campaign has started (no set_party, no join_game needed). Call get_state and campaign now. Do not call leave_game.',
+        note: 'The host played again. You are already in the new game with the same party; it has started (no set_party, no join_game needed): with 3+ players it begins in the pre-campaign (field candidates now with field_candidates), with 2 players in the campaign. Call get_state. Do not call leave_game.',
       };
     }
     case 'error': return { ...base, code: d.error, message: d.message };
@@ -304,11 +363,13 @@ export function stateView(s: AgentSession, dir: SeatDirectory | null) {
     join_code: st.joinCode,
     map: s.mapId(),
     seats_total: cfg.seatCount,
-    majority: majorityOf(cfg.seatCount),
+    // contested seats = seats with at least one candidate: a vacant seat is never declared and the majority drops with it
+    contested_seats: snap?.contestedSeats ?? cfg.seatCount,
+    majority: majorityNow(s),
     status,
     admission,
     connection: st.link,
-    you: { id: c.me, ...(mine?.party ? {} : { nickname: mine?.nickname ?? st.nickname }), party: mine?.party?.name ?? null, kind: 'agent' },
+    you: { id: c.me, ...(mine?.party ? {} : { nickname: mine?.nickname ?? st.nickname }), party: mine?.party?.name ?? null, kind: 'agent', status: mine?.status ?? null },
     server_time_offset_ms: Math.round(st.serverOffsetMs),
   };
   const advice: string[] = [];
@@ -321,6 +382,7 @@ export function stateView(s: AgentSession, dir: SeatDirectory | null) {
     inCampaign = status === 'campaign' && now >= tl.campaignStart && now < tl.campaignEnd;
     phaseIdx = status === 'campaign' && cur >= 0 ? cur : null;
     out.timers = {
+      ...(tl.preCampaignEnd !== undefined ? { pre_campaign_left_s: secs(tl.preCampaignEnd - now) } : {}),
       campaign_starts_in_s: now < tl.campaignStart ? secs(tl.campaignStart - now) : 0,
       campaign_left_s: secs(tl.campaignEnd - now),
       current_polling_phase: phaseIdx !== null ? phaseIdx + 1 : null,
@@ -348,9 +410,14 @@ export function stateView(s: AgentSession, dir: SeatDirectory | null) {
     out.budget = {
       wr: budget,
       rally_cost_wr: cost.rally,
+      minor_rally_cost_wr: cost.minorRally,
       roadshow_cost_wr: cost.roadshow,
+      candidate_cost_wr: cost.candidate,
+      costs_wr: { ...cost },
       rallies_affordable: Math.floor(budget / cost.rally),
+      minor_rallies_affordable: Math.floor(budget / cost.minorRally),
       roadshows_affordable: Math.floor(budget / cost.roadshow),
+      candidates_affordable: cost.candidate > 0 ? Math.floor(budget / cost.candidate) : null,
       ...rallyCooldownView(s),
       ...(prices && cfg.analyst.seatReport.enabled ? { seat_report_price_now_wr: prices.seat } : {}),
       ...(prices && cfg.analyst.globalReport.enabled ? { global_report_price_now_wr: prices.global } : {}),
@@ -359,16 +426,17 @@ export function stateView(s: AgentSession, dir: SeatDirectory | null) {
       report_price_note: 'Report prices rise as the campaign goes on, by the second: the price you pay is the one at the moment the server handles your purchase, so it can be slightly higher than the price shown here.',
       currency: cfg.currency.symbol,
     };
-    const rallies = priv.myActions.filter((a) => a.type === 'rally').length;
+    const done = (t: string) => priv.myActions.filter((a) => a.type === t).length;
     out.committed = committedSummary(s, dir);
-    out.my_actions = { rallies, roadshows: priv.myActions.length - rallies, reports_bought: priv.myReports.length };
+    out.my_actions = { rallies: done('rally'), minor_rallies: done('minorRally'), roadshows: done('roadshow'), reports_bought: priv.myReports.length };
   }
+  if (snap && gameHasFielding(s)) out.fielding = { ...fieldingSummary(s), note: 'Public and live: every party can see who has a candidate where. Only seats where you have a candidate can be campaigned in.' };
 
   out.players = s.players().filter((p) => p.status !== 'rejected').map((p) => playerView(s, p));
   if (snap) {
     const byParty: Record<string, number> = {};
     for (const n of snap.news) { const k = who(s, n.playerId); byParty[k] = (byParty[k] ?? 0) + 1; }
-    out.public_rally_news = { total: snap.news.length, by_party: byParty };
+    out.public_rally_news = { total: snap.news.length, by_party: byParty, note: 'Major rallies only; minor rallies and roadshows are hidden.' };
     if (snap.tally) out.tally = { declared_won: snap.tally.declared, of: snap.tally.total, by_party: winsByName(s) };
     const involved = snap.offers.filter((o) => (o.status === 'open' || o.status === 'accepted'));
     out.open_offers = involved.map((o) => offerView(s, o));
@@ -383,11 +451,19 @@ export function stateView(s: AgentSession, dir: SeatDirectory | null) {
   else if (status === 'lobby') {
     if (!mine?.party) advice.push('Pick your party: list_party_options, then set_party {name, colour, symbol, avatar}.');
     else advice.push('Party set. Waiting for the host to start the game: wait_for_events {types:["status"]}. You can change your party until then.');
+  } else if (status === 'preCampaign') {
+    const left = tl?.preCampaignEnd !== undefined ? secs(tl.preCampaignEnd - now) : null;
+    const fielded = fieldedCounts(s).get(c.me ?? '') ?? 0;
+    advice.push(`PRE-CAMPAIGN${left !== null ? ` (${left} s left)` : ''}: field candidates before the deadline with field_candidates {seats:[...]} (or {all:true}). With no candidates you are out of the game. Each candidate costs ${cfg.currency.symbol}${cfg.costs.candidate.toLocaleString('en-US')} (refunded in full if you withdraw_candidates before the deadline), and you can only campaign in seats where you have one; what you do not spend on candidates is your campaign budget. You have ${fielded} candidate${fielded === 1 ? '' : 's'} now. Negotiate one-to-one with the other parties about who stands where (chat {to, text}); rallies, roadshows and reports open only when the campaign starts.`);
+    if (fielded === 0) advice.push('URGENT: you have no candidates yet. Field at least one before the deadline or you are eliminated.');
+  } else if (mine?.status === 'eliminated' && (status === 'campaign' || status === 'counting' || status === 'postCounting')) {
+    advice.push('You are eliminated (typically: no candidate was fielded before the campaign started). You can still read the chat but cannot act. Keep calling wait_for_events: the game may be played again.');
   } else if (status === 'campaign') {
     if (tl && now < tl.campaignStart) advice.push(`The campaign starts in ${secs(tl.campaignStart - now)} s. Plan now with list_seats; campaign actions wait for the start automatically.`);
     else if (inCampaign) {
-      const minCost = Math.min(cfg.costs.rally, cfg.costs.roadshow);
-      if (budget >= minCost) advice.push(`You have ${cfg.currency.symbol}${Math.round(budget).toLocaleString('en-US')} left (${Math.floor(budget / cfg.costs.roadshow)} roadshows or ${Math.floor(budget / cfg.costs.rally)} rallies). Unspent money is wasted: use list_seats {open_only:true} and campaign_batch before phase ${(phaseIdx ?? 0) + 1} closes.`);
+      const minCost = Math.min(cfg.costs.rally, cfg.costs.minorRally, cfg.costs.roadshow);
+      const fieldedArg = gameHasFielding(s) ? ', fielded_only:true' : ''; // you can only campaign where you have a candidate
+      if (budget >= minCost) advice.push(`You have ${cfg.currency.symbol}${Math.round(budget).toLocaleString('en-US')} left (${Math.floor(budget / cfg.costs.roadshow)} roadshows, ${Math.floor(budget / cfg.costs.minorRally)} minor rallies or ${Math.floor(budget / cfg.costs.rally)} rallies). Unspent money is wasted: use list_seats {open_only:true${fieldedArg}} and campaign_batch before phase ${(phaseIdx ?? 0) + 1} closes.`);
       else advice.push('Your budget is spent. Use get_news / wait_for_events to follow the game; negotiation starts at counting.');
     }
   } else if (status === 'counting' || status === 'postCounting') {
@@ -402,7 +478,7 @@ export function stateView(s: AgentSession, dir: SeatDirectory | null) {
       const inLive = (snap?.offers ?? []).some((o) => (o.status === 'open' || o.status === 'accepted') && [o.proposer, ...o.partners, ...Object.values(o.portfolios).flat()].includes(big ?? ''));
       if (big && !inLive) advice.push(leftOutHint(s, big));
     }
-  } else if (status === 'finished') advice.push(snap?.result ? 'The game is over. Report the result to the human, then keep calling wait_for_events (types ["rematch"]): the host may play again. If a rematch event arrives you are already in the new campaign with your party: call get_state and campaign at once. Do not call leave_game or join_game.' : 'The game is finished.');
+  } else if (status === 'finished') advice.push(snap?.result ? 'The game is over. Report the result to the human, then keep calling wait_for_events (types ["rematch"]): the host may play again. If a rematch event arrives you are already in the new game with your party (3+ players: in the pre-campaign, field candidates at once; 2 players: in the campaign): call get_state. Do not call leave_game or join_game.' : 'The game is finished.');
   out.advice = advice;
   return out;
 }

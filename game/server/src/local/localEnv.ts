@@ -8,7 +8,7 @@ const num = (v: string | undefined): number | undefined => {
 };
 
 /**
- * Apply HP_CAMPAIGN_MS / HP_COUNTING_MS / HP_COUNTING_MS_2P / HP_POST_MS / HP_GRACE_MS on top of a MapConfig (for short
+ * Apply HP_PRECAMPAIGN_MS / HP_CAMPAIGN_MS / HP_COUNTING_MS / HP_COUNTING_MS_2P / HP_POST_MS / HP_GRACE_MS on top of a MapConfig (for short
  * local games). A short HP_COUNTING_MS also shortens the 2-player counting (to at most that) unless HP_COUNTING_MS_2P is given.
  */
 export function applyEnvOverrides(cfg: MapConfig, env: NodeJS.ProcessEnv = process.env): MapConfig {
@@ -17,6 +17,7 @@ export function applyEnvOverrides(cfg: MapConfig, env: NodeJS.ProcessEnv = proce
     ...cfg,
     durations: {
       ...cfg.durations,
+      preCampaignMs: num(env.HP_PRECAMPAIGN_MS) ?? cfg.durations.preCampaignMs,
       campaignMs: num(env.HP_CAMPAIGN_MS) ?? cfg.durations.campaignMs,
       countingMs: countingMs ?? cfg.durations.countingMs,
       countingMsTwoPlayers: num(env.HP_COUNTING_MS_2P)

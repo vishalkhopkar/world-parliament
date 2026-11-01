@@ -18,7 +18,7 @@ const p3: PlayerPublic = { playerId: 'p3', nickname: 'C', isAdmin: false, status
 const snap = (over: Partial<GameSnapshot> = {}): GameSnapshot => ({
   gameId: 'g', mapId: 'world-500', status: 'counting', phases: 2,
   timeline: { campaignStart: 0, phaseCloses: [1, 2], campaignEnd: 2, countingEnd: 3, postCountingEnd: 4 },
-  players: [p1, p2, p3], news: [], polledPhases: [],
+  players: [p1, p2, p3], news: [], fielding: {}, contestedSeats: 100, majority: 51, polledPhases: [],
   seats: { 1: { seat: 1, status: 'leading', playerId: 'p1' }, 2: { seat: 2, status: 'leading', playerId: 'p1' } },
   tally: null, offers: [], government: null, result: null, ...over,
 });

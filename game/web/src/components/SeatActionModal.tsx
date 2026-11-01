@@ -5,6 +5,9 @@ import { useStore } from '../state/store';
 import { useMapConfig } from '../state/mapConfig';
 import { buyReport, campaign } from '../net/client';
 import { formatMoney, seatName } from '../lib';
+import { hasCandidate } from '../lib/fielding';
+import { isEliminated } from './EliminatedBanner';
+import { SeatCandidates } from './SeatCandidates';
 import './seatActionModal.css';
 
 function curvePrice(curve: { start: number; end: number }, snap: GameSnapshot, now: number) {
@@ -63,14 +66,19 @@ export function SeatActionModal({ seat, snap, priv, now, phaseOf, polled, onClos
   }, [isPolled, onClose]);
 
   const rallyWaitS = Math.max(0, Math.ceil((nextRallyAtOf(priv, cfg.cooldowns?.rallyMs ?? 0) - now) / 1000));
-  const reasonFor = (cost: number, key?: string): string | null => {
+  const candidateHere = hasCandidate(snap, seat, priv.you);
+  const out = isEliminated(snap, priv.you);
+  const reasonFor = (cost: number, key: string): string | null => {
+    if (out) return "You're out of this election";
+    if (key !== 'report' && !candidateHere) return 'No candidate here';
     if (!started) return 'Campaign has not started yet';
     if (key === 'rally' && rallyWaitS > 0) return `Next rally in ${rallyWaitS}s`;
     if (priv.budget < cost) return `Not enough budget (need ${money(cost)})`;
     return null;
   };
   const options = [
-    { key: 'rally', label: 'Rally', cost: cfg.costs.rally, desc: 'Public news. Big boost here, fading over a few hundred km, plus a small boost everywhere.', run: () => campaign('rally', seat) },
+    { key: 'rally', label: 'Major rally', cost: cfg.costs.rally, desc: 'Public news. Big boost here, fading over a few hundred km, plus a small boost everywhere.', run: () => campaign('rally', seat) },
+    { key: 'minorRally', label: 'Minor rally', cost: cfg.costs.minorRally, desc: 'Secret. Smaller boost here, fading fast over nearby seats. No waiting time.', run: () => campaign('minorRally', seat) },
     { key: 'roadshow', label: 'Roadshow', cost: cfg.costs.roadshow, desc: 'Secret. Strong boost in this seat only.', run: () => campaign('roadshow', seat) },
     ...(cfg.analyst.seatReport.enabled
       ? [{ key: 'report', label: 'Local report', cost: reportPrice, desc: 'Analyst estimate for this seat (delayed, noisy).', run: () => buyReport('seat', seat) }]
@@ -84,7 +92,11 @@ export function SeatActionModal({ seat, snap, priv, now, phaseOf, polled, onClos
         <h3 className="sam-title">{seatName(names, seat)}</h3>
         <p className="sam-sub">Seat {seat}{phase !== undefined ? ` · Polls in phase ${phase + 1}` : ''}</p>
         {committed && <p className="sam-committed">Committed voters: ~{committed.percent}% · {committed.level}</p>}
-        <p className="sam-reputation">Reputation {priv.reputation?.[seat] ?? 0} among swing voters</p>
+        {candidateHere && <p className="sam-reputation">Reputation {priv.reputation?.[seat] ?? 0} among swing voters</p>}
+        <div className="sam-contesting">
+          <h4>Contesting here</h4>
+          <SeatCandidates snap={snap} seat={seat} me={priv.you} className="sam-candidates" />
+        </div>
         {isPolled ? (
           <p className="sam-closed">Polling here is closed</p>
         ) : (

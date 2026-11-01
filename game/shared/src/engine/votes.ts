@@ -1,6 +1,6 @@
 import type { MapConfig } from '../mapConfig';
 import type { PlayerId, SeatId, SeatResult, SeatTally } from '../types';
-import type { Committed, Effects, Kernels, Rng } from './types';
+import type { Committed, Effects, Kernels, Rng, SeatContestants } from './types';
 
 const TIE_EPS = 1e-12;
 
@@ -47,14 +47,36 @@ function inputs(effects: Effects, committed: Committed, players: PlayerId[], i: 
   };
 }
 
-/** Expected shares of one seat (all random draws replaced by their means), in `players` order; [] for an unknown seat / no players. */
+/**
+ * The players that have a candidate in `seat`, in `players` order. Without `contestants` everybody does (the same array is returned).
+ * A seat missing from `contestants` has no candidates: the result is empty.
+ */
+export function candidatesOf(players: PlayerId[], contestants: SeatContestants | undefined, seat: SeatId): PlayerId[] {
+  if (!contestants) return players;
+  const set = contestants.get(seat);
+  return set ? players.filter((p) => set.has(p)) : [];
+}
+
+/**
+ * Expected shares of one seat (all random draws replaced by their means), in `players` order; [] for an unknown seat / no players.
+ * With `contestants`, only the candidates of the seat share the votes (their committed voters and reputation count, the others' do
+ * not; the random fraction uses the candidate count); a party without a candidate gets 0, a lone candidate 1, a vacant seat all 0.
+ */
 export function expectedShareArray(
   effects: Effects, committed: Committed, players: PlayerId[], kernels: Kernels, cfg: MapConfig, seatIndex: number,
+  contestants?: SeatContestants,
 ): number[] {
   if (!players.length || seatIndex < 0 || seatIndex >= kernels.n) return [];
-  const { c, rep } = inputs(effects, committed, players, seatIndex);
-  const equal = players.map(() => 1);
-  return compose(c, rep, c.map(() => cfg.voting.influenceMaxPercent / 200), (cfg.voting.randomMaxPercent / 200) * players.length, equal, equal);
+  const ps = candidatesOf(players, contestants, kernels.seatIds[seatIndex]);
+  if (ps.length === 0) return players.map(() => 0);
+  if (ps.length === 1 && contestants) return players.map((p) => (p === ps[0] ? 1 : 0));
+  const { c, rep } = inputs(effects, committed, ps, seatIndex);
+  const equal = ps.map(() => 1);
+  const sh = compose(c, rep, c.map(() => cfg.voting.influenceMaxPercent / 200), (cfg.voting.randomMaxPercent / 200) * ps.length, equal, equal);
+  if (ps === players) return sh;
+  const out = players.map(() => 0);
+  ps.forEach((p, k) => { out[players.indexOf(p)] = sh[k]; });
+  return out;
 }
 
 /**
@@ -63,11 +85,13 @@ export function expectedShareArray(
  */
 export function expectedSeatShares(
   effects: Effects, committed: Committed, players: PlayerId[], kernels: Kernels, cfg: MapConfig, seat: SeatId,
+  contestants?: SeatContestants,
 ): Record<PlayerId, number> {
   const i = kernels.index.get(seat);
-  const sh = i === undefined ? [] : expectedShareArray(effects, committed, players, kernels, cfg, i);
+  const sh = i === undefined ? [] : expectedShareArray(effects, committed, players, kernels, cfg, i, contestants);
+  const cand = contestants ? new Set(candidatesOf(players, contestants, seat)) : undefined;
   const out: Record<PlayerId, number> = {};
-  players.forEach((p, k) => { if (k < sh.length) out[p] = sh[k]; });
+  players.forEach((p, k) => { if (k < sh.length && (!cand || cand.has(p))) out[p] = sh[k]; });
   return out;
 }
 
@@ -84,10 +108,15 @@ export function expectedSeatShares(
  * Unknown seat or no players -> winner null, shares {}; every other seat has a winner.
  * RNG draw order per seat (seats in the given order; none for an unknown seat): I_P for each player with c_P > 0 (players
  * order), R, w_P for every player, v_P for every player only if nobody has reputation, then one draw only on a tie.
+ * `contestants` (who has a candidate where; left out = everybody everywhere, which is byte-identical to the above): a seat is
+ * polled among its candidates only. Everything above then reads "candidate" for "player": the committed voters and the
+ * reputation of the others do not count, R scales with the seat's candidate count, only candidates get a share (the others are
+ * left out of `shares`) and draws. A lone candidate wins with share 1 and no draws; a seat with no candidates is vacant: winner
+ * null, shares {}, no draws.
  */
 export function pollSeats(
   effects: Effects, committed: Committed, players: PlayerId[], kernels: Kernels, cfg: MapConfig, seats: SeatId[],
-  phase: number, rng: Rng,
+  phase: number, rng: Rng, contestants?: SeatContestants,
 ): SeatResult[] {
   const results: SeatResult[] = [];
   const infMax = cfg.voting.influenceMaxPercent / 100;
@@ -98,22 +127,31 @@ export function pollSeats(
       results.push({ seat, phase, winner: null, shares: {} });
       continue;
     }
-    const { c, rep } = inputs(effects, committed, players, i);
+    const ps = candidatesOf(players, contestants, seat);
+    if (ps.length === 0) {
+      results.push({ seat, phase, winner: null, shares: {} });
+      continue;
+    }
+    if (ps.length === 1 && contestants) {
+      results.push({ seat, phase, winner: ps[0], shares: { [ps[0]]: 1 } });
+      continue;
+    }
+    const { c, rep } = inputs(effects, committed, ps, i);
     const infl = c.map((x) => (x > 0 ? rng() * infMax : 0));
-    const R = rng() * rndMax * players.length;
-    const w = players.map(() => rng());
+    const R = rng() * rndMax * ps.length;
+    const w = ps.map(() => rng());
     let sr = 0;
     for (const x of rep) sr += x;
-    const v = sr > 0 ? w : players.map(() => rng());
+    const v = sr > 0 ? w : ps.map(() => rng());
     const raw = compose(c, rep, infl, R, w, v);
     const shares: Record<PlayerId, number> = {};
     let best = -1;
-    for (let k = 0; k < players.length; k++) {
-      shares[players[k]] = raw[k];
+    for (let k = 0; k < ps.length; k++) {
+      shares[ps[k]] = raw[k];
       if (raw[k] > best) best = raw[k];
     }
     const leaders: PlayerId[] = [];
-    for (let k = 0; k < players.length; k++) if (raw[k] >= best - TIE_EPS) leaders.push(players[k]);
+    for (let k = 0; k < ps.length; k++) if (raw[k] >= best - TIE_EPS) leaders.push(ps[k]);
     const winner = leaders.length === 1 ? leaders[0] : leaders[Math.min(leaders.length - 1, Math.floor(rng() * leaders.length))];
     results.push({ seat, phase, winner, shares });
   }

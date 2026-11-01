@@ -12,7 +12,7 @@ function keys(v: Json, fn: (key: string, value: Json, path: string[]) => void, p
 }
 
 const SECRET_KEYS = new Set(['roadshow', 'roadshows', 'effect', 'effects', 'tokenHash', 'token', 'connectionId', 'graceSchedule', 'disconnectedAt', 'joinedAt', 'kernel', 'kernels', 'candidateColumn', 'newsSecret', 'secret']);
-const PRIVATE_ONLY = new Set(['hello', 'private', 'actionAck', 'report']);
+const PRIVATE_ONLY = new Set(['hello', 'private', 'actionAck', 'fieldAck', 'report']);
 
 interface Played { c: Ctx; roadshowTs: Map<number, number[]>; reportTs: number[] }
 
@@ -34,7 +34,8 @@ async function play(players: number, phases: number, seed: string): Promise<Play
     if (r < 0.15) { await c.send(i, { action: 'buyReport', scope: rng() < 0.5 ? 'global' : 'seat', seat }); reportTs.push(t); }
     else if (r < 0.55) {
       const before = (await c.repo.listActions(c.gameId)).length;
-      await c.send(i, { action: 'campaign', type: 'roadshow', seat });
+      // a minor rally is as hidden as a roadshow: both go through the same timestamp audit below
+      await c.send(i, { action: 'campaign', type: k % 2 ? 'minorRally' : 'roadshow', seat });
       if ((await c.repo.listActions(c.gameId)).length > before) roadshowTs.set(i, [...(roadshowTs.get(i) ?? []), t]);
     } else await c.send(i, { action: 'campaign', type: 'rally', seat });
     // players reconnect now and then: a fresh hello must be just as clean
@@ -120,6 +121,9 @@ describe.each([[2, 1], [2, 3], [3, 1], [3, 2], [5, 3], [10, 2]])('full game audi
           if (owner === i) continue;
           for (const ts of tss) expect(new RegExp(`(?<![0-9])${ts}(?![0-9])`).test(text), `roadshow of player ${owner} at ${ts} leaked to ${i} in ${m.type}`).toBe(false);
         }
+        // 4b. a fielding message never says anything about money or the candidate column; a minor rally is named only in my own state
+        if (m.type === 'fieldingUpdate') expect(text).not.toMatch(/budget|candidateColumn/);
+        if (m.type !== 'hello' && m.type !== 'private') expect(text).not.toContain('minorRally');
         // 5. secret chat text only to its participants
         if (text.includes('secret-deal-')) expect(i === 0 || i === 1).toBe(true);
       }

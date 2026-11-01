@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { AVATARS, WORLD_CONFIG } from '@hp/shared';
+import { AVATARS, WORLD_CONFIG, fullyFieldedBudget, majorityOf } from '@hp/shared';
 import type { CoalitionOffer, GlobalReports, ServerMessage } from '@hp/shared';
 import { MockTransport } from '../mock';
 import { ApiException } from '../transport';
@@ -199,12 +199,13 @@ describe('mock transport coalition rules', () => {
 describe('mock transport rally cooldown', () => {
   async function inCampaign() {
     const x = await inGame();
-    const g = x.g as unknown as { status: string; timeline: unknown; seatPhase: Map<number, number>; seatIds: number[]; players: Map<string, { budget: number }>; me: string; cfg: { cooldowns: { rallyMs: number } }; nextBotRally: number };
+    const g = x.g as unknown as { status: string; timeline: unknown; fielding: Map<number, { playerId: string }[]>; seatPhase: Map<number, number>; seatIds: number[]; players: Map<string, { budget: number }>; me: string; cfg: { cooldowns: { rallyMs: number } }; nextBotRally: number };
     const now = Date.now() + 2000;
     g.status = 'campaign';
     g.timeline = { campaignStart: now - 1000, phaseCloses: [now + 1e7, now + 2e7], campaignEnd: now + 2e7, countingEnd: now + 3e7, postCountingEnd: now + 4e7 };
     g.seatIds = [1, 2, 3];
     for (const s of g.seatIds) g.seatPhase.set(s, 0);
+    for (const s of g.seatIds) g.fielding.set(s, [...g.players.keys()].map(playerId => ({ playerId })));
     g.players.get(g.me)!.budget = 50_000;
     g.nextBotRally = Infinity; // keep the bots quiet
     x.got.length = 0;
@@ -252,6 +253,13 @@ describe('mock transport globalReports (free news-agency projections)', () => {
     return { r, got };
   }
   const wait = (ms = 100) => new Promise(res => setTimeout(res, ms));
+  /** 3 players start in the pre-campaign: open the campaign at once. */
+  const toCampaign = () => {
+    const x = t as unknown as { openCampaign(g: unknown): void; g: { seatIds: number[]; fielding: Map<number, { playerId: string }[]>; players: Map<string, { pub: { status: string } }> } };
+    const ids = [...x.g.players].filter(([, p]) => p.pub.status === 'active').map(([id]) => id);
+    for (const seat of x.g.seatIds) x.g.fielding.set(seat, ids.map(playerId => ({ playerId }))); // everybody stands everywhere
+    x.openCampaign(x.g);
+  };
 
   it('refuses in the lobby', async () => {
     const { got } = await startedGame();
@@ -264,6 +272,11 @@ describe('mock transport globalReports (free news-agency projections)', () => {
   it('answers during the campaign with one series per configured agency, free of charge', async () => {
     const { r, got } = await startedGame();
     await t.start(r.gameId, r.token);
+    t.send({ action: 'globalReports' });
+    await wait();
+    expect(got.filter(m => m.type === 'globalReports')).toHaveLength(0); // not in the pre-campaign
+    expect(got.find(m => m.type === 'error')?.error).toBe('WRONG_PHASE');
+    toCampaign();
     t.send({ action: 'globalReports' });
     await wait();
     const rep = got.find(m => m.type === 'globalReports')?.reports;
@@ -282,6 +295,7 @@ describe('mock transport globalReports (free news-agency projections)', () => {
   it('builds the offline stand-in map and kernels once per game and reuses them', async () => {
     const { r, got } = await startedGame();
     await t.start(r.gameId, r.token);
+    toCampaign();
     const game = () => (t as unknown as { g: { pkg: unknown; kernels: unknown; standIn?: { pkg: unknown; kernels: unknown } } }).g;
     game().pkg = null; // offline: no map package -> grid stand-in
     game().kernels = null;
@@ -293,5 +307,241 @@ describe('mock transport globalReports (free news-agency projections)', () => {
     await wait();
     expect(game().standIn).toBe(first);
     expect(got.filter(m => m.type === 'globalReports')).toHaveLength(2);
+  });
+});
+
+// ---- the pre-campaign (3 or more players)
+// Rule: with 3+ players the game opens with a pre-campaign in which every party fields candidates (each costs the configured
+// price, withdrawing refunds it); at the deadline a party with no candidate is eliminated, seats nobody contests are vacant and
+// the majority is fixed from the contested seats. With 2 players there is no pre-campaign and every seat is fielded and charged.
+type Pre = {
+  g: {
+    status: string; me: string; budgetOf?: never; seatIds: number[]; fielding: Map<number, { playerId: string; name?: string }[]>;
+    timeline: { preCampaignEnd?: number; campaignStart: number } | null; preStart: number;
+    players: Map<string, { budget: number; bot: boolean; pub: { status: string; playerId: string } }>;
+    tally: { total: number; wins: Record<string, number> } | null; schedule: { decl: { seat: number } }[]; result: { outcome: string } | null;
+    fixed?: { contested: number; majority: number };
+  };
+  openCampaign(g: unknown): void; beginCounting(g: unknown): void; tick(): void;
+};
+const priv = () => t as unknown as Pre;
+type Got = Array<Record<string, unknown>>;
+const kinds = (got: Got, type: string) => got.filter(m => m.type === type) as Array<Record<string, unknown>>;
+
+async function preGame(prep?: () => void) {
+  t = new MockTransport();
+  const { r } = await lobbyOf(t);
+  const lobby = await t.getLobby(r.gameId, r.token);
+  const used = new Set(lobby.players.map(p => p.party?.avatar));
+  const avatar = AVATARS.find(a => !used.has(a.id))!.id;
+  await t.setParty(r.gameId, r.token, { party: { name: 'Mine', colour: '#123456', symbol: 'torch', avatar } });
+  prep?.();
+  const got: Got = [];
+  t.connect(r.gameId, r.token, m => got.push(m as never));
+  await t.start(r.gameId, r.token);
+  await new Promise(res => setTimeout(res, 60));
+  const g = priv().g;
+  const bots = [...g.players.values()].filter(p => p.bot && p.pub.status === 'active').map(p => p.pub.playerId);
+  return { r, got, g, bots, me: g.me };
+}
+const send = (m: Record<string, unknown>) => t.send(m as never);
+const ping = (ms = 60) => new Promise(res => setTimeout(res, ms));
+const cfg = WORLD_CONFIG;
+
+describe('mock transport pre-campaign', () => {
+  it('3 players start in the pre-campaign with the whole budget, a real timer and no candidates yet', async () => {
+    const { got, g, me } = await preGame();
+    expect(g.status).toBe('preCampaign');
+    expect(g.players.get(me)!.budget).toBe(cfg.budget);
+    const tl = g.timeline!;
+    expect(tl.preCampaignEnd! - Date.now()).toBeGreaterThan(0);
+    expect(tl.preCampaignEnd! - Date.now()).toBeLessThan(10 * 60 * 1000);
+    expect(tl.campaignStart).toBeGreaterThanOrEqual(tl.preCampaignEnd!);
+    expect(kinds(got, 'status').at(-1)).toMatchObject({ status: 'preCampaign' });
+    const hello = kinds(got, 'hello')[0] as unknown as { snapshot: { fielding: object; contestedSeats: number; majority: number } };
+    expect(Object.keys(hello.snapshot.fielding)).toHaveLength(0);
+    expect(hello.snapshot.contestedSeats).toBe(0);
+  });
+
+  it('field charges the configured price, answers with names, and tells everybody; a repeated clientRef is a duplicate', async () => {
+    const { got, g, me } = await preGame();
+    got.length = 0;
+    send({ action: 'field', seats: [3, 4, 5], clientRef: 'a' });
+    send({ action: 'field', seats: [3, 4, 5], clientRef: 'a' });
+    send({ action: 'field', seats: [5, 6], clientRef: 'b' });
+    await ping();
+    const acks = kinds(got, 'fieldAck') as unknown as Array<{ budget: number; added: { seat: number; name?: string }[]; duplicate?: boolean }>;
+    expect(acks[0].added.map(x => x.seat)).toEqual([3, 4, 5]);
+    expect(acks[0].added.every(x => !!x.name)).toBe(true);
+    expect(acks[0].budget).toBe(cfg.budget - 3 * cfg.costs.candidate);
+    expect(acks[1].duplicate).toBe(true);
+    expect(acks[2].added.map(x => x.seat)).toEqual([6]);
+    expect(g.players.get(me)!.budget).toBe(cfg.budget - 4 * cfg.costs.candidate);
+    const ups = kinds(got, 'fieldingUpdate') as unknown as Array<{ playerId: string; contestedSeats: number; majority: number }>;
+    expect(ups).toHaveLength(2);
+    expect(ups[1]).toMatchObject({ playerId: me, contestedSeats: 4, majority: majorityOf(4) });
+  });
+
+  it('withdraw refunds the price per seat, and field refuses a batch the budget cannot pay for', async () => {
+    const { got, g, me } = await preGame();
+    send({ action: 'field', seats: [3, 4] });
+    await ping();
+    got.length = 0;
+    send({ action: 'withdraw', seats: [4, 9], clientRef: 'w' });
+    await ping();
+    expect(kinds(got, 'fieldAck')[0]).toMatchObject({ removed: [4], added: [], budget: cfg.budget - cfg.costs.candidate });
+    g.players.get(me)!.budget = cfg.costs.candidate;
+    send({ action: 'field', seats: [10, 11], clientRef: 'poor' });
+    send({ action: 'field', seats: [99999], clientRef: 'bad' });
+    await ping();
+    expect(kinds(got, 'error').map(e => [e.clientRef, e.error])).toEqual([['poor', 'INSUFFICIENT_FUNDS'], ['bad', 'BAD_REQUEST']]);
+    expect(g.players.get(me)!.budget).toBe(cfg.costs.candidate);
+  });
+
+  it('the bots field over the pre-campaign, paying for their candidates, so the counts move', async () => {
+    const { got, g, bots } = await preGame();
+    got.length = 0;
+    g.preStart -= 10 * 60 * 1000; // pretend most of the phase has passed
+    priv().tick();
+    await ping();
+    const ups = (kinds(got, 'fieldingUpdate') as unknown as Array<{ playerId: string; added: unknown[] }>);
+    expect(new Set(ups.map(u => u.playerId))).toEqual(new Set(bots));
+    for (const b of bots) {
+      const held = [...g.fielding.values()].filter(l => l.some(c => c.playerId === b)).length;
+      expect(held).toBeGreaterThan(0);
+      expect(g.players.get(b)!.budget).toBe(cfg.budget - held * cfg.costs.candidate);
+    }
+  });
+
+  it('actions, reports and peeks are refused until the campaign starts', async () => {
+    const { got } = await preGame();
+    got.length = 0;
+    send({ action: 'campaign', type: 'rally', seat: 3, clientRef: 'r' });
+    send({ action: 'campaign', type: 'minorRally', seat: 3, clientRef: 'm' });
+    send({ action: 'buyReport', scope: 'global' });
+    send({ action: 'peekSeat', seat: 3 });
+    await ping();
+    expect(kinds(got, 'error').map(e => e.error)).toEqual(['WRONG_PHASE', 'WRONG_PHASE', 'WRONG_PHASE', 'WRONG_PHASE']);
+  });
+
+  it('one-to-one chat is open (and a recipient is required)', async () => {
+    const { got, g, bots } = await preGame();
+    got.length = 0;
+    send({ action: 'chat', text: 'shall we split the seats?', to: [bots[0]] });
+    await ping(3500);
+    const chat = (kinds(got, 'chat') as unknown as Array<{ message: { from: string; to: string[]; channel: string } }>).map(m => m.message);
+    expect(chat[0]).toMatchObject({ from: g.me, to: [bots[0]], channel: 'direct' });
+    expect(chat.some(m => m.from === bots[0])).toBe(true);
+    send({ action: 'chat', text: 'anyone?' });
+    await ping();
+    expect(kinds(got, 'error').at(-1)?.error).toBe('BAD_REQUEST');
+  });
+
+  it('the deadline opens the campaign: majority and contested seats are fixed, and fielding is closed', async () => {
+    const { r, got, g, bots } = await preGame();
+    send({ action: 'field', seats: [1, 2, 3, 4, 5, 6] });
+    g.fielding.set(7, [{ playerId: bots[0] }]);
+    g.fielding.set(8, [{ playerId: bots[1] }]);
+    await ping();
+    got.length = 0;
+    priv().openCampaign(g);
+    await ping();
+    expect(g.status).toBe('campaign');
+    expect(g.fixed).toEqual({ contested: 8, majority: majorityOf(8) });
+    expect(kinds(got, 'status').at(-1)).toMatchObject({ status: 'campaign' });
+    got.length = 0;
+    t.connect(r.gameId, r.token, m => got.push(m as never)); // a client joining now sees the fixed numbers
+    await ping();
+    expect(kinds(got, 'hello')[0]).toMatchObject({ snapshot: { status: 'campaign', contestedSeats: 8, majority: majorityOf(8) } });
+    got.length = 0;
+    send({ action: 'field', seats: [20], clientRef: 'late' });
+    send({ action: 'withdraw', seats: [1], clientRef: 'late2' });
+    await ping();
+    expect(kinds(got, 'error').map(e => e.error)).toEqual(['WRONG_PHASE', 'WRONG_PHASE']);
+    // later fielding changes (a player who is out) do not move the majority
+    expect(g.fixed!.majority).toBe(majorityOf(8));
+  });
+
+  it('a party with no candidate at the deadline is eliminated, stays connected and can no longer act', async () => {
+    const { got, g, bots, me } = await preGame();
+    g.fielding.set(1, [{ playerId: bots[0] }, { playerId: bots[1] }]);
+    g.fielding.set(2, [{ playerId: bots[0] }]);
+    got.length = 0;
+    priv().openCampaign(g);
+    await ping();
+    expect(g.players.get(me)!.pub.status).toBe('eliminated');
+    const players = (kinds(got, 'players').at(-1) as unknown as { players: { playerId: string; status: string }[] }).players;
+    expect(players.find(p => p.playerId === me)?.status).toBe('eliminated');
+    expect(g.status).toBe('campaign'); // two parties remain
+    got.length = 0;
+    send({ action: 'campaign', type: 'roadshow', seat: 1, clientRef: 'x' });
+    send({ action: 'chat', text: 'still here', to: [bots[0]] });
+    await ping();
+    expect(kinds(got, 'error').find(e => e.clientRef === 'x')?.error).toBe('FORBIDDEN');
+    expect(kinds(got, 'chat').some(m => (m.message as { from: string }).from === me)).toBe(true);
+  });
+
+  it('with fewer than two parties left the game ends with no government', async () => {
+    const { got, g, me } = await preGame();
+    send({ action: 'field', seats: [1, 2] });
+    await ping();
+    got.length = 0;
+    priv().openCampaign(g); // the two bots fielded nothing: only I remain
+    await ping();
+    expect(g.status).toBe('finished');
+    expect(g.result!.outcome).toBe('noGovernment');
+    expect(kinds(got, 'result')).toHaveLength(1);
+    void me;
+  });
+
+  it('a minor rally costs the configured price, has no cooldown, and is neither news nor a cooldown for major rallies', async () => {
+    const { got, g, me } = await preGame();
+    send({ action: 'field', seats: [1, 2, 3] });
+    g.fielding.set(9, [{ playerId: [...g.players.keys()].find(k => k !== me)! }]);
+    await ping();
+    priv().openCampaign(g);
+    (t as unknown as { g: { nextBotRally: number } }).g.nextBotRally = Infinity;
+    const before = g.players.get(me)!.budget;
+    got.length = 0;
+    send({ action: 'campaign', type: 'minorRally', seat: 1, clientRef: 'a' });
+    send({ action: 'campaign', type: 'minorRally', seat: 2, clientRef: 'b' });
+    send({ action: 'campaign', type: 'rally', seat: 3, clientRef: 'c' });
+    send({ action: 'campaign', type: 'minorRally', seat: 9, clientRef: 'd' });
+    await ping();
+    expect(kinds(got, 'actionAck')).toHaveLength(3);
+    expect(g.players.get(me)!.budget).toBe(before - 2 * cfg.costs.minorRally - cfg.costs.rally);
+    expect(kinds(got, 'error').map(e => [e.clientRef, e.error])).toEqual([['d', 'NOT_FIELDED']]); // seat 9 is not mine
+    expect(kinds(got, 'news')).toHaveLength(1); // the major rally only
+  });
+
+  it('counting skips vacant seats: the tally total and the schedule cover contested seats only', async () => {
+    const { g, bots } = await preGame();
+    send({ action: 'field', seats: [1, 2, 3] });
+    g.fielding.set(4, [{ playerId: bots[0] }]);
+    await ping();
+    priv().openCampaign(g);
+    priv().beginCounting(g);
+    expect(g.tally!.total).toBe(4);
+    expect(new Set(g.schedule.map(e => e.decl.seat))).toEqual(new Set([1, 2, 3, 4]));
+  });
+
+  it('2 players skip the pre-campaign: every seat is fielded and charged, and the campaign starts on the fully fielded budget', async () => {
+    const { r, got, g, me } = await preGame(() => {
+      const gg = (t as unknown as { g: Pre['g'] }).g;
+      for (const p of gg.players.values()) if (p.bot && p.pub.status === 'active' && p.pub.playerId !== [...gg.players.keys()][1]) p.pub.status = 'rejected';
+    });
+    got.length = 0;
+    t.connect(r.gameId, r.token, m => got.push(m as never));
+    await ping();
+    expect(g.status).toBe('campaign');
+    expect(g.timeline!.preCampaignEnd).toBeUndefined();
+    expect(g.fielding.size).toBe(g.seatIds.length);
+    for (const list of g.fielding.values()) expect(list).toHaveLength(2);
+    expect(g.players.get(me)!.budget).toBe(cfg.budget - g.seatIds.length * cfg.costs.candidate);
+    expect(g.players.get(me)!.budget).toBe(fullyFieldedBudget({ ...cfg, seatCount: g.seatIds.length }));
+    const hello = kinds(got, 'hello')[0] as unknown as { snapshot: { contestedSeats: number; majority: number }; private: { budget: number } };
+    expect(hello.snapshot.contestedSeats).toBe(g.seatIds.length);
+    expect(hello.snapshot.majority).toBe(majorityOf(g.seatIds.length));
+    expect(hello.private.budget).toBe(g.players.get(me)!.budget);
   });
 });

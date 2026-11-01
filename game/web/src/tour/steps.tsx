@@ -1,14 +1,15 @@
 // The guided tour's script. Every number comes from the map's config (game.properties) or from the live practice game,
 // never hard-coded, so the tour stays true when the rules are retuned.
 import type { ReactNode } from 'react';
-import { majorityOf } from '@hp/shared';
+import { fullyFieldedBudget, hasPreCampaign, majorityOf } from '@hp/shared';
 import type { GameSnapshot, MapConfig, PlayerId, PrivateState, SeatId } from '@hp/shared';
 import { formatMoney } from '../lib';
 import type { RepGainState } from '../state/store';
 import { SMALL_PARTIES } from './tourScript';
+import { FIELD_TASK_SEATS, fieldedByMe } from './tasks';
 
-export type TaskId = 'committed' | 'rally' | 'cooldown' | 'roadshow' | 'govern';
-export type TourPhase = 'campaign' | 'counting' | 'result';
+export type TaskId = 'field' | 'withdraw' | 'committed' | 'rally' | 'cooldown' | 'minorRally' | 'roadshow' | 'govern';
+export type TourPhase = 'preCampaign' | 'campaign' | 'counting' | 'result';
 
 export interface PartyRow { id: PlayerId; name: string; seats: number }
 
@@ -84,20 +85,110 @@ function nameOf(c: TourCtx, id: PlayerId | undefined) {
   return c.snap?.players.find(p => p.playerId === id)?.party?.name ?? 'A party';
 }
 
-export function buildSteps(startCounting: () => void): TourStep[] {
+/** The brush needs a mouse; with no fine pointer (a phone or tablet) candidates are fielded by tapping a seat and pressing Field. */
+export function usesBrush(): boolean {
+  return typeof window === 'undefined' || typeof window.matchMedia !== 'function' || window.matchMedia('(pointer: fine)').matches;
+}
+
+/** The pre-campaign steps exist only in games that have the phase (3 or more players). */
+const preCampaignOnly = ({ playerCount }: { cfg: MapConfig; playerCount: number }) => hasPreCampaign(playerCount);
+
+/** Candidates you hold now (from the live snapshot). */
+const heldNow = (c: TourCtx) => fieldedByMe(c.snap, c.me ?? undefined);
+
+export function buildSteps(startCounting: () => void, startCampaign: () => void = () => undefined): TourStep[] {
   return [
     {
-      id: 'welcome', phase: 'campaign', title: 'Welcome to HUNG PARLIAMENT', dim: true, block: true,
+      id: 'welcome', phase: 'preCampaign', title: 'Welcome to HUNG PARLIAMENT', dim: true, block: true,
       body: c => (
         <>
-          <p>The map is divided into <b>{c.n} parliament seats</b> of roughly equal population. To govern alone a party needs a majority: <b>{c.maj} seats</b> (half of {c.n}, plus one).</p>
+          <p>The map is divided into <b>{c.n} parliament seats</b> of roughly equal population. To govern alone a party needs a majority: <b>{majorityOf(c.n)} seats</b> (half of {c.n}, plus one).</p>
           <p>This is a practice election with <b>{c.playerCount} parties</b>: you and {c.playerCount - 1} rivals. In a real game you choose your own party's name, colour, symbol and avatar. Nothing here is saved.</p>
         </>
       ),
     },
     {
-      id: 'party', phase: 'campaign', title: 'This is your party', anchor: ['[data-tour="hud-party"]'], dim: true, block: true,
+      id: 'party', phase: 'preCampaign', title: 'This is your party', anchor: ['[data-tour="hud-party"]'], dim: true, block: true,
       body: c => <p>You lead <b>{c.mine?.name ?? 'your party'}</b>. Everything shown in your colour on the map belongs to it.</p>,
+    },
+    {
+      id: 'precampaign', phase: 'preCampaign', title: 'Before the campaign: where to stand', anchor: ['[data-tour="map"]'], dim: true, block: true,
+      enabled: preCampaignOnly,
+      body: c => (
+        <>
+          <p>The game starts with a <b>pre-campaign</b> (<b>{minutes(c.cfg.durations.preCampaignMs)} minutes</b> in a real game). Your party can only campaign in seats where it has a <b>candidate</b>, so first you choose <b>where to stand</b>.</p>
+          <p>You can also talk one-to-one with the other parties and form <b>informal pre-poll alliances</b>: who stands where, and who will back whom afterwards.</p>
+        </>
+      ),
+    },
+    {
+      id: 'field-seats', phase: 'preCampaign', title: 'Field your candidates', anchor: ['[data-tour="map"]'], enabled: preCampaignOnly,
+      body: () => usesBrush()
+        ? <p>Hold the left mouse button and <b>paint over the map</b> with the brush: every seat it touches gets a candidate, shown as a figure in your colour. Drag with the <b>right</b> button (or Space + drag) to move the map; the wheel zooms. A click without dragging opens the seat's panel instead.</p>
+        : <p><b>Tap a seat</b> to open its panel and press <b>Field</b> to put a candidate there. The seat then shows a figure in your colour.</p>,
+      task: {
+        id: 'field',
+        hint: c => <>{usesBrush() ? 'Paint' : 'Field'} at least {FIELD_TASK_SEATS} seats ({heldNow(c)} so far).</>,
+        done: c => <>{heldNow(c)} seats now have your candidate. Each one cost <b>{c.money(c.cfg.costs.candidate)}</b>, which your budget at the top already shows.</>,
+      },
+    },
+    {
+      id: 'candidate-cost', phase: 'preCampaign', title: 'What a candidate costs', anchor: ['[data-tour="hud-budget"]'], dim: true, block: true,
+      enabled: preCampaignOnly,
+      body: c => (
+        <>
+          <p>Every candidate costs <b>{c.money(c.cfg.costs.candidate)}</b>, paid at once from your budget of <b>{c.money(c.cfg.budget)}</b>. A candidate in all {c.n} seats would leave you <b>{c.money(fullyFieldedBudget(c.cfg))}</b> for the campaign itself.</p>
+          <p>Stand only where you can win and keep the rest for rallies and roadshows.</p>
+        </>
+      ),
+    },
+    {
+      id: 'withdraw-seat', phase: 'preCampaign', title: 'Check a seat, or withdraw', anchor: ['[data-tour="map"]'], enabled: preCampaignOnly,
+      body: c => (
+        <p>{usesBrush() ? 'Click' : 'Tap'} a seat where you have a candidate. Its panel shows your <b>candidate's name</b> and <b>every other party standing there</b>. Press <b>Withdraw</b> to take your candidate back: you get the <b>{c.money(c.cfg.costs.candidate)}</b> back, and you can field the seat again until the pre-campaign ends.</p>
+      ),
+      task: {
+        id: 'withdraw',
+        hint: () => <>Open a seat you have fielded and press Withdraw.</>,
+        done: c => <>Withdrawn: the <b>{c.money(c.cfg.costs.candidate)}</b> is back in your budget and the seat lost your figure.</>,
+      },
+    },
+    {
+      id: 'candidate-counts', phase: 'preCampaign', title: 'The rivals are fielding too', anchor: ['[data-tour="candidate-counts"]'], dim: true, block: true,
+      enabled: preCampaignOnly,
+      body: c => (
+        <>
+          <p>This panel counts every party's candidates, <b>live</b>. The other parties are fielding right now: watch their numbers move.</p>
+          <p>The majority mark moves with them, because it depends on how many seats have at least one candidate{c.snap ? <> (now <b>{c.snap.contestedSeats}</b> seats, so <b>{c.snap.majority}</b> for a majority)</> : null}.</p>
+        </>
+      ),
+    },
+    {
+      id: 'precampaign-chat', phase: 'preCampaign', title: 'Talk to the other parties', anchor: ['[data-tour="precampaign-chat"]'], dim: true, block: true,
+      enabled: preCampaignOnly,
+      body: () => (
+        <>
+          <p>Pick a party in the chat and talk <b>one-to-one</b>. Agree who stands where, or who will support whom once the votes are counted.</p>
+          <p>These alliances are <b>informal</b>: nothing enforces them, and a party can change its mind, or bluff. The practice rivals answer you but keep no promises.</p>
+        </>
+      ),
+    },
+    {
+      id: 'no-candidates', phase: 'preCampaign', title: 'The deadline', dim: true, block: true, enabled: preCampaignOnly,
+      body: () => (
+        <>
+          <p>When the pre-campaign ends, a party with <b>no candidate anywhere is out of the game</b>.</p>
+          <p>A seat where <b>nobody</b> stands is <b>vacant</b>: it elects no one, and the majority is worked out from the seats that are contested.</p>
+          <p>A game with only 2 players has no pre-campaign: every seat is fielded for both of them automatically.</p>
+        </>
+      ),
+    },
+    {
+      id: 'to-campaign', phase: 'preCampaign', title: 'On to the campaign', dim: true, block: true, enabled: preCampaignOnly,
+      body: c => (
+        <p>In a real game the clock ends the pre-campaign. Here, press <b>Next</b>: the tour <b>fields candidates for you</b> in every seat you have not fielded yourself, paying <b>{c.money(c.cfg.costs.candidate)}</b> for each, so that you can campaign anywhere. Then the campaign begins.</p>
+      ),
+      action: { label: 'Next', run: startCampaign },
     },
     {
       id: 'clocks', phase: 'campaign', title: 'The clocks', anchor: ['[data-tour="hud-campaign"]', '[data-tour="hud-phase"]'], dim: true, block: true,
@@ -111,16 +202,12 @@ export function buildSteps(startCounting: () => void): TourStep[] {
     {
       id: 'budget', phase: 'campaign', title: 'Your budget', anchor: ['[data-tour="hud-budget"]'], dim: true, block: true,
       body: c => (
-        <p>You start with <b>{c.money(c.cfg.budget)}</b>. A rally costs <b>{c.money(c.cfg.costs.rally)}</b> and a roadshow <b>{c.money(c.cfg.costs.roadshow)}</b>. Spending is final, so make every rupee count.</p>
+        <p>You have <b>{c.money(c.priv?.budget ?? fullyFieldedBudget(c.cfg))}</b> left for the campaign. A major rally costs <b>{c.money(c.cfg.costs.rally)}</b>, a minor rally <b>{c.money(c.cfg.costs.minorRally)}</b> and a roadshow <b>{c.money(c.cfg.costs.roadshow)}</b>. Spending is final, so make every rupee count.</p>
       ),
     },
     {
       id: 'ticker', phase: 'campaign', title: 'The news ticker', anchor: ['[data-tour="ticker"]'], dim: true, block: true,
-      body: () => <p>Every rally is public news: rivals' rallies scroll past here with the seat they were held in. <b>Roadshows are secret</b>: nobody hears about them.</p>,
-    },
-    {
-      id: 'my-actions', phase: 'campaign', title: 'My actions', anchor: ['[data-tour="my-actions"]'], dim: true, block: true,
-      body: () => <p>Everything you have done, including your secret roadshows. Only you can see this list.</p>,
+      body: () => <p>Every major rally is public news: rivals' major rallies scroll past here with the seat they were held in. <b>Minor rallies and roadshows are secret</b>: nobody hears about them.</p>,
     },
     {
       id: 'chat', phase: 'campaign', title: 'Chat', anchor: ['[data-tour="chat"]'], dim: true, block: true,
@@ -177,11 +264,16 @@ export function buildSteps(startCounting: () => void): TourStep[] {
       ),
     },
     {
-      id: 'rally', phase: 'campaign', title: 'Hold a rally', anchor: ['[data-tour="map"]'],
-      body: c => <p>A rally is a big public event and costs <b>{c.money(c.cfg.costs.rally)}</b>. Click any seat and press <b>Rally</b>.</p>,
+      id: 'rally', phase: 'campaign', title: 'Hold a major rally', anchor: ['[data-tour="map"]'],
+      body: c => (
+        <>
+          <p>A major rally is a big public event and costs <b>{c.money(c.cfg.costs.rally)}</b>. Click any seat and press <b>Major rally</b>.</p>
+          <p className="tour-small">You can only campaign in a seat where your party has a candidate (the tour fielded one for you everywhere).</p>
+        </>
+      ),
       task: {
         id: 'rally',
-        hint: () => <>Click a seat, then press Rally.</>,
+        hint: () => <>Click a seat, then press Major rally.</>,
         done: c => {
           const { local, global, decay } = c.cfg.effects.rally;
           const scale = c.cfg.display.reputationScale;
@@ -189,7 +281,7 @@ export function buildSteps(startCounting: () => void): TourStep[] {
           return (
             <>
               {gain !== undefined && <p>Your reputation there jumped by <b>+{gain}</b>. The green smoke on the map shows where it grew.</p>}
-              <p>A rally adds <b>+{Math.round(global * scale)}</b> to your reputation in <b>every seat</b> in the world, because it is broadcast (rivals see it in the ticker), and an additional <b>+{Math.round(local * scale)}</b> in the seat where you hold it. Nearby seats get a smaller boost that fades with distance, down to nothing at {decay.maxKm} km.</p>
+              <p>A major rally adds <b>+{Math.round(global * scale)}</b> to your reputation in <b>every seat</b> in the world, because it is broadcast (rivals see it in the ticker), and an additional <b>+{Math.round(local * scale)}</b> in the seat where you hold it. Nearby seats get a smaller boost that fades with distance, down to nothing at {decay.maxKm} km.</p>
               <p>Two small bonuses: the <b>first</b> rally or roadshow in a seat earns a slightly bigger gain there, and gains grow slightly as the campaign goes on. Do not wait for the end to do everything: the increase is tiny, and your budget is only worth what you spend.</p>
             </>
           );
@@ -197,20 +289,44 @@ export function buildSteps(startCounting: () => void): TourStep[] {
       },
     },
     {
-      id: 'cooldown', phase: 'campaign', title: 'The rally cooldown', anchor: ['[data-tour="map"]'],
+      id: 'cooldown', phase: 'campaign', title: 'The major rally cooldown', anchor: ['[data-tour="map"]'],
       enabled: ({ cfg }) => cfg.cooldowns.rallyMs > 0,
-      body: () => <p>Now try to hold <b>another rally right away</b>.</p>,
+      body: () => <p>Now try to hold <b>another major rally right away</b>.</p>,
       task: {
         id: 'cooldown',
-        hint: () => <>Click a seat and look at the Rally button.</>,
+        hint: () => <>Click a seat and look at the Major rally button.</>,
         done: c => (
-          <p>Refused: you can rally only once every <b>{Math.round(c.cfg.cooldowns.rallyMs / 1000)} seconds</b>, because the party leader has to get there. The button counts down. <b>Roadshows have no cooldown.</b></p>
+          <p>Refused: you can hold a major rally only once every <b>{Math.round(c.cfg.cooldowns.rallyMs / 1000)} seconds</b>, because the party leader has to get there. The button counts down. <b>Minor rallies and roadshows have no cooldown.</b></p>
         ),
       },
     },
     {
+      id: 'minor-rally', phase: 'campaign', title: 'Hold a minor rally', anchor: ['[data-tour="map"]'],
+      body: c => <p>A minor rally is a smaller event for <b>{c.money(c.cfg.costs.minorRally)}</b>. It has <b>no cooldown</b> and, like a roadshow, it is <b>secret</b>: it never reaches the news. Click a seat and press <b>Minor rally</b>.</p>,
+      task: {
+        id: 'minorRally',
+        hint: () => <>Click a seat, then press Minor rally.</>,
+        done: c => {
+          const { local, decay } = c.cfg.effects.minorRally;
+          const scale = c.cfg.display.reputationScale;
+          const gain = c.repGain && (c.repGain.type as string) === 'minorRally' ? c.repGain.seats[c.repGain.seat] : undefined;
+          return (
+            <>
+              {gain !== undefined && <p>Your reputation there jumped by <b>+{gain}</b>.</p>}
+              <p>A minor rally adds <b>+{Math.round(local * scale)}</b> in the seat where you hold it. Nearby seats get a smaller boost that fades with distance, down to nothing at {decay.maxKm} km, and nothing is added anywhere else. It costs {c.money(c.cfg.costs.minorRally)} against {c.money(c.cfg.costs.rally)} for a major rally, can be repeated at once, and rivals never find out.</p>
+            </>
+          );
+        },
+      },
+    },
+    {
       id: 'roadshow', phase: 'campaign', title: 'Hold a roadshow', anchor: ['[data-tour="map"]'],
-      body: c => <p>A roadshow is cheap (<b>{c.money(c.cfg.costs.roadshow)}</b>) and secret. Click a seat and press <b>Roadshow</b>.</p>,
+      body: c => (
+        <>
+          <p>A roadshow is cheap (<b>{c.money(c.cfg.costs.roadshow)}</b>) and secret. Click a seat and press <b>Roadshow</b>.</p>
+          <p className="tour-small">Like every campaign action, it works only in a seat where your party has a candidate.</p>
+        </>
+      ),
       task: {
         id: 'roadshow',
         hint: () => <>Click a seat, then press Roadshow.</>,
@@ -233,7 +349,7 @@ export function buildSteps(startCounting: () => void): TourStep[] {
             <li><b>Randomness</b>: a random 0 to {c.cfg.voting.randomMaxPercent * c.playerCount}% of the uncommitted voters vote at random ({c.cfg.voting.randomMaxPercent}% for each of the {c.playerCount} parties).</li>
             <li><b>Reputation</b>: everyone else splits between the parties in proportion to their reputation.</li>
           </ol>
-          <p>The party with the most votes wins the seat (first past the post). That ends the campaign: time to count.</p>
+          <p>Only the parties that have a candidate in a seat take part in its vote. The party with the most votes wins the seat (first past the post). That ends the campaign: time to count.</p>
         </>
       ),
       action: { label: 'Start counting', run: startCounting },
@@ -312,9 +428,9 @@ export function buildSteps(startCounting: () => void): TourStep[] {
   ];
 }
 
-/** The steps that apply to this map / config / number of parties (reports off, no chat in a 2-player game, ...). */
-export function visibleSteps(startCounting: () => void, cfg: MapConfig, playerCount: number): TourStep[] {
-  return buildSteps(startCounting).filter(s => !s.enabled || s.enabled({ cfg, playerCount }));
+/** The steps that apply to this map / config / number of parties (reports off, no chat or pre-campaign in a 2-player game, ...). */
+export function visibleSteps(startCounting: () => void, cfg: MapConfig, playerCount: number, startCampaign?: () => void): TourStep[] {
+  return buildSteps(startCounting, startCampaign).filter(s => !s.enabled || s.enabled({ cfg, playerCount }));
 }
 
 export function makeCtx(p: {
@@ -323,6 +439,8 @@ export function makeCtx(p: {
 }): TourCtx {
   const { cfg, snap, me } = p;
   const n = snap?.tally?.total ?? cfg.seatCount;
+  // the majority is live during the pre-campaign (it follows the contested seats) and fixed from the campaign start
+  const maj = snap && snap.status !== 'preCampaign' && snap.majority ? snap.majority : majorityOf(n);
   const live = (snap?.players ?? []).filter(x => x.status === 'active' || x.status === 'disconnected');
   const seatsOf = (id: PlayerId) => (snap?.result ? snap.result.tally[id] ?? 0 : (snap?.tally?.wins[id] ?? 0) + (snap?.tally?.leads[id] ?? 0));
   const rows = live.map(x => ({ id: x.playerId, name: x.party?.name ?? x.nickname, seats: seatsOf(x.playerId) })).sort((a, b) => b.seats - a.seats);
@@ -330,7 +448,7 @@ export function makeCtx(p: {
   const largest = rows.find(r => r.id !== me);
   const smallSum = rows.filter(r => r.id !== me && r !== largest).reduce((s, r) => s + r.seats, 0);
   return {
-    cfg, n, maj: majorityOf(n), money: v => formatMoney(v, cfg.currency.symbol), snap, priv: p.priv, me, selectedSeat: p.selectedSeat,
+    cfg, n, maj, money: v => formatMoney(v, cfg.currency.symbol), snap, priv: p.priv, me, selectedSeat: p.selectedSeat,
     repGain: p.repGain, playerCount: live.length || 9, rows, mine, largest, smallSum, selectSeat: p.selectSeat,
   };
 }

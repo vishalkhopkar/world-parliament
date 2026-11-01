@@ -194,3 +194,26 @@ describe('finalResult', () => {
     expect(r.points[0].seatPoints).toBe(34);
   });
 });
+
+// Rule: seats nobody contests are vacant, so a game passes its CONTESTED seats wherever a seat count is asked for: the majority is
+// floor(contested / 2) + 1 and a party's seat points are round(seatMultiplier x seats / contested).
+describe('points and majority with vacant seats', () => {
+  const contested = 300; // of 500
+  it('validateGovernment needs the majority of the contested seats', () => {
+    expect(validateGovernment({ PM: ['A'] }, { A: 150, B: 150 }, cfg, contested)).toMatch(/needs 151/);
+    expect(validateGovernment({ PM: ['A'] }, { A: 151, B: 149 }, cfg, contested)).toBeNull();
+    expect(validateGovernment({ PM: ['A'] }, { A: 151, B: 149 }, cfg, 500)).toMatch(/needs 251/);
+  });
+  it('seat points are round(seatMultiplier x seats / contested seats)', () => {
+    const gov = majorityGovernment('A', cfg, 1);
+    const r = finalResult({ A: 160, B: 140 }, gov, ['A', 'B'], new Set(), cfg, contested);
+    const a = r.points.find((p) => p.playerId === 'A')!;
+    expect(a.seatPoints).toBe(Math.round((cfg.points.seatMultiplier * 160) / contested));
+    expect(a.seatPoints).not.toBe(Math.round((cfg.points.seatMultiplier * 160) / 500));
+    expect(r.outcome).toBe('majority'); // 160 >= 151
+  });
+  it('a lone PM below the majority of the contested seats is a coalition outcome, not a majority', () => {
+    const r = finalResult({ A: 150, B: 150 }, majorityGovernment('A', cfg, 1), ['A', 'B'], new Set(), cfg, contested);
+    expect(r.outcome).toBe('coalition');
+  });
+});

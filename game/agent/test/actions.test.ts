@@ -1,6 +1,6 @@
 // Action table, schemas and local pre-validation, against a fake (offline) session.
 import { beforeAll, describe, expect, it } from 'vitest';
-import { WORLD_CONFIG } from '@hp/shared';
+import { WORLD_CONFIG, majorityOf } from '@hp/shared';
 import type { GameSnapshot, PlayerPublic } from '@hp/shared';
 import { ACTIONS, ACTION_BY_NAME, executeAction, formatResultText } from '../src/actions';
 import { loadGamePackage, loadSeatNames } from '../src/gamePackage';
@@ -38,6 +38,7 @@ function fakeSession(opts: { status?: GameSnapshot['status']; budget?: number; s
   c.state.gameId = 'g'; c.state.me = 'me';
   c.state.snapshot = {
     gameId: 'g', mapId: 'world-500', status: opts.status ?? 'campaign', phases, players, news: [], polledPhases: [], seats: {}, tally: null,
+    fielding: {}, contestedSeats: cfg.seatCount, majority: majorityOf(cfg.seatCount),
     offers: [], government: null, result: null,
     timeline: { campaignStart: start, phaseCloses: closes, campaignEnd: closes[phases - 1], countingEnd: closes[phases - 1] + 1000, postCountingEnd: closes[phases - 1] + 2000 },
   };
@@ -282,7 +283,7 @@ describe('read-only views', () => {
     expect(r.data.id).toBe(2);
     expect(r.data.neighbours.length).toBeGreaterThan(0);
     expect(typeof r.data.neighbours[0].name).toBe('string');
-    expect(r.data.my_actions_here).toEqual({ rallies: 0, roadshows: 0 });
+    expect(r.data.my_actions_here).toEqual({ rallies: 0, minor_rallies: 0, roadshows: 0 });
     expect(phaseOfSeat(s, 2) + 1).toBe(r.data.phase);
   });
 });
@@ -320,11 +321,11 @@ describe('rules rendering', () => {
     expect(text).toContain("First mover's advantage");
     expect(text).toContain(`+${cfg.effects.firstMover.rally}`);
     expect(text).toContain(`+${cfg.effects.firstMover.roadshow}`);
-    expect(renderRules({ ...cfg, effects: { ...cfg.effects, firstMover: { rally: 0.25, roadshow: 4 } } })).toContain('+0.25');
+    expect(renderRules({ ...cfg, effects: { ...cfg.effects, firstMover: { rally: 0.25, roadshow: 4, minorRally: 1 } } })).toContain('+0.25');
   });
 
   it('follows config changes (nothing hard-coded)', () => {
-    const changed = { ...cfg, seatCount: 543, budget: 30_000, costs: { rally: 3_000, roadshow: 500 } };
+    const changed = { ...cfg, seatCount: 543, budget: 30_000, costs: { rally: 3_000, roadshow: 500, minorRally: 1_000, candidate: 0 } };
     const text = renderRules(changed);
     expect(text).toContain(`${WORLD_CONFIG.currency.symbol}3,000`);
     expect(text).toContain('272 seats');

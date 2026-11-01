@@ -22,11 +22,15 @@ export interface EffectParams {
     local: number;      // effect in the seat of the roadshow
     decay: DecayParams; // roadshow in a seat = local * exp(-spread x^2); no global part
   };
+  minorRally: {
+    local: number;      // effect in the seat of the minor rally
+    decay: DecayParams; // minor rally in a seat = local * exp(-spread x^2); no global part
+  };
   /**
-   * First mover's advantage: the very first party to rally OR roadshow in a seat gets this extra effect in THAT seat
+   * First mover's advantage: the very first party to hold any rally or roadshow in a seat gets this extra effect in THAT seat
    * (the amount depends on which action it used). Not scaled by the time multiplier. 0 = off.
    */
-  firstMover: { rally: number; roadshow: number };
+  firstMover: { rally: number; roadshow: number; minorRally: number };
 }
 
 export interface PortfolioDef {
@@ -139,7 +143,8 @@ export interface MapConfig {
   currency: { name: string; symbol: string };
   /** Starting budget per player (whole World Rupees). */
   budget: number;
-  costs: { rally: number; roadshow: number };
+  /** `candidate` = fielding a candidate in one seat (refunded in full if withdrawn during the pre-campaign). */
+  costs: { rally: number; roadshow: number; minorRally: number; candidate: number };
   effects: EffectParams;
   /** Rate limits. */
   cooldowns: {
@@ -166,10 +171,15 @@ export interface MapConfig {
   committed: CommittedConfig;
   /** How a seat's votes are made up: committed, influence, randomness, then reputation. */
   voting: VotingConfig;
-  /** What players see: a party's own reputation in a seat is shown as round(engine reputation x reputationScale). */
-  display: { reputationScale: number };
+  /**
+   * What players see: a party's own reputation in a seat is shown as round(engine reputation x reputationScale).
+   * `brushRadiusPx` = radius in screen pixels of the paint brush that fields candidates in the pre-campaign.
+   */
+  display: { reputationScale: number; brushRadiusPx: number };
   phases: { min: number; max: number; default: number };
   durations: {
+    /** The pre-campaign phase (games with 3+ players only, see hasPreCampaign). */
+    preCampaignMs: number;
     campaignMs: number;
     countingMs: number;
     /** Counting lasts this long instead of countingMs when the game has exactly 2 players. */
@@ -185,8 +195,8 @@ export interface MapConfig {
   counting: CountingParams;
   players: { min: number; max: number };
   /**
-   * Chat between players (games with 3+ players): `campaigning` is the campaign's chat. Counting and post-counting
-   * (when government offers are made) are always one-to-one (INDV; the offers appear in those chats), not configurable.
+   * Chat between players (games with 3+ players): `campaigning` is the campaign's chat. The pre-campaign, counting and
+   * post-counting (when government offers are made) are always one-to-one (INDV; the offers appear in those chats), not configurable.
    */
   chat: { campaigning: CampaignChatMode };
   /** Browser connection behaviour. */
@@ -197,9 +207,19 @@ export interface MapConfig {
   points: PointsConfig;
 }
 
-/** Majority mark for N seats: floor(N/2) + 1. */
+/** Majority mark for N seats: floor(N/2) + 1. A game passes its CONTESTED seats, because a seat with no candidate is vacant. */
 export function majorityOf(seatCount: number): number {
   return Math.floor(seatCount / 2) + 1;
+}
+
+/** A game has the pre-campaign phase only with 3+ players. With 2, every seat is fielded automatically (see fullyFieldedBudget). */
+export function hasPreCampaign(activePlayers: number): boolean {
+  return activePlayers >= 3;
+}
+
+/** What a party has left for the campaign once it has a candidate on every seat: a 2-player game starts its campaign on this. */
+export function fullyFieldedBudget(cfg: Pick<MapConfig, 'budget' | 'seatCount' | 'costs'>): number {
+  return cfg.budget - cfg.seatCount * cfg.costs.candidate;
 }
 
 /** Map the game uses when a client does not ask for a specific one (folder name under maps/). */
@@ -215,6 +235,9 @@ export function validateConfig(cfg: MapConfig): void {
   num('budget', cfg.budget, 0, true);
   num('costs.rally', cfg.costs?.rally, 0, true);
   num('costs.roadshow', cfg.costs?.roadshow, 0, true);
+  num('costs.minorRally', cfg.costs?.minorRally, 0, true);
+  num('costs.candidate', cfg.costs?.candidate, 0, true);
+  if (fullyFieldedBudget(cfg) < 0) bad('budget', `must pay for a candidate on every seat (${cfg.seatCount} x ${cfg.costs.candidate}; got ${cfg.budget})`);
   const decay = (k: string, d: DecayParams) => {
     num(`${k}.spread`, d?.spread, 0, true);
     num(`${k}.maxKm`, d?.maxKm);
@@ -225,8 +248,11 @@ export function validateConfig(cfg: MapConfig): void {
   decay('effects.rally.decay', cfg.effects?.rally?.decay);
   num('effects.roadshow.local', cfg.effects?.roadshow?.local, 0, true);
   decay('effects.roadshow.decay', cfg.effects?.roadshow?.decay);
+  num('effects.minorRally.local', cfg.effects?.minorRally?.local, 0, true);
+  decay('effects.minorRally.decay', cfg.effects?.minorRally?.decay);
   num('effects.firstMover.rally', cfg.effects?.firstMover?.rally);
   num('effects.firstMover.roadshow', cfg.effects?.firstMover?.roadshow);
+  num('effects.firstMover.minorRally', cfg.effects?.firstMover?.minorRally);
   num('cooldowns.rallyMs', cfg.cooldowns?.rallyMs);
   num('timeMultiplier.start', cfg.timeMultiplier?.start);
   num('timeMultiplier.end', cfg.timeMultiplier?.end);
@@ -270,6 +296,7 @@ export function validateConfig(cfg: MapConfig): void {
   pct('voting.influenceMaxPercent', cfg.voting?.influenceMaxPercent);
   pct('voting.randomMaxPercent', cfg.voting?.randomMaxPercent);
   num('display.reputationScale', cfg.display?.reputationScale, 0, true);
+  num('display.brushRadiusPx', cfg.display?.brushRadiusPx, 0, true);
   if (!Array.isArray(cfg.committed?.bands)) bad('committed.bands', 'must be a list');
   cfg.committed.bands.forEach((b, i) => {
     pct(`committed.bands.${i + 1}.percent`, b?.percent);
@@ -278,6 +305,7 @@ export function validateConfig(cfg: MapConfig): void {
   });
   if (!['GROUP', 'INDV', 'OFF'].includes(cfg.chat?.campaigning)) bad('Chat.Campaigning', `must be GROUP, INDV or OFF (got ${String(cfg.chat?.campaigning)})`);
   num('connection.retryMs', cfg.connection?.retryMs, 999, true);
+  num('durations.preCampaignMs', cfg.durations?.preCampaignMs, 0, true);
   num('durations.countingMs', cfg.durations?.countingMs, 0, true);
   num('durations.countingMsTwoPlayers', cfg.durations?.countingMsTwoPlayers, 0, true);
   num('durations.countingStepMs', cfg.durations?.countingStepMs, 0, true);
@@ -312,12 +340,12 @@ validateConfig(WORLD_CONFIG);
 export const MAP_CONFIGS: Record<string, MapConfig> = { 'world-500': WORLD_CONFIG };
 
 /**
- * The chat of a game stage: the campaign uses `chat.campaigning` (null when OFF), counting and post-counting are
- * always one-to-one ('INDV'); the lobby and a finished game have no chat (null). The 2-player rule (no chat) is separate.
+ * The chat of a game stage: the campaign uses `chat.campaigning` (null when OFF); the pre-campaign, counting and
+ * post-counting are always one-to-one ('INDV'); the lobby and a finished game have no chat (null). The 2-player rule (no chat) is separate.
  */
 export function chatModeFor(cfg: Pick<MapConfig, 'chat'>, status: string | undefined): ChatMode | null {
   if (status === 'campaign') return cfg.chat.campaigning === 'OFF' ? null : cfg.chat.campaigning;
-  if (status === 'counting' || status === 'postCounting') return 'INDV';
+  if (status === 'preCampaign' || status === 'counting' || status === 'postCounting') return 'INDV';
   return null;
 }
 

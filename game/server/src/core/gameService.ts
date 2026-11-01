@@ -1,14 +1,14 @@
 // All game logic. Depends only on the interfaces in ./types (no AWS SDK imports).
 import {
-  AVATARS, DEFAULT_MAP_ID, buildGlobalReports, newsSampleTimes, PARTY_COLOURS, PARTY_SYMBOLS, analystPrice, analystReport, buildTimeline, committedMatrix, committedView, dealCommitted, computeEffects, reputationView, countingMsFor, postCountingMsFor, createRng,
+  AVATARS, DEFAULT_MAP_ID, buildGlobalReports, fullyFieldedBudget, hasPreCampaign, newsSampleTimes, PARTY_COLOURS, PARTY_SYMBOLS, analystPrice, analystReport, buildTimeline, committedMatrix, committedView, dealCommitted, computeEffects, reputationView, countingMsFor, postCountingMsFor, createRng,
   chatModeFor, finalResult, governmentFromOffer, leavesPartyOut, logOfferEvent, majorityGovernment, majorityOf, phaseOfSeat, pollSeats, rallyAvailableAt,
   removePlayerFromResults, validateGovernment,
 } from '@hp/shared';
 import { channelOf, findMentions } from '@hp/chat/common';
 import type {
   Action, AdmissionRequest, AdmitRequest, ChatMessage, ClientMessage, CoalitionOffer, CountTally,
-  CreateGameRequest, CreateGameResponse, GameSnapshot, GameTimeline, GlobalReports, JoinGameRequest, JoinGameResponse, LobbyView, MapConfig,
-  PartyIdentity, PartyRequest, PlayerId, PlayerPublic, PortfolioAssignment, PrivateState, RematchRequest, RematchResponse, SeatDeclaration, SeatId,
+  CreateGameRequest, CreateGameResponse, FieldedCandidate, FieldedSeat, GameSnapshot, GameTimeline, GlobalReports, JoinGameRequest, JoinGameResponse, LobbyView, MapConfig,
+  PartyIdentity, PartyRequest, PlayerId, PlayerPublic, PortfolioAssignment, PrivateState, RematchRequest, RematchResponse, SeatContestants, SeatDeclaration, SeatId,
   SeatResult, ServerMessage, SettingsRequest, StartResponse,
 } from '@hp/shared';
 import { createHash } from 'node:crypto';
@@ -49,7 +49,7 @@ export interface GameServiceDeps {
  * play again: POST /games/{id}/rematch, the 'rematch' message and nextGameId / nextJoinCode on the lobby view and snapshot).
  */
 const SERVER_FEATURES: string[] = ['actionRef', 'rematch'];
-const LIVE: ReadonlySet<string> = new Set(['campaign', 'counting', 'postCounting']);
+const LIVE: ReadonlySet<string> = new Set(['preCampaign', 'campaign', 'counting', 'postCounting']);
 const CONTENDER: ReadonlySet<string> = new Set(['active', 'disconnected']);
 /** Players who are part of the game (not pending/rejected). */
 /** Negotiation (chat + coalition offers) needs at least this many players who started the game. */
@@ -71,6 +71,34 @@ export function dealCandidateColumns(count: number, columns: number): number[] {
 function nextGameOf(game: GameRecord): { nextGameId?: string; nextJoinCode?: string } {
   return game.rematchGameId && game.rematchJoinCode ? { nextGameId: game.rematchGameId, nextJoinCode: game.rematchJoinCode } : {};
 }
+
+/**
+ * Who has a candidate where (active and disconnected parties; an eliminated party's candidates are gone). A seat missing from the map
+ * is vacant. Undefined for a game from before the pre-campaign existed: everybody contests everything there.
+ */
+function contestantsOf(game: GameRecord, players: PlayerRecord[]): SeatContestants | undefined {
+  if (game.contestedSeats === undefined && game.status !== 'lobby' && game.status !== 'preCampaign') return undefined;
+  const out = new Map<SeatId, Set<PlayerId>>();
+  for (const p of players) {
+    if (!CONTENDER.has(p.status)) continue;
+    for (const seat of p.fielded ?? []) {
+      let set = out.get(seat);
+      if (!set) out.set(seat, set = new Set());
+      set.add(p.playerId);
+    }
+  }
+  return out;
+}
+
+/** The game's contested seats: the fixed number once the campaign has opened, the live count before that. */
+function contestedSeatsOf(game: GameRecord, players: PlayerRecord[], cfg: Pick<MapConfig, 'seatCount'>): number {
+  if (game.contestedSeats !== undefined) return game.contestedSeats;
+  return game.status === 'lobby' || game.status === 'preCampaign' ? (contestantsOf(game, players) as SeatContestants).size : cfg.seatCount;
+}
+
+/** A clientRef good enough to deduplicate on (anything else is ignored for deduplication, still echoed in the reply). */
+const validRef = (clientRef: unknown): string | undefined =>
+  (typeof clientRef === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(clientRef) ? clientRef : undefined);
 
 export function toPublic(p: PlayerRecord): PlayerPublic {
   const out: PlayerPublic = { playerId: p.playerId, nickname: p.nickname, isAdmin: p.isAdmin, kind: p.kind ?? 'human', status: p.status };
@@ -361,25 +389,34 @@ export class GameService {
   }
 
   /**
-   * Lobby -> campaign for a game whose roster is final (committed voters and candidate columns dealt): build the timeline, flip the
-   * status (conditional on the lobby), give every active player the budget, reject pending requests, start the lifecycle (on failure
-   * the game goes back to the lobby with `rollback` applied, and the error is rethrown) and tell the connected players.
+   * Lobby -> pre-campaign (3+ active players) or campaign (2) for a game whose roster is final (committed voters and candidate columns
+   * dealt): build the timeline, flip the status (conditional on the lobby), give every active player the budget, reject pending
+   * requests, start the lifecycle (on failure the game goes back to the lobby with `rollback` applied, and the error is rethrown) and
+   * tell the connected players. Without a pre-campaign every seat is fielded automatically and charged, so the campaign starts on
+   * fullyFieldedBudget and the contested seats are fixed at once; clients learn that from one fieldingUpdate per party.
    * Shared by start() and rematch().
    */
   private async beginCampaign(game: GameRecord, players: PlayerRecord[], rollback: Partial<GameRecord>): Promise<GameTimeline> {
     const { gameId } = game;
-    const { cfg } = this.loadMap(game.mapId);
+    const { cfg, map } = this.loadMap(game.mapId);
     const active = players.filter((p) => p.status === 'active');
     const now = this.now();
+    const preCampaign = hasPreCampaign(active.length);
+    const preCampaignEnd = now + cfg.durations.preCampaignMs;
+    const startDelay = this.d.startDelayMs ?? 5000;
     // counting is shorter with exactly 2 players (no negotiation)
-    const timeline = buildTimeline(cfg, game.phases, now + (this.d.startDelayMs ?? 5000), countingMsFor(cfg, active.length), postCountingMsFor(cfg, active.length));
+    const built = buildTimeline(cfg, game.phases, (preCampaign ? preCampaignEnd : now) + startDelay, countingMsFor(cfg, active.length), postCountingMsFor(cfg, active.length));
+    const timeline: GameTimeline = preCampaign ? { ...built, preCampaignEnd } : built;
+    const allSeats = map.seats.map((s) => s.id);
     const ok = await this.repo.updateGame(gameId, {
-      status: 'campaign', timeline, admissionOpen: false, closedPhases: 0, revealedStep: 0,
+      status: preCampaign ? 'preCampaign' : 'campaign', timeline, admissionOpen: false, closedPhases: 0, revealedStep: 0,
+      ...(preCampaign ? {} : { contestedSeats: allSeats.length, majority: majorityOf(allSeats.length), campaignOpened: true }),
     }, { status: 'lobby' });
     if (!ok) throw new GameError('WRONG_PHASE', 'The game has already started');
     for (const p of players) {
-      if (p.status === 'active') await this.repo.updatePlayer(gameId, p.playerId, { budget: cfg.budget });
-      else if (p.status === 'pending') {
+      if (p.status === 'active') {
+        await this.repo.updatePlayer(gameId, p.playerId, preCampaign ? { budget: cfg.budget } : { budget: fullyFieldedBudget(cfg), fielded: allSeats });
+      } else if (p.status === 'pending') {
         await this.repo.updatePlayer(gameId, p.playerId, { status: 'rejected' });
         await this.rejectConnection(gameId, p);
       }
@@ -387,10 +424,14 @@ export class GameService {
     try {
       await this.d.scheduler.startLifecycle(gameId, timeline);
     } catch (e) {
-      await this.repo.updateGame(gameId, { status: 'lobby', timeline: null, ...rollback });
+      await this.repo.updateGame(gameId, { status: 'lobby', timeline: null, contestedSeats: undefined, majority: undefined, campaignOpened: undefined, ...rollback });
       throw e;
     }
-    await this.d.notifier.broadcast(gameId, { type: 'status', status: 'campaign', timeline });
+    await this.d.notifier.broadcast(gameId, { type: 'status', status: preCampaign ? 'preCampaign' : 'campaign', timeline });
+    if (!preCampaign) {
+      const updated = { ...game, status: 'campaign' as const, contestedSeats: allSeats.length };
+      await this.d.notifier.broadcast(gameId, this.fieldingUpdates(updated, await this.repo.listPlayers(gameId), cfg));
+    }
     // budgets were just set: tell every connected player (their lobby-time hello carried budget 0)
     for (const p of players) {
       if (p.status === 'active' && p.connectionId) {
@@ -404,8 +445,8 @@ export class GameService {
   /**
    * "Play again" (admin only, finished game with a stored result): a NEW game (new id, join code, news secret, committed voters and
    * candidate columns) with every member of this game (active, disconnected, eliminated; humans and agents) rolled over as an active
-   * player with the same playerId, token hash, nickname, kind, admin flag and party, started at once in the campaign phase with
-   * `req.phases` phases; admission is closed. The old game keeps its result and links to the new one (rematchGameId, claimed once
+   * player with the same playerId, token hash, nickname, kind, admin flag and party, started at once in the pre-campaign (the campaign
+   * with 2 players: the active count decides, see beginCampaign) with `req.phases` phases; admission is closed. Fielding belongs to a game: nobody starts with candidates. The old game keeps its result and links to the new one (rematchGameId, claimed once
    * with a condition: a repeated or concurrent call returns the same game). Every connection of the old game is told
    * ({type:'rematch'}); a later hello / lobby read of the old game carries nextGameId / nextJoinCode.
    */
@@ -511,7 +552,7 @@ export class GameService {
       if (!player) throw new GameError('UNAUTHORIZED', 'Unknown player');
       if (!conn.helloSent) {
         await this.repo.putConnection({ ...conn, helloSent: true });
-        await n.sendToConnection(connectionId, await this.hello(player));
+        await n.sendToConnection(connectionId, await this.helloMessages(player));
       }
       if (!msg || typeof msg !== 'object' || typeof (msg as { action?: unknown }).action !== 'string') {
         throw new GameError('BAD_REQUEST', 'Malformed message');
@@ -520,6 +561,8 @@ export class GameService {
         case 'ping':
           await n.sendToConnection(connectionId, { type: 'pong', clientTime: Number(msg.clientTime) || 0, serverTime: this.now() });
           break;
+        case 'field': await this.field(player, msg.seats, msg.clientRef); break;
+        case 'withdraw': await this.withdraw(player, msg.seats, msg.clientRef); break;
         case 'campaign': await this.campaign(player, msg.type, msg.seat, msg.clientRef); break;
         case 'buyReport': await this.buyReport(player, msg.scope, msg.seat); break;
         case 'globalReports': await this.globalReports(player); break;
@@ -544,33 +587,84 @@ export class GameService {
 
   // ------------------------------------------------------------------ state for a player
   async hello(player: PlayerRecord): Promise<ServerMessage> {
+    return (await this.helloMessages(player))[0];
+  }
+
+  /**
+   * The hello, and what could not fit in it. API Gateway WebSocket messages are limited to 128 KB and the public fielding alone can
+   * exceed that (every seat x every party): an oversized hello leaves `snapshot.fielding` empty and is followed at once by one
+   * fieldingUpdate per party. If that is not enough the (cosmetic) per-seat shares late in counting are dropped too.
+   */
+  async helloMessages(player: PlayerRecord): Promise<ServerMessage[]> {
     const game = await this.loadGame(player.gameId);
     const players = await this.repo.listPlayers(player.gameId);
     if (!MEMBER.has(player.status)) {
       // pending player: lobby-level information only
       const members = this.sortedPlayers(players).filter((p) => MEMBER.has(p.status) || p.playerId === player.playerId);
-      return {
+      return [{
         type: 'hello', serverTime: this.now(), features: SERVER_FEATURES,
         snapshot: {
           gameId: game.gameId, mapId: game.mapId, status: game.status, phases: game.phases, timeline: game.timeline,
-          players: members.map(toPublic), news: [], polledPhases: [], seats: {}, tally: null, offers: [],
+          players: members.map(toPublic), news: [], fielding: {}, contestedSeats: 0, majority: majorityOf(0), polledPhases: [], seats: {}, tally: null, offers: [],
           government: null, result: null, ...nextGameOf(game),
         },
         private: { you: player.playerId, budget: 0, myActions: [], myReports: [] },
-      };
+      }];
     }
     const snapshot = await this.snapshot(game, players, player.playerId);
-    // API Gateway WebSocket messages are limited to 128 KB: with 500 seats x 10 players the declared-seat shares can
-    // exceed that late in counting, so drop the (cosmetic) per-seat shares from an oversized hello.
+    const after: ServerMessage[] = [];
     if (JSON.stringify(snapshot).length > 100_000) {
-      for (const d of Object.values(snapshot.seats)) delete d.shares;
+      snapshot.fielding = {};
+      after.push(...this.fieldingUpdates(game, players, this.loadMap(game.mapId).cfg));
+      if (JSON.stringify(snapshot).length > 100_000) {
+        for (const d of Object.values(snapshot.seats)) delete d.shares;
+      }
     }
-    return {
+    return [{
       type: 'hello', serverTime: this.now(), features: SERVER_FEATURES,
       snapshot,
       private: await this.privateState(player.gameId, player.playerId),
       chat: await this.chatHistoryFor(player),
-    };
+    }, ...after];
+  }
+
+  /** seat id -> its row in the map's candidates.csv (row n belongs to the n-th seat in id order, = seat n on maps numbered 1..N). */
+  private candidateName(mapId: string): (p: Pick<PlayerRecord, 'candidateColumn'>, seat: SeatId) => string | undefined {
+    const { map, candidates } = this.loadMap(mapId);
+    if (!candidates) return () => undefined;
+    const rows = new Map([...map.seats.map((s) => s.id)].sort((a, b) => a - b).map((id, i) => [id, i] as const));
+    return (p, seat) => (p.candidateColumn === undefined ? undefined : candidates[rows.get(seat) ?? -1]?.[p.candidateColumn]);
+  }
+
+  /** The public fielding of the game, seat -> its candidates. */
+  private fieldingOf(game: GameRecord, players: PlayerRecord[]): Record<SeatId, FieldedCandidate[]> {
+    const nameOf = this.candidateName(game.mapId);
+    const out: Record<SeatId, FieldedCandidate[]> = {};
+    for (const p of this.sortedPlayers(players)) {
+      if (!CONTENDER.has(p.status)) continue;
+      for (const seat of p.fielded ?? []) {
+        const name = nameOf(p, seat);
+        (out[seat] ??= []).push({ playerId: p.playerId, ...(name ? { name } : {}) });
+      }
+    }
+    return out;
+  }
+
+  private fieldedSeats(game: GameRecord, p: Pick<PlayerRecord, 'candidateColumn'>, seats: SeatId[]): FieldedSeat[] {
+    const nameOf = this.candidateName(game.mapId);
+    return seats.map((seat) => {
+      const name = nameOf(p, seat);
+      return { seat, ...(name ? { name } : {}) };
+    });
+  }
+
+  /** The whole fielding as one fieldingUpdate per party that has candidates. */
+  private fieldingUpdates(game: GameRecord, players: PlayerRecord[], cfg: MapConfig): ServerMessage[] {
+    const contestedSeats = contestedSeatsOf(game, players, cfg);
+    return this.sortedPlayers(players).filter((p) => CONTENDER.has(p.status) && p.fielded?.length).map((p) => ({
+      type: 'fieldingUpdate' as const, playerId: p.playerId, added: this.fieldedSeats(game, p, p.fielded as SeatId[]), removed: [],
+      contestedSeats, majority: majorityOf(contestedSeats),
+    }));
   }
 
   /** A hello must stay well under the 128 KB WebSocket frame limit: at most this many characters of chat history (newest kept). */
@@ -579,7 +673,7 @@ export class GameService {
   /** What this player may read (every group message, their own one-to-one messages), oldest first, bounded. */
   private async chatHistoryFor(player: PlayerRecord): Promise<ChatMessage[]> {
     const game = await this.repo.getGame(player.gameId);
-    if (!game || (game.status !== 'campaign' && game.status !== 'counting' && game.status !== 'postCounting' && game.status !== 'finished')) return [];
+    if (!game || game.status === 'lobby' || game.status === 'abandoned') return [];
     const all = (await this.repo.listChat(player.gameId)).sort((a, b) => a.ts - b.ts);
     const mine = all.filter((m) => channelOf(m) === 'group' || m.from === player.playerId || m.to.includes(player.playerId));
     const out: ChatMessage[] = [];
@@ -637,20 +731,122 @@ export class GameService {
       const plan = await this.repo.getCountPlan(game.gameId);
       if (plan) {
         const results = await this.repo.listSeatResults(game.gameId);
-        const st = declaredState(plan, results, this.currentStep(game, plan), cfg.seatCount);
+        const st = declaredState(plan, results, this.currentStep(game, plan), contestedSeatsOf(game, players, cfg));
         seats = st.seats;
         tally = st.tally;
       }
     }
     const offers = (await this.repo.listOffers(game.gameId)).filter((o) => o.proposer === me || o.partners.includes(me));
+    const contestedSeats = contestedSeatsOf(game, players, cfg);
     return {
       gameId: game.gameId, mapId: game.mapId, status: game.status, phases: game.phases, timeline: game.timeline,
       players: this.sortedPlayers(players).filter((p) => MEMBER.has(p.status)).map(toPublic),
-      news, polledPhases: Array.from({ length: game.closedPhases }, (_, i) => i), seats, tally, offers,
+      news, fielding: this.fieldingOf(game, players), contestedSeats, majority: majorityOf(contestedSeats),
+      polledPhases: Array.from({ length: game.closedPhases }, (_, i) => i), seats, tally, offers,
       government: await this.repo.getGovernment(game.gameId),
       result: await this.repo.getResult(game.gameId),
       ...nextGameOf(game),
     };
+  }
+
+  // ------------------------------------------------------------------ pre-campaign: fielding candidates
+  /** Field a candidate in each of `seats` (see changeFielding). */
+  async field(player: PlayerRecord, seats: unknown, clientRef?: string): Promise<void> {
+    await this.changeFielding(player, 'field', seats, clientRef);
+  }
+
+  /** Withdraw the candidate from each of `seats`, refunding it (see changeFielding). */
+  async withdraw(player: PlayerRecord, seats: unknown, clientRef?: string): Promise<void> {
+    await this.changeFielding(player, 'withdraw', seats, clientRef);
+  }
+
+  /**
+   * One batch, atomic against the budget and the status (Repo.updateFielding); idempotent with a clientRef like campaign(). Seats with
+   * nothing to do are skipped; a batch the budget cannot pay for is refused whole. Answers the sender with fieldAck and, only when
+   * something changed, tells everybody with fieldingUpdate. Server time decides: the deadline closes fielding even before openCampaign runs.
+   */
+  private async changeFielding(player: PlayerRecord, op: 'field' | 'withdraw', seatsIn: unknown, clientRef?: string): Promise<void> {
+    if (!Array.isArray(seatsIn) || !seatsIn.length || seatsIn.some((s) => typeof s !== 'number' || !Number.isInteger(s))) {
+      throw new GameError('BAD_REQUEST', 'Choose at least one seat');
+    }
+    const seats = seatsIn as SeatId[];
+    const ref = validRef(clientRef);
+    const ack = { ...(clientRef ? { clientRef } : {}), ok: true as const };
+    const duplicate = async () => {
+      const again = await this.repo.getPlayer(player.gameId, player.playerId);
+      await this.d.notifier.sendToPlayer(player.gameId, player.playerId, {
+        type: 'fieldAck', ...ack, duplicate: true, budget: again ? again.budget : 0, added: [], removed: [],
+      });
+    };
+    if (ref && await this.repo.hasActionRef(player.gameId, player.playerId, ref)) return duplicate();
+    const game = await this.loadGame(player.gameId);
+    const me = await this.repo.getPlayer(player.gameId, player.playerId);
+    if (!me) throw new GameError('UNAUTHORIZED', 'Unknown player');
+    this.requireContender(me);
+    const closed = new GameError('WRONG_PHASE', 'Candidates can be fielded or withdrawn only during the pre-campaign');
+    if (game.status !== 'preCampaign' || !game.timeline || this.now() >= (game.timeline.preCampaignEnd ?? 0)) throw closed;
+    const { cfg, kernels } = this.loadMap(game.mapId);
+    if (seats.some((s) => !kernels.index.has(s))) throw new GameError('BAD_REQUEST', 'Unknown seat');
+    const res = await this.repo.updateFielding(game.gameId, me.playerId, { op, seats, costPerSeat: cfg.costs.candidate, ...(ref ? { clientRef: ref } : {}) });
+    switch (res.result) {
+      case 'duplicate': return duplicate();
+      case 'wrong_phase': throw closed;
+      case 'inactive': throw new GameError('FORBIDDEN', 'You are not an active player');
+      case 'insufficient': throw new GameError('INSUFFICIENT_FUNDS', 'Not enough funds for that many candidates');
+      case 'conflict': throw new GameError('RATE_LIMITED', 'Too many changes at once, try again', this.now() + 1000);
+      default: break;
+    }
+    const added = this.fieldedSeats(game, me, res.added);
+    await this.d.notifier.sendToPlayer(game.gameId, me.playerId, { type: 'fieldAck', ...ack, budget: res.budget, added, removed: res.removed });
+    if (added.length || res.removed.length) await this.announceFielding(game, me.playerId, added, res.removed);
+  }
+
+  /** Tell everybody what changed, with the contested seats and majority as they now stand. */
+  private async announceFielding(game: GameRecord, playerId: PlayerId, added: FieldedSeat[], removed: SeatId[]): Promise<void> {
+    const players = await this.repo.listPlayers(game.gameId);
+    const contestedSeats = contestedSeatsOf(game, players, this.loadMap(game.mapId).cfg);
+    await this.d.notifier.broadcast(game.gameId, { type: 'fieldingUpdate', playerId, added, removed, contestedSeats, majority: majorityOf(contestedSeats) });
+  }
+
+  /**
+   * The pre-campaign deadline (Step Functions / timers). Flips the status first, so no fielding can commit any more, then fixes the
+   * contested seats and majority on the game record, eliminates the parties with no candidates (they stay connected; a disconnected
+   * party with candidates stays until its grace runs out) and tells everybody: 'players' per elimination, 'status', one fieldingUpdate
+   * with nothing added or removed that carries the final contested seats and majority, and the private states. With fewer than 2
+   * parties left the game ends here with no government instead. Conditional on the status and safe to repeat, also after a crash half
+   * way: only a call that finished the work sets campaignOpened. Does nothing for a 2-player game.
+   */
+  async openCampaign(gameId: string): Promise<void> {
+    let game = await this.repo.getGame(gameId);
+    if (game?.status === 'preCampaign') {
+      await this.repo.updateGame(gameId, { status: 'campaign' }, { status: 'preCampaign' });
+      game = await this.repo.getGame(gameId);
+    }
+    if (!game || game.status !== 'campaign' || game.campaignOpened) return;
+    const { cfg } = this.loadMap(game.mapId);
+    const players = this.sortedPlayers(await this.repo.listPlayers(gameId));
+    const contestedSeats = (contestantsOf({ ...game, status: 'preCampaign' }, players) as SeatContestants).size;
+    await this.repo.updateGame(gameId, { contestedSeats, majority: majorityOf(contestedSeats) }, { contestedSeats: undefined });
+    game = { ...game, contestedSeats: game.contestedSeats ?? contestedSeats };
+    for (const p of players) {
+      if (CONTENDER.has(p.status) && !p.fielded?.length) await this.eliminate(gameId, p.playerId, { keepConnection: true, noEndCheck: true });
+    }
+    const after = await this.repo.listPlayers(gameId);
+    if (after.filter((p) => CONTENDER.has(p.status)).length < 2) {
+      await this.finishGame(gameId, true);
+    } else {
+      const majority = majorityOf(game.contestedSeats as number);
+      await this.d.notifier.broadcast(gameId, [
+        { type: 'status', status: 'campaign', timeline: game.timeline },
+        { type: 'fieldingUpdate', playerId: game.adminId, added: [], removed: [], contestedSeats: game.contestedSeats as number, majority },
+      ]);
+      for (const p of after) {
+        if (MEMBER.has(p.status) && p.connectionId) {
+          await this.d.notifier.sendToPlayer(gameId, p.playerId, { type: 'private', private: await this.privateState(gameId, p.playerId) });
+        }
+      }
+    }
+    await this.repo.updateGame(gameId, { campaignOpened: true });
   }
 
   // ------------------------------------------------------------------ campaign
@@ -660,16 +856,16 @@ export class GameService {
   }
 
   private campaignWindow(game: GameRecord, now: number): void {
-    if (game.status === 'lobby' || !game.timeline) throw new GameError('WRONG_PHASE', 'The campaign has not started');
+    if (game.status === 'lobby' || game.status === 'preCampaign' || !game.timeline) throw new GameError('WRONG_PHASE', 'The campaign has not started');
     if (now < game.timeline.campaignStart) throw new GameError('WRONG_PHASE', 'The campaign has not started yet');
     if (game.status !== 'campaign' || now >= game.timeline.campaignEnd) throw new GameError('TOO_LATE', 'The campaign is over');
   }
 
   async campaign(player: PlayerRecord, type: unknown, seat: unknown, clientRef?: string): Promise<void> {
-    if (type !== 'rally' && type !== 'roadshow') throw new GameError('BAD_REQUEST', 'Unknown action type');
+    if (type !== 'rally' && type !== 'minorRally' && type !== 'roadshow') throw new GameError('BAD_REQUEST', 'Unknown action type');
     if (typeof seat !== 'number' || !Number.isInteger(seat)) throw new GameError('BAD_REQUEST', 'Invalid seat');
     // Idempotency: a well-formed clientRef makes the message safe to resend (e.g. after the client timed out waiting for the ack).
-    const ref = typeof clientRef === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(clientRef) ? clientRef : undefined;
+    const ref = validRef(clientRef);
     if (ref && await this.repo.hasActionRef(player.gameId, player.playerId, ref)) return this.ackDuplicate(player, ref);
     for (let attempt = 0; attempt < 3; attempt++) {
       const game = await this.loadGame(player.gameId);
@@ -683,6 +879,8 @@ export class GameService {
       if (!kernels.index.has(seat)) throw new GameError('BAD_REQUEST', 'Unknown seat');
       const p = phaseOfSeat(map, game.phases, seat);
       if (p < game.closedPhases || timeline.phaseCloses[p] <= now) throw new GameError('SEAT_POLLED', 'Polling has closed in that seat');
+      const fielding = contestantsOf(game, [me]);
+      if (fielding && !fielding.has(seat)) throw new GameError('NOT_FIELDED', 'You have no candidate in that seat');
       // rally cooldown (the leader has to be present): checked here for a cheap early answer, and enforced atomically by
       // the repo (lastRallyAt condition in the spend transaction) against concurrent/pipelined rallies
       if (type === 'rally' && now < rallyAvailableAt(me.lastRallyAt, cfg)) throw rallyCooldown(rallyAvailableAt(me.lastRallyAt, cfg), now, cfg);
@@ -761,7 +959,7 @@ export class GameService {
       const committed = committedMatrix(contenders.filter((p) => p.committed).map((p) => [p.playerId, p.committed!] as const), kernels, cfg);
       const report = analystReport(
         effects, committed, kernels, cfg, scope, scope === 'seat' ? (seat as number) : undefined, decided,
-        contenders.map((p) => p.playerId), asOf, now, price, rng,
+        contenders.map((p) => p.playerId), asOf, now, price, rng, contestantsOf(game, players),
       );
       const res = await this.repo.addReport(game.gameId, me.playerId, price, { playerId: me.playerId, ts: now, report }, game.closedPhases);
       if (res === 'conflict') continue;
@@ -778,13 +976,13 @@ export class GameService {
    * A player asked for the news agencies' graphs: reply, to that player only, with every agency's growing series of noisy projected
    * seats per party and its latest seat ranges. Free (no budget, no action stored) and read-only. The numbers are computed here from
    * the hidden state (effects, committed voters) but only the noisy output leaves the server. Allowed from the campaign start to the
-   * end of the game; the series is frozen at the campaign end. Refused in the lobby, for non-members and when news.enabled is off.
+   * end of the game; the series is frozen at the campaign end. Refused in the lobby and pre-campaign, for non-members and when news.enabled is off.
    */
   async globalReports(player: PlayerRecord): Promise<void> {
     const me = await this.repo.getPlayer(player.gameId, player.playerId);
     if (!me || !MEMBER.has(me.status)) throw new GameError('FORBIDDEN', 'You are not a player of this game');
     const game = await this.loadGame(player.gameId);
-    if (game.status === 'lobby' || !game.timeline) throw new GameError('WRONG_PHASE', 'The campaign has not started');
+    if (game.status === 'lobby' || game.status === 'preCampaign' || !game.timeline) throw new GameError('WRONG_PHASE', 'The campaign has not started');
     const { cfg, map, kernels } = this.loadMap(game.mapId);
     if (!cfg.news.enabled) throw new GameError('FORBIDDEN', 'Global reports are switched off in this game');
     const timeline = game.timeline;
@@ -809,7 +1007,7 @@ export class GameService {
       reports = buildGlobalReports({
         gameId: game.gameId, secret, cfg, map, kernels, timeline, phases: game.phases, actions,
         players: contenders.map((p) => p.playerId), committed, decided, exclude, now: this.now(),
-      });
+      }, contestantsOf(game, players));
       this.newsBuilds++;
       this.newsCache.delete(game.gameId); // re-insert last = most recently used
       this.newsCache.set(game.gameId, { key, reports });
@@ -842,20 +1040,19 @@ export class GameService {
     if (game.status !== 'counting' && game.status !== 'postCounting' && game.status !== 'finished') {
       throw new GameError('WRONG_PHASE', 'Vote shares are available once counting has started');
     }
-    const { map, candidates } = this.loadMap(game.mapId);
+    const { map } = this.loadMap(game.mapId);
     if (!map.seats.some((s) => s.id === seat)) throw new GameError('BAD_REQUEST', 'Unknown seat');
     const plan = await this.repo.getCountPlan(game.gameId);
     const result = plan ? (await this.repo.listSeatResults(game.gameId)).find((r) => r.seat === seat) : undefined;
     const view = plan && result ? seatSharesAt(plan, result, this.currentStep(game, plan)) : null;
     if (!view) throw new GameError('NOT_FOUND', 'That seat has no lead yet');
     const names: Record<PlayerId, string> = {};
-    // candidates.csv row n belongs to the n-th seat in id order (= seat n on maps numbered 1..N)
-    const row = candidates?.[map.seats.map((s) => s.id).sort((a, b) => a - b).indexOf(seat)];
-    if (row) {
-      for (const p of await this.repo.listPlayers(game.gameId)) {
-        const name = MEMBER.has(p.status) && p.candidateColumn !== undefined ? row[p.candidateColumn] : undefined;
-        if (name) names[p.playerId] = name;
-      }
+    const nameOf = this.candidateName(game.mapId);
+    const players = await this.repo.listPlayers(game.gameId);
+    const fielding = contestantsOf(game, players);
+    for (const p of players) {
+      const name = MEMBER.has(p.status) && (!fielding || fielding.get(seat)?.has(p.playerId)) ? nameOf(p, seat) : undefined;
+      if (name) names[p.playerId] = name;
     }
     await this.d.notifier.sendToPlayer(game.gameId, me.playerId, {
       type: 'seatShares', seat, status: view.status, shares: view.shares,
@@ -867,7 +1064,7 @@ export class GameService {
   /** Poll the seats of polling phase `phaseIndex` (0-based) using effects as of that phase's close time. Idempotent. */
   async phaseClose(gameId: string, phaseIndex: number): Promise<void> {
     const game = await this.repo.getGame(gameId);
-    if (!game || !game.timeline || game.status === 'lobby' || game.status === 'finished' || game.status === 'abandoned') return;
+    if (!game || !game.timeline || game.status === 'lobby' || game.status === 'preCampaign' || game.status === 'finished' || game.status === 'abandoned') return;
     if (!Number.isInteger(phaseIndex) || phaseIndex < 0 || phaseIndex >= game.phases) return;
     const { cfg, map, kernels } = this.loadMap(game.mapId);
     await this.repo.markPhaseClosed(gameId, phaseIndex + 1);
@@ -882,7 +1079,7 @@ export class GameService {
       });
       const voters = this.sortedPlayers(players).filter((p) => CONTENDER.has(p.status));
       const committed = committedMatrix(voters.filter((p) => p.committed).map((p) => [p.playerId, p.committed!] as const), kernels, cfg);
-      let results = pollSeats(effects, committed, voters.map((p) => p.playerId), kernels, cfg, seats, phaseIndex, createRng(`${gameId}:poll:${phaseIndex}`));
+      let results = pollSeats(effects, committed, voters.map((p) => p.playerId), kernels, cfg, seats, phaseIndex, createRng(`${gameId}:poll:${phaseIndex}`), contestantsOf(game, voters));
       await this.repo.putSeatResults(gameId, results);
       // A player eliminated while we were polling must not keep seats.
       players = await this.repo.listPlayers(gameId);
@@ -946,10 +1143,11 @@ export class GameService {
     if (!ok) return false; // another invocation revealed these steps
     const results = await this.repo.listSeatResults(game.gameId);
     const msgs: ServerMessage[] = [];
+    const contested = contestedSeatsOf(game, [], cfg);
     // one declaredState per step: events = what changed since the previous step (lead changes included)
-    let prev = declaredState(plan, results, game.revealedStep, cfg.seatCount).seats;
+    let prev = declaredState(plan, results, game.revealedStep, contested).seats;
     for (let s = game.revealedStep + 1; s <= target; s++) {
-      const { seats, tally } = declaredState(plan, results, s, cfg.seatCount);
+      const { seats, tally } = declaredState(plan, results, s, contested);
       for (const declaration of diffDeclarations(prev, seats)) msgs.push({ type: 'seatUpdate', declaration, tally });
       prev = seats;
     }
@@ -981,11 +1179,21 @@ export class GameService {
     await this.eliminate(gameId, playerId);
   }
 
-  async eliminate(gameId: string, playerId: PlayerId): Promise<void> {
-    const ok = await this.repo.updatePlayer(gameId, playerId, { status: 'eliminated', graceSchedule: undefined, connectionId: undefined });
-    if (!ok) return;
+  /**
+   * Out of the game: a live game also loses the player's candidates (a seat may become vacant, the fixed majority does not move), votes
+   * and offers. `keepConnection`: the player keeps watching (openCampaign's no-candidates rule). `noEndCheck`: the caller does the
+   * "fewer than 2 parties left" check itself, after a batch of eliminations.
+   */
+  async eliminate(gameId: string, playerId: PlayerId, opts?: { keepConnection?: boolean; noEndCheck?: boolean }): Promise<void> {
+    const before = await this.repo.getPlayer(gameId, playerId);
     const game = await this.loadGame(gameId);
-    if (LIVE.has(game.status)) {
+    const live = LIVE.has(game.status);
+    const ok = await this.repo.updatePlayer(gameId, playerId, {
+      status: 'eliminated', graceSchedule: undefined, ...(opts?.keepConnection ? {} : { connectionId: undefined }), ...(live ? { fielded: undefined } : {}),
+    });
+    if (!ok) return;
+    if (live) {
+      if (before?.fielded?.length) await this.announceFielding(game, playerId, [], before.fielded);
       const results = await this.repo.listSeatResults(gameId);
       const updated = removePlayerFromResults(results, playerId);
       const changed = updated.filter((_, i) => playerId in results[i].shares);
@@ -1001,9 +1209,9 @@ export class GameService {
       if (game.status === 'counting' || game.status === 'postCounting') {
         const plan = await this.repo.getCountPlan(gameId);
         if (plan) {
-          const { cfg } = this.loadMap(game.mapId);
-          const old = declaredState(plan, results, game.revealedStep, cfg.seatCount).seats;
-          const st = declaredState(plan, updated, game.revealedStep, cfg.seatCount);
+          const contested = contestedSeatsOf(game, [], this.loadMap(game.mapId).cfg);
+          const old = declaredState(plan, results, game.revealedStep, contested).seats;
+          const st = declaredState(plan, updated, game.revealedStep, contested);
           const msgs: ServerMessage[] = [];
           for (const r of changed) {
             const d = st.seats[r.seat];
@@ -1012,6 +1220,7 @@ export class GameService {
           if (msgs.length) await this.d.notifier.broadcast(gameId, msgs);
         }
       }
+      if (opts?.noEndCheck) return;
       const players = await this.repo.listPlayers(gameId);
       // OPEN QUESTION (docx): with fewer than 2 players left the game simply ends with no government
       // (or the single-party-majority rule if the remaining player already holds a majority).
@@ -1052,6 +1261,7 @@ export class GameService {
     const eliminated = new Set(players.filter((p) => p.status === 'eliminated').map((p) => p.playerId));
     const results = await this.repo.listSeatResults(gameId);
     const tally = fullTally(results);
+    const contested = contestedSeatsOf(game, await this.repo.listPlayers(gameId), cfg);
     // everything is declared now: make sure a pending accepted offer sees the full tally
     if (!early) {
       await this.formGovernment(gameId, tally);
@@ -1059,7 +1269,7 @@ export class GameService {
     let government = await this.repo.getGovernment(gameId);
     let newGovernment = false;
     if (!government) {
-      const need = majorityOf(cfg.seatCount);
+      const need = majorityOf(contested);
       const winner = players.find((p) => !eliminated.has(p.playerId) && (tally[p.playerId] ?? 0) >= need);
       if (winner) {
         const g = majorityGovernment(winner.playerId, cfg, this.now());
@@ -1067,9 +1277,9 @@ export class GameService {
         else government = await this.repo.getGovernment(gameId);
       }
     }
-    const result = finalResult(tally, government, players.map((p) => p.playerId), eliminated, cfg, cfg.seatCount);
+    const result = finalResult(tally, government, players.map((p) => p.playerId), eliminated, cfg, contested);
     if (!(await this.repo.putResultIfAbsent(gameId, result))) return;
-    await this.repo.updateGame(gameId, { status: 'finished', finalised: true });
+    await this.repo.updateGame(gameId, { status: 'finished', finalised: true, contestedSeats: contested, majority: majorityOf(contested) });
     const msgs: ServerMessage[] = [];
     if (newGovernment && government) msgs.push({ type: 'government', government });
     msgs.push({ type: 'status', status: 'finished', timeline: game.timeline }, { type: 'result', result });
@@ -1095,6 +1305,7 @@ export class GameService {
       const matrix = committedMatrix(players.filter((p) => p.committed).map((p) => [p.playerId, p.committed!] as const), kernels, cfg);
       const csv = buildElectionCsv(seatIds, seatNames, parties, {
         results,
+        ...(game ? { contestants: contestantsOf(game, players) } : {}),
         reputation: new Map(players.map((p) => [p.playerId, perSeat(effects.get(p.playerId), cfg.display.reputationScale)] as const)),
         committedPercent: new Map(players.map((p) => [p.playerId, perSeat(matrix.get(p.playerId), 100)] as const)),
       });
@@ -1216,7 +1427,8 @@ export class GameService {
     }
     const members = uniq(Object.values(portfolios).flat());
     // structural validation only: pretend every member has all seats so that the majority check passes
-    const err = validateGovernment(portfolios, Object.fromEntries(members.map((m) => [m, cfg.seatCount])), cfg, cfg.seatCount);
+    const contested = contestedSeatsOf(game, players, cfg);
+    const err = validateGovernment(portfolios, Object.fromEntries(members.map((m) => [m, contested])), cfg, contested);
     if (err) throw new GameError('INVALID_GOVERNMENT', err);
     let extra: string[] = [];
     if (partnersIn !== undefined) {
@@ -1305,8 +1517,8 @@ export class GameService {
     if (!plan || game.revealedStep < plan.steps) return false;
     const wins = await this.knownWins(game);
     const { cfg } = this.loadMap(game.mapId);
-    const need = majorityOf(cfg.seatCount);
     const players = await this.repo.listPlayers(gameId);
+    const need = majorityOf(contestedSeatsOf(game, players, cfg));
     return players.some((p) => CONTENDER.has(p.status) && (wins[p.playerId] ?? 0) >= need);
   }
 
@@ -1341,7 +1553,7 @@ export class GameService {
       const members = uniq(Object.values(o.portfolios).flat().concat(o.proposer, o.partners));
       if (members.some((m) => !alive.has(m))) continue;
       if (!leavesPartyOut(members, contenders)) continue; // e.g. everybody else was eliminated after it was made
-      if (validateGovernment(o.portfolios, wins, cfg, cfg.seatCount, o.partners) !== null) continue;
+      if (validateGovernment(o.portfolios, wins, cfg, contestedSeatsOf(game, players, cfg), o.partners) !== null) continue;
       const gov = governmentFromOffer(o, this.now(), cfg);
       if (!(await this.repo.putGovernmentIfAbsent(gameId, gov))) return false; // somebody else was first
       await this.setOfferStatus(gameId, o, 'formed');

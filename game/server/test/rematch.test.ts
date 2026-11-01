@@ -1,6 +1,8 @@
 // Play again (rematch): POST /games/{id}/rematch on a finished game creates a NEW game with every member rolled over
-// (same playerId, token and party), started at once in the campaign phase. Only the number of phases can change.
+// (same playerId, token and party), started at once in the pre-campaign (in the campaign with 2 players: the active count decides, and
+// eliminated players come back as active). Fielding belongs to a game, so nobody starts with candidates. Only the number of phases can change.
 import { describe, expect, it } from 'vitest';
+import { fullyFieldedBudget } from '@hp/shared';
 import type { ServerMessage } from '@hp/shared';
 import { GameError } from '../src/core/types';
 import type { PlayerRecord } from '../src/core/types';
@@ -112,11 +114,13 @@ describe('rematch: the new game', () => {
     expect(next.get(c.p[0].playerId)!.isAdmin).toBe(true);
   });
 
-  it('starts at once in the campaign with a timeline for the chosen phases (may differ from the old game), admission closed', async () => {
+  it('starts at once in the pre-campaign with a timeline for the chosen phases (may differ from the old game), admission closed', async () => {
     const c = await finished(3, 2);
     const r = await c.svc.rematch(c.gameId, c.p[0].token, { phases: 3 });
     const g = (await c.repo.getGame(r.gameId))!;
-    expect(g.status).toBe('campaign');
+    expect(g.status).toBe('preCampaign');
+    expect(g.timeline!.preCampaignEnd).toBe(c.clock.now() + c.cfg.durations.preCampaignMs);
+    expect(g.contestedSeats).toBeUndefined();
     expect(g.phases).toBe(3);
     expect(g.admissionOpen).toBe(false);
     expect(g.adminId).toBe(c.p[0].playerId);
@@ -134,6 +138,31 @@ describe('rematch: the new game', () => {
     expect(old.phases).toBe(2);
     expect(old.rematchGameId).toBe(r.gameId);
     expect(old.rematchJoinCode).toBe(r.joinCode);
+  });
+
+  it('a 2-player game plays again straight into the campaign, with every seat fielded and charged', async () => {
+    const c = await finished(2, 2);
+    const r = await c.svc.rematch(c.gameId, c.p[0].token, { phases: 1 });
+    const g = (await c.repo.getGame(r.gameId))!;
+    expect(g.status).toBe('campaign');
+    expect(g.timeline!.preCampaignEnd).toBeUndefined();
+    expect(g.contestedSeats).toBe(c.map.seatCount);
+    for (const p of await c.repo.listPlayers(r.gameId)) {
+      expect(p.budget).toBe(fullyFieldedBudget(c.cfg));
+      expect(p.fielded).toEqual(c.map.seats.map((s) => s.id));
+    }
+  });
+
+  it('nobody brings candidates along, and eliminated players come back: 2 active and 1 eliminated make a 3-player game with a pre-campaign', async () => {
+    const c = await finished(3, 2);
+    await c.svc.eliminate(c.gameId, c.p[2].playerId);
+    const r = await c.svc.rematch(c.gameId, c.p[0].token, { phases: 2 });
+    expect((await c.repo.getGame(r.gameId))!.status).toBe('preCampaign');
+    for (const p of await c.repo.listPlayers(r.gameId)) {
+      expect(p.status).toBe('active');
+      expect(p.fielded).toBeUndefined();
+      expect(p.budget).toBe(c.cfg.budget);
+    }
   });
 
   it('budgets, committed voters, candidate columns, news secret and join code are fresh; rally history is cleared', async () => {
@@ -172,12 +201,12 @@ describe('rematch: the new game', () => {
     expect(await c.repo.getResult(r.gameId)).toBeNull();
   });
 
-  it('the old token authenticates in the new game (REST lobby + WebSocket hello with the party, budget and campaign status)', async () => {
+  it('the old token authenticates in the new game (REST lobby + WebSocket hello with the party, budget and pre-campaign status)', async () => {
     const c = await finished(3, 2);
     const r = await c.svc.rematch(c.gameId, c.p[0].token, { phases: 1 });
     for (const [i, p] of c.p.entries()) {
       const lobby = await c.svc.getLobby(r.gameId, p.token);
-      expect(lobby).toMatchObject({ gameId: r.gameId, joinCode: r.joinCode, status: 'campaign', phases: 1, admissionOpen: false, you: p.playerId });
+      expect(lobby).toMatchObject({ gameId: r.gameId, joinCode: r.joinCode, status: 'preCampaign', phases: 1, admissionOpen: false, you: p.playerId });
       expect(lobby.players).toHaveLength(3);
       expect(lobby.nextGameId).toBeUndefined();
       const conn = `n${i}`;
@@ -186,18 +215,24 @@ describe('rematch: the new game', () => {
       await c.svc.handleMessage(conn, { action: 'ping', clientTime: 1 });
       const hello = c.notifier.to(p.playerId, 'hello')[0] as Extract<ServerMessage, { type: 'hello' }>;
       expect(hello.snapshot.gameId).toBe(r.gameId);
-      expect(hello.snapshot.status).toBe('campaign');
+      expect(hello.snapshot.status).toBe('preCampaign');
+      expect(hello.snapshot.fielding).toEqual({});
       expect(hello.snapshot.players.every((x) => x.party && x.status === 'active')).toBe(true);
       expect(hello.private.budget).toBe(c.cfg.budget);
       expect(hello.snapshot.result).toBeNull();
       expect(hello.features).toContain('rematch');
     }
-    // and the new game can be campaigned in once the lead-in is over
-    c.clock.set(c.scheduler.lifecycles[1].timeline.campaignStart);
+    // and in the new game a party can field, and campaign where it fielded once the lead-in is over
     c.notifier.clear();
+    await c.svc.handleMessage('n0', { action: 'field', seats: [2] });
+    await c.svc.handleMessage('n1', { action: 'field', seats: [1] });
+    await c.svc.handleMessage('n2', { action: 'field', seats: [2] });
+    c.clock.set(c.scheduler.lifecycles[1].timeline.preCampaignEnd as number);
+    await c.svc.openCampaign(r.gameId);
+    c.clock.set(c.scheduler.lifecycles[1].timeline.campaignStart);
     await c.svc.handleMessage('n1', { action: 'campaign', type: 'rally', seat: 1 });
     expect(c.notifier.to(c.p[1].playerId, 'error')).toEqual([]);
-    expect((await c.repo.getPlayer(r.gameId, c.p[1].playerId))!.budget).toBe(c.cfg.budget - c.cfg.costs.rally);
+    expect((await c.repo.getPlayer(r.gameId, c.p[1].playerId))!.budget).toBe(c.cfg.budget - c.cfg.costs.candidate - c.cfg.costs.rally);
   });
 
   it('nobody can join the new game or the old one by code', async () => {
@@ -214,12 +249,13 @@ describe('rematch: the new game', () => {
     c.joinCode = r.joinCode;
     c.scheduler.lifecycles.shift(); // ctx.timeline = the new game's
     for (const p of c.p) await c.svc.connect(c.gameId, p.token, `${p.conn}-2`);
+    await c.fieldEverywhereAndOpen();
     c.clock.set(c.timeline.campaignStart);
     await driveTo(c, 'finished');
     expect((await c.game()).status).toBe('finished');
     const again = await c.svc.rematch(c.gameId, c.p[0].token, { phases: 1 });
     expect(again.gameId).not.toBe(r.gameId);
-    expect((await c.repo.getGame(again.gameId))!.status).toBe('campaign');
+    expect((await c.repo.getGame(again.gameId))!.status).toBe('preCampaign');
   });
 });
 
@@ -244,7 +280,7 @@ describe('rematch: idempotent', () => {
     expect(b).toEqual(a);
     expect((await c.game()).rematchGameId).toBe(a.gameId);
     expect(c.scheduler.lifecycles.map((l) => l.gameId)).toEqual([c.gameId, a.gameId]);
-    expect((await c.repo.getGame(a.gameId))!.status).toBe('campaign');
+    expect((await c.repo.getGame(a.gameId))!.status).toBe('preCampaign');
   });
 
   it('a call that loses the claim returns the winner and starts nothing', async () => {
@@ -275,7 +311,7 @@ describe('rematch: idempotent', () => {
     expect(c.notifier.log.filter((s) => s.msg.type === 'rematch')).toEqual([]);
     c.scheduler.startLifecycle = orig;
     const r = await c.svc.rematch(c.gameId, c.p[0].token, { phases: 2 });
-    expect((await c.repo.getGame(r.gameId))!.status).toBe('campaign');
+    expect((await c.repo.getGame(r.gameId))!.status).toBe('preCampaign');
     expect((await c.game()).rematchGameId).toBe(r.gameId);
   });
 });

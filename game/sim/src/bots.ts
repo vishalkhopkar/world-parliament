@@ -12,7 +12,7 @@ export interface BotCtx {
   now: number;
   campaignMs: number;
   budget: number;
-  costs: { rally: number; roadshow: number };
+  costs: { rally: number; roadshow: number; minorRally: number };
   startBudget: number;
   isOpen(i: number): boolean;
   /** fraction of the campaign at which seat i freezes */
@@ -29,6 +29,8 @@ export interface BotCtx {
   rallyReady(): boolean;
   /** false = refused (cooldown, frozen seat or no money); the caller must retry on a later tick if it still wants the rally */
   rally(i: number): boolean;
+  /** a minor rally: hidden like a roadshow, no cooldown, costs.minorRally; false = refused (frozen seat or no money) */
+  minorRally(i: number): boolean;
   roadshow(i: number): boolean;
   report(scope: 'seat' | 'global', i?: number): AnalystReport | null;
   seatReportPrice(): number;
@@ -54,12 +56,12 @@ function allSeats(n: number): number[] { return Array.from({ length: n }, (_, i)
 
 const MARGIN = 0.012; // keep planned times this far (fraction of campaign) before the seat's phase closes
 
-interface Planned { frac: number; type: 'rally' | 'roadshow'; seat: number }
+interface Planned { frac: number; type: 'rally' | 'minorRally' | 'roadshow'; seat: number }
 
 /**
  * Moves the planned rally times so that consecutive rallies are at least the cooldown plus a 2-tick margin apart, and every rally is
  * still before its seat's phase closes. Pass 1 pushes rallies later where they bunch up, pass 2 pulls them back before their
- * deadline (and before the next rally), pass 3 re-checks the spacing at the front. Roadshows are untouched (no cooldown).
+ * deadline (and before the next rally), pass 3 re-checks the spacing at the front. Roadshows and minor rallies are untouched (no cooldown).
  */
 function spaceRallies(plan: Planned[], w: World, k: number): Planned[] {
   const gap = (w.cfg.cooldowns.rallyMs + 2 * 2_000) / w.cfg.durations.campaignMs;
@@ -86,7 +88,7 @@ function retarget(ctx: BotCtx, seat: number): number {
 }
 
 /**
- * Executes a fixed plan. Roadshows fire as soon as they are due. Rallies are limited by the cooldown (one per cooldowns.rallyMs):
+ * Executes a fixed plan. Roadshows and minor rallies fire as soon as they are due. Rallies are limited by the cooldown (one per cooldowns.rallyMs):
  * a due rally that cannot go yet stays in the queue and is retried on the next tick (never lost); among the waiting rallies the one
  * whose seat freezes first goes first (earliest deadline), and if a seat froze while its rally waited it is moved to the nearest open seat.
  */
@@ -102,7 +104,7 @@ function planBot(name: string, rawPlan: Planned[], w: World, k: number): Bot {
         const a = sorted[ptr++];
         if (a.type === 'rally') { waiting.push(a); continue; }
         const seat = ctx.isOpen(a.seat) ? a.seat : retarget(ctx, a.seat);
-        if (seat >= 0) ctx.roadshow(seat);
+        if (seat >= 0) { if (a.type === 'minorRally') ctx.minorRally(seat); else ctx.roadshow(seat); }
       }
       if (waiting.length === 0) return;
       if (ctx.budget < ctx.costs.rally) { waiting = []; return; }
@@ -132,9 +134,10 @@ function timeFor(w: World, k: number, seat: number, timing: Timing, rng: Rng): n
   return lo + rng() * Math.max(0.0005, dl - lo);
 }
 
-/** Greedy coverage-saturating choice of rally seats within the given candidate seats. */
-function greedyRallySeats(w: World, cand: number[], m: number, rng: Rng, noise = 0.25, sat?: number): number[] {
-  const T = sat ?? w.cfg.effects.rally.local * 1.0;
+/** Greedy coverage-saturating choice of rally (or, with `minor`, minor rally) seats within the given candidate seats. */
+function greedyRallySeats(w: World, cand: number[], m: number, rng: Rng, noise = 0.25, sat?: number, minor = false): number[] {
+  const T = sat ?? (minor ? w.cfg.effects.minorRally.local : w.cfg.effects.rally.local) * 1.0;
+  const rows = minor ? w.minorRows : w.rallyRows;
   const cov = new Float64Array(w.n);
   const chosen: number[] = [];
   const used = new Set<number>();
@@ -143,7 +146,7 @@ function greedyRallySeats(w: World, cand: number[], m: number, rng: Rng, noise =
     let bestG = -1;
     for (const i of cand) {
       if (used.has(i)) continue;
-      const row = w.rallyRows[i];
+      const row = rows[i];
       let g = 0;
       for (let q = 0; q < row.idx.length; q++) g += Math.min(row.w[q], Math.max(0, T - cov[row.idx[q]]));
       g *= 1 + noise * rng();
@@ -152,7 +155,7 @@ function greedyRallySeats(w: World, cand: number[], m: number, rng: Rng, noise =
     if (best < 0) break;
     used.add(best);
     chosen.push(best);
-    const row = w.rallyRows[best];
+    const row = rows[best];
     for (let q = 0; q < row.idx.length; q++) cov[row.idx[q]] += row.w[q];
   }
   return chosen;
@@ -209,6 +212,31 @@ function mixedBot(name: string, fRally: number, timing: Timing, rallyTiming: Tim
     });
     const pool = shuffle(allSeats(w.n).filter((s) => !used.has(s)), rng).slice(0, ns);
     for (const s of pool) plan.push({ frac: timeFor(w, k, s, timing, rng), type: 'roadshow', seat: s });
+    return planBot(name, plan, w, k);
+  };
+}
+
+/**
+ * Minor-rally heavy: fMinor of the budget on minor rallies placed greedily so their (small) clusters overlap as little as possible
+ * (per phase, spread over the phase windows), the rest on random roadshows. No cooldown, so everything fires when due.
+ */
+function minorBot(name: string, fMinor: number): BotFactory {
+  return (w, k, B, rng) => {
+    const cm = w.cfg.costs.minorRally;
+    const nm = Math.floor((fMinor * B) / cm);
+    const ns = Math.floor((B - nm * cm) / w.cfg.costs.roadshow);
+    const ps = w.phaseSeats.get(k) as number[][];
+    const plan: Planned[] = [];
+    const mp = perPhase(w, k, nm);
+    const used = new Set<number>();
+    ps.forEach((g, p) => {
+      for (const s of greedyRallySeats(w, g, mp[p], rng, 0.25, undefined, true)) {
+        used.add(s);
+        plan.push({ frac: timeFor(w, k, s, 'spread', rng), type: 'minorRally', seat: s });
+      }
+    });
+    const pool = shuffle(allSeats(w.n).filter((s) => !used.has(s)), rng).slice(0, ns);
+    for (const s of pool) plan.push({ frac: timeFor(w, k, s, 'spread', rng), type: 'roadshow', seat: s });
     return planBot(name, plan, w, k);
   };
 }
@@ -515,6 +543,8 @@ export const STRATEGIES: Record<string, BotFactory> = {
   MIX100E: mixedBot('MIX100E', 1, 'spread', 'early'),
   MIX50E: mixedBot('MIX50E', 0.5, 'spread', 'early'),
   MIX30_EARLYR: mixedBot('MIX30_EARLYR', 0.3, 'spread', 'early'),
+  MINOR100: minorBot('MINOR100', 1),
+  MINOR50: minorBot('MINOR50', 0.5),
   CLUSTER: clusterBot('CLUSTER'),
   PATCH: patchBot('PATCH'),
   AGENT: agentBot('AGENT'),

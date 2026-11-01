@@ -20,7 +20,7 @@ const pl = (id: string, n: string): PlayerPublic => ({ playerId: id, nickname: n
 const players = [pl('p1', 'Asha'), pl('p2', 'Ben'), pl('p3', 'Chitra')];
 const snap = (mapId: string): GameSnapshot => ({
   gameId: 'g', mapId, status: 'campaign', phases: 2, timeline: null,
-  players, news: [], polledPhases: [], seats: {}, tally: { leads: {}, wins: { p1: 10, p2: 10, p3: 10 }, declared: 0, total: 30 }, offers: [], government: null, result: null,
+  players, news: [], fielding: { 1: [{ playerId: 'p1' }], 2: [{ playerId: 'p1' }] }, contestedSeats: 30, majority: 16, polledPhases: [], seats: {}, tally: { leads: {}, wins: { p1: 10, p2: 10, p3: 10 }, declared: 0, total: 30 }, offers: [], government: null, result: null,
 });
 const priv: PrivateState = { you: 'p1', budget: 90_000, myActions: [], myReports: [] };
 
@@ -37,18 +37,19 @@ beforeEach(() => useStore.setState({ snapshot: null, lobby: null, gamePkg: null,
 describe('seat panel costs follow the current map', () => {
   it('uses the fake map costs, report price and currency', () => {
     modal(FAKE_MAP_ID);
-    expect(costOf('Rally')).toBe('F$ 5,000');
+    expect(costOf('Major rally')).toBe('F$ 5,000');
+    expect(costOf('Minor rally')).toBe('F$ 4,000');
     expect(costOf('Roadshow')).toBe('F$ 3,000');
     expect(costOf('Local report')).toBe('F$ 7,000');
   });
   it('uses the world costs for the world map', () => {
     modal(WORLD_CONFIG.mapId);
-    expect(costOf('Rally')).toBe(`${WORLD_CONFIG.currency.symbol} 8,000`); // the symbol comes from game.properties
+    expect(costOf('Major rally')).toBe(`${WORLD_CONFIG.currency.symbol} 8,000`); // the symbol comes from game.properties
     expect(costOf('Roadshow')).toBe(`${WORLD_CONFIG.currency.symbol} 400`);
   });
   it("disables an action the budget cannot cover at that map's price", () => {
     modal(FAKE_MAP_ID, 4_000); // 4,000: below both the world rally (8,000) and the fake one (5,000)
-    expect(screen.getByText('Rally').closest('button')).toBeDisabled();
+    expect(screen.getByText('Major rally').closest('button')).toBeDisabled();
   });
 });
 
@@ -75,11 +76,12 @@ describe('analyst reports switched off in the map config', () => {
     return render(<AnalystShop snap={s} priv={priv} now={1} />);
   };
 
-  it('the seat panel has no Local report option when the seat report is off, but keeps Rally and Roadshow', () => {
+  it('the seat panel has no Local report option when the seat report is off, but keeps the rallies and the roadshow', () => {
     setEnabled(false, true);
     modal(FAKE_MAP_ID);
     expect(screen.queryByText('Local report')).toBeNull();
-    expect(screen.getByText('Rally')).toBeInTheDocument();
+    expect(screen.getByText('Major rally')).toBeInTheDocument();
+    expect(screen.getByText('Minor rally')).toBeInTheDocument();
     expect(screen.getByText('Roadshow')).toBeInTheDocument();
   });
   it('the seat panel still shows the Local report option when it is on', () => {

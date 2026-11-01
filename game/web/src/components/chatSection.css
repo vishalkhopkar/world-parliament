@@ -5,6 +5,12 @@
 .chat-card.group .hpchat-log{min-height:220px;max-height:46vh}
 .chat-card.direct .hpchat-direct{height:min(560px,62vh)}
 .chat-fab{display:none}
+/* desktop, pre-campaign and campaign: the card and its log stretch over all of .chat-slot (see game.css) instead of the caps above */
+@media (min-width:900px){
+  .screen-preCampaign .chat-slot .chat-card,.screen-campaign .chat-slot .chat-card{flex:1;min-height:0}
+  .screen-preCampaign .chat-slot .hpchat,.screen-campaign .chat-slot .hpchat{flex:1;min-height:0;height:auto}
+  .screen-campaign .chat-slot .chat-card.group .hpchat-log{min-height:0;max-height:none}
+}
 @media (max-width:899px){
   .chat-card.direct .hpchat-direct{height:480px}
   .chat-fab{display:inline-flex;align-items:center;gap:6px;position:fixed;right:14px;bottom:62px;z-index:20;padding:8px 14px;border:0;border-radius:999px;background:var(--green);color:var(--ivory);font:inherit;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.3);cursor:pointer}

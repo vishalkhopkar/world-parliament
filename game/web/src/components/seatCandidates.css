@@ -1,0 +1,7 @@
+/* components/SeatCandidates.tsx */
+.seat-candidates-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;font-size:.88rem}
+.seat-candidates-list li{display:flex;align-items:center;gap:8px;min-width:0}
+.scl-party{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.scl-name{margin-left:auto;color:var(--muted);text-align:right;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.candidate-icon{display:inline-flex;flex:none;color:var(--party-colour)}
+.candidate-icon svg{display:block;width:auto;height:24px}

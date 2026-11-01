@@ -1,9 +1,8 @@
 import { useEffect, useMemo } from 'react';
-import { majorityOf } from '@hp/shared';
 import type { GameSnapshot, SeatId } from '@hp/shared';
 import { useStore } from '../state/store';
-import { useMapConfig } from '../state/mapConfig';
 import { SeatMap } from '../map/SeatMap';
+import { EliminatedBanner } from '../components/EliminatedBanner';
 import { Negotiation } from '../components/Negotiation';
 import { ResultPanels } from '../components/ResultPanels';
 import { SeatShareHint } from '../components/SeatShareHint';
@@ -12,11 +11,11 @@ import { PartyDot, PartyLabel } from '../components/ui';
 import './game.css';
 import './Counting.css';
 import { colourHex, formatClock, seatCountOf, seatName, useServerNow } from '../lib';
+import { vacantSeats } from '../lib/fielding';
 
 export function TallyBar({ snap }: { snap: GameSnapshot }) {
-  const cfg = useMapConfig();
-  const total = seatCountOf(snap.tally?.total, cfg.seatCount);
-  const maj = majorityOf(total);
+  const total = seatCountOf(snap.tally?.total, snap.contestedSeats);
+  const maj = snap.majority;
   const rows = snap.players.filter(p => p.status === 'active' || p.status === 'disconnected' || p.status === 'eliminated')
     .map(p => ({ p, wins: snap.tally?.wins[p.playerId] ?? 0, leads: snap.tally?.leads[p.playerId] ?? 0 }))
     .sort((a, b) => b.wins + b.leads - (a.wins + a.leads));
@@ -47,6 +46,8 @@ export function TallyBar({ snap }: { snap: GameSnapshot }) {
 
 export function Counting() {
   const snap = useStore(s => s.snapshot);
+  const priv = useStore(s => s.priv);
+  const pkg = useStore(s => s.gamePkg);
   const names = useStore(s => s.names);
   const selected = useStore(s => s.selectedSeat);
   const selectSeat = useStore(s => s.selectSeat);
@@ -64,6 +65,8 @@ export function Counting() {
     }
     return { fills: f, leading: l };
   }, [snap?.seats, snap?.players]); // eslint-disable-line react-hooks/exhaustive-deps
+  // seats nobody contests are never declared: hatched, so they do not look undeclared
+  const vacant = useMemo(() => (snap && pkg ? vacantSeats(snap, pkg.seats.map(s => s.id)) : undefined), [snap?.fielding, snap?.contestedSeats, pkg]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!snap) return <div className="page"><p className="hint">Connecting…</p></div>;
   const t = snap.timeline;
@@ -79,14 +82,15 @@ export function Counting() {
         <div className="hud-item"><span>{counting ? 'Counting ends in' : snap.government && snap.status === 'postCounting' ? 'Final result in' : 'Government must form within'}</span><strong>{formatClock(left)}</strong></div>
         <div className="hud-item wide" data-tour="tally"><TallyBar snap={snap} /></div>
       </div>
+      <EliminatedBanner snap={snap} priv={priv} />
       <div className="game-body wide-side">
         <div className="map-col" data-tour="map">
           {counting && <div className="result-col"><ResultPanels /></div>}
-          <SeatMap names={names} fills={fills} leading={leading} selectedSeat={selected} onSeatClick={selectSeat} />
+          <SeatMap names={names} fills={fills} leading={leading} dimmed={vacant} selectedSeat={selected} onSeatClick={selectSeat} />
           {selected != null && (
             <div className="map-note">
               <strong>{seatName(names, selected)}</strong>{' '}
-              {decl ? <span>{decl.status === 'won' ? 'won by' : 'leading:'} <b className="party-text" style={{ '--party-colour': colourHex(dp?.party?.colour) } as React.CSSProperties}>{dp?.party?.name}</b></span> : <span className="muted">not yet declared</span>}
+              {decl ? <span>{decl.status === 'won' ? 'won by' : 'leading:'} <b className="party-text" style={{ '--party-colour': colourHex(dp?.party?.colour) } as React.CSSProperties}>{dp?.party?.name}</b></span> : <span className="muted">{vacant?.has(selected) ? 'vacant: no party has a candidate here' : 'not yet declared'}</span>}
             </div>
           )}
           {selected != null && <SeatSharesModal seat={selected} onClose={() => selectSeat(null)} />}

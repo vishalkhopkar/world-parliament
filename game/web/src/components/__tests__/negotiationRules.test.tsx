@@ -13,7 +13,7 @@ const pl = (id: string, n: string): PlayerPublic => ({ playerId: id, nickname: n
 const A = pl('a', 'Asha'), B = pl('b', 'Ben'), C = pl('c', 'Chitra'), D = pl('d', 'Dev');
 
 const snapOf = (players: PlayerPublic[], wins: Record<string, number>, offers: CoalitionOffer[] = []) => ({
-  gameId: 'g', mapId: 'world-500', status: 'counting', players, offers, government: null,
+  gameId: 'g', mapId: 'world-500', status: 'counting', players, offers, government: null, fielding: {}, contestedSeats: 500, majority: 251,
   tally: { wins, leads: {}, declared: 100, total: 500 },
 } as unknown as GameSnapshot);
 const show = (s: GameSnapshot) => { useStore.setState({ me: 'a', snapshot: s, lobby: null, gamePkg: null, chat: [] } as never); return render(<Negotiation snap={s} />); };

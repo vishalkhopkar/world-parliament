@@ -1,7 +1,7 @@
 // Rally cooldown: a player may rally only cooldowns.rallyMs after their previous ACCEPTED rally (server clock).
 // Roadshows have no cooldown. Refusals are RATE_LIMITED (HTTP 429) with retryAt = the next allowed rally time.
 import { describe, expect, it } from 'vitest';
-import { rallyAvailableAt } from '@hp/shared';
+import { rallyAvailableAt, fullyFieldedBudget } from '@hp/shared';
 import type { PrivateState, ServerMessage } from '@hp/shared';
 import { GameService } from '../src/core/gameService';
 import { DynamoRepo } from '../src/aws/dynamoRepo';
@@ -63,7 +63,7 @@ describe('rally cooldown (cooldowns.rallyMs)', () => {
     expect(acks(c, 0)).toHaveLength(2);
     expect(errors(c, 0)).toHaveLength(0);
     expect((await rallies(c, 0)).map((a) => a.ts)).toEqual([t0, t0 + c.cfg.cooldowns.rallyMs]);
-    expect(await c.budget(0)).toBe(c.cfg.budget - 2 * c.cfg.costs.rally);
+    expect(await c.budget(0)).toBe(fullyFieldedBudget(c.cfg) - 2 * c.cfg.costs.rally);
   });
 
   it('a refused rally does not restart the gap (it is measured from the last ACCEPTED rally)', async () => {
@@ -157,7 +157,7 @@ describe('rally cooldown (cooldowns.rallyMs)', () => {
     expect(errs).toHaveLength(N - 1);
     expect(errs.every((e) => e.error === 'RATE_LIMITED' && e.retryAt === c.clock.now() + c.cfg.cooldowns.rallyMs)).toBe(true);
     expect(await rallies(c, 0)).toHaveLength(1);
-    expect(await c.budget(0)).toBe(c.cfg.budget - c.cfg.costs.rally);
+    expect(await c.budget(0)).toBe(fullyFieldedBudget(c.cfg) - c.cfg.costs.rally);
     expect(c.notifier.to(c.p[1].playerId, 'news')).toHaveLength(1);
   });
 
@@ -168,7 +168,7 @@ describe('rally cooldown (cooldowns.rallyMs)', () => {
     const mine = (await c.repo.listActions(c.gameId)).filter((a) => a.playerId === c.p[0].playerId);
     expect(mine.filter((a) => a.type === 'rally')).toHaveLength(1);
     expect(mine.filter((a) => a.type === 'roadshow')).toHaveLength(20);
-    expect(await c.budget(0)).toBe(c.cfg.budget - c.cfg.costs.rally - 20 * c.cfg.costs.roadshow);
+    expect(await c.budget(0)).toBe(fullyFieldedBudget(c.cfg) - c.cfg.costs.rally - 20 * c.cfg.costs.roadshow);
   });
 
   it('nextRallyAt: absent/null before any rally, then lastRally + rallyMs in actionAck (rally and roadshow) and PrivateState', async () => {
@@ -226,7 +226,7 @@ describe('rally cooldown (cooldowns.rallyMs)', () => {
     await Promise.all(Array.from({ length: 12 }, () => c.send(0, rally(1))));
     expect(acks(c, 0)).toHaveLength(1);
     expect(errors(c, 0).map((e) => e.error)).toEqual(Array(11).fill('RATE_LIMITED'));
-    expect(await c.budget(0)).toBe(c.cfg.budget - c.cfg.costs.rally);
+    expect(await c.budget(0)).toBe(fullyFieldedBudget(c.cfg) - c.cfg.costs.rally);
     c.clock.advance(c.cfg.cooldowns.rallyMs);
     await c.send(0, rally(1));
     expect(acks(c, 0)).toHaveLength(2);

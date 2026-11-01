@@ -5,7 +5,7 @@ import { executeAction, formatResultText } from '../src/actions';
 import type { AgentSession } from '../src/session';
 
 export const SHORT_ENV = {
-  HP_CAMPAIGN_MS: '16000', HP_COUNTING_MS: '9000', HP_POST_MS: '7000', HP_GRACE_MS: '2500', HP_START_DELAY_MS: '1200',
+  HP_PRECAMPAIGN_MS: '5000', HP_CAMPAIGN_MS: '16000', HP_COUNTING_MS: '9000', HP_POST_MS: '7000', HP_GRACE_MS: '2500', HP_START_DELAY_MS: '1200',
 };
 
 export async function startServer(env: Record<string, string> = SHORT_ENV): Promise<{ srv: DevServer; base: string }> {
@@ -39,6 +39,30 @@ export class Human {
     if (r.status === 200) Object.assign(this, { gameId: r.json.gameId, joinCode: r.json.joinCode });
     return r;
   }
+  private ws: WebSocket | null = null;
+  private wsGame = '';
+  private acks: any[] = [];
+  /** Host: field candidates over the game's WebSocket, like the web client (the pre-campaign is WebSocket-only). Resolves with the fieldAck. */
+  async field(seats: number[], timeoutMs = 5000): Promise<any> {
+    if (!this.ws || this.wsGame !== this.gameId || this.ws.readyState !== WebSocket.OPEN) {
+      this.close();
+      const ws = new WebSocket(`${this.base.replace(/^http/, 'ws')}/ws?gameId=${encodeURIComponent(this.gameId)}&token=${encodeURIComponent(this.token)}`);
+      this.ws = ws; this.wsGame = this.gameId; this.acks = [];
+      ws.onmessage = (e) => { const m = JSON.parse(String(e.data)); if (m.type === 'fieldAck' || m.type === 'error') this.acks.push(m); };
+      await new Promise<void>((resolve, reject) => { ws.onopen = () => resolve(); ws.onerror = () => reject(new Error('host socket failed')); });
+      ws.send(JSON.stringify({ action: 'ping', clientTime: Date.now() }));
+    }
+    const ref = 'host-' + Math.random().toString(36).slice(2, 8);
+    this.ws.send(JSON.stringify({ action: 'field', seats, clientRef: ref }));
+    const t0 = Date.now();
+    while (Date.now() - t0 < timeoutMs) {
+      const hit = this.acks.find((m) => m.clientRef === ref);
+      if (hit) { if (hit.type === 'error') throw new Error('host field failed: ' + hit.error); return hit; }
+      await new Promise((r) => setTimeout(r, 30));
+    }
+    throw new Error('host field timed out');
+  }
+  close(): void { try { this.ws?.close(); } catch { /* ignore */ } this.ws = null; }
   async pending(): Promise<any[]> { return ((await this.lobby()).json.players as any[]).filter((p) => p.status === 'pending'); }
 }
 

@@ -4,8 +4,8 @@ import type { GlobalReportPoint, GlobalReports, NewsAgencyReport } from '../prot
 import type { Action, GameMapPackage, GameTimeline, PlayerId, SeatResult } from '../types';
 import { computeEffects } from './effects';
 import { createRng, gaussian } from './rng';
-import type { Committed, Kernels } from './types';
-import { expectedShareArray } from './votes';
+import type { Committed, Kernels, SeatContestants } from './types';
+import { candidatesOf, expectedShareArray } from './votes';
 
 /**
  * News agencies ("global reports"): free, noised projections of every party's seats over time. Pure functions; the server calls
@@ -25,6 +25,10 @@ import { expectedShareArray } from './votes';
  * a client that could rebuild the noise could invert it and read the true projection. Same secret -> identical series on every call,
  * so a series needs no storage.
  * cfg.news.enabled is NOT checked here: the caller (server) refuses the request when the feature is switched off.
+ * `contestants` (who has a candidate where; the last argument of newsTrueProjection and buildGlobalReports; left out = everybody
+ * everywhere): only a seat's candidates share it, vacant seats count for nobody, the points add up to the CONTESTED seats instead of
+ * the map's, and the start point (k = 0) gives each party its even split of every contested seat (a seat with n candidates counts 1/n
+ * for each) instead of seats / parties.
  */
 
 /** Seed base of one game's news noise: the public game id mixed with the server-only secret. Throws on an empty secret (fail safe). */
@@ -166,7 +170,7 @@ export interface GlobalReportsInput {
  * with effects as of t; seats of phases closed by t with a poll result count 1 for the real winner. Adds up to the number of seats
  * (when there are players). Seats without a winner (nobody had any effect) are projected like open seats.
  */
-export function newsTrueProjection(input: GlobalReportsInput, t: number): Record<PlayerId, number> {
+export function newsTrueProjection(input: GlobalReportsInput, t: number, contestants?: SeatContestants): Record<PlayerId, number> {
   const { cfg, kernels, timeline, map, phases, actions, players, committed, decided, exclude } = input;
   const out: Record<PlayerId, number> = {};
   for (const p of players) out[p] = 0;
@@ -180,8 +184,25 @@ export function newsTrueProjection(input: GlobalReportsInput, t: number): Record
   for (let i = 0; i < kernels.n; i++) {
     const w = closedWinner.get(kernels.seatIds[i]);
     if (w !== undefined) { out[w] += 1; continue; }
-    const sh = expectedShareArray(effects, committed, players, kernels, cfg, i);
+    const sh = expectedShareArray(effects, committed, players, kernels, cfg, i, contestants);
     for (let k = 0; k < players.length; k++) out[players[k]] += sh[k] ?? 0;
+  }
+  return out;
+}
+
+/** Seats that count for the agencies: the map's seats, or with `contestants` only those with a candidate among `players`. */
+function contestedSeatCount(input: GlobalReportsInput, contestants: SeatContestants | undefined): number {
+  if (!contestants) return input.kernels.n;
+  return input.kernels.seatIds.filter((s) => candidatesOf(input.players, contestants, s).length > 0).length;
+}
+
+/** The start point with contestants: every contested seat split evenly among its candidates, summed per party. */
+function evenStart(input: GlobalReportsInput, contestants: SeatContestants): Record<PlayerId, number> {
+  const out: Record<PlayerId, number> = {};
+  for (const p of input.players) out[p] = 0;
+  for (const s of input.kernels.seatIds) {
+    const ps = candidatesOf(input.players, contestants, s);
+    for (const p of ps) out[p] += 1 / ps.length;
   }
   return out;
 }
@@ -205,18 +226,19 @@ function noisyPoint(
  * leaving or being eliminated changes the party list and the effects counted) or a poll result of a closed phase arrives late; a cache
  * must therefore key on those inputs too (the server's does).
  */
-export function buildGlobalReports(input: GlobalReportsInput): GlobalReports {
-  const { cfg, timeline, players, kernels } = input;
+export function buildGlobalReports(input: GlobalReportsInput, contestants?: SeatContestants): GlobalReports {
+  const { cfg, timeline, players } = input;
   const seed = newsSeed(input.gameId, input.secret);
-  const total = kernels.n;
+  const total = contestedSeatCount(input, contestants);
   const times = newsSampleTimes(cfg, timeline, input.now);
-  const truth = times.map((x, i) => (i === 0 ? null : newsTrueProjection(input, x.t)));
+  const truth = times.map((x, i) => (i === 0 ? null : newsTrueProjection(input, x.t, contestants)));
   const asOf = times[times.length - 1].t;
   const agencies: NewsAgencyReport[] = newsAgencies(cfg).map((agency) => {
     const errs = newsErrorRates(cfg, seed, agency.id, timeline, times);
     const points: GlobalReportPoint[] = times.map((x, i) => {
       const tr = truth[i];
-      if (!tr) { // t = campaign start: every agency shows seats / parties exactly
+      if (!tr) { // t = campaign start: every agency shows seats / parties exactly (with contestants: every contested seat split evenly among its candidates)
+        if (contestants) return { t: x.t, seats: evenStart(input, contestants) };
         const even: Record<PlayerId, number> = {};
         for (const p of players) even[p] = total / players.length;
         return { t: x.t, seats: even };

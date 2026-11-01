@@ -19,6 +19,20 @@
 .fx{pointer-events:none}
 .pulse{vector-effect:non-scaling-stroke}
 .seat.blurred{filter:url(#hp-blur);opacity:.5}
+/* a seat where the player has no candidate (campaign) */
+.seat.faded{opacity:.35}
+/* the paint brush (pre-campaign, fine pointers): its circle replaces the cursor; panning shows the hand instead */
+.map.brushing,.map.brushing *{cursor:none}
+.map.brush-pan,.map.brush-pan *{cursor:grab}
+.brush-cursor{position:fixed;left:0;top:0;display:none;z-index:30;pointer-events:none;width:calc(var(--brush-r) * 2);height:calc(var(--brush-r) * 2);margin:calc(var(--brush-r) * -1) 0 0 calc(var(--brush-r) * -1);border:2px solid var(--green-deep);border-radius:50%;box-sizing:border-box;background:rgba(255,255,255,.18);box-shadow:0 0 0 1px rgba(255,255,255,.85)}
+.brush-cursor::after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:var(--green-deep);box-shadow:0 0 0 1px #fff}
+.map.dragging ~ .brush-cursor,.map.brush-pan ~ .brush-cursor{display:none !important}
+/* candidate figures: positioned and counter-scaled by JS; only figures just added pop in */
+.seat-candidate-figures{pointer-events:none}
+.candidate-more{font:700 11px system-ui,sans-serif;fill:#2b2a22;stroke:#fff;stroke-width:3px;paint-order:stroke;stroke-linejoin:round}
+.candidate-figure.pop use{animation:figure-pop .32s cubic-bezier(.3,1.6,.5,1);transform-box:fill-box;transform-origin:center bottom}
+@keyframes figure-pop{0%{opacity:0;transform:scale(.2)}100%{opacity:1;transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){.candidate-figure.pop use{animation:figure-fade .2s ease-out}@keyframes figure-fade{0%{opacity:0}100%{opacity:1}}}
 .seat-labels{pointer-events:none}
 .map-hint{position:absolute;top:10px;left:50%;transform:translateX(-50%);max-width:calc(100% - 100px);text-align:center;background:var(--green-deep);color:var(--ivory);border:1px solid var(--gold);border-radius:6px;padding:5px 12px;font-size:13px;font-weight:600;pointer-events:none;box-shadow:0 2px 8px rgba(40,30,0,.3)}
 .seat-badges{pointer-events:none}
@@ -29,5 +43,8 @@
 .rep-smoke{pointer-events:none}
 .rep-smoke text{fill:#1f9d4c;stroke:#fff;stroke-width:3px;paint-order:stroke;stroke-linejoin:round;text-anchor:middle;font:800 17px system-ui,sans-serif;font-variant-numeric:tabular-nums;animation:rep-smoke 2.2s ease-out forwards;transform-box:fill-box;transform-origin:center}
 .rep-smoke.global text{font-size:15px}
+/* money: red "-cost" for a candidate fielded, green "+cost" for one withdrawn */
+.rep-smoke.seat-spend text{fill:#c62828}
+.rep-smoke.seat-refund text{fill:#1f9d4c}
 @keyframes rep-smoke{0%{opacity:0;transform:translateY(0) scale(.8);filter:blur(0)}12%{opacity:1}55%{opacity:1;transform:translateY(-22px) scale(1.15);filter:blur(0)}100%{opacity:0;transform:translateY(-40px) scale(1.5);filter:blur(2.5px)}}
 @media (prefers-reduced-motion:reduce){.rep-smoke text{animation:rep-fade 2.2s ease-out forwards}@keyframes rep-fade{0%{opacity:0}12%{opacity:1}100%{opacity:0}}}

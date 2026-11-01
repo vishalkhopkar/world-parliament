@@ -4,7 +4,7 @@ import type { MapConfig } from '../src';
 import { T0, TEST_CFG, act, testMap } from './helpers';
 
 const map = testMap();
-const cfg: MapConfig = { ...TEST_CFG, effects: { ...TEST_CFG.effects, firstMover: { rally: 0.5, roadshow: 2 } } };
+const cfg: MapConfig = { ...TEST_CFG, effects: { ...TEST_CFG.effects, firstMover: { rally: 0.5, roadshow: 2, minorRally: 0.7 } } };
 const kernels = buildKernels(map, cfg);
 const idx = (id: number) => kernels.index.get(id) as number;
 const tl1 = buildTimeline(cfg, 1, T0);
@@ -89,7 +89,7 @@ describe('first mover advantage', () => {
   });
 
   it('bonus 0 changes nothing', () => {
-    const off: MapConfig = { ...cfg, effects: { ...cfg.effects, firstMover: { rally: 0, roadshow: 0 } } };
+    const off: MapConfig = { ...cfg, effects: { ...cfg.effects, firstMover: { rally: 0, roadshow: 0, minorRally: 0 } } };
     const k = buildKernels(map, off);
     const actions = [act('A', 'rally', 1, T0), act('B', 'roadshow', 1, T0 + 10)];
     const e = computeEffects(actions, k, off, tl1, map, 1);

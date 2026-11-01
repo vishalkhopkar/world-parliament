@@ -8,6 +8,7 @@ import { useMapConfig } from './state/mapConfig';
 import { Home } from './screens/Home';
 import { Lobby } from './screens/Lobby';
 import { PartySetup } from './screens/PartySetup';
+import { PreCampaign } from './screens/PreCampaign';
 import { Campaign } from './screens/Campaign';
 import { Counting } from './screens/Counting';
 import { Result } from './screens/Result';
@@ -70,6 +71,7 @@ export function App() {
         )}
         {screen === 'lobby' && <Lobby />}
         {screen === 'party' && <PartySetup />}
+        {screen === 'preCampaign' && <PreCampaign />}
         {screen === 'campaign' && <Campaign />}
         {screen === 'counting' && <Counting />}
         {screen === 'result' && <Result />}

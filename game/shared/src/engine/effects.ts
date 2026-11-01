@@ -49,24 +49,29 @@ export function buildKernels(map: GameMapPackage, cfg: MapConfig): Kernels {
   });
   const rally = new Float32Array(n * n);
   const roadshow = new Float32Array(n * n);
+  const minorRally = new Float32Array(n * n);
   const distanceKm = new Float32Array(n * n);
-  const { rally: rc, roadshow: sc, distanceUnitKm: unit } = cfg.effects;
+  const { rally: rc, roadshow: sc, minorRally: mc, distanceUnitKm: unit } = cfg.effects;
   for (let i = 0; i < n; i++) {
     rally[i * n + i] = rc.local;
     roadshow[i * n + i] = sc.local;
+    minorRally[i * n + i] = mc.local;
     for (let j = i + 1; j < n; j++) {
       const d = haversineKm(lon[i], lat[i], lon[j], lat[j]);
       distanceKm[i * n + j] = d;
       distanceKm[j * n + i] = d;
       const r = rc.local * decay(d, rc.decay, unit);
       const s = sc.local * decay(d, sc.decay, unit);
+      const m = mc.local * decay(d, mc.decay, unit);
       rally[i * n + j] = r;
       rally[j * n + i] = r;
       roadshow[i * n + j] = s;
       roadshow[j * n + i] = s;
+      minorRally[i * n + j] = m;
+      minorRally[j * n + i] = m;
     }
   }
-  return { seatIds, index, n, rally, roadshow, distanceKm };
+  return { seatIds, index, n, rally, roadshow, minorRally, distanceKm };
 }
 
 /** Multiplier for an action taken at ts (linear cfg.timeMultiplier.start -> end over the campaign, clamped outside). */
@@ -78,9 +83,15 @@ export function timeMultiplier(cfg: MapConfig, timeline: GameTimeline, ts: numbe
   return start + (end - start) * t;
 }
 
+/** The action types the engine knows; an action of any other type earns nothing (and claims no first-mover bonus). */
+function isKnownAction(type: string): boolean {
+  return type === 'rally' || type === 'minorRally' || type === 'roadshow';
+}
+
 /**
- * Sum the effect of every action on every seat, per player. The first party to act in a seat also gets the
- * cfg.effects.firstMover bonus there (once, flat).
+ * Sum the effect of every action on every seat, per player. A rally adds its kernel row plus the global constant, a minor rally
+ * and a roadshow only their own kernel row (no global part). The first party to act in a seat (any known type) also gets the
+ * cfg.effects.firstMover bonus of its action type there (once, flat).
  * A seat is frozen for an action when its phase close time <= action ts (the action does not touch it);
  * the action's contributions to still-open seats are kept.
  */
@@ -103,7 +114,7 @@ export function computeEffects(
   const c = cfg.effects.rally.global;
   const upTo = opts?.upTo ?? Infinity;
   const exclude = opts?.exclude;
-  const { rally, roadshow } = kernels;
+  const { rally, roadshow, minorRally } = kernels;
   const { start: m0, end: m1 } = cfg.timeMultiplier;
   const span = timeline.campaignEnd - timeline.campaignStart;
   const t0 = timeline.campaignStart;
@@ -112,12 +123,12 @@ export function computeEffects(
   // Ties on ts go to the earlier entry in `actions`.
   const fm = cfg.effects.firstMover;
   let firstOf: Int32Array | undefined;
-  if (fm.rally !== 0 || fm.roadshow !== 0) {
+  if (fm.rally !== 0 || fm.roadshow !== 0 || fm.minorRally !== 0) {
     firstOf = new Int32Array(n).fill(-1);
     const firstTs = new Float64Array(n).fill(Infinity);
     for (let k = 0; k < actions.length; k++) {
       const a = actions[k];
-      if (a.ts > upTo || (exclude !== undefined && exclude.has(a.playerId))) continue;
+      if (a.ts > upTo || (exclude !== undefined && exclude.has(a.playerId)) || !isKnownAction(a.type)) continue;
       const r = kernels.index.get(a.seat);
       if (r === undefined || !(closeOfSeat[r] > a.ts)) continue;
       if (a.ts < firstTs[r]) { firstTs[r] = a.ts; firstOf[r] = k; }
@@ -132,7 +143,7 @@ export function computeEffects(
     if (ts > upTo) continue;
     if (exclude !== undefined && exclude.has(a.playerId)) continue;
     const row = kernels.index.get(a.seat);
-    if (row === undefined) continue;
+    if (row === undefined || !isKnownAction(a.type)) continue;
     if (a.playerId !== lastPlayer || vec === undefined) {
       vec = effects.get(a.playerId);
       if (!vec) {
@@ -149,12 +160,16 @@ export function computeEffects(
       for (let j = 0; j < n; j++) {
         if (closeOfSeat[j] > ts) vec[j] += (rally[base + j] + c) * mult;
       }
-    } else {
+    } else if (a.type === 'minorRally') {
+      for (let j = 0; j < n; j++) {
+        if (closeOfSeat[j] > ts) vec[j] += minorRally[base + j] * mult;
+      }
+    } else { // 'roadshow'
       for (let j = 0; j < n; j++) {
         if (closeOfSeat[j] > ts) vec[j] += roadshow[base + j] * mult;
       }
     }
-    if (firstOf !== undefined && firstOf[row] === k) vec[row] += a.type === 'rally' ? fm.rally : fm.roadshow;
+    if (firstOf !== undefined && firstOf[row] === k) vec[row] += a.type === 'rally' ? fm.rally : a.type === 'minorRally' ? fm.minorRally : fm.roadshow;
   }
   return effects;
 }

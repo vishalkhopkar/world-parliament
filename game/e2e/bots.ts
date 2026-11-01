@@ -3,7 +3,7 @@
 // Starts nothing itself: run the dev server first (see e2e/README.md). Exits non-zero on any failed check.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { AVATARS, PARTY_COLOURS, PARTY_SYMBOLS, WORLD_CONFIG, majorityOf } from '@hp/shared';
+import { AVATARS, PARTY_COLOURS, PARTY_SYMBOLS, WORLD_CONFIG, fullyFieldedBudget, hasPreCampaign, majorityOf } from '@hp/shared';
 import type {
   ClientMessage, FinalResult, GameMapPackage, GameTimeline, PlayerId, SeatId, ServerMessage,
 } from '@hp/shared';
@@ -29,6 +29,15 @@ const PKG = JSON.parse(readFileSync(fileURLToPath(new URL('../../maps/world-500/
 const GROUPS = PKG.phaseGroups[String(PHASES)];
 if (!GROUPS) throw new Error('map has no phase grouping for ' + PHASES);
 const NEIGH = new Map(PKG.seats.map(s => [s.id, s.neighbours]));
+
+// Pre-campaign (3+ players): every bot fields a candidate in every seat except VACANT ones, which nobody contests. So the contested
+// seats and the majority are fixed by the fielding, not by the map. A 2-player game has no pre-campaign: all seats are fielded for them.
+const PRE = hasPreCampaign(N);
+const LAST_GROUP = GROUPS[GROUPS.length - 1];
+const VACANT = new Set<SeatId>(PRE ? LAST_GROUP.slice(0, 2) : []);
+const CONTESTED = PKG.seatCount - VACANT.size;
+const MAJ = majorityOf(CONTESTED);
+const BATCH = 100; // seats per field message
 
 // ------------------------------------------------------------------ utilities
 let seedState = SEED >>> 0;
@@ -58,7 +67,7 @@ async function api(method: string, path: string, body?: unknown, token?: string)
 
 // ------------------------------------------------------------------ bot client
 type Pred = (m: ServerMessage) => boolean;
-const ALLOWED_BUDGET = new Set(['hello', 'private', 'actionAck', 'report']);
+const ALLOWED_BUDGET = new Set(['hello', 'private', 'actionAck', 'report', 'fieldAck']);
 
 class Bot {
   msgs: ServerMessage[] = [];
@@ -77,13 +86,17 @@ class Bot {
   /** the one-off "a second rally right away is RATE_LIMITED" check has been done for this bot */
   rateChecked = false;
   reportsBought = 0;
+  /** seats this bot has a candidate in (kept from fieldAck) */
+  fielded = new Set<SeatId>();
+  /** game this bot is connected to; empty = the shared `gameId` (follows a rematch) */
+  gameId = '';
   violations: string[] = [];
   private refCounter = 0;
   constructor(public name: string, public idx: number) {}
 
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const ws = new WebSocket(`${WS}?gameId=${encodeURIComponent(gameId)}&token=${encodeURIComponent(this.token)}`);
+      const ws = new WebSocket(`${WS}?gameId=${encodeURIComponent(this.gameId || gameId)}&token=${encodeURIComponent(this.token)}`);
       this.ws = ws;
       let done = false;
       ws.onopen = () => { ws.send(JSON.stringify({ action: 'ping', clientTime: Date.now() })); };
@@ -102,6 +115,7 @@ class Bot {
     const bad = (s: string) => { this.violations.push(`${this.name}: ${s} (${m.type})`); };
     if (raw.includes('"budget"') && !ALLOWED_BUDGET.has(m.type)) bad('budget field in a public message');
     if (raw.includes('roadshow') && m.type !== 'hello' && m.type !== 'private') bad('roadshow data outside private state');
+    if (raw.includes('minorRally') && m.type !== 'hello' && m.type !== 'private') bad('minor rally data outside private state');
     if (m.type === 'hello' && m.private.you !== this.playerId) bad('hello carries another player\'s private state');
     if (m.type === 'private' && m.private.you !== this.playerId) bad('private state of another player');
     if (m.type === 'hello' || m.type === 'private') {
@@ -110,7 +124,7 @@ class Bot {
       const acked = this.acked.filter(a => a.type === 'roadshow').length;
       if (m.private.myActions.length > this.acked.length || myRoad > acked) bad('myActions longer than what this player did');
     }
-    if (m.type === 'actionAck') this.budget = m.budget;
+    if (m.type === 'actionAck' || m.type === 'fieldAck') this.budget = m.budget;
     if (m.type === 'report') { this.budget = m.budget; }
     if (m.type === 'hello' && m.snapshot.players.some(p => (p as any).budget !== undefined)) bad('budget inside players');
     // global reports (free news-agency graphs): noisy public numbers only; no private fields (budget is already refused above: globalReports is NOT in ALLOWED_BUDGET)
@@ -144,7 +158,7 @@ class Bot {
   async request(msg: ClientMessage, ok: Pred, ref?: string): Promise<ServerMessage> { return (await this.requestB(msg, ok, ref)).m; }
   /** true when a rally from this bot would not run into the rally cooldown (rallies must be cooldowns.rallyMs apart; roadshows are never limited) */
   rallyReady(): boolean { return !this.rallyPending && Date.now() >= this.rallyAfter; }
-  async campaign(type: 'rally' | 'roadshow', seat: SeatId): Promise<ServerMessage> {
+  async campaign(type: 'rally' | 'minorRally' | 'roadshow', seat: SeatId): Promise<ServerMessage> {
     const ref = `${this.idx}-${++this.refCounter}`;
     if (type === 'rally') this.rallyPending = true;
     let res: { m: ServerMessage; before: number; after: number };
@@ -161,6 +175,24 @@ class Bot {
       check(r.budget === before - CFG.costs[type], `${this.name}: budget after ${type} is ${r.budget}, expected ${before - CFG.costs[type]}`);
     }
     return r;
+  }
+  /** field / withdraw `seats` (one message, answered by fieldAck or an error); keeps `fielded` and the budget up to date */
+  async field(op: 'field' | 'withdraw', seats: SeatId[]): Promise<ServerMessage> {
+    const ref = `${this.idx}-f${++this.refCounter}`;
+    const r = await this.request({ action: op, seats, clientRef: ref }, m => m.type === 'fieldAck' && m.clientRef === ref, ref);
+    if (r.type === 'fieldAck') {
+      for (const a of r.added) this.fielded.add(a.seat);
+      for (const s of r.removed) this.fielded.delete(s);
+    }
+    return r;
+  }
+  /** field every contested-map seat (not VACANT) in batches */
+  async fieldAll(): Promise<void> {
+    const seats = PKG.seats.map(s => s.id).filter(s => !VACANT.has(s));
+    for (let i = 0; i < seats.length; i += BATCH) {
+      const r = await this.field('field', seats.slice(i, i + BATCH));
+      check(r.type === 'fieldAck', `${this.name}: field batch refused: ${this.err(r)} ${r.type === 'error' ? r.message : ''}`);
+    }
   }
   err(r: ServerMessage): string | undefined { return r.type === 'error' ? r.error : undefined; }
   has(type: ServerMessage['type'], from = 0) { return this.msgs.slice(from).some(m => m.type === type); }
@@ -182,7 +214,7 @@ let timeline!: GameTimeline;
 function openSeats(minRemainingMs: number): SeatId[] {
   const now = Date.now();
   const out: SeatId[] = [];
-  GROUPS.forEach((g, p) => { if (timeline.phaseCloses[p] - now > minRemainingMs) out.push(...g); });
+  GROUPS.forEach((g, p) => { if (timeline.phaseCloses[p] - now > minRemainingMs) out.push(...g.filter(s => !VACANT.has(s))); });
   return out;
 }
 
@@ -199,7 +231,8 @@ async function randomCampaign(bot: Bot, until: number, home: Set<SeatId>, allowR
     if (!open.length) break;
     const openHome = [...home].filter(s => open.includes(s));
     const seat = openHome.length && rnd() < 0.75 ? pick(openHome) : pick(open);
-    const type = rnd() < 0.6 && allowRally && bot.rallyReady() ? 'rally' : 'roadshow';
+    const roll = rnd();
+    const type = roll < 0.45 && allowRally && bot.rallyReady() ? 'rally' : roll < 0.65 ? 'minorRally' : 'roadshow';
     if (bot.budget - CFG.costs[type] < bot.reserve) continue;
     const r = await bot.campaign(type, seat);
     check(r.type === 'actionAck', `${bot.name}: ${type} in seat ${seat} rejected: ${bot.err(r)} ${r.type === 'error' ? r.message : ''}`);
@@ -208,6 +241,11 @@ async function randomCampaign(bot: Bot, until: number, home: Set<SeatId>, allowR
       const again = await bot.campaign('rally', seat);
       check(bot.err(again) === 'RATE_LIMITED', `${bot.name}: a second rally right after the first should be RATE_LIMITED, got ${again.type === 'error' ? again.error : again.type}`);
       check(again.type === 'error' && typeof again.retryAt === 'number' && again.retryAt > Date.now() + CFG.cooldowns.rallyMs - 5000, `${bot.name}: RATE_LIMITED should carry retryAt about ${CFG.cooldowns.rallyMs / 1000} s ahead, got ${again.type === 'error' ? again.retryAt : again.type}`);
+      // the rally cooldown is for rallies only: a minor rally right after a rally is accepted
+      if (bot.budget - CFG.costs.minorRally >= bot.reserve) {
+        const minor = await bot.campaign('minorRally', seat);
+        check(minor.type === 'actionAck', `${bot.name}: a minor rally right after a rally should be accepted (no cooldown), got ${bot.err(minor)}`);
+      }
     }
   }
 }
@@ -337,10 +375,25 @@ async function globalReportsCheck(bot: Bot) {
     check(Object.keys(a.ranges).length === bots.length && Object.keys(a.ranges).every(id => ids.has(id)), `${bot.name}: ${a.name}: ranges are not keyed by the parties`);
     for (const p of a.points) {
       const total = Object.values(p.seats).reduce((x, y) => x + y, 0);
-      check(Object.keys(p.seats).every(id => ids.has(id)) && Math.abs(total - CFG.seatCount) < 1e-6 * CFG.seatCount, `${bot.name}: ${a.name}: a point does not add up to the seat count (${total})`);
+      check(Object.keys(p.seats).every(id => ids.has(id)) && Math.abs(total - CONTESTED) < 1e-6 * CFG.seatCount, `${bot.name}: ${a.name}: a point does not add up to the contested seats (${total}, expected ${CONTESTED})`);
     }
-    for (const id of ids) check(Math.abs(a.points[0].seats[id] - CFG.seatCount / bots.length) < 1e-6, `${bot.name}: ${a.name}: point 0 should be seats / parties`);
+    for (const id of ids) check(Math.abs(a.points[0].seats[id] - CONTESTED / bots.length) < 1e-6, `${bot.name}: ${a.name}: point 0 should be contested seats / parties (${CONTESTED / bots.length}), got ${a.points[0].seats[id]}`);
   }
+}
+
+/**
+ * Minor rally: no cooldown (two in a row are acked and charged costs.minorRally each, see Bot.campaign) and hidden like a roadshow.
+ * "Not in the news" is proven at the end (news items == acked rallies, minor rallies not counted) and "never in another player's
+ * messages" by the raw-string check on every message (Bot.inspect).
+ */
+async function minorRallyScenario(bot: Bot) {
+  await sleep(timeline.campaignStart + 1500 - Date.now());
+  const seat = pick(openSeats(8000));
+  for (let i = 0; i < 2; i++) {
+    const r = await bot.campaign('minorRally', seat);
+    check(r.type === 'actionAck', `${bot.name}: minor rally #${i + 1} (no cooldown) should be acked, got ${bot.err(r)} ${r.type === 'error' ? r.message : ''}`);
+  }
+  log(`${bot.name}: two minor rallies in a row acked`);
 }
 
 /** Bot 2: drops the connection mid-campaign and reconnects with the same token (server restores the player). */
@@ -360,7 +413,109 @@ async function reconnectScenario(bot: Bot) {
   check(hello.private.budget === budgetBefore, `${bot.name}: reconnect hello budget ${hello.private.budget} != before ${budgetBefore}`);
   const me = hello.snapshot.players.find(p => p.playerId === bot.playerId);
   check(me && (me.status === 'active' || me.status === 'disconnected'), `${bot.name}: not restored after reconnect`);
+  // the hello carries the fielding: a candidate of every party in each contested seat, nobody in a vacant one, and the fixed majority
+  const snap = hello.snapshot;
+  check(snap.contestedSeats === CONTESTED && snap.majority === MAJ, `${bot.name}: reconnect hello contestedSeats / majority ${snap.contestedSeats} / ${snap.majority}, expected ${CONTESTED} / ${MAJ}`);
+  check(PKG.seats.every(s => (snap.fielding[s.id]?.length ?? 0) === (VACANT.has(s.id) ? 0 : bots.length)), `${bot.name}: reconnect hello fielding is wrong (a candidate per party in every non-vacant seat, none in the vacant ones)`);
   log(`${bot.name}: reconnected, hello has ${hello.private.myActions.length} own actions`);
+}
+
+// ------------------------------------------------------------------ pre-campaign
+const fieldingUpdates = (b: Bot, from = 0) => b.msgs.slice(from).filter((m): m is Extract<ServerMessage, { type: 'fieldingUpdate' }> => m.type === 'fieldingUpdate');
+const wrongPhase = (what: string, r: ServerMessage, who: string) => check(bot_err(r) === 'WRONG_PHASE', `${who}: ${what} should be WRONG_PHASE, got ${r.type === 'error' ? r.error : r.type}`);
+
+/**
+ * 3+ players. Rules checked: campaign actions and reports are WRONG_PHASE; field / withdraw are answered with fieldAck to the sender
+ * (budget -/+ costs.candidate per seat) and fieldingUpdate to the others; seats already fielded (or never fielded) are skipped; bad
+ * input is BAD_REQUEST; the chat is one-to-one; then everybody fields every seat except the VACANT ones, so the contested seats and the
+ * majority the server announces must equal CONTESTED / MAJ.
+ */
+async function preCampaignPhase() {
+  const end = timeline.preCampaignEnd as number;
+  const [b0, b1, b2] = bots;
+  const free = PKG.seats.map(s => s.id).filter(s => !VACANT.has(s));
+  const s1 = free[0];
+  check(end - Date.now() > 4000, `pre-campaign is too short for the checks (${end - Date.now()} ms left); raise HP_PRECAMPAIGN_MS`);
+  log(`pre-campaign: ${((end - Date.now()) / 1000).toFixed(0)}s left; vacant seats ${[...VACANT].join(',')}, expecting ${CONTESTED} contested seats, majority ${MAJ}`);
+
+  // nothing of the campaign works yet
+  for (const t of ['rally', 'minorRally', 'roadshow'] as const) wrongPhase(`${t} during the pre-campaign`, await b0.campaign(t, s1), b0.name);
+  wrongPhase('a seat report during the pre-campaign', await b0.request({ action: 'buyReport', scope: 'seat', seat: s1 }, m => m.type === 'report'), b0.name);
+  wrongPhase('a global report during the pre-campaign', await b0.request({ action: 'buyReport', scope: 'global' }, m => m.type === 'report'), b0.name);
+  wrongPhase('news agencies during the pre-campaign', await b0.request({ action: 'globalReports' }, m => m.type === 'globalReports'), b0.name);
+
+  // input checks
+  const empty = await b0.field('field', []);
+  check(bot_err(empty) === 'BAD_REQUEST', `field with no seats should be BAD_REQUEST, got ${empty.type === 'error' ? empty.error : empty.type}`);
+  const unknown = await b0.field('field', [999999]);
+  check(bot_err(unknown) === 'BAD_REQUEST', `field on an unknown seat should be BAD_REQUEST, got ${unknown.type === 'error' ? unknown.error : unknown.type}`);
+  check(b0.budget === CFG.budget, `${b0.name}: refused fielding must not cost anything (budget ${b0.budget})`);
+
+  // field one seat: fieldAck to the sender, fieldingUpdate to the others (and not a thing more on a repeat)
+  const mark = bots.map(b => b.msgs.length);
+  const one = await b0.field('field', [s1]);
+  if (check(one.type === 'fieldAck', `field one seat refused: ${bot_err(one)}`) && one.type === 'fieldAck') {
+    check(one.added.length === 1 && one.added[0].seat === s1 && one.removed.length === 0, `${b0.name}: fieldAck should name the added seat`);
+    check(one.budget === CFG.budget - CFG.costs.candidate, `${b0.name}: budget after one candidate is ${one.budget}, expected ${CFG.budget - CFG.costs.candidate}`);
+  }
+  for (const b of [b1, b2]) {
+    const m = await b.waitFor(x => x.type === 'fieldingUpdate' && x.playerId === b0.playerId, { from: mark[b.idx], what: 'fieldingUpdate' });
+    if (m.type === 'fieldingUpdate') {
+      check(m.added.length === 1 && m.added[0].seat === s1 && m.removed.length === 0, `${b.name}: fieldingUpdate should name the seat`);
+      check(m.contestedSeats === 1 && m.majority === majorityOf(1), `${b.name}: one fielded seat => contestedSeats 1 / majority ${majorityOf(1)}, got ${m.contestedSeats} / ${m.majority}`);
+    }
+  }
+  const again = await b0.field('field', [s1]);
+  check(again.type === 'fieldAck' && again.added.length === 0 && again.budget === CFG.budget - CFG.costs.candidate, `${b0.name}: fielding an already fielded seat should be skipped and free`);
+  const unfielded = await b0.field('withdraw', [free[1]]);
+  check(unfielded.type === 'fieldAck' && unfielded.removed.length === 0 && unfielded.budget === CFG.budget - CFG.costs.candidate, `${b0.name}: withdrawing a seat without a candidate should be skipped`);
+  await sleep(300);
+  for (const b of [b1, b2]) check(fieldingUpdates(b, mark[b.idx]).length === 1, `${b.name}: a no-op field / withdraw must not broadcast (got ${fieldingUpdates(b, mark[b.idx]).length} updates)`);
+
+  // withdraw refunds in full
+  const wd = await b0.field('withdraw', [s1]);
+  if (check(wd.type === 'fieldAck', `withdraw refused: ${bot_err(wd)}`) && wd.type === 'fieldAck') {
+    check(wd.removed.length === 1 && wd.removed[0] === s1 && wd.added.length === 0, `${b0.name}: withdraw fieldAck should name the removed seat`);
+    check(wd.budget === CFG.budget, `${b0.name}: withdraw should refund the candidate cost (budget ${wd.budget})`);
+  }
+  for (const b of [b1, b2]) {
+    const m = await b.waitFor(x => x.type === 'fieldingUpdate' && x.removed.includes(s1), { from: mark[b.idx], what: 'withdraw fieldingUpdate' });
+    if (m.type === 'fieldingUpdate') check(m.contestedSeats === 0 && m.majority === majorityOf(0), `${b.name}: after the withdraw contestedSeats 0 / majority ${majorityOf(0)}, got ${m.contestedSeats} / ${m.majority}`);
+  }
+
+  // the pre-campaign chat is one-to-one
+  const text = 'pre-campaign chat ' + SEED, c0 = bots.map(b => b.msgs.length);
+  const c = await b0.request({ action: 'chat', to: [b1.playerId], text }, m => m.type === 'chat' && m.message.text === text);
+  check(c.type === 'chat' && c.message.channel === 'direct' && c.message.to.length === 1, `pre-campaign chat should be one-to-one, got ${c.type === 'error' ? c.error : c.type}`);
+  const noTo = await b0.request({ action: 'chat', text: 'hello all' } as ClientMessage, m => m.type === 'chat' && m.message.text === 'hello all');
+  check(bot_err(noTo) === 'BAD_REQUEST', `pre-campaign chat without a recipient should be BAD_REQUEST, got ${noTo.type === 'error' ? noTo.error : noTo.type}`);
+  await b1.waitFor(m => m.type === 'chat' && m.message.text === text, { from: c0[1], what: 'pre-campaign chat delivery' });
+  await sleep(300);
+  check(!b2.msgs.slice(c0[2]).some(m => m.type === 'chat' && m.message.text === text), `${b2.name}: a one-to-one pre-campaign message leaked to a third party`);
+
+  // everybody fields every seat but the vacant ones, all at once
+  check(end - Date.now() > 2500, 'ran out of pre-campaign time before fielding');
+  await Promise.all(bots.map(b => b.fieldAll()));
+  for (const b of bots) {
+    check(b.fielded.size === CONTESTED, `${b.name}: fielded ${b.fielded.size} seats, expected ${CONTESTED}`);
+    check(b.budget === CFG.budget - CFG.costs.candidate * CONTESTED, `${b.name}: budget after fielding ${CONTESTED} seats is ${b.budget}, expected ${CFG.budget - CFG.costs.candidate * CONTESTED}`);
+    await b.waitFor(m => m.type === 'fieldingUpdate' && m.contestedSeats === CONTESTED && m.majority === MAJ, { what: `fieldingUpdate with ${CONTESTED} contested seats / majority ${MAJ}` });
+    check(fieldingUpdates(b).every(m => m.contestedSeats <= CONTESTED), `${b.name}: contestedSeats above ${CONTESTED} (a vacant seat counted)`);
+  }
+  log('pre-campaign: everyone fielded');
+}
+
+/** 2 players: no pre-campaign; every seat is fielded and charged for them, announced with fieldingUpdates. */
+async function twoPlayerFielding() {
+  for (const b of bots) {
+    check(b.budget === fullyFieldedBudget(CFG), `${b.name}: a 2-player game starts on ${fullyFieldedBudget(CFG)}, got ${b.budget}`);
+    for (const p of bots) {
+      await b.waitFor(m => m.type === 'fieldingUpdate' && m.playerId === p.playerId, { what: 'fieldingUpdate for every party' });
+      const seats = new Set(fieldingUpdates(b).filter(m => m.playerId === p.playerId).flatMap(m => m.added.map(a => a.seat)));
+      check(seats.size === PKG.seatCount, `${b.name}: ${p.name} should be fielded in all ${PKG.seatCount} seats, saw ${seats.size}`);
+    }
+    check(fieldingUpdates(b).every(m => m.contestedSeats === PKG.seatCount && m.majority === majorityOf(PKG.seatCount)), `${b.name}: a 2-player game contests every seat`);
+  }
 }
 
 // ------------------------------------------------------------------ main
@@ -430,19 +585,46 @@ async function main() {
   timeline = started.json.timeline;
   check(timeline.phaseCloses.length === PHASES, 'timeline phases');
   log(`started; campaign ${((timeline.campaignEnd - timeline.campaignStart) / 1000).toFixed(0)}s, counting ${((timeline.countingEnd - timeline.campaignEnd) / 1000).toFixed(0)}s, post ${((timeline.postCountingEnd - timeline.countingEnd) / 1000).toFixed(0)}s`);
+  check(PRE ? typeof timeline.preCampaignEnd === 'number' && timeline.preCampaignEnd < timeline.campaignStart : timeline.preCampaignEnd === undefined, `timeline.preCampaignEnd should be ${PRE ? 'set (3+ players)' : 'absent (2 players)'}`);
+  const startBudget = PRE ? CFG.budget : fullyFieldedBudget(CFG);
   for (const b of bots) {
-    await b.waitFor(m => m.type === 'status' && m.status === 'campaign', { what: 'campaign status' });
-    await b.waitFor(m => m.type === 'private' && m.private.budget === CFG.budget, { what: 'budget after start' });
+    await b.waitFor(m => m.type === 'status' && m.status === (PRE ? 'preCampaign' : 'campaign'), { what: PRE ? 'preCampaign status' : 'campaign status' });
+    await b.waitFor(m => m.type === 'private' && m.private.budget === startBudget, { what: 'budget after start' });
+  }
+  if (PRE) {
+    await preCampaignPhase();
+    for (const b of bots) {
+      await b.waitFor(m => m.type === 'status' && m.status === 'campaign', { ms: 30000, what: 'campaign status after the pre-campaign' });
+      await b.waitFor(m => m.type === 'private' && m.private.budget === CFG.budget - CFG.costs.candidate * CONTESTED, { what: 'budget when the campaign opens' });
+      const last = fieldingUpdates(b).pop();
+      check(!!last && last.contestedSeats === CONTESTED && last.majority === MAJ, `${b.name}: contested seats / majority fixed at the campaign start should be ${CONTESTED} / ${MAJ}`);
+    }
+    // fielding is closed now
+    wrongPhase('field during the campaign', await bots[0].field('field', [[...VACANT][0]]), bots[0].name);
+    wrongPhase('withdraw during the campaign', await bots[0].field('withdraw', [[...bots[0].fielded][0]]), bots[0].name);
+    log('campaign opened with the fielding fixed');
+  } else {
+    await twoPlayerFielding();
   }
   check((await api('POST', '/games/join', { joinCode, nickname: 'TooLate' })).status === 409, 'joining after start should be refused (409)');
   const lateLobby = await api('GET', '/games/' + gameId, undefined, bots[0].token);
   check(!lateLobby.json.players.some((p: any) => p.nickname === 'Late' && p.status === 'pending'), 'pending applicants must be rejected at start');
 
   if (Date.now() < timeline.campaignStart - 100) {
-    const r = await bots[0].campaign('rally', GROUPS[0][0]);
+    const r = await bots[0].campaign('rally', PKG.seats.find(s => !VACANT.has(s.id))!.id);
     check(bots[0].err(r) === 'WRONG_PHASE', `campaign before the start time should be WRONG_PHASE, got ${r.type === 'error' ? r.error : r.type}`);
   }
   await sleep(timeline.campaignStart + 100 - Date.now());
+
+  // a seat nobody fielded is vacant: nobody can campaign there (and it costs nothing)
+  for (const v of [...VACANT].slice(0, 1)) {
+    const before = bots[0].budget;
+    for (const t of ['rally', 'minorRally', 'roadshow'] as const) {
+      const r = await bots[0].campaign(t, v);
+      check(bot_err(r) === 'NOT_FIELDED', `${t} in seat ${v} (no candidate) should be NOT_FIELDED, got ${r.type === 'error' ? r.error : r.type}`);
+    }
+    check(bots[0].budget === before, 'a refused action must not cost anything');
+  }
 
   // ---- campaign (all bots in parallel)
   const until = timeline.campaignEnd - 1200;
@@ -456,6 +638,7 @@ async function main() {
   // bot 0 acts normally for a while before draining
   scenarios.push(randomCampaign(bots[0], timeline.phaseCloses[0] - 2500, homeOf(), false));
   if (N >= 2) { bots[1].reserve = (CFG.analyst.seatReport.enabled ? CFG.analyst.seatReport.end : 0) + (CFG.analyst.globalReport.enabled ? CFG.analyst.globalReport.end : 0); scenarios.push(analystScenario(bots[1])); }
+  scenarios.push(minorRallyScenario(bots[N >= 3 ? 1 : 0]));
   if (N >= 3) scenarios.push(reconnectScenario(bots[2]));
   await Promise.all(scenarios);
 
@@ -518,9 +701,10 @@ async function main() {
   const updates = bots[0].msgs.filter((m): m is Extract<ServerMessage, { type: 'seatUpdate' }> => m.type === 'seatUpdate');
   const finalTally = updates[updates.length - 1].tally;
   log('count finished, tally', JSON.stringify(finalTally.wins), 'declared', finalTally.declared);
-  check(finalTally.total === PKG.seatCount && finalTally.declared === PKG.seatCount, `every seat must be declared (${finalTally.declared}/${finalTally.total})`);
+  check(finalTally.total === CONTESTED && finalTally.declared === CONTESTED, `every contested seat must be declared (${finalTally.declared}/${finalTally.total}, expected ${CONTESTED})`);
+  check(!updates.some(u => VACANT.has(u.declaration.seat)), 'a vacant seat must never be declared');
   const wonSeats = new Set(updates.filter(u => u.declaration.status === 'won').map(u => u.declaration.seat));
-  check(wonSeats.size === PKG.seatCount, `expected ${PKG.seatCount} distinct won seats, got ${wonSeats.size}`);
+  check(wonSeats.size === CONTESTED, `expected ${CONTESTED} distinct won seats, got ${wonSeats.size}`);
   const firstSeen = new Set<number>();
   let orderOk = true;
   for (const u of updates) {
@@ -535,7 +719,7 @@ async function main() {
     check(u === updates.length || b.idx === 2, `${b.name}: saw ${u} seat updates, bot0 saw ${updates.length}`);
   }
   const winsOf = (id: PlayerId) => finalTally.wins[id] ?? 0;
-  check(bots.reduce((s, b) => s + winsOf(b.playerId), 0) === PKG.seatCount, 'wins must add up to the number of seats');
+  check(bots.reduce((s, b) => s + winsOf(b.playerId), 0) === CONTESTED, 'wins must add up to the number of contested seats');
 
   // news = every rally, nothing else
   const rallies = bots.reduce((s, b) => s + b.acked.filter(a => a.type === 'rally').length, 0);
@@ -551,7 +735,7 @@ async function main() {
     const R2 = results2[0];
     check(results2.every(x => JSON.stringify(x) === JSON.stringify(R2)), 'all players must receive the same result');
     const w0 = winsOf(bots[0].playerId), w1 = winsOf(bots[1].playerId);
-    const expected = w0 === w1 ? 'draw' : (Math.max(w0, w1) >= majorityOf(PKG.seatCount) ? 'majority' : 'noGovernment');
+    const expected = w0 === w1 ? 'draw' : (Math.max(w0, w1) >= MAJ ? 'majority' : 'noGovernment');
     check(R2.outcome === expected, `2 players: outcome should be ${expected} (wins ${w0}-${w1}), got ${R2.outcome}`);
     check(R2.outcome !== 'coalition' && !R2.government?.viaNegotiation, '2 players: there must be no negotiated government');
     log('result:', R2.outcome, 'wins', w0, w1);
@@ -562,7 +746,7 @@ async function main() {
   }
 
   // ---- coalition: smallest group (>= 2 parties, and ALWAYS fewer than all: at least one party stays out) with a majority of WON seats
-  const need = majorityOf(PKG.seatCount);
+  const need = MAJ;
   // a single party with a majority after counting ends the game at once: no coalition talks
   if (bots.some(b => winsOf(b.playerId) >= need)) {
     log('one party holds a majority after counting: expecting an immediate majority result, no coalition talks');
@@ -676,7 +860,7 @@ async function main() {
     check(R.tally[b.playerId] === (winsOf(b.playerId) || undefined) || (R.tally[b.playerId] ?? 0) === winsOf(b.playerId), `${b.name}: result tally ${R.tally[b.playerId]} != counted ${winsOf(b.playerId)}`);
     if (coalition.includes(b)) {
       const held = CFG.points.portfolios.filter(d => R.government?.portfolios[d.id]?.includes(b.playerId)).reduce((s, d) => s + d.points, 0);
-      const seatPts = Math.round((CFG.points.seatMultiplier * winsOf(b.playerId)) / PKG.seatCount);
+      const seatPts = Math.round((CFG.points.seatMultiplier * winsOf(b.playerId)) / CONTESTED);
       check(row.portfolioPoints === held, `${b.name}: portfolio points ${row.portfolioPoints} != ${held}`);
       check(row.seatPoints === seatPts, `${b.name}: seat points ${row.seatPoints} != ${seatPts}`);
       check(row.governmentFloor === CFG.points.governmentFloor, `${b.name}: floor`);
@@ -699,9 +883,85 @@ async function main() {
   for (const b of bots) for (const v of b.violations) check(false, 'hidden info: ' + v);
 }
 
+/**
+ * A separate 3-party game on the same server where one party fields nothing (it fields a seat and withdraws it again, so the refund is
+ * covered too). At the pre-campaign deadline it is eliminated but stays connected and may chat; the other two play on: the game
+ * does not end, and the contested seats / majority follow what the other two fielded (a seat only one of them contests is not vacant).
+ */
+async function eliminationScenario() {
+  const tag = 'Elim';
+  const created = await api('POST', '/games', { nickname: tag + '0', mapId: 'world-500', phases: 2 });
+  must(created.status === 200, 'elimination game: create failed ' + JSON.stringify(created));
+  const gid: string = created.json.gameId, code: string = created.json.joinCode;
+  const es: Bot[] = [];
+  const first = new Bot(tag + '0', 0); first.playerId = created.json.playerId; first.token = created.json.token; first.gameId = gid; es.push(first);
+  for (let i = 1; i < 3; i++) {
+    const j = await api('POST', '/games/join', { joinCode: code, nickname: tag + i });
+    must(j.status === 200, 'elimination game: join failed');
+    const b = new Bot(tag + i, i); b.playerId = j.json.playerId; b.token = j.json.token; b.gameId = gid; es.push(b);
+    check((await api('POST', `/games/${gid}/admit`, { playerId: b.playerId, admit: true }, first.token)).status === 200, 'elimination game: admit');
+  }
+  await api('POST', `/games/${gid}/settings`, { phases: 2 }, first.token);
+  for (const b of es) {
+    const party = { name: 'Elim ' + b.name, colour: PARTY_COLOURS[b.idx].hex, symbol: PARTY_SYMBOLS[b.idx].id, avatar: AVATARS[b.idx].id };
+    check((await api('POST', `/games/${gid}/party`, { party }, b.token)).status === 200, `${b.name}: elimination game party`);
+  }
+  for (const b of es) await b.connect();
+  const st = await api('POST', `/games/${gid}/start`, undefined, first.token);
+  must(st.status === 200, 'elimination game: start failed ' + JSON.stringify(st.json));
+  const tl: GameTimeline = st.json.timeline;
+  for (const b of es) await b.waitFor(m => m.type === 'status' && m.status === 'preCampaign', { what: 'elimination game preCampaign' });
+
+  // Elim0 fields seats a,b,c; Elim1 fields b,c,d; Elim2 fields a and withdraws it again => seat a is contested by Elim0 alone
+  const [a, b, c, d] = PKG.seats.map(x => x.id).slice(0, 4);
+  const [e0, e1, e2] = es;
+  const r0 = await e0.field('field', [a, b, c]), r1 = await e1.field('field', [b, c, d]);
+  check(r0.type === 'fieldAck' && r1.type === 'fieldAck', 'elimination game: fielding refused');
+  const f2 = await e2.field('field', [a]);
+  check(f2.type === 'fieldAck' && f2.budget === CFG.budget - CFG.costs.candidate, 'elimination game: Elim2 fielded one seat');
+  const w2 = await e2.field('withdraw', [a]);
+  check(w2.type === 'fieldAck' && w2.budget === CFG.budget && e2.fielded.size === 0, 'elimination game: Elim2 withdrew it for a full refund');
+
+  // the deadline: Elim2 has no candidate and is eliminated, but its socket stays open and the game goes on
+  const from = es.map(x => x.msgs.length);
+  for (const x of es) await x.waitFor(m => m.type === 'status' && m.status === 'campaign', { from: from[x.idx], ms: tl.preCampaignEnd! - Date.now() + 15000, what: 'elimination game campaign status' });
+  for (const x of [e0, e1]) {
+    await x.waitFor(m => m.type === 'players' && m.players.some(p => p.playerId === e2.playerId && p.status === 'eliminated'), { from: from[x.idx], what: 'Elim2 eliminated broadcast' });
+    const last = fieldingUpdates(x, from[x.idx]).pop();
+    check(!!last && last.contestedSeats === 4 && last.majority === majorityOf(4), `${x.name}: contested seats / majority at the deadline should be 4 / ${majorityOf(4)}, got ${last?.contestedSeats} / ${last?.majority}`);
+  }
+  check(e2.ws.readyState === WebSocket.OPEN, 'Elim2 must stay connected after the elimination');
+  await e2.waitFor(m => m.type === 'players' && m.players.some(p => p.playerId === e2.playerId && p.status === 'eliminated'), { from: from[2], what: 'Elim2 hears about its own elimination' });
+  const r = await e2.field('field', [a]);
+  check(bot_err(r) === 'FORBIDDEN', `an eliminated party cannot field, got ${r.type === 'error' ? r.error : r.type}`);
+  await sleep(tl.campaignStart + 200 - Date.now());
+  const ra = await e2.campaign('roadshow', b);
+  check(bot_err(ra) === 'FORBIDDEN', `an eliminated party cannot campaign, got ${ra.type === 'error' ? ra.error : ra.type}`);
+  // it can still talk to the others
+  const text = 'eliminated but here ' + SEED;
+  const chatR = await e2.request({ action: 'chat', to: [e0.playerId], text }, m => m.type === 'chat' && m.message.text === text);
+  if (CFG.chat.campaigning !== 'OFF') {
+    check(chatR.type === 'chat', `an eliminated party should still be able to chat, got ${bot_err(chatR)}`);
+    await e0.waitFor(m => m.type === 'chat' && m.message.text === text, { from: from[0], what: 'chat from the eliminated party' });
+  }
+  // the others campaign where they have a candidate, and are refused where they have none (seat d is Elim1's alone)
+  const ok = await e0.campaign('minorRally', a);
+  check(ok.type === 'actionAck', `Elim0 should campaign in its own seat, got ${bot_err(ok)}`);
+  const no = await e0.campaign('roadshow', d);
+  check(bot_err(no) === 'NOT_FIELDED', `Elim0 has no candidate in seat ${d}: should be NOT_FIELDED, got ${no.type === 'error' ? no.error : no.type}`);
+  // the game goes on: two parties left is enough, nothing ends it
+  await sleep(1500);
+  for (const x of es) check(!x.msgs.some(m => m.type === 'result'), `${x.name}: the game must not end because one party was eliminated`);
+  const lobby = await api('GET', '/games/' + gid, undefined, e0.token);
+  check(lobby.json.status === 'campaign', `the elimination game should still be in the campaign, got ${lobby.json.status}`);
+  for (const x of es) for (const v of x.violations) check(false, 'hidden info (elimination game): ' + v);
+  for (const x of es) x.close();
+  log('elimination: a party with no candidates was eliminated at the deadline, stayed connected, and the game continued');
+}
+
 function bot_err(r: ServerMessage): string | undefined { return r.type === 'error' ? r.error : undefined; }
 
-/** Play again: the host (bots[0]) starts a follow-up game with a different number of phases; everybody rolls over with the same player id, token and party and lands in the campaign. */
+/** Play again: the host (bots[0]) starts a follow-up game with a different number of phases; everybody rolls over with the same player id, token and party and lands in the pre-campaign (3+ players) or the campaign (2). */
 async function rematchCheck() {
   const oldGameId = gameId, host = bots[0];
   const phases = PHASES === 1 ? 2 : 1;
@@ -736,9 +996,14 @@ async function rematchCheck() {
     await b.connect();
     const h = b.msgs.find((m): m is Extract<ServerMessage, { type: 'hello' }> => m.type === 'hello');
     check(!!h && h.snapshot.gameId === r.json.gameId, `${b.name}: hello for the new game`);
-    check(h?.snapshot.status === 'campaign', `${b.name}: the new game should be in the campaign, got ${h?.snapshot.status}`);
+    // 3+ players start in the pre-campaign (nothing fielded, full budget); 2 players straight in the campaign with every seat fielded
+    const wantStatus = PRE ? 'preCampaign' : 'campaign';
+    check(h?.snapshot.status === wantStatus, `${b.name}: the new game should be in the ${wantStatus}, got ${h?.snapshot.status}`);
+    check(PRE ? typeof h?.snapshot.timeline?.preCampaignEnd === 'number' : h?.snapshot.timeline?.preCampaignEnd === undefined, `${b.name}: rematch timeline preCampaignEnd ${PRE ? 'should be set' : 'should be absent'}`);
+    if (PRE) check(Object.values(h?.snapshot.fielding ?? {}).every(l => !l.length) && h?.snapshot.contestedSeats === 0, `${b.name}: a fresh pre-campaign has nothing fielded`);
+    else check(PKG.seats.every(s => h?.snapshot.fielding?.[s.id]?.length === bots.length) && h?.snapshot.contestedSeats === PKG.seatCount && h?.snapshot.majority === majorityOf(PKG.seatCount), `${b.name}: a 2-player rematch has every seat fielded by both parties`);
     check(h?.snapshot.phases === phases, `${b.name}: the new game should have ${phases} phase(s), got ${h?.snapshot.phases}`);
-    check(h?.private.budget === CFG.budget, `${b.name}: budget is fresh`);
+    check(h?.private.budget === (PRE ? CFG.budget : fullyFieldedBudget(CFG)), `${b.name}: budget is fresh (${PRE ? CFG.budget : fullyFieldedBudget(CFG)}), got ${h?.private.budget}`);
     check(h?.snapshot.players.find(p => p.playerId === b.playerId)?.party?.name === parties.get(b.playerId), `${b.name}: party carried over`);
     check((h?.snapshot.players.length ?? 0) === bots.length, `${b.name}: all players rolled over`);
   }
@@ -746,7 +1011,7 @@ async function rematchCheck() {
   for (const b of bots) for (const v of b.violations) check(false, 'hidden info (rematch): ' + v);
 }
 
-main().then(rematchCheck).then(() => {
+Promise.all([main().then(rematchCheck), N >= 3 ? eliminationScenario() : Promise.resolve()]).then(() => {
   for (const b of bots) b.close();
   if (failures.length) { console.error(`\n${failures.length} check(s) FAILED`); process.exit(1); }
   console.log(`\nPASS: ${N} players, ${PHASES} phases, seed ${SEED} (${((Date.now() - t0) / 1000).toFixed(0)}s)`);

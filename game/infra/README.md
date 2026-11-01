@@ -5,7 +5,7 @@
 |---|---|
 | `-Data` | DynamoDB table `hp-<stage>-game` (on-demand, PK/SK strings, TTL attr `ttl`, GSI `GSI1` = `GSI1PK`/`GSI1SK` for join codes). PITR + RETAIN in prod; DESTROY in dev. |
 | `-Web` | Private S3 bucket + CloudFront (OAC, SPA fallback 403/404 -> /index.html). Deploys `game/web/dist` (only if built). The Vite build copies every `maps/<id>/{map.json, thumbnail.*, site/**}` into `dist/maps/<id>/`, so the map files are served at `/maps/<id>/...` (cache behaviour `maps/*`, 1 h TTL); there is no separate map-data deployment. |
-| `-Api` | 8 Node 22 / ARM64 / 512 MB esbuild Lambdas (`game/server/src/handlers/<name>.ts`: lobby, ws-connect, ws-disconnect, ws-message, phase-close, count-reveal, finalise, grace-check), HTTP API (lobby REST, CORS: CloudFront + http://localhost:5173), WebSocket API (stage `live`, throttle burst 2000 / rate 1000: it also limits our own PostToConnection pushes), Step Functions lifecycle state machine, EventBridge Scheduler group + role, CloudWatch alarms, optional budget. |
+| `-Api` | 9 Node 22 / ARM64 / 512 MB esbuild Lambdas (`game/server/src/handlers/<name>.ts`: lobby, ws-connect, ws-disconnect, ws-message, open-campaign, phase-close, count-reveal, finalise, grace-check), HTTP API (lobby REST, CORS: CloudFront + http://localhost:5173), WebSocket API (stage `live`, throttle burst 2000 / rate 1000: it also limits our own PostToConnection pushes), Step Functions lifecycle state machine, EventBridge Scheduler group + role, CloudWatch alarms, optional budget. |
 | `GithubOidcStack` | Optional, only with `-c oidc=true`: GitHub OIDC provider + role `hp-github-deploy`. |
 
 Map packages: every `maps/<id>/site/data/game.json` is statically imported by `game/server/src/maps.generated.ts` (written by `npm run gen:maps` in `game/` from `maps/*/map.json`), so esbuild inlines all maps into each Lambda bundle; adding a map folder + running `gen:maps` is enough.
@@ -42,13 +42,14 @@ Schedules must be created in group `SCHEDULE_GROUP` with `RoleArn = SCHEDULER_RO
 {
   "gameId": "g_abc",
   "timeline": { "campaignStart": 0, "phaseCloses": [0], "campaignEnd": 0, "countingEnd": 0, "postCountingEnd": 0 },
+  "preCampaignEndIso": "2026-10-20T09:00:00Z",
   "phaseClosesIso": ["2026-10-20T10:00:00Z"],
   "countingEndIso": "…",
   "postCountingEndIso": "…"
 }
 ```
 `timeline` is informational (epoch ms); the machine uses the ISO parallel arrays (`phaseClosesIso` same order/length as `phaseCloses`).
-Flow: Map over `phaseClosesIso` (concurrency 1, 1-based `phase` = index+1): Wait until `closeAtIso` -> `phase-close {gameId, phase}`.
+`preCampaignEndIso` is present only for a game with a pre-campaign (3+ players). Flow: a Choice sends such an execution through Wait until `preCampaignEndIso` -> `open-campaign {gameId}` first; a 2-player execution skips both. Then Map over `phaseClosesIso` (concurrency 1, 1-based `phase` = index+1): Wait until `closeAtIso` -> `phase-close {gameId, phase}`.
 Then loop `count-reveal {gameId}` -> must return `{done: boolean, nextAtIso: string}`; while not done, Wait until `nextAtIso` and repeat.
 Then Wait until `postCountingEndIso` -> `finalise {gameId}`. Task retries: 2 with backoff; any failure -> `finalise {gameId, error: true}`.
 `finalise` may also be invoked early by the server and must be idempotent. `countingEndIso` is currently unused by the machine.

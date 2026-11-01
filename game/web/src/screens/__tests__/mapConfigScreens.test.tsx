@@ -19,7 +19,7 @@ registerFakeMap();
 const pl = (id: string, n: string): PlayerPublic => ({ playerId: id, nickname: n, isAdmin: id === 'p1', status: 'active', party: { name: n + ' Party', colour: '#E8710A', symbol: 'sun', avatar: 'modi' } });
 const players = [pl('p1', 'Asha'), pl('p2', 'Ben'), pl('p3', 'Chitra')];
 const snap = (over: Partial<GameSnapshot> = {}): GameSnapshot => ({
-  gameId: 'g', mapId: FAKE_MAP_ID, status: 'lobby', phases: 2, timeline: null, players, news: [], polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null, ...over,
+  gameId: 'g', mapId: FAKE_MAP_ID, status: 'lobby', phases: 2, timeline: null, players, news: [], fielding: {}, contestedSeats: 100, majority: 51, polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null, ...over,
 });
 
 beforeEach(() => useStore.setState({ me: 'p1', gameId: 'g', joinCode: 'HP1', snapshot: null, lobby: null, gamePkg: null }));
