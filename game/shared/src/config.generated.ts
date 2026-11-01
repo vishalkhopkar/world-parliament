@@ -214,6 +214,9 @@ export const GAME_CONFIG_VALUES = {
       }
     ]
   },
+  "preCampaign": {
+    "doneEnabled": true
+  },
   "currency": {
     "name": "World Rupee",
     "symbol": "₩"

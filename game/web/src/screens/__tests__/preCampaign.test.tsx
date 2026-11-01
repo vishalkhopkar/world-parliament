@@ -28,6 +28,8 @@ const snap = (over: Partial<GameSnapshot> = {}): GameSnapshot => ({
 });
 const priv = (over: Partial<PrivateState> = {}): PrivateState => ({ you: 'a', budget: 10_000, myActions: [], myReports: [], ...over });
 const SMOKE_MAP = 'smoke-on';
+const DONE_OFF_MAP = 'done-off';
+MAP_CONFIGS[DONE_OFF_MAP] = { ...WORLD_CONFIG, mapId: DONE_OFF_MAP, preCampaign: { ...WORLD_CONFIG.preCampaign, doneEnabled: false } };
 MAP_CONFIGS[SMOKE_MAP] = { ...WORLD_CONFIG, mapId: SMOKE_MAP, display: { ...WORLD_CONFIG.display, fieldingSmoke: true } };
 const pkgOf = (n: number) => ({ mapId: WORLD_CONFIG.mapId, seatCount: n, version: 1, seats: Array.from({ length: n }, (_, i) => ({ id: i + 1, x: i, y: i })), phaseGroups: {}, topo: { coarse: '' } }) as unknown as GameMapPackage;
 const setup = (s = snap(), p = priv(), pkg: GameMapPackage | null = null) => {
@@ -261,5 +263,48 @@ describe('Done fielding', () => {
     setup();
     const all = [...document.querySelector('[data-tour="side"]')!.querySelectorAll('.fp-field-all, .fp-done, .candidate-counts')];
     expect(all.map(e => e.classList.contains('candidate-counts'))).toEqual([false, false, true]);
+  });
+});
+
+// Rule: preCampaign.doneEnabled = false switches the Done fielding feature off: no Done button, no reason line, no "n of m done", no ticks, and
+// the hint promises no early start. Field all seats stays. With the switch on (the default) everything above is unchanged.
+describe('Done fielding switch', () => {
+  it('on (default): button, "n of m done", ticks and the early-start hint are there', () => {
+    setup(snap({ fieldingDone: ['b'] }));
+    expect(doneBtn()).toBeInTheDocument();
+    expect(document.querySelector('.cc-done-count')).toBeInTheDocument();
+    expect(document.querySelector('li[data-player="b"] .cc-done')).toBeInTheDocument();
+    expect(document.querySelector('.precampaign-hint')).toHaveTextContent(/campaign starts as soon as everybody is done/);
+  });
+  it('off: no Done button, no reason line, no "n of m done" and no ticks, even when the snapshot lists parties as done', () => {
+    setup(snap({ mapId: DONE_OFF_MAP, fieldingDone: ['a', 'b'], fielding: { 2: [{ playerId: 'b' }] } }));
+    expect(doneBtn()).toBeNull();
+    expect(document.querySelector('[data-tour="done-fielding"]')).toBeNull();
+    expect(document.querySelector('.fp-done-reason')).toBeNull();
+    expect(document.querySelector('.cc-done-count')).toBeNull();
+    expect(document.querySelector('.cc-tick')).toBeNull();
+    expect(document.querySelector('.cc-done')).toBeNull();
+    expect(screen.queryByText(/of \d+ done/)).toBeNull();
+  });
+  it('off: Field all seats stays, the counts and the majority are still shown', () => {
+    setup(snap({ mapId: DONE_OFF_MAP }), priv(), pkgOf(5));
+    expect(fieldAll()).toBeInTheDocument();
+    expect(fieldAll()).toBeEnabled();
+    expect(counts()).toEqual([['a', '1'], ['b', '2'], ['c', '0']]);
+    expect(document.querySelector('.cc-majority')).toBeInTheDocument();
+  });
+  it('off: the hint explains Field all seats and the deadline, and promises no early start or Done', () => {
+    setup(snap({ mapId: DONE_OFF_MAP }));
+    const hint = document.querySelector('.precampaign-hint')!;
+    expect(hint).toHaveTextContent('Field all seats');
+    expect(hint).toHaveTextContent(/no candidates when this phase ends is out of the election/);
+    expect(hint).not.toHaveTextContent(/done/i);
+    expect(hint).not.toHaveTextContent(/as soon as/);
+  });
+  it('off: a late fieldingDone message does not bring any of it back', () => {
+    setup(snap({ mapId: DONE_OFF_MAP }));
+    act(() => useStore.getState().applyServer({ type: 'fieldingDone', playerId: 'c', done: true, doneCount: 1, needed: 3 }));
+    expect(document.querySelector('.cc-done-count')).toBeNull();
+    expect(document.querySelector('.cc-tick')).toBeNull();
   });
 });

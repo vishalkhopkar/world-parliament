@@ -440,6 +440,7 @@ export class TourTransport implements Transport {
   }
   /** `doneFielding`: same rules as the server. The practice game does not start the campaign by itself when everybody is done. */
   private handleDone(g: TourGame, msg: Msg<'doneFielding'>, err: ErrFn) {
+    if (!g.cfg.preCampaign.doneEnabled) return err('FORBIDDEN', 'Done fielding is switched off in this game', msg.clientRef);
     if (g.status !== 'preCampaign') return err('WRONG_PHASE', 'Done fielding only applies before the campaign', msg.clientRef);
     const done = msg.done !== false;
     const mine = [...g.fielding.values()].some(l => l.some(c => c.playerId === TOUR_ME_ID));
@@ -451,7 +452,7 @@ export class TourTransport implements Transport {
    * will. Taking your Done back stops them; the ones who already pressed stay done.
    */
   private pumpRivalDone(g: TourGame) {
-    if (g.rivalDonePending || this.g !== g || g.status !== 'preCampaign' || !g.fieldingDone.has(TOUR_ME_ID)) return;
+    if (!g.cfg.preCampaign.doneEnabled || g.rivalDonePending || this.g !== g || g.status !== 'preCampaign' || !g.fieldingDone.has(TOUR_ME_ID)) return;
     const waiting = () => PARTY_IDS.map((_, i) => i).filter(i => i > 0 && !g.fieldingDone.has(this.pid(i)));
     if (!waiting().length) return;
     g.rivalDonePending = true;

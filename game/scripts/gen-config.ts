@@ -48,7 +48,7 @@ const NUMBER_KEYS = [
   'news.sampleIntervalMs', 'news.errorStartMinPct', 'news.errorStartMaxPct', 'news.errorEndFraction', 'news.errorDecayRate',
   'news.errorNoise', 'news.noiseSmoothing', 'news.errorWobbleMin', 'news.errorWobbleMax', 'news.maxPoints',
 ];
-const BOOL_KEYS = ['analyst.seatReport.enabled', 'analyst.globalReport.enabled', 'news.enabled', 'display.fieldingSmoke'];
+const BOOL_KEYS = ['analyst.seatReport.enabled', 'analyst.globalReport.enabled', 'news.enabled', 'display.fieldingSmoke', 'preCampaign.doneEnabled'];
 const STRING_KEYS = ['currency.name', 'currency.symbol'];
 /** Keys whose name in the .properties file differs from their path in the generated object (designer's spelling). */
 const RENAMED_STRING_KEYS: Record<string, string> = { 'Chat.Campaigning': 'chat.campaigning' };

@@ -46,6 +46,9 @@ Rules source of truth: `../FEATURE REQUIREMENTS.docx`. Technical plan: see CLAUD
 
 ## Log
 
+### 2026-10-31 (follow-up 2) - Done fielding is configurable
+- `preCampaign.doneEnabled` (true/false, default true) in `game.properties`. Off: the server refuses `doneFielding` (FORBIDDEN), never starts the campaign early and sends no `fieldingDone`; the web screen hides the Done button, the "n of m done" line and the ticks; the tour skips its Done step and the rivals never press Done; the mock matches; the agent refuses `done_fielding`, omits the done fields in `get_state` and its rendered rules say it is switched off. Tour: needed a change (done).
+
 ### 2026-10-31 (follow-up) - Pre-campaign: Field all, Done fielding, own figures only, avatar counts, no smoke
 - **Done fielding** (`doneFielding` WS action, `fieldingDone` message, `snapshot.fieldingDone`): revocable; refused with no candidates; cleared by fielding/withdrawing. When every connected active player is done, `GameService.startCampaignEarly()` shifts the whole timeline earlier (preCampaignEnd = now, campaignStart = now + lead-in, later times by the same amount, so the campaign keeps its full length) and `Scheduler.restartLifecycle()` replaces the running lifecycle (local timers: per-game token; AWS: start the new `game-<id>-r1` execution, then stop the old one; `states:StopExecution` is granted on the executions). Disconnected players don't block. The hello in the pre-campaign is followed by a `fieldingDone` carrying `needed`.
 - Web: **Field all seats** and **Done fielding** buttons, right-panel rows = avatar, name, tick, count (no stick figures there), only the player's own figures on the map, no -50 / +50 smoke (`display.fieldingSmoke=false` in `game.properties`; the code stays).

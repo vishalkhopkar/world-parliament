@@ -10,7 +10,7 @@ import type { ClientMessage, GameTimeline, ServerMessage } from '@hp/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GameService } from '../src/core/gameService';
 import { TimerScheduler } from '../src/local/timerScheduler';
-import { Ctx, T0, driveTo } from './helpers';
+import { Ctx, T0, TEST_CFG, TEST_MAP, driveTo, testBudget } from './helpers';
 
 type Of<T extends ServerMessage['type']> = Extract<ServerMessage, { type: T }>;
 
@@ -435,5 +435,114 @@ describe('with the local timer scheduler', () => {
     await vi.advanceTimersByTimeAsync(old.phaseCloses[0] - Date.now());
     expect(phaseClose.mock.calls.filter(([, p]) => p === 0).length).toBe(1);
     sched.stop();
+  });
+});
+
+// preCampaign.doneEnabled = false: the "Done fielding" feature is switched off for the map. The button is refused, nothing ever starts the
+// campaign early (the deadline does), no fieldingDone message is sent and the snapshot never lists done players.
+describe('with preCampaign.doneEnabled switched off', () => {
+  const offCtx = (doneEnabled: boolean) => new Ctx({
+    cfg: { ...TEST_CFG, mapId: TEST_MAP.mapId, seatCount: TEST_MAP.seatCount, budget: testBudget(TEST_MAP.seatCount), preCampaign: { doneEnabled } },
+  });
+  async function fieldedAllOff(n = 3, doneEnabled = false): Promise<Ctx> {
+    const c = await offCtx(doneEnabled).inPreCampaign(n);
+    for (let i = 0; i < n; i++) await c.send(i, field([1]));
+    c.clock.advance(3000);
+    c.notifier.clear();
+    return c;
+  }
+  const noDoneMessages = (c: Ctx) => c.notifier.log.filter((s) => s.msg.type === 'fieldingDone');
+
+  it('the default test config has the switch on', () => {
+    expect(TEST_CFG.preCampaign.doneEnabled).toBe(true);
+  });
+
+  it('Done is refused with FORBIDDEN and a clear message, and nothing is stored or announced', async () => {
+    const c = await fieldedAllOff();
+    await c.send(0, done());
+    expect(c.lastError(0)).toMatchObject({ error: 'FORBIDDEN', message: 'Done fielding is switched off in this game' });
+    await c.send(0, done(false));
+    expect(c.notifier.to(c.p[0].playerId, 'error').length).toBe(2);
+    expect((await record(c, 0)).doneFielding).toBeUndefined();
+    expect(noDoneMessages(c)).toEqual([]);
+  });
+
+  it('the refusal comes before the other refusals: a bad value, a player with no candidate, a player who is not active, and the wrong phase', async () => {
+    const c = await offCtx(false).inPreCampaign(3);
+    c.notifier.clear();
+    await c.send(0, done()); // no candidates yet (would be BAD_REQUEST when on)
+    expect(c.lastError(0)?.error).toBe('FORBIDDEN');
+    await c.send(0, { action: 'doneFielding', done: 'yes' } as unknown as ClientMessage); // would be BAD_REQUEST when on
+    expect(c.notifier.to(c.p[0].playerId, 'error').map((m) => (m as Of<'error'>).error)).toEqual(['FORBIDDEN', 'FORBIDDEN']);
+    await c.svc.eliminate(c.gameId, c.p[1].playerId, { keepConnection: true }); // would be FORBIDDEN (not active) when on, with another message
+    await c.send(1, done());
+    expect(c.lastError(1)).toMatchObject({ error: 'FORBIDDEN', message: 'Done fielding is switched off in this game' });
+    // the wrong phase (campaign) too
+    const s = await offCtx(false).started(3);
+    s.notifier.clear();
+    await s.send(0, done());
+    expect(s.lastError(0)).toMatchObject({ error: 'FORBIDDEN', message: 'Done fielding is switched off in this game' });
+  });
+
+  it('everyone having fielded still waits for the deadline, which opens the campaign as before on the original timeline', async () => {
+    const c = await fieldedAllOff(3);
+    const old = (await c.game()).timeline as GameTimeline;
+    for (let i = 0; i < 3; i++) await c.send(i, done());
+    expect((await c.game()).status).toBe('preCampaign');
+    expect(c.scheduler.restarts).toEqual([]);
+    expect(statuses(c, 0)).toEqual([]);
+    c.clock.set(old.preCampaignEnd as number);
+    await c.svc.openCampaign(c.gameId);
+    const g = await c.game();
+    expect(g).toMatchObject({ status: 'campaign', campaignOpened: true, contestedSeats: 1, majority: 1 });
+    expect(g.timeline).toEqual(old);
+    expect(c.scheduler.restarts).toEqual([]);
+    for (const i of [0, 1, 2]) expect(statuses(c, i).map((m) => m.status)).toEqual(['campaign']);
+    expect(noDoneMessages(c)).toEqual([]);
+  });
+
+  it('no fieldingDone is ever sent: not from fielding, withdrawing, connecting, disconnecting, an elimination or the deadline', async () => {
+    const c = await offCtx(false).inPreCampaign(4);
+    for (let i = 0; i < 4; i++) await c.send(i, field([1, 2]));
+    await c.send(0, withdraw([2]));
+    await c.svc.disconnect(c.p[3].conn);
+    await c.svc.connect(c.gameId, c.p[3].token, 'again');
+    await c.svc.eliminate(c.gameId, c.p[2].playerId, { keepConnection: true });
+    await c.svc.disconnect(c.p[1].conn);
+    c.clock.set(c.timeline.preCampaignEnd as number);
+    await c.svc.openCampaign(c.gameId);
+    expect(noDoneMessages(c)).toEqual([]);
+    expect((await c.game()).status).toBe('campaign');
+  });
+
+  it('when the only player not done disconnects the campaign does not start early (it would with the switch on)', async () => {
+    const c = await fieldedAllOff(3);
+    await c.svc.disconnect(c.p[2].conn);
+    expect((await c.game()).status).toBe('preCampaign');
+    expect(c.scheduler.restarts).toEqual([]);
+    expect(noDoneMessages(c)).toEqual([]);
+  });
+
+  it('the hello is not followed by a fieldingDone and the snapshot lists nobody, even for a player whose record still carries Done', async () => {
+    const c = await fieldedAllOff(3);
+    await c.repo.updatePlayer(c.gameId, c.p[1].playerId, { doneFielding: true }); // e.g. a game switched off while it was running
+    const msgs = await helloMsgs(c, 0);
+    expect(msgs.map((m) => m.type)).toEqual(['hello']);
+    expect((msgs[0] as Of<'hello'>).snapshot.fieldingDone).toEqual([]);
+    // and a stale Done cannot start the campaign either
+    for (const i of [0, 2]) await c.repo.updatePlayer(c.gameId, c.p[i].playerId, { doneFielding: true });
+    await c.svc.disconnect(c.p[0].conn);
+    await c.svc.connect(c.gameId, c.p[0].token, 'again');
+    expect((await c.game()).status).toBe('preCampaign');
+    expect(noDoneMessages(c)).toEqual([]);
+  });
+
+  it('with the switch on (explicit) everything works as before: Done is accepted and the last Done starts the campaign', async () => {
+    const c = await fieldedAllOff(3, true);
+    for (const i of [0, 1, 2]) await c.send(i, done());
+    expect(c.lastError(0)).toBeUndefined();
+    expect((await c.game()).status).toBe('campaign');
+    expect(dones(c, 0).at(-1)).toMatchObject({ done: true, doneCount: 3, needed: 3 });
+    expect((await helloMsgs(await new Ctx().inPreCampaign(3), 0)).map((m) => m.type)).toEqual(['hello', 'fieldingDone']);
   });
 });

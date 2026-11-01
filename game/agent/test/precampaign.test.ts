@@ -684,3 +684,63 @@ describe('done_fielding: finishing the pre-campaign early', () => {
     expect(f).toMatchObject({ done_count: 0, you_are_done: false });
   });
 });
+
+// ------------------------------------------------------------------ Done fielding switched off (config preCampaign.doneEnabled = false)
+describe('done_fielding switched off (preCampaign.doneEnabled false)', () => {
+  const withOff = async (fn: () => Promise<void> | void) => {
+    const prev = cfg.preCampaign.doneEnabled;
+    cfg.preCampaign.doneEnabled = false;
+    try { await fn(); } finally { cfg.preCampaign.doneEnabled = prev; }
+  };
+
+  it('done_fielding is refused locally with FORBIDDEN and a hint, and nothing is sent', async () => {
+    await withOff(async () => {
+      const { s, c } = pre({ fielding: { 1: [cand('me', 1)] } });
+      const e = await err(s, 'done_fielding');
+      expect(e.code).toBe('FORBIDDEN');
+      expect(e.message).toMatch(/switched off/);
+      expect(e.hint).toMatch(/pre_campaign_left_s/);
+      expect(c.doneFielding).not.toHaveBeenCalled();
+    });
+  });
+
+  it('get_state fielding omits the done fields and says it is switched off; the advice does not mention done_fielding', async () => {
+    await withOff(async () => {
+      const { s } = pre({ fielding: { 1: [cand('me', 1)] }, fieldingDone: ['c'] });
+      const st = await ok(s, 'get_state');
+      for (const k of ['done', 'you_are_done', 'done_count', 'needed']) expect(st.fielding, k).not.toHaveProperty(k);
+      expect(st.fielding.done_fielding).toMatch(/switched off/);
+      const advice = st.advice.join(' ');
+      expect(advice).not.toMatch(/call done_fielding/);
+      expect(advice).toMatch(/Done fielding is switched off/);
+    });
+  });
+
+  it('field_candidates results carry no done fields and fieldingDone events are not surfaced even when asked for', async () => {
+    await withOff(async () => {
+      const { s } = pre();
+      push(s, { type: 'fieldingDone', playerId: 'c', done: true, doneCount: 1, needed: 4 });
+      const asked = await ok(s, 'wait_for_events', { since_cursor: 0, timeout_s: 0, types: ['fieldingDone'] });
+      expect(asked.events).toEqual([]);
+    });
+  });
+
+  it('the rendered rules say Done fielding is switched off', () => {
+    const on = renderRules(cfg);
+    expect(on).toMatch(/call `done_fielding`/);
+    const off = (() => {
+      const prev = cfg.preCampaign.doneEnabled;
+      cfg.preCampaign.doneEnabled = false;
+      try { return renderRules(cfg); } finally { cfg.preCampaign.doneEnabled = prev; }
+    })();
+    expect(off).toMatch(/Done fielding is switched off in this game/);
+    expect(off).not.toMatch(/\{\{/);
+  });
+
+  it('with the flag true nothing changes (done_fielding works, done fields shown)', async () => {
+    expect(cfg.preCampaign.doneEnabled).toBe(true);
+    const { s } = pre({ fielding: { 1: [cand('me', 1)] } });
+    expect(await ok(s, 'done_fielding')).toMatchObject({ done: true });
+    expect((await ok(s, 'get_state')).fielding).toHaveProperty('you_are_done');
+  });
+});

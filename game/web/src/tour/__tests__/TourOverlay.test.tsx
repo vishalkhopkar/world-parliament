@@ -37,8 +37,10 @@ const tally = (): GameSnapshot['tally'] => ({
   leads: Object.fromEntries(players.map((p, i) => [p.playerId, seatsOf[i]])), wins: Object.fromEntries(players.map(p => [p.playerId, 0])), declared: 0, total: N,
 });
 
-function setup(over: { snap?: Partial<GameSnapshot>; priv?: Partial<PrivateState>; reports?: boolean; step?: string } = {}) {
-  cfgBox.cfg = withReports(over.reports ?? false);
+const withDone = (on: boolean, base: MapConfig = withReports(false)): MapConfig => ({ ...base, preCampaign: { ...base.preCampaign, doneEnabled: on } });
+
+function setup(over: { snap?: Partial<GameSnapshot>; priv?: Partial<PrivateState>; reports?: boolean; step?: string; doneOff?: boolean } = {}) {
+  cfgBox.cfg = withDone(!over.doneOff, withReports(over.reports ?? false));
   // the game is in the pre-campaign while the tour shows its pre-campaign steps, in the campaign otherwise
   const phase = over.step ? stepsNow().find(s => s.id === over.step)?.phase : 'preCampaign';
   const status = over.snap?.status ?? (phase === 'preCampaign' ? 'preCampaign' : 'campaign');
@@ -511,6 +513,51 @@ describe('TourOverlay pre-campaign steps', () => {
     render(<TourOverlay />);
     expect(callout()).toHaveTextContent('every party has pressed Done fielding');
     expect(callout()).toHaveTextContent('fields candidates for you');
+  });
+
+  // Rule: preCampaign.doneEnabled = false switches Done fielding off: the done-fielding step (and its task) is skipped, and no other step
+  // mentions Done or ticks. With the switch on (the default) the steps above are unchanged.
+  it('Done switch off: the done-fielding step is skipped, the others stay in order, and no step carries the done task', () => {
+    cfgBox.cfg = withDone(false);
+    const pre = stepsNow().filter(s => s.phase === 'preCampaign').map(s => s.id);
+    expect(pre).toEqual(['welcome', 'party', 'precampaign', 'field-seats', 'field-all', 'candidate-cost', 'withdraw-seat', 'candidate-counts', 'precampaign-chat', 'no-candidates', 'to-campaign']);
+    expect(stepsNow().some(s => s.task?.id === 'done')).toBe(false);
+    cfgBox.cfg = withDone(true);
+    expect(stepsNow().some(s => s.task?.id === 'done')).toBe(true);
+    expect(stepsNow().map(s => s.id)).toContain('done-fielding');
+  });
+
+  it('Done switch off: no pre-campaign step mentions Done fielding or a tick', () => {
+    const preIds = (() => { cfgBox.cfg = withDone(false); return stepsNow().filter(s => s.phase === 'preCampaign').map(s => s.id); })();
+    for (const id of preIds) {
+      setup({ step: id, doneOff: true, snap: { status: 'preCampaign' } });
+      const { unmount } = render(<TourOverlay />);
+      expect(callout().textContent, id).not.toMatch(/done|tick/i);
+      unmount();
+    }
+  });
+
+  it('Done switch off: the counts and last pre-campaign steps still explain their own part', () => {
+    setup({ step: 'candidate-counts', doneOff: true, snap: { status: 'preCampaign' } });
+    const first = render(<TourOverlay />);
+    expect(callout()).toHaveTextContent('avatar');
+    expect(callout()).toHaveTextContent('live');
+    expect(callout()).toHaveTextContent('majority');
+    first.unmount();
+    setup({ step: 'to-campaign', doneOff: true });
+    render(<TourOverlay />);
+    expect(callout()).toHaveTextContent('when the clock ends the pre-campaign');
+    expect(callout()).toHaveTextContent('fields candidates for you');
+  });
+
+  it('Done switch on: the counts and last steps mention the tick and Done fielding', () => {
+    setup({ step: 'candidate-counts', snap: { status: 'preCampaign' } });
+    const first = render(<TourOverlay />);
+    expect(callout()).toHaveTextContent('tick');
+    first.unmount();
+    setup({ step: 'to-campaign' });
+    render(<TourOverlay />);
+    expect(callout()).toHaveTextContent('every party has pressed Done fielding');
   });
 
   it('chat step: one-to-one, informal, nothing enforces the alliances', () => {

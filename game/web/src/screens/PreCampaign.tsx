@@ -1,4 +1,4 @@
-// The pre-campaign: paint candidates onto seats on a desktop (tap a seat and use its panel on a phone) or field every seat at once, press Done fielding, watch the rivals' counts and make informal alliances in the one-to-one chats.
+// The pre-campaign: paint candidates onto seats on a desktop (tap a seat and use its panel on a phone) or field every seat at once, press Done fielding (unless preCampaign.doneEnabled is off), watch the rivals' counts and make informal alliances in the one-to-one chats.
 // The map shows only your own figures; the rivals appear as avatar + live count in the side panel.
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Check } from 'lucide-react';
@@ -100,6 +100,7 @@ export function PreCampaign() {
   const iAmDone = !!me && snap.fieldingDone.includes(me);
   const noCandidates = (counts[me ?? ''] ?? 0) === 0;
   const progress = doneProgress(snap, doneStats);
+  const doneOn = cfg.preCampaign.doneEnabled; // false = the Done fielding feature is switched off (no button, count or ticks; the phase always runs its full time)
 
   return (
     <div className="game">
@@ -115,7 +116,8 @@ export function PreCampaign() {
             {fine
               ? 'Drag across the map to field candidates. Right-drag, or hold Space and drag, to move the map. Click a seat to see who is fielded there or to withdraw.'
               : 'Tap a seat to field a candidate there, see who is fielded or withdraw.'}
-            {' '}Field all seats puts a candidate in every seat you do not have yet. Press Done fielding when you are finished: the campaign starts as soon as everybody is done.
+            {' '}Field all seats puts a candidate in every seat you do not have yet.
+            {doneOn && ' Press Done fielding when you are finished: the campaign starts as soon as everybody is done.'}
             {' '}A party with no candidates when this phase ends is out of the election.
           </p>
           {!out && (
@@ -125,12 +127,12 @@ export function PreCampaign() {
                   Field all seats
                   {missing.length > 0 && <small>{missing.length} {missing.length === 1 ? 'seat' : 'seats'}, {formatMoney(missing.length * cost, symbol)}</small>}
                 </button>
-                <button type="button" className={`btn fp-done${iAmDone ? ' on' : ' primary'}`} data-tour="done-fielding" disabled={noCandidates && !iAmDone} aria-pressed={iAmDone} onClick={() => doneFielding(!iAmDone)}>
+                {doneOn && <button type="button" className={`btn fp-done${iAmDone ? ' on' : ' primary'}`} data-tour="done-fielding" disabled={noCandidates && !iAmDone} aria-pressed={iAmDone} onClick={() => doneFielding(!iAmDone)}>
                   {iAmDone ? 'Not done yet' : 'Done fielding'}
-                </button>
+                </button>}
               </div>
-              {noCandidates && !iAmDone && <p className="fp-done-reason">Field at least one candidate before you can say you are done.</p>}
-              <p className="cc-done-count">{progress.doneCount} of {progress.needed} done</p>
+              {doneOn && noCandidates && !iAmDone && <p className="fp-done-reason">Field at least one candidate before you can say you are done.</p>}
+              {doneOn && <p className="cc-done-count">{progress.doneCount} of {progress.needed} done</p>}
             </div>
           )}
           <div className="candidate-counts" data-tour="candidate-counts">
@@ -139,7 +141,7 @@ export function PreCampaign() {
                 <li key={p.playerId} data-player={p.playerId}>
                   <PartyAvatar party={p.party} size={28} />
                   <span className="cc-name">{playerName(players, p.playerId)}{p.playerId === me ? ' (you)' : ''}</span>
-                  <span className="cc-tick">{snap.fieldingDone.includes(p.playerId) && <Check className="cc-done" size={18} strokeWidth={3} aria-label="Done fielding" />}</span>
+                  {doneOn && <span className="cc-tick">{snap.fieldingDone.includes(p.playerId) && <Check className="cc-done" size={18} strokeWidth={3} aria-label="Done fielding" />}</span>}
                   <strong className="cc-count">{counts[p.playerId] ?? 0}</strong>
                 </li>
               ))}

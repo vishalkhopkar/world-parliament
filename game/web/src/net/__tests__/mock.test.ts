@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { AVATARS, WORLD_CONFIG, fullyFieldedBudget, majorityOf } from '@hp/shared';
+import { AVATARS, MAP_CONFIGS, WORLD_CONFIG, fullyFieldedBudget, majorityOf } from '@hp/shared';
 import type { CoalitionOffer, GlobalReports, ServerMessage } from '@hp/shared';
 import { MockTransport } from '../mock';
 import { ApiException } from '../transport';
@@ -721,5 +721,68 @@ describe('mock transport Done fielding', () => {
     dg().timeline.preCampaignEnd = Date.now() - 1;
     priv().tick();
     expect(g.status).toBe('campaign');
+  });
+});
+
+// ---- Done fielding switched off (preCampaign.doneEnabled = false)
+// Rule: when the config switch is off the mock behaves like the server: Done fielding is refused (FORBIDDEN, nothing broadcast), the bots never
+// press it, and the campaign never starts early, so the pre-campaign always runs to its deadline. With the switch on nothing changes.
+describe('mock transport Done fielding switch', () => {
+  const ORIGINAL = MAP_CONFIGS['world-500'];
+  const setSwitch = (on: boolean) => { MAP_CONFIGS['world-500'] = { ...ORIGINAL, preCampaign: { ...ORIGINAL.preCampaign, doneEnabled: on } }; };
+  afterEach(() => { MAP_CONFIGS['world-500'] = ORIGINAL; });
+  type Done = { g: Pre['g'] & { fieldingDone: Set<string>; nextBotDone: number; timeline: { preCampaignEnd?: number } } };
+  const dg = () => (t as unknown as Done).g;
+  const doneMsgs = (got: Got) => kinds(got, 'fieldingDone');
+
+  it('off: Done fielding is refused with FORBIDDEN and nothing is broadcast', async () => {
+    setSwitch(false);
+    const { got } = await preGame();
+    send({ action: 'field', seats: [1, 2] });
+    await ping();
+    got.length = 0;
+    send({ action: 'doneFielding', clientRef: 'd' });
+    await ping();
+    expect(kinds(got, 'error').map(e => [e.clientRef, e.error, e.message])).toEqual([['d', 'FORBIDDEN', 'Done fielding is switched off in this game']]);
+    expect(doneMsgs(got)).toHaveLength(0);
+    expect(dg().fieldingDone.size).toBe(0);
+  });
+
+  it('off: the bots never press Done and the campaign does not start early, even when they have fielded everything', async () => {
+    setSwitch(false);
+    const { got, g, bots } = await preGame();
+    send({ action: 'field', seats: [1, 2, 3] });
+    await ping();
+    g.preStart -= 10 * 60 * 1000;
+    got.length = 0;
+    for (let i = 0; i < 12; i++) { dg().nextBotDone = 0; priv().tick(); }
+    await ping();
+    for (const b of bots) expect([...g.fielding.values()].filter(l => l.some(c => c.playerId === b)).length).toBeGreaterThan(0);
+    expect(doneMsgs(got)).toHaveLength(0);
+    expect(dg().fieldingDone.size).toBe(0);
+    expect(g.status).toBe('preCampaign');
+  });
+
+  it('off: the deadline still opens the campaign', async () => {
+    setSwitch(false);
+    const { g } = await preGame();
+    send({ action: 'field', seats: [1, 2] });
+    await ping();
+    dg().timeline.preCampaignEnd = Date.now() - 1;
+    priv().tick();
+    expect(g.status).toBe('campaign');
+  });
+
+  it('on: Done fielding is accepted and the bots press it', async () => {
+    setSwitch(true);
+    const { got, g, bots } = await preGame();
+    send({ action: 'field', seats: [1, 2] });
+    send({ action: 'doneFielding' });
+    await ping();
+    expect(doneMsgs(got)).toHaveLength(1);
+    g.preStart -= 10 * 60 * 1000;
+    priv().tick();
+    for (let i = 0; i < 12; i++) { dg().nextBotDone = 0; priv().tick(); }
+    expect(bots.every(b => dg().fieldingDone.has(b)) || g.status === 'campaign').toBe(true);
   });
 });

@@ -177,6 +177,11 @@ export interface MapConfig {
    * `fieldingSmoke` = show the floating -cost / +cost smoke when a candidate is fielded / withdrawn (off for now).
    */
   display: { reputationScale: number; brushRadiusPx: number; fieldingSmoke: boolean };
+  /**
+   * The pre-campaign phase (3+ players). `doneEnabled` = the "Done fielding" button: false = switched off (the server refuses it and
+   * never starts the campaign early; the web app, tour and AI agent tool hide it), so the phase always runs its full time.
+   */
+  preCampaign: { doneEnabled: boolean };
   phases: { min: number; max: number; default: number };
   durations: {
     /** The pre-campaign phase (games with 3+ players only, see hasPreCampaign). */
@@ -298,6 +303,7 @@ export function validateConfig(cfg: MapConfig): void {
   pct('voting.randomMaxPercent', cfg.voting?.randomMaxPercent);
   num('display.reputationScale', cfg.display?.reputationScale, 0, true);
   num('display.brushRadiusPx', cfg.display?.brushRadiusPx, 0, true);
+  if (typeof cfg.preCampaign?.doneEnabled !== 'boolean') bad('preCampaign.doneEnabled', `must be true or false (got ${String(cfg.preCampaign?.doneEnabled)})`);
   if (typeof cfg.display?.fieldingSmoke !== 'boolean') bad('display.fieldingSmoke', `must be true or false (got ${String(cfg.display?.fieldingSmoke)})`);
   if (!Array.isArray(cfg.committed?.bands)) bad('committed.bands', 'must be a list');
   cfg.committed.bands.forEach((b, i) => {

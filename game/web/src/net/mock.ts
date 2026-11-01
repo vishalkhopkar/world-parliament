@@ -467,6 +467,7 @@ export class MockTransport implements Transport {
     if (done && g.status === 'preCampaign' && this.activePlayers(g).every(p => g.fieldingDone.has(p.pub.playerId))) this.startCampaignEarly(g);
   }
   private handleDone(g: MockGame, msg: Msg<'doneFielding'>, err: ErrFn) {
+    if (!g.cfg.preCampaign.doneEnabled) return err('FORBIDDEN', 'Done fielding is switched off in this game', msg.clientRef);
     if (g.status !== 'preCampaign') return err('WRONG_PHASE', 'Done fielding only applies before the campaign', msg.clientRef);
     if (g.players.get(g.me)!.pub.status === 'eliminated') return err('FORBIDDEN', 'You are out of the game', msg.clientRef);
     const done = msg.done !== false;
@@ -481,7 +482,7 @@ export class MockTransport implements Transport {
   }
   /** Once a bot has finished fielding it presses Done; the bots do it a few seconds apart. */
   private botDone(g: MockGame, now: number) {
-    if (now < g.nextBotDone) return;
+    if (!g.cfg.preCampaign.doneEnabled || now < g.nextBotDone) return;
     const next = this.activePlayers(g).find(p => p.bot && !g.fieldingDone.has(p.pub.playerId) && this.botFinished(g, p));
     if (!next) return;
     g.nextBotDone = now + rnd(2000, 4000);

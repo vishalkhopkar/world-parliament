@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { chatModeFor, fullyFieldedBudget, majorityOf } from '@hp/shared';
+import { MAP_CONFIGS, WORLD_CONFIG, chatModeFor, fullyFieldedBudget, majorityOf } from '@hp/shared';
 import type { GameSnapshot, PrivateState, ServerMessage } from '@hp/shared';
 import { TOUR_ME_ID, TourTransport } from '../tour';
 import { useTour } from '../../tour/tourStore';
@@ -464,6 +464,49 @@ describe('TourTransport Done fielding', () => {
     t.connect(r.gameId, r.token, m => msgs.push(m));
     await settle();
     expect(of('hello')[0].snapshot.fieldingDone).toEqual([]);
+  });
+});
+
+// Rule: with preCampaign.doneEnabled = false "Done fielding" is switched off like on the server: doneFielding is refused with FORBIDDEN
+// ('Done fielding is switched off in this game') and nothing is broadcast, the rivals never press Done, and fielding says nothing about
+// it. With the switch on (the default) the behaviour above is unchanged.
+describe('TourTransport Done fielding switch', () => {
+  const OFF_MAP = 'done-off';
+  MAP_CONFIGS[OFF_MAP] = { ...WORLD_CONFIG, mapId: OFF_MAP, preCampaign: { ...WORLD_CONFIG.preCampaign, doneEnabled: false } };
+  const offOpts = { pkg: gridPackage(8, 8, OFF_MAP) };
+  const dones = () => of('fieldingDone');
+  type Poke = { g: { fieldingDone: Set<string> } };
+  const poke = () => (t as unknown as Poke).g;
+
+  it('off: doneFielding is refused with FORBIDDEN, even with a candidate, and nothing is broadcast', async () => {
+    await start({ ...offOpts, fieldEveryMs: IDLE }, 'preCampaign');
+    field([3]);
+    t.send({ action: 'doneFielding', done: true, clientRef: 'd' });
+    await settle();
+    const e = of('error').find(x => x.clientRef === 'd');
+    expect(e?.error).toBe('FORBIDDEN');
+    expect(e?.message).toBe('Done fielding is switched off in this game');
+    expect(dones()).toHaveLength(0);
+    expect(poke().fieldingDone.size).toBe(0);
+  });
+
+  it('off: the rivals never press Done, however long the pre-campaign runs', async () => {
+    await start({ ...offOpts, fieldEveryMs: 200, fieldRounds: 2, doneEveryMs: 100 }, 'preCampaign');
+    field([3]);
+    t.send({ action: 'doneFielding', done: true });
+    await settle(60_000);
+    expect(dones()).toHaveLength(0);
+    expect(poke().fieldingDone.size).toBe(0);
+    expect(of('status')).toHaveLength(0); // no early start either
+  });
+
+  it('on: the same calls work as before', async () => {
+    await start({ fieldEveryMs: 200, fieldRounds: 2, doneEveryMs: 100 }, 'preCampaign');
+    field([3]);
+    t.send({ action: 'doneFielding', done: true });
+    await settle(30_000);
+    expect(of('error').filter(e => e.error === 'FORBIDDEN')).toHaveLength(0);
+    expect(poke().fieldingDone.size).toBe(9);
   });
 });
 

@@ -37,6 +37,7 @@ describe('game.properties is the source of the game constants', () => {
     expect(WORLD_CONFIG.effects.minorRally.decay).toEqual({ spread: n('effects.minorRally.decay.spread'), maxKm: n('effects.minorRally.decay.maxKm') });
     expect(WORLD_CONFIG.display.brushRadiusPx).toBe(n('display.brushRadiusPx'));
     expect(WORLD_CONFIG.display.fieldingSmoke).toBe(false);
+    expect(WORLD_CONFIG.preCampaign.doneEnabled).toBe(true);
     expect(WORLD_CONFIG.durations.preCampaignMs).toBe(n('durations.preCampaignMs'));
     expect(WORLD_CONFIG.effects.firstMover).toEqual({
       rally: n('effects.firstMover.rally'), roadshow: n('effects.firstMover.roadshow'), minorRally: n('effects.firstMover.minorRally'),
@@ -355,7 +356,7 @@ ${k}=1
   }, 30_000);
   it.each([
     'costs.minorRally', 'costs.candidate', 'effects.minorRally.local', 'effects.minorRally.decay.spread', 'effects.minorRally.decay.maxKm',
-    'effects.firstMover.minorRally', 'display.brushRadiusPx', 'display.fieldingSmoke', 'durations.preCampaignMs',
+    'effects.firstMover.minorRally', 'display.brushRadiusPx', 'display.fieldingSmoke', 'preCampaign.doneEnabled', 'durations.preCampaignMs',
   ])('rejects a missing %s', (k) => {
     const r = run(propsText.replace(new RegExp(`^${k.replace(/\./g, '\\.')}=.*$`, 'm'), ''));
     expect(r.ok).toBe(false);
@@ -371,6 +372,7 @@ ${k}=1
     ['a negative minor rally first-mover bonus', /^effects\.firstMover\.minorRally=.*$/m, 'effects.firstMover.minorRally=-1', 'effects.firstMover.minorRally'],
     ['a zero brush radius', /^display\.brushRadiusPx=.*$/m, 'display.brushRadiusPx=0', 'display.brushRadiusPx'],
     ['a fielding smoke switch that is not true or false', /^display\.fieldingSmoke=.*$/m, 'display.fieldingSmoke=maybe', 'display.fieldingSmoke'],
+    ['a Done fielding switch that is not true or false', /^preCampaign\.doneEnabled=.*$/m, 'preCampaign.doneEnabled=sometimes', 'preCampaign.doneEnabled'],
     ['a zero pre-campaign', /^durations\.preCampaignMs=.*$/m, 'durations.preCampaignMs=0', 'durations.preCampaignMs'],
   ])('rejects %s', (_label, re, line, key) => {
     const r = run(propsText.replace(re, line));
@@ -429,6 +431,7 @@ describe('validateConfig', () => {
     expect(() => validateConfig({ ...WORLD_CONFIG, effects: { ...E, firstMover: { ...E.firstMover, minorRally: undefined } } } as never)).toThrow(/firstMover.minorRally/);
     expect(() => validateConfig({ ...WORLD_CONFIG, display: { ...WORLD_CONFIG.display, brushRadiusPx: 0 } })).toThrow(/display.brushRadiusPx/);
     expect(() => validateConfig({ ...WORLD_CONFIG, display: { ...WORLD_CONFIG.display, fieldingSmoke: 'yes' as never } })).toThrow(/display.fieldingSmoke/);
+    expect(() => validateConfig({ ...WORLD_CONFIG, preCampaign: { doneEnabled: 'yes' as never } })).toThrow(/preCampaign.doneEnabled/);
     expect(() => validateConfig({ ...WORLD_CONFIG, durations: { ...WORLD_CONFIG.durations, preCampaignMs: 0 } })).toThrow(/durations.preCampaignMs/);
   });
   it('rejects NaN, negative and missing numbers', () => {

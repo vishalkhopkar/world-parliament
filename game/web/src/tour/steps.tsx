@@ -92,6 +92,8 @@ export function usesBrush(): boolean {
 
 /** The pre-campaign steps exist only in games that have the phase (3 or more players). */
 const preCampaignOnly = ({ playerCount }: { cfg: MapConfig; playerCount: number }) => hasPreCampaign(playerCount);
+/** The Done fielding feature (button, ticks, early start) exists only when the config switches it on (preCampaign.doneEnabled). */
+const doneFieldingOn = ({ cfg, playerCount }: { cfg: MapConfig; playerCount: number }) => hasPreCampaign(playerCount) && cfg.preCampaign.doneEnabled;
 
 /** Candidates you hold now (from the live snapshot). */
 const heldNow = (c: TourCtx) => fieldedByMe(c.snap, c.me ?? undefined);
@@ -173,13 +175,13 @@ export function buildSteps(startCounting: () => void, startCampaign: () => void 
       enabled: preCampaignOnly,
       body: c => (
         <>
-          <p>This panel lists every party with its <b>avatar</b> and the number of its candidates, <b>live</b>. The other parties are fielding right now: watch their numbers move. A <b>tick</b> beside a party means it has pressed <b>Done fielding</b>.</p>
+          <p>This panel lists every party with its <b>avatar</b> and the number of its candidates, <b>live</b>. The other parties are fielding right now: watch their numbers move.{c.cfg.preCampaign.doneEnabled && <> A <b>tick</b> beside a party means it has pressed <b>Done fielding</b>.</>}</p>
           <p>The majority mark moves with them, because it depends on how many seats have at least one candidate{c.snap ? <> (now <b>{c.snap.contestedSeats}</b> seats, so <b>{c.snap.majority}</b> for a majority)</> : null}.</p>
         </>
       ),
     },
     {
-      id: 'done-fielding', phase: 'preCampaign', title: 'Done fielding', anchor: ['[data-tour="done-fielding"]'], enabled: preCampaignOnly,
+      id: 'done-fielding', phase: 'preCampaign', title: 'Done fielding', anchor: ['[data-tour="done-fielding"]'], enabled: doneFieldingOn,
       body: () => (
         <>
           <p>When you have fielded the candidates you want, press <b>Done fielding</b>. The campaign starts <b>as soon as every party has pressed it</b>; otherwise it starts when the countdown ends.</p>
@@ -217,7 +219,7 @@ export function buildSteps(startCounting: () => void, startCampaign: () => void 
     {
       id: 'to-campaign', phase: 'preCampaign', title: 'On to the campaign', dim: true, block: true, enabled: preCampaignOnly,
       body: c => (
-        <p>In a real game the campaign starts as soon as every party has pressed Done fielding, or when the clock ends the pre-campaign. Here, press <b>Next</b>: the tour <b>fields candidates for you</b> in every seat you have not fielded yourself, paying <b>{c.money(c.cfg.costs.candidate)}</b> for each, so that you can campaign anywhere. Then the campaign begins.</p>
+        <p>In a real game the campaign starts {c.cfg.preCampaign.doneEnabled ? 'as soon as every party has pressed Done fielding, or ' : ''}when the clock ends the pre-campaign. Here, press <b>Next</b>: the tour <b>fields candidates for you</b> in every seat you have not fielded yourself, paying <b>{c.money(c.cfg.costs.candidate)}</b> for each, so that you can campaign anywhere. Then the campaign begins.</p>
       ),
       action: { label: 'Next', run: startCampaign },
     },

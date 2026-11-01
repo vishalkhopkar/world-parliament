@@ -646,7 +646,7 @@ export class GameService {
         for (const d of Object.values(snapshot.seats)) delete d.shares;
       }
     }
-    if (game.status === 'preCampaign') {
+    if (game.status === 'preCampaign' && this.loadMap(game.mapId).cfg.preCampaign.doneEnabled) {
       after.push({ type: 'fieldingDone', playerId: player.playerId, done: !!player.doneFielding, ...fieldingDoneCounts(players) });
     }
     return [{
@@ -771,7 +771,7 @@ export class GameService {
       gameId: game.gameId, mapId: game.mapId, status: game.status, phases: game.phases, timeline: game.timeline,
       players: this.sortedPlayers(players).filter((p) => MEMBER.has(p.status)).map(toPublic),
       news, fielding: this.fieldingOf(game, players),
-      fieldingDone: game.status === 'preCampaign'
+      fieldingDone: game.status === 'preCampaign' && cfg.preCampaign.doneEnabled
         ? this.sortedPlayers(players).filter((p) => CONTENDER.has(p.status) && p.doneFielding).map((p) => p.playerId) : [],
       contestedSeats, majority: majorityOf(contestedSeats),
       polledPhases: Array.from({ length: game.closedPhases }, (_, i) => i), seats, tally, offers,
@@ -835,14 +835,16 @@ export class GameService {
   }
 
   /**
-   * "Done fielding" (`done`, default true) or taking it back (false). Refused outside the pre-campaign (WRONG_PHASE, also from the
+   * "Done fielding" (`done`, default true) or taking it back (false). Refused first of all when the map has preCampaign.doneEnabled=false (FORBIDDEN; then no fieldingDone is ever sent, the snapshot's
+   * fieldingDone stays empty and only the deadline opens the campaign), outside the pre-campaign (WRONG_PHASE, also from the
    * deadline on), for a player who is not active (FORBIDDEN) and, for done = true, while the player has no candidate (BAD_REQUEST:
    * pressing it would mean eliminating yourself). Answered to everybody with fieldingDone; the last needed Done starts the campaign.
    */
   async doneFielding(player: PlayerRecord, doneIn?: unknown): Promise<void> {
+    const game = await this.loadGame(player.gameId);
+    if (!this.loadMap(game.mapId).cfg.preCampaign.doneEnabled) throw new GameError('FORBIDDEN', 'Done fielding is switched off in this game');
     if (doneIn !== undefined && typeof doneIn !== 'boolean') throw new GameError('BAD_REQUEST', 'done must be true or false');
     const done = doneIn ?? true;
-    const game = await this.loadGame(player.gameId);
     const me = await this.repo.getPlayer(player.gameId, player.playerId);
     if (!me) throw new GameError('UNAUTHORIZED', 'Unknown player');
     this.requireContender(me);
@@ -865,7 +867,7 @@ export class GameService {
    */
   private async fieldingDoneChanged(gameId: string, playerId: PlayerId): Promise<void> {
     const game = await this.repo.getGame(gameId);
-    if (!game || game.status !== 'preCampaign') return;
+    if (!game || game.status !== 'preCampaign' || !this.loadMap(game.mapId).cfg.preCampaign.doneEnabled) return;
     const players = await this.repo.listPlayers(gameId);
     const p = players.find((x) => x.playerId === playerId);
     const counts = fieldingDoneCounts(players);

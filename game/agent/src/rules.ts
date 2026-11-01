@@ -147,6 +147,9 @@ export function rulesValues(cfg: MapConfig, opts: RenderOptions = {}): Record<st
     COST_RATIO: `1/${trim(cfg.costs.rally / cfg.costs.roadshow, 1)}`,
     TM_START: trim(cfg.timeMultiplier.start),
     TM_END: trim(cfg.timeMultiplier.end),
+    DONE_FIELDING_STATUS: cfg.preCampaign?.doneEnabled === false
+      ? '**Done fielding is switched off in this game.** `done_fielding` is refused (`FORBIDDEN`) and the campaign never starts early: the pre-campaign always runs its full time (`get_state` -> `pre_campaign_left_s`). Ignore the rest of this paragraph and any mention of `done_fielding` elsewhere.'
+      : 'When you have fielded what you want, call `done_fielding` (`{done:false}` takes it back). When **every connected active party** is done, the campaign starts **at once** instead of waiting for the countdown: the short lead-in stays and the whole campaign keeps its full length, so nothing is lost by finishing early. `get_state` -> `fielding` shows `done` per party and `done_count` of `needed` (parties that are disconnected do not count; a connected party that has not fielded anything yet blocks the early start, and is never eliminated just because the others finished first). You cannot be done with no candidate (`BAD_REQUEST`: field first). Fielding or withdrawing again **clears your done**, so call it again. If somebody never presses it, the countdown still ends the phase. It does not change the elimination rule below.',
     NEWS_STATUS: cfg.news.enabled
       ? 'Global reports by the news agencies are on in this game.'
       : 'Global reports by the news agencies are currently switched off in this game: `get_global_reports` is refused. Ignore the rest of this section.',

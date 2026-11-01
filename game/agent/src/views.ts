@@ -63,6 +63,11 @@ export function doneProgress(s: AgentSession) {
   return { doneIds, done_count, needed, you_are_done: doneIds.includes(st.me ?? '') };
 }
 
+/** The "Done fielding" button is on in this game (config preCampaign.doneEnabled). Off: the pre-campaign always runs its full time. */
+export function doneFieldingOn(s: AgentSession): boolean {
+  return s.cfg().preCampaign?.doneEnabled !== false;
+}
+
 /** The pre-campaign numbers shared by get_state, the field tools and wait_for_events. */
 export function fieldingSummary(s: AgentSession) {
   const snap = s.client.state.snapshot;
@@ -70,18 +75,19 @@ export function fieldingSummary(s: AgentSession) {
   const counts = fieldedCounts(s);
   const by_party: Record<string, number> = {};
   for (const p of s.players().filter((x) => ['active', 'disconnected', 'eliminated'].includes(x.status))) by_party[who(s, p.playerId)] = counts.get(p.playerId) ?? 0;
-  const dp = doneProgress(s);
-  const done: Record<string, boolean> = {};
-  for (const name of Object.keys(by_party)) done[name] = false;
-  for (const id of dp.doneIds) done[who(s, id)] = true;
+  const doneParts = (() => {
+    if (!doneFieldingOn(s)) return { done_fielding: 'switched off in this game: the pre-campaign always lasts its full time (see pre_campaign_left_s)' };
+    const dp = doneProgress(s);
+    const done: Record<string, boolean> = {};
+    for (const name of Object.keys(by_party)) done[name] = false;
+    for (const id of dp.doneIds) done[who(s, id)] = true;
+    return { done, you_are_done: dp.you_are_done, done_count: dp.done_count, needed: dp.needed };
+  })();
   return {
     your_candidates: counts.get(s.client.me ?? '') ?? 0,
     candidate_cost_wr: cfg.costs.candidate,
     by_party,
-    done,
-    you_are_done: dp.you_are_done,
-    done_count: dp.done_count,
-    needed: dp.needed,
+    ...doneParts,
     contested_seats: snap?.contestedSeats ?? 0,
     majority: majorityNow(s),
     seats_total: cfg.seatCount,
@@ -473,7 +479,8 @@ export function stateView(s: AgentSession, dir: SeatDirectory | null) {
     const left = tl?.preCampaignEnd !== undefined ? secs(tl.preCampaignEnd - now) : null;
     const fielded = fieldedCounts(s).get(c.me ?? '') ?? 0;
     advice.push(`PRE-CAMPAIGN${left !== null ? ` (${left} s left)` : ''}: field candidates before the deadline with field_candidates {seats:[...]} (or {all:true}). With no candidates you are out of the game. Each candidate costs ${cfg.currency.symbol}${cfg.costs.candidate.toLocaleString('en-US')} (refunded in full if you withdraw_candidates before the deadline), and you can only campaign in seats where you have one; what you do not spend on candidates is your campaign budget. You have ${fielded} candidate${fielded === 1 ? '' : 's'} now. Negotiate one-to-one with the other parties about who stands where (chat {to, text}); rallies, roadshows and reports open only when the campaign starts.`);
-    advice.push('When you have fielded what you want, call done_fielding: the campaign then starts as soon as every connected active party is done (fielding or withdrawing afterwards clears your done; done_fielding {done:false} takes it back). If you do nothing the countdown ends the phase.');
+    if (doneFieldingOn(s)) advice.push('When you have fielded what you want, call done_fielding: the campaign then starts as soon as every connected active party is done (fielding or withdrawing afterwards clears your done; done_fielding {done:false} takes it back). If you do nothing the countdown ends the phase.');
+    else advice.push('Done fielding is switched off in this game: the pre-campaign always lasts its full time, so use the time to field and negotiate (pre_campaign_left_s in get_state shows what is left).');
     if (fielded === 0) advice.push('URGENT: you have no candidates yet. Field at least one before the deadline or you are eliminated.');
   } else if (mine?.status === 'eliminated' && (status === 'campaign' || status === 'counting' || status === 'postCounting')) {
     advice.push('You are eliminated (typically: no candidate was fielded before the campaign started). You can still read the chat but cannot act. Keep calling wait_for_events: the game may be played again.');

@@ -11,7 +11,7 @@ import type { AgentSession } from './session';
 import { EVENT_TYPES, admissionOf } from './state';
 import type { EventType } from './state';
 import {
-  candidatesIn, chatView, doneProgress, fieldedCounts, namesOf, committedLabel, currentBudget, eventView, fieldingSummary, gameHasFielding, iHaveCandidate, majorityNow, rallyCooldownView, rallyReadyAt,
+  candidatesIn, chatView, doneProgress, fieldedCounts, namesOf, committedLabel, currentBudget, doneFieldingOn, eventView, fieldingSummary, gameHasFielding, iHaveCandidate, majorityNow, rallyCooldownView, rallyReadyAt,
   governmentView, offerView, playerView, reportView, globalReportsView, round1, stageInfo, stateView, who, winsByName,
 } from './views';
 
@@ -431,7 +431,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'field_candidates',
-    description: 'PRE-CAMPAIGN ONLY (games with 3+ players): field a candidate of your party in each of the given seats (ids or names; {all:true} = every seat). A candidate costs money (get_state -> fielding.candidate_cost_wr) and is refunded in full if you withdraw_candidates before the deadline. You can only rally or roadshow in seats where you have a candidate, and a party with NO candidate when the pre-campaign ends is eliminated. Fielding is public and live (get_state fielding, get_seat candidates_here). Seats you already hold are skipped; if the batch costs more than your budget nothing is fielded (INSUFFICIENT_FUNDS). Money you do not spend here is your campaign budget. Fielding clears your done_fielding (call it again when finished). Refused outside the pre-campaign (WRONG_PHASE; a 2-player game has no pre-campaign, every seat is fielded for you). Returns how many were fielded/skipped, your budget and the time left.',
+    description: 'PRE-CAMPAIGN ONLY (games with 3+ players): field a candidate of your party in each of the given seats (ids or names; {all:true} = every seat). A candidate costs money (get_state -> fielding.candidate_cost_wr) and is refunded in full if you withdraw_candidates before the deadline. You can only rally or roadshow in seats where you have a candidate, and a party with NO candidate when the pre-campaign ends is eliminated. Fielding is public and live (get_state fielding, get_seat candidates_here). Seats you already hold are skipped; if the batch costs more than your budget nothing is fielded (INSUFFICIENT_FUNDS). Money you do not spend here is your campaign budget. If done_fielding is on in this game, fielding clears your done (call it again when finished). Refused outside the pre-campaign (WRONG_PHASE; a 2-player game has no pre-campaign, every seat is fielded for you). Returns how many were fielded/skipped, your budget and the time left.',
     schema: z.object({
       seats: z.array(seatRef).max(1000).optional().describe('Seats to field a candidate in (ids or names; at most the number of seats on the map)'),
       all: z.boolean().default(false).describe('Field a candidate in every seat you do not hold yet (instead of listing seats)'),
@@ -441,7 +441,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'withdraw_candidates',
-    description: 'PRE-CAMPAIGN ONLY (games with 3+ players): withdraw your candidate from each of the given seats (ids or names; {all:true} = every seat where you have one). The candidate price is refunded in full. Seats where you have no candidate are skipped. Remember: with no candidates at the end of the pre-campaign you are eliminated, and you cannot campaign in a seat you withdrew from. Withdrawing clears your done_fielding. Returns how many were withdrawn/skipped, your budget and the time left.',
+    description: 'PRE-CAMPAIGN ONLY (games with 3+ players): withdraw your candidate from each of the given seats (ids or names; {all:true} = every seat where you have one). The candidate price is refunded in full. Seats where you have no candidate are skipped. Remember: with no candidates at the end of the pre-campaign you are eliminated, and you cannot campaign in a seat you withdrew from. If done_fielding is on in this game, withdrawing clears your done. Returns how many were withdrawn/skipped, your budget and the time left.',
     schema: z.object({
       seats: z.array(seatRef).max(1000).optional().describe('Seats to withdraw your candidate from (ids or names)'),
       all: z.boolean().default(false).describe('Withdraw from every seat where you have a candidate (you would be left with none)'),
@@ -451,7 +451,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'done_fielding',
-    description: 'PRE-CAMPAIGN ONLY (games with 3+ players): tell everybody you have finished fielding (done defaults to true; {done:false} takes it back). When EVERY connected active party is done the campaign starts at once instead of waiting for the countdown, so call it as soon as you have fielded what you want. Fielding or withdrawing afterwards clears your done (call it again). If you do nothing the countdown still ends the phase. Refused with BAD_REQUEST while you have no candidate (field_candidates first), WRONG_PHASE outside the pre-campaign (a 2-player game has none), FORBIDDEN when eliminated. Returns who is still to finish ("n of m done") and the time left.',
+    description: 'PRE-CAMPAIGN ONLY (games with 3+ players): tell everybody you have finished fielding (done defaults to true; {done:false} takes it back). When EVERY connected active party is done the campaign starts at once instead of waiting for the countdown, so call it as soon as you have fielded what you want. Fielding or withdrawing afterwards clears your done (call it again). If you do nothing the countdown still ends the phase. Refused with BAD_REQUEST while you have no candidate (field_candidates first), WRONG_PHASE outside the pre-campaign (a 2-player game has none), FORBIDDEN when eliminated. Returns who is still to finish ("n of m done") and the time left. Can be switched off in a game (config preCampaign.doneEnabled): then this tool returns FORBIDDEN and the pre-campaign always lasts its full time; get_state -> fielding says so.',
     schema: z.object({
       done: z.boolean().default(true).describe('true = I am done fielding (default); false = take it back'),
     }),
@@ -556,7 +556,7 @@ export const ACTIONS: ActionDef[] = [
       const now = s.client.serverNow();
       const cur = tl ? tl.phaseCloses.findIndex((t) => t > now) : -1;
       return {
-        events: r.events.map((e) => eventView(s, e, dir)),
+        events: r.events.filter((e) => e.type !== 'fieldingDone' || doneFieldingOn(s)).map((e) => eventView(s, e, dir)),
         next_cursor: r.cursor,
         timed_out: r.timedOut,
         hint_state: {
@@ -799,6 +799,7 @@ async function runFielding(s: AgentSession, kind: 'field' | 'withdraw', input: {
 
 async function runDoneFielding(s: AgentSession, done: boolean) {
   needAdmitted(s);
+  if (!doneFieldingOn(s)) throw new AgentError('FORBIDDEN', 'Done fielding is switched off in this game.', 'Done fielding is switched off in this game: the pre-campaign always lasts its full time; use get_state pre_campaign_left_s.');
   const c = s.client;
   const { tl } = preCampaignGuard(s, 'done_fielding', 'say you are done fielding');
   const mine = fieldedCounts(s).get(c.me ?? '') ?? 0;
