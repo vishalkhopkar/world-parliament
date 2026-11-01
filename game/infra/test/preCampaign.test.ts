@@ -1,6 +1,8 @@
 // The pre-campaign in the infrastructure. A game with a pre-campaign starts its state machine with preCampaignEndIso: the execution waits
 // for that time and runs OpenCampaign before the phases. A 2-player game has no such input and skips both. Field and withdraw are named
 // WebSocket routes like the other game actions, and OpenCampaign is a Lambda of its own that the state machine may invoke.
+// When every player presses Done fielding the pre-campaign ends early: the server starts a new execution on the shifted timeline and
+// stops the old one, so every Lambda that can handle a game message may stop executions of the lifecycle state machine.
 import { App, Stack } from 'aws-cdk-lib';
 import { Template } from 'aws-cdk-lib/assertions';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
@@ -67,6 +69,24 @@ describe('the API stack', () => {
   it('has named WebSocket routes for field and withdraw', () => {
     const routes = Object.values(t.findResources('AWS::ApiGatewayV2::Route')).map((r) => (r as { Properties: { RouteKey: string } }).Properties.RouteKey);
     expect(routes).toEqual(expect.arrayContaining(['field', 'withdraw', 'campaign', '$default']));
+  });
+
+  it('has a named WebSocket route for doneFielding', () => {
+    const routes = Object.values(t.findResources('AWS::ApiGatewayV2::Route')).map((r) => (r as { Properties: { RouteKey: string } }).Properties.RouteKey);
+    expect(routes).toContain('doneFielding');
+  });
+
+  it('every Lambda that may start a lifecycle execution may also stop one (StopExecution on the executions of the lifecycle state machine)', () => {
+    type Statement = { Action: string | string[]; Resource: unknown };
+    const policies = Object.values(t.findResources('AWS::IAM::Policy')) as { Properties: { PolicyDocument: { Statement: Statement[] } } }[];
+    const has = (p: (typeof policies)[number], action: string) => p.Properties.PolicyDocument.Statement.filter((s) => [s.Action].flat().includes(action));
+    const starters = policies.filter((p) => has(p, 'states:StartExecution').length);
+    expect(starters.length).toBeGreaterThanOrEqual(9);
+    for (const p of starters) {
+      const stops = has(p, 'states:StopExecution');
+      expect(stops.length).toBe(1);
+      expect(JSON.stringify(stops[0].Resource)).toContain(':execution:hp-dev-game-lifecycle:*');
+    }
   });
 
   it('has the open-campaign Lambda with an error alarm like every other function', () => {

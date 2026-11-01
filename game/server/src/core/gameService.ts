@@ -67,6 +67,24 @@ export function dealCandidateColumns(count: number, columns: number): number[] {
   return pool.slice(0, count);
 }
 
+/**
+ * "Done fielding" in the pre-campaign: `needed` = the connected active players (a disconnected player is in the grace period and does
+ * not block), `doneCount` = how many of them are done. The campaign starts early when they are equal (and someone is connected).
+ */
+function fieldingDoneCounts(players: PlayerRecord[]): { doneCount: number; needed: number } {
+  const needed = players.filter((p) => p.status === 'active' && p.connectionId);
+  return { doneCount: needed.filter((p) => p.doneFielding).length, needed: needed.length };
+}
+
+/** The timeline with every time moved by `by` ms (an early end of the pre-campaign moves all of them by the same amount). */
+function shiftTimeline(t: GameTimeline, by: number): GameTimeline {
+  return {
+    ...(t.preCampaignEnd !== undefined ? { preCampaignEnd: t.preCampaignEnd + by } : {}),
+    campaignStart: t.campaignStart + by, phaseCloses: t.phaseCloses.map((x) => x + by), campaignEnd: t.campaignEnd + by,
+    countingEnd: t.countingEnd + by, postCountingEnd: t.postCountingEnd + by,
+  };
+}
+
 /** nextGameId / nextJoinCode for a game the host played again (LobbyView, GameSnapshot); {} otherwise. */
 function nextGameOf(game: GameRecord): { nextGameId?: string; nextJoinCode?: string } {
   return game.rematchGameId && game.rematchJoinCode ? { nextGameId: game.rematchGameId, nextJoinCode: game.rematchJoinCode } : {};
@@ -515,6 +533,9 @@ export class GameService {
     await this.repo.updatePlayer(gameId, player.playerId, patch);
     if (player.graceSchedule) await this.d.scheduler.cancelGraceCheck(player.graceSchedule).catch(() => undefined);
     if (reactivate && LIVE.has(game.status)) await this.broadcastPlayers(gameId);
+    // a player who now counts for "Done fielding" and did not before (reconnected, or connected for the first time) blocks again
+    const counted = player.status === 'active' && !!player.connectionId;
+    if (!counted && (reactivate || player.status === 'active')) await this.fieldingDoneChanged(gameId, player.playerId);
     return player.playerId;
   }
 
@@ -536,6 +557,8 @@ export class GameService {
       status: 'disconnected', disconnectedAt: now, graceSchedule: name, connectionId: undefined,
     }, { status: 'active' });
     await this.broadcastPlayers(conn.gameId);
+    // a disconnected player no longer blocks "Done fielding": the others may now all be done
+    await this.fieldingDoneChanged(conn.gameId, conn.playerId);
   }
 
   /** Entry point for every client message after $connect. Replies (including errors) are sent through the Notifier. */
@@ -563,6 +586,7 @@ export class GameService {
           break;
         case 'field': await this.field(player, msg.seats, msg.clientRef); break;
         case 'withdraw': await this.withdraw(player, msg.seats, msg.clientRef); break;
+        case 'doneFielding': await this.doneFielding(player, msg.done); break;
         case 'campaign': await this.campaign(player, msg.type, msg.seat, msg.clientRef); break;
         case 'buyReport': await this.buyReport(player, msg.scope, msg.seat); break;
         case 'globalReports': await this.globalReports(player); break;
@@ -593,7 +617,9 @@ export class GameService {
   /**
    * The hello, and what could not fit in it. API Gateway WebSocket messages are limited to 128 KB and the public fielding alone can
    * exceed that (every seat x every party): an oversized hello leaves `snapshot.fielding` empty and is followed at once by one
-   * fieldingUpdate per party. If that is not enough the (cosmetic) per-seat shares late in counting are dropped too.
+   * fieldingUpdate per party. If that is not enough the (cosmetic) per-seat shares late in counting are dropped too. In the
+   * pre-campaign a fieldingDone for the player closes the list: it carries the exact "Done fielding" counts (doneCount, needed),
+   * which the snapshot alone cannot give (who is connected is not public).
    */
   async helloMessages(player: PlayerRecord): Promise<ServerMessage[]> {
     const game = await this.loadGame(player.gameId);
@@ -605,7 +631,7 @@ export class GameService {
         type: 'hello', serverTime: this.now(), features: SERVER_FEATURES,
         snapshot: {
           gameId: game.gameId, mapId: game.mapId, status: game.status, phases: game.phases, timeline: game.timeline,
-          players: members.map(toPublic), news: [], fielding: {}, contestedSeats: 0, majority: majorityOf(0), polledPhases: [], seats: {}, tally: null, offers: [],
+          players: members.map(toPublic), news: [], fielding: {}, fieldingDone: [], contestedSeats: 0, majority: majorityOf(0), polledPhases: [], seats: {}, tally: null, offers: [],
           government: null, result: null, ...nextGameOf(game),
         },
         private: { you: player.playerId, budget: 0, myActions: [], myReports: [] },
@@ -619,6 +645,9 @@ export class GameService {
       if (JSON.stringify(snapshot).length > 100_000) {
         for (const d of Object.values(snapshot.seats)) delete d.shares;
       }
+    }
+    if (game.status === 'preCampaign') {
+      after.push({ type: 'fieldingDone', playerId: player.playerId, done: !!player.doneFielding, ...fieldingDoneCounts(players) });
     }
     return [{
       type: 'hello', serverTime: this.now(), features: SERVER_FEATURES,
@@ -741,7 +770,10 @@ export class GameService {
     return {
       gameId: game.gameId, mapId: game.mapId, status: game.status, phases: game.phases, timeline: game.timeline,
       players: this.sortedPlayers(players).filter((p) => MEMBER.has(p.status)).map(toPublic),
-      news, fielding: this.fieldingOf(game, players), contestedSeats, majority: majorityOf(contestedSeats),
+      news, fielding: this.fieldingOf(game, players),
+      fieldingDone: game.status === 'preCampaign'
+        ? this.sortedPlayers(players).filter((p) => CONTENDER.has(p.status) && p.doneFielding).map((p) => p.playerId) : [],
+      contestedSeats, majority: majorityOf(contestedSeats),
       polledPhases: Array.from({ length: game.closedPhases }, (_, i) => i), seats, tally, offers,
       government: await this.repo.getGovernment(game.gameId),
       result: await this.repo.getResult(game.gameId),
@@ -799,6 +831,68 @@ export class GameService {
     const added = this.fieldedSeats(game, me, res.added);
     await this.d.notifier.sendToPlayer(game.gameId, me.playerId, { type: 'fieldAck', ...ack, budget: res.budget, added, removed: res.removed });
     if (added.length || res.removed.length) await this.announceFielding(game, me.playerId, added, res.removed);
+    if (res.clearedDone) await this.fieldingDoneChanged(game.gameId, me.playerId);
+  }
+
+  /**
+   * "Done fielding" (`done`, default true) or taking it back (false). Refused outside the pre-campaign (WRONG_PHASE, also from the
+   * deadline on), for a player who is not active (FORBIDDEN) and, for done = true, while the player has no candidate (BAD_REQUEST:
+   * pressing it would mean eliminating yourself). Answered to everybody with fieldingDone; the last needed Done starts the campaign.
+   */
+  async doneFielding(player: PlayerRecord, doneIn?: unknown): Promise<void> {
+    if (doneIn !== undefined && typeof doneIn !== 'boolean') throw new GameError('BAD_REQUEST', 'done must be true or false');
+    const done = doneIn ?? true;
+    const game = await this.loadGame(player.gameId);
+    const me = await this.repo.getPlayer(player.gameId, player.playerId);
+    if (!me) throw new GameError('UNAUTHORIZED', 'Unknown player');
+    this.requireContender(me);
+    const closed = new GameError('WRONG_PHASE', 'Done fielding is only for the pre-campaign');
+    if (game.status !== 'preCampaign' || !game.timeline || this.now() >= (game.timeline.preCampaignEnd ?? 0)) throw closed;
+    const noCandidates = new GameError('BAD_REQUEST', 'Field at least one candidate first: a party with no candidates is eliminated when the campaign starts');
+    if (done && !me.fielded?.length) throw noCandidates;
+    switch (await this.repo.setFieldingDone(game.gameId, me.playerId, done)) {
+      case 'wrong_phase': throw closed;
+      case 'inactive': throw new GameError('FORBIDDEN', 'You are not an active player');
+      case 'no_candidates': throw noCandidates;
+      default: break;
+    }
+    await this.fieldingDoneChanged(game.gameId, me.playerId);
+  }
+
+  /**
+   * Pre-campaign only: tell everybody `playerId`'s Done state with the current counts, and start the campaign at once when every
+   * needed player is done. Called on every change of Done and of who is needed (connect, disconnect, elimination).
+   */
+  private async fieldingDoneChanged(gameId: string, playerId: PlayerId): Promise<void> {
+    const game = await this.repo.getGame(gameId);
+    if (!game || game.status !== 'preCampaign') return;
+    const players = await this.repo.listPlayers(gameId);
+    const p = players.find((x) => x.playerId === playerId);
+    const counts = fieldingDoneCounts(players);
+    await this.d.notifier.broadcast(gameId, { type: 'fieldingDone', playerId, done: !!(p && CONTENDER.has(p.status) && p.doneFielding), ...counts });
+    if (counts.needed > 0 && counts.doneCount === counts.needed) await this.startCampaignEarly(game);
+  }
+
+  /**
+   * Everybody needed is done: end the pre-campaign now. Every time of the timeline moves earlier by the time saved (the lead-in to
+   * the campaign start stays, the campaign keeps its full length), written only if the game is still in the pre-campaign with the
+   * same deadline (of concurrent early starts one wins; after the deadline nothing is saved, the timer opens the campaign). Then the
+   * lifecycle is restarted on the new timeline: it opens the campaign at once, and openCampaign's 'status' message gives every client
+   * the new timeline. If the restart fails the old timeline is put back and the pre-campaign runs to its deadline.
+   */
+  private async startCampaignEarly(game: GameRecord): Promise<void> {
+    const old = game.timeline;
+    const end = old?.preCampaignEnd;
+    const now = this.now();
+    if (!old || end === undefined || end <= now) return;
+    const timeline = shiftTimeline(old, now - end);
+    if (!(await this.repo.rescheduleTimeline(game.gameId, timeline, end))) return;
+    try {
+      await this.d.scheduler.restartLifecycle(game.gameId, timeline);
+    } catch (e) {
+      console.error('restarting the lifecycle for an early campaign start failed; keeping the original deadline', game.gameId, e);
+      await this.repo.rescheduleTimeline(game.gameId, old, now).catch(() => false);
+    }
   }
 
   /** Tell everybody what changed, with the contested seats and majority as they now stand. */
@@ -828,6 +922,8 @@ export class GameService {
     const contestedSeats = (contestantsOf({ ...game, status: 'preCampaign' }, players) as SeatContestants).size;
     await this.repo.updateGame(gameId, { contestedSeats, majority: majorityOf(contestedSeats) }, { contestedSeats: undefined });
     game = { ...game, contestedSeats: game.contestedSeats ?? contestedSeats };
+    // "Done fielding" belongs to the pre-campaign
+    for (const p of players) if (p.doneFielding) await this.repo.updatePlayer(gameId, p.playerId, { doneFielding: undefined });
     for (const p of players) {
       if (CONTENDER.has(p.status) && !p.fielded?.length) await this.eliminate(gameId, p.playerId, { keepConnection: true, noEndCheck: true });
     }
@@ -1189,7 +1285,8 @@ export class GameService {
     const game = await this.loadGame(gameId);
     const live = LIVE.has(game.status);
     const ok = await this.repo.updatePlayer(gameId, playerId, {
-      status: 'eliminated', graceSchedule: undefined, ...(opts?.keepConnection ? {} : { connectionId: undefined }), ...(live ? { fielded: undefined } : {}),
+      status: 'eliminated', graceSchedule: undefined, ...(opts?.keepConnection ? {} : { connectionId: undefined }),
+      ...(live ? { fielded: undefined, doneFielding: undefined } : {}),
     });
     if (!ok) return;
     if (live) {
@@ -1228,6 +1325,8 @@ export class GameService {
         await this.finishGame(gameId, true);
         return;
       }
+      // in the pre-campaign the eliminated player no longer blocks "Done fielding"
+      await this.fieldingDoneChanged(gameId, playerId);
       await this.evaluateOffers(gameId);
     }
   }

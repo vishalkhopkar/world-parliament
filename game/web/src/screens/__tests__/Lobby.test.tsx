@@ -19,7 +19,7 @@ function setup(mapId: string, me = 'p1') {
   const lobby: LobbyView = { gameId: 'g1', joinCode: 'HP1234', mapId, phases: 2, status: 'lobby', admissionOpen: true, you: me, players };
   useStore.setState({
     me, gameId: 'g1', joinCode: 'HP1234', lobby,
-    snapshot: { gameId: 'g1', mapId, status: 'lobby', phases: 2, timeline: null, players, news: [], fielding: {}, contestedSeats: 100, majority: 51, polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null },
+    snapshot: { gameId: 'g1', mapId, status: 'lobby', phases: 2, timeline: null, players, news: [], fielding: {}, fieldingDone: [], contestedSeats: 100, majority: 51, polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null },
   });
 }
 

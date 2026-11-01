@@ -8,7 +8,7 @@ import type { RepGainState } from '../state/store';
 import { SMALL_PARTIES } from './tourScript';
 import { FIELD_TASK_SEATS, fieldedByMe } from './tasks';
 
-export type TaskId = 'field' | 'withdraw' | 'committed' | 'rally' | 'cooldown' | 'minorRally' | 'roadshow' | 'govern';
+export type TaskId = 'field' | 'done' | 'withdraw' | 'committed' | 'rally' | 'cooldown' | 'minorRally' | 'roadshow' | 'govern';
 export type TourPhase = 'preCampaign' | 'campaign' | 'counting' | 'result';
 
 export interface PartyRow { id: PlayerId; name: string; seats: number }
@@ -123,14 +123,29 @@ export function buildSteps(startCounting: () => void, startCampaign: () => void 
     },
     {
       id: 'field-seats', phase: 'preCampaign', title: 'Field your candidates', anchor: ['[data-tour="map"]'], enabled: preCampaignOnly,
-      body: () => usesBrush()
-        ? <p>Hold the left mouse button and <b>paint over the map</b> with the brush: every seat it touches gets a candidate, shown as a figure in your colour. Drag with the <b>right</b> button (or Space + drag) to move the map; the wheel zooms. A click without dragging opens the seat's panel instead.</p>
-        : <p><b>Tap a seat</b> to open its panel and press <b>Field</b> to put a candidate there. The seat then shows a figure in your colour.</p>,
+      body: () => (
+        <>
+          {usesBrush()
+            ? <p>Hold the left mouse button and <b>paint over the map</b> with the brush: every seat it touches gets a candidate, shown as a figure in your colour. Drag with the <b>right</b> button (or Space + drag) to move the map; the wheel zooms. A click without dragging opens the seat's panel instead.</p>
+            : <p><b>Tap a seat</b> to open its panel and press <b>Field</b> to put a candidate there. The seat then shows a figure in your colour.</p>}
+          <p>The map shows <b>only your own figures</b>: a seat's panel lists every party standing there.</p>
+        </>
+      ),
       task: {
         id: 'field',
         hint: c => <>{usesBrush() ? 'Paint' : 'Field'} at least {FIELD_TASK_SEATS} seats ({heldNow(c)} so far).</>,
-        done: c => <>{heldNow(c)} seats now have your candidate. Each one cost <b>{c.money(c.cfg.costs.candidate)}</b>, which your budget at the top already shows.</>,
+        done: c => <>{heldNow(c)} seats now have your candidate: a figure in your colour stands on each. Each one cost <b>{c.money(c.cfg.costs.candidate)}</b>, which your budget at the top already shows.</>,
       },
+    },
+    {
+      id: 'field-all', phase: 'preCampaign', title: 'Or field every seat at once', anchor: ['[data-tour="field-all"]'], dim: true, block: true,
+      enabled: preCampaignOnly,
+      body: () => (
+        <>
+          <p>The <b>Field all seats</b> button puts a candidate in <b>every seat you do not hold yet</b> with one click, for the <b>price shown on the button</b>. It is a shortcut to painting.</p>
+          <p>It is all or nothing: if your budget cannot pay for all of it, nothing is fielded. Standing everywhere leaves less for the campaign itself, so most parties paint only where they can win.</p>
+        </>
+      ),
     },
     {
       id: 'candidate-cost', phase: 'preCampaign', title: 'What a candidate costs', anchor: ['[data-tour="hud-budget"]'], dim: true, block: true,
@@ -158,10 +173,26 @@ export function buildSteps(startCounting: () => void, startCampaign: () => void 
       enabled: preCampaignOnly,
       body: c => (
         <>
-          <p>This panel counts every party's candidates, <b>live</b>. The other parties are fielding right now: watch their numbers move.</p>
+          <p>This panel lists every party with its <b>avatar</b> and the number of its candidates, <b>live</b>. The other parties are fielding right now: watch their numbers move. A <b>tick</b> beside a party means it has pressed <b>Done fielding</b>.</p>
           <p>The majority mark moves with them, because it depends on how many seats have at least one candidate{c.snap ? <> (now <b>{c.snap.contestedSeats}</b> seats, so <b>{c.snap.majority}</b> for a majority)</> : null}.</p>
         </>
       ),
+    },
+    {
+      id: 'done-fielding', phase: 'preCampaign', title: 'Done fielding', anchor: ['[data-tour="done-fielding"]'], enabled: preCampaignOnly,
+      body: () => (
+        <>
+          <p>When you have fielded the candidates you want, press <b>Done fielding</b>. The campaign starts <b>as soon as every party has pressed it</b>; otherwise it starts when the countdown ends.</p>
+          <p>Everybody sees a tick beside your party. You can <b>take it back</b> with the same button, and fielding or withdrawing a candidate takes it back too.</p>
+        </>
+      ),
+      task: {
+        id: 'done',
+        hint: c => heldNow(c) === 0 ? <>Field at least one seat first, then press Done fielding.</> : <>Press Done fielding.</>,
+        done: c => (
+          <>You are done: <b>{c.snap?.fieldingDone?.length ?? 1}</b> of <b>{c.playerCount}</b> parties are done so far. In this practice game the rivals press it one after another, and the tour then waits for you before the campaign starts.</>
+        ),
+      },
     },
     {
       id: 'precampaign-chat', phase: 'preCampaign', title: 'Talk to the other parties', anchor: ['[data-tour="precampaign-chat"]'], dim: true, block: true,
@@ -186,7 +217,7 @@ export function buildSteps(startCounting: () => void, startCampaign: () => void 
     {
       id: 'to-campaign', phase: 'preCampaign', title: 'On to the campaign', dim: true, block: true, enabled: preCampaignOnly,
       body: c => (
-        <p>In a real game the clock ends the pre-campaign. Here, press <b>Next</b>: the tour <b>fields candidates for you</b> in every seat you have not fielded yourself, paying <b>{c.money(c.cfg.costs.candidate)}</b> for each, so that you can campaign anywhere. Then the campaign begins.</p>
+        <p>In a real game the campaign starts as soon as every party has pressed Done fielding, or when the clock ends the pre-campaign. Here, press <b>Next</b>: the tour <b>fields candidates for you</b> in every seat you have not fielded yourself, paying <b>{c.money(c.cfg.costs.candidate)}</b> for each, so that you can campaign anywhere. Then the campaign begins.</p>
       ),
       action: { label: 'Next', run: startCampaign },
     },

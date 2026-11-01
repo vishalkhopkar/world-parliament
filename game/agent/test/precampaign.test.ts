@@ -542,3 +542,145 @@ describe('rules, README, prompts and the tool list', () => {
     void P;
   });
 });
+
+// ------------------------------------------------------------------ Done fielding (early start)
+// Rules under test: when the pre-campaign has begun a party that has fielded what it wants says so with done_fielding; the campaign starts at
+// once when every connected active party is done (server side). A party with no candidate cannot be done; fielding or withdrawing clears it;
+// {done:false} takes it back; it is refused outside the pre-campaign and in a 2-player game; fieldingDone events stay out of wait_for_events by default.
+describe('done_fielding: finishing the pre-campaign early', () => {
+  it('a party with a candidate can say it is done: the answer says "n of m done" who is still awaited, and the state shows it', async () => {
+    const { s, calls } = pre();
+    await ok(s, 'field_candidates', { seats: [1] });
+    const r = await ok(s, 'done_fielding');
+    expect(calls.done).toEqual([[true]]);
+    expect(r).toMatchObject({ ok: true, done: true, done_count: 1, needed: 4, progress: '1 of 4 done', your_candidates: 1 });
+    expect(r.waiting_for).not.toContain('Party Claude');
+    expect(r.waiting_for).toHaveLength(3);
+    expect(r.pre_campaign_left_s).toBeGreaterThan(0);
+    const f = (await ok(s, 'get_state')).fielding;
+    expect(f).toMatchObject({ you_are_done: true, done_count: 1, needed: 4 });
+    expect(f.done['Party Claude']).toBe(true);
+    expect(Object.values(f.done).filter(Boolean)).toHaveLength(1);
+  });
+
+  it('done_fielding with done:false takes it back', async () => {
+    const { s } = pre();
+    await ok(s, 'field_candidates', { seats: [1] });
+    await ok(s, 'done_fielding');
+    const r = await ok(s, 'done_fielding', { done: false });
+    expect(r).toMatchObject({ done: false, done_count: 0 });
+    expect((await ok(s, 'get_state')).fielding.you_are_done).toBe(false);
+  });
+
+  it('a party with no candidate cannot be done: BAD_REQUEST with the hint to field first, and nothing is sent', async () => {
+    const { s, calls } = pre();
+    const e = await err(s, 'done_fielding');
+    expect(e.code).toBe('BAD_REQUEST');
+    expect(e.hint).toMatch(/field_candidates/);
+    expect(calls.done).toBeUndefined();
+  });
+
+  it('fielding or withdrawing afterwards clears my done (the fieldingUpdate says so), so the party must say it again', async () => {
+    const { s } = pre();
+    await ok(s, 'field_candidates', { seats: [1] });
+    await ok(s, 'done_fielding');
+    await ok(s, 'field_candidates', { seats: [2] });
+    expect((await ok(s, 'get_state')).fielding).toMatchObject({ you_are_done: false, done_count: 0 });
+    await ok(s, 'done_fielding');
+    await ok(s, 'withdraw_candidates', { seats: [2] });
+    expect((await ok(s, 'get_state')).fielding.you_are_done).toBe(false);
+  });
+
+  it('field_candidates {all:true} fields every seat I do not hold and clears my done', async () => {
+    const { s } = pre({ budget: cfg.budget });
+    await ok(s, 'field_candidates', { seats: [1] });
+    await ok(s, 'done_fielding');
+    const r = await ok(s, 'field_candidates', { all: true });
+    expect(r.fielded).toBe(cfg.seatCount - 1);
+    expect((await ok(s, 'get_state')).fielding.you_are_done).toBe(false);
+    expect(ACTION_BY_NAME.get('field_candidates')!.description).toMatch(/done_fielding/);
+  });
+
+  it('it is refused outside the pre-campaign: before the game starts, in the campaign, and in a 2-player game (which has no pre-campaign)', async () => {
+    const lobby = mk({ status: 'lobby' });
+    expect((await err(lobby.s, 'done_fielding')).code).toBe('WRONG_PHASE');
+    const camp = pre({ status: 'campaign' });
+    expect((await err(camp.s, 'done_fielding')).code).toBe('WRONG_PHASE');
+    const two = mk();
+    const e = await err(two.s, 'done_fielding');
+    expect(e.code).toBe('WRONG_PHASE');
+    expect(e.message).toMatch(/2-player/);
+    expect(two.calls.done).toBeUndefined();
+  });
+
+  it('an eliminated party cannot say it is done (FORBIDDEN)', async () => {
+    const players = players4().map((p) => (p.playerId === 'me' ? { ...p, status: 'eliminated' as const } : p));
+    const { s } = pre({ players, fielding: { 1: [cand('me', 1)] } });
+    expect((await err(s, 'done_fielding')).code).toBe('FORBIDDEN');
+  });
+
+  it('a fieldingDone message updates the list and the counts, and is logged as a fieldingDone event', async () => {
+    const { s } = pre();
+    push(s, { type: 'fieldingDone', playerId: 'c', done: true, doneCount: 1, needed: 4 });
+    push(s, { type: 'fieldingDone', playerId: 'd', done: true, doneCount: 2, needed: 4 });
+    expect(s.client.state.snapshot!.fieldingDone).toEqual(['c', 'd']);
+    const f = (await ok(s, 'get_state')).fielding;
+    expect(f).toMatchObject({ done_count: 2, needed: 4, you_are_done: false });
+    expect(f.done).toMatchObject({ 'Party Codex': true, 'Party Dev': true, 'Party Claude': false });
+    push(s, { type: 'fieldingDone', playerId: 'c', done: false, doneCount: 1, needed: 4 });
+    expect(s.client.state.snapshot!.fieldingDone).toEqual(['d']);
+    const evs = s.client.events.since(0, { types: ['fieldingDone'] }).events;
+    expect(evs.map((e) => e.data.doneCount)).toEqual([1, 2, 1]);
+  });
+
+  it('another party fielding or withdrawing clears that party done in my view', () => {
+    const { s } = pre();
+    push(s, { type: 'fieldingDone', playerId: 'c', done: true, doneCount: 1, needed: 4 });
+    push(s, { type: 'fieldingUpdate', playerId: 'c', added: [{ seat: 9 }], removed: [], contestedSeats: 1, majority: 1 });
+    expect(s.client.state.snapshot!.fieldingDone).toEqual([]);
+    expect(s.client.state.fieldingProgress).toEqual({ doneCount: 0, needed: 4 });
+  });
+
+  it('fieldingDone events are excluded from wait_for_events by default and returned when asked for via types', async () => {
+    const { s } = pre();
+    push(s, { type: 'fieldingDone', playerId: 'c', done: true, doneCount: 1, needed: 4 });
+    expect(EVENT_TYPES).toContain('fieldingDone');
+    const byDefault = await ok(s, 'wait_for_events', { since_cursor: 0, timeout_s: 0 });
+    expect(byDefault.events.some((e: any) => e.type === 'fieldingDone')).toBe(false);
+    const asked = await ok(s, 'wait_for_events', { since_cursor: 0, timeout_s: 0, types: ['fieldingDone'] });
+    expect(asked.events[0]).toMatchObject({ type: 'fieldingDone', party: 'Party Codex', done: true, done_count: 1, needed: 4 });
+  });
+
+  it('the status change to the campaign clears the done list (it only exists in the pre-campaign)', () => {
+    const { s } = pre();
+    push(s, { type: 'fieldingDone', playerId: 'c', done: true, doneCount: 1, needed: 4 });
+    push(s, { type: 'status', status: 'campaign', timeline: s.client.state.snapshot!.timeline! });
+    expect(s.client.state.snapshot!.fieldingDone).toEqual([]);
+    expect(s.client.state.fieldingProgress).toBeNull();
+  });
+
+  it('get_state advises calling done_fielding during the pre-campaign, and the rules, README, AGENTS, instructions and prompt all mention it', async () => {
+    const { s } = pre();
+    expect((await ok(s, 'get_state')).advice.join(' ')).toMatch(/done_fielding/);
+    const readme = readFileSync(fileURLToPath(new URL('../README.md', import.meta.url)), 'utf8');
+    const agents = readFileSync(fileURLToPath(new URL('../../../AGENTS.md', import.meta.url)), 'utf8');
+    for (const [what, text] of [['RULES', rulesTemplate()], ['README', readme], ['AGENTS', agents], ['instructions', SERVER_INSTRUCTIONS], ['prompt', PLAY_PROMPT()]] as const) {
+      expect(text, what).toContain('done_fielding');
+    }
+    expect(rulesTemplate()).toMatch(/Done fielding/);
+  });
+
+  it('the MCP server lists done_fielding, and it is not read-only', () => {
+    const { s } = pre();
+    const tools = Object.keys((createMcpServer(s) as any)._registeredTools ?? {});
+    expect(tools).toContain('done_fielding');
+    expect(ACTION_BY_NAME.get('done_fielding')!.readOnly).toBeFalsy();
+  });
+
+  it('a hello from a server that sends no fieldingDone still works (empty list)', async () => {
+    const { s } = pre();
+    delete (s.client.state.snapshot as any).fieldingDone;
+    const f = (await ok(s, 'get_state')).fielding;
+    expect(f).toMatchObject({ done_count: 0, you_are_done: false });
+  });
+});

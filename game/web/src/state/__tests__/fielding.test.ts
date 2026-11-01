@@ -4,7 +4,7 @@ import type { GameSnapshot, PrivateState } from '@hp/shared';
 import { currentScreen, useStore } from '../store';
 
 const snap = (over: Partial<GameSnapshot> = {}): GameSnapshot => ({
-  gameId: 'g', mapId: 'world-500', status: 'preCampaign', phases: 1, timeline: null, players: [], news: [], fielding: {}, contestedSeats: 0, majority: 1,
+  gameId: 'g', mapId: 'world-500', status: 'preCampaign', phases: 1, timeline: null, players: [], news: [], fielding: {}, fieldingDone: [], contestedSeats: 0, majority: 1,
   polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null, ...over,
 });
 const priv: PrivateState = { you: 'a', budget: 1000, myActions: [], myReports: [] };

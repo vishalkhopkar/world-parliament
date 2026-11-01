@@ -54,6 +54,8 @@ export interface TourOptions {
   fieldEveryMs?: number;
   /** How many rounds the rivals take to field all their candidates (default 10). */
   fieldRounds?: number;
+  /** Real time between two rivals pressing "Done fielding" once you have (default 1.5 s). */
+  doneEveryMs?: number;
   seed?: string;
 }
 
@@ -86,6 +88,12 @@ interface TourGame {
   fielding: Map<SeatId, FieldedCandidate[]>;
   /** The field / withdraw requests already applied, by clientRef (so a repeat changes nothing). */
   fieldRefs: Map<string, { added: FieldedSeat[]; removed: SeatId[] }>;
+  /** Players who pressed "Done fielding" and have not changed anything since (pre-campaign only). */
+  fieldingDone: Set<PlayerId>;
+  /** Rivals (party index) that have fielded all their candidates: only they press Done. */
+  rivalsFielded: Set<number>;
+  /** A rival is due to press Done soon (one timer at a time, so they do it in turn). */
+  rivalDonePending: boolean;
   actions: Action[];
   news: NewsItem[];
   committedSet: CommittedSet;
@@ -111,12 +119,12 @@ export class TourTransport implements Transport {
   private onMessage: ((m: ServerMessage) => void) | null = null;
   private timers = new Set<ReturnType<typeof setTimeout>>();
   private ticker: ReturnType<typeof setInterval> | null = null;
-  private opts: Required<Pick<TourOptions, 'revealMs' | 'resumeMs' | 'botRallyAt' | 'fieldEveryMs' | 'fieldRounds'>> & TourOptions;
+  private opts: Required<Pick<TourOptions, 'revealMs' | 'resumeMs' | 'botRallyAt' | 'fieldEveryMs' | 'fieldRounds' | 'doneEveryMs'>> & TourOptions;
   private rng: Rng;
   private uidN = 0;
 
   constructor(opts: TourOptions = {}) {
-    this.opts = { revealMs: 20_000, resumeMs: 9_000, botRallyAt: BOT_RALLIES, fieldEveryMs: 2_500, fieldRounds: 10, ...opts };
+    this.opts = { revealMs: 20_000, resumeMs: 9_000, botRallyAt: BOT_RALLIES, fieldEveryMs: 2_500, fieldRounds: 10, doneEveryMs: 1_500, ...opts };
     this.rng = createRng(opts.seed ?? 'hung-parliament-tour');
     useTour.getState().register({ startCounting: () => this.startCounting(), startCampaign: () => this.startCampaign() });
   }
@@ -157,7 +165,7 @@ export class TourTransport implements Transport {
       gameId: g.gameId, mapId: g.pkg.mapId, status: g.status, phases: 1, timeline: g.timeline,
       players: structuredClone(g.players), news: [...g.news],
       fielding: Object.fromEntries([...g.fielding].filter(([, l]) => l.length > 0).map(([seat, l]) => [seat, structuredClone(l)])),
-      contestedSeats, majority: majorityOf(contestedSeats), polledPhases: [], seats: { ...g.seats },
+      fieldingDone: [...g.fieldingDone], contestedSeats, majority: majorityOf(contestedSeats), polledPhases: [], seats: { ...g.seats },
       tally: g.tally ? structuredClone(g.tally) : null, offers: structuredClone(g.offers), government: g.government, result: g.result,
     };
   }
@@ -230,7 +238,7 @@ export class TourTransport implements Transport {
     };
     this.g = {
       gameId: 'tour_' + this.uid('g'), pkg, kernels, cfg, n, status: 'preCampaign', timeline, players, budget: cfg.budget,
-      fielding: new Map(), fieldRefs: new Map(), actions: [],
+      fielding: new Map(), fieldRefs: new Map(), fieldingDone: new Set(), rivalsFielded: new Set(), rivalDonePending: false, actions: [],
       news: [], committedSet, truth, trueShares: {}, seats: {}, tally: null, offers: [], government: null, plan: null, planIdx: 0,
       vt: 0, lastTick: now, paused: false, released: false, result: null,
     };
@@ -261,6 +269,7 @@ export class TourTransport implements Transport {
       perRound.forEach((seats, r) => this.later(() => {
         if (this.g !== g || g.status !== 'preCampaign') return;
         this.addCandidates(g, this.pid(party), seats);
+        if (r === perRound.length - 1) { g.rivalsFielded.add(party); this.pumpRivalDone(g); }
       }, this.opts.fieldEveryMs * (r + 1) + party * 150));
     }
   }
@@ -335,6 +344,7 @@ export class TourTransport implements Transport {
       case 'campaign': this.handleCampaign(g, msg, err); break;
       case 'field': this.handleField(g, msg, err, true); break;
       case 'withdraw': this.handleField(g, msg, err, false); break;
+      case 'doneFielding': this.handleDone(g, msg, err); break;
       case 'buyReport': err('BAD_REQUEST', 'Analyst reports are not part of the tour'); break;
       case 'globalReports': this.handleGlobalReports(g, err); break;
       case 'peekSeat': this.handlePeek(g, msg, err); break;
@@ -414,7 +424,44 @@ export class TourTransport implements Transport {
     }
     if (msg.clientRef) g.fieldRefs.set(msg.clientRef, { added, removed });
     this.emit({ type: 'fieldAck', clientRef: msg.clientRef, ok: true, budget: g.budget, added, removed });
-    if (added.length || removed.length) this.announceFielding(g, TOUR_ME_ID, added, removed);
+    if (added.length || removed.length) {
+      this.announceFielding(g, TOUR_ME_ID, added, removed);
+      this.setDone(g, TOUR_ME_ID, false); // changing your candidates takes your Done back
+    }
+  }
+
+  // ---- pre-campaign: Done fielding
+  /** Sets one party's Done (nothing is sent when it does not change) and tells everybody with the new count. */
+  private setDone(g: TourGame, who: PlayerId, done: boolean) {
+    if (g.fieldingDone.has(who) === done) return;
+    if (done) g.fieldingDone.add(who); else g.fieldingDone.delete(who);
+    this.emit({ type: 'fieldingDone', playerId: who, done, doneCount: g.fieldingDone.size, needed: g.players.length });
+    if (done && who === TOUR_ME_ID) this.pumpRivalDone(g);
+  }
+  /** `doneFielding`: same rules as the server. The practice game does not start the campaign by itself when everybody is done. */
+  private handleDone(g: TourGame, msg: Msg<'doneFielding'>, err: ErrFn) {
+    if (g.status !== 'preCampaign') return err('WRONG_PHASE', 'Done fielding only applies before the campaign', msg.clientRef);
+    const done = msg.done !== false;
+    const mine = [...g.fielding.values()].some(l => l.some(c => c.playerId === TOUR_ME_ID));
+    if (done && !mine) return err('BAD_REQUEST', 'Field at least one candidate before you press Done', msg.clientRef);
+    this.setDone(g, TOUR_ME_ID, done);
+  }
+  /**
+   * Once you are done, the rivals press Done one after another (every doneEveryMs), each only after it has fielded everything it
+   * will. Taking your Done back stops them; the ones who already pressed stay done.
+   */
+  private pumpRivalDone(g: TourGame) {
+    if (g.rivalDonePending || this.g !== g || g.status !== 'preCampaign' || !g.fieldingDone.has(TOUR_ME_ID)) return;
+    const waiting = () => PARTY_IDS.map((_, i) => i).filter(i => i > 0 && !g.fieldingDone.has(this.pid(i)));
+    if (!waiting().length) return;
+    g.rivalDonePending = true;
+    this.later(() => {
+      g.rivalDonePending = false;
+      if (this.g !== g || g.status !== 'preCampaign' || !g.fieldingDone.has(TOUR_ME_ID)) return;
+      const next = waiting().find(i => g.rivalsFielded.has(i));
+      if (next !== undefined) this.setDone(g, this.pid(next), true);
+      this.pumpRivalDone(g);
+    }, this.opts.doneEveryMs);
   }
 
   /** End of the pre-campaign: the tour fields everything you have not (charging it), then the rivals' rest, and opens the campaign. */
@@ -426,6 +473,7 @@ export class TourTransport implements Transport {
     g.budget -= mine.length * g.cfg.costs.candidate; // = fullyFieldedBudget(cfg) once every seat is yours
     for (let i = 1; i < PARTY_IDS.length; i++) this.addCandidates(g, this.pid(i), everySeat);
     g.status = 'campaign';
+    g.fieldingDone.clear(); // Done only means something in the pre-campaign
     const now = Date.now();
     g.timeline = {
       ...g.timeline, preCampaignEnd: now, campaignStart: now - 1_000, phaseCloses: [now + FAR_MS], campaignEnd: now + FAR_MS,

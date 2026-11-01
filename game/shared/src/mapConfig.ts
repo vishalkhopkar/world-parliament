@@ -174,8 +174,9 @@ export interface MapConfig {
   /**
    * What players see: a party's own reputation in a seat is shown as round(engine reputation x reputationScale).
    * `brushRadiusPx` = radius in screen pixels of the paint brush that fields candidates in the pre-campaign.
+   * `fieldingSmoke` = show the floating -cost / +cost smoke when a candidate is fielded / withdrawn (off for now).
    */
-  display: { reputationScale: number; brushRadiusPx: number };
+  display: { reputationScale: number; brushRadiusPx: number; fieldingSmoke: boolean };
   phases: { min: number; max: number; default: number };
   durations: {
     /** The pre-campaign phase (games with 3+ players only, see hasPreCampaign). */
@@ -297,6 +298,7 @@ export function validateConfig(cfg: MapConfig): void {
   pct('voting.randomMaxPercent', cfg.voting?.randomMaxPercent);
   num('display.reputationScale', cfg.display?.reputationScale, 0, true);
   num('display.brushRadiusPx', cfg.display?.brushRadiusPx, 0, true);
+  if (typeof cfg.display?.fieldingSmoke !== 'boolean') bad('display.fieldingSmoke', `must be true or false (got ${String(cfg.display?.fieldingSmoke)})`);
   if (!Array.isArray(cfg.committed?.bands)) bad('committed.bands', 'must be a list');
   cfg.committed.bands.forEach((b, i) => {
     pct(`committed.bands.${i + 1}.percent`, b?.percent);

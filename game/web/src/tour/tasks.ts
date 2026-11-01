@@ -41,6 +41,9 @@ export function taskDone(id: TaskId, s: TaskInput): boolean {
       return !!s.priv?.myActions.some(a => a.type === 'minorRally');
     case 'field':
       return fieldedByMe(s.snapshot, s.priv?.you) >= FIELD_TASK_SEATS;
+    case 'done':
+      // your own Done is listed (a rival's does not count)
+      return !!s.priv?.you && !!s.snapshot?.fieldingDone?.includes(s.priv.you);
     case 'withdraw':
       return (s.peakFielded ?? 0) > 0 && fieldedByMe(s.snapshot, s.priv?.you) < (s.peakFielded ?? 0);
     case 'govern':

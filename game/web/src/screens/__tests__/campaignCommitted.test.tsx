@@ -15,7 +15,7 @@ const pl = (id: string, colour: string): PlayerPublic => ({ playerId: id, nickna
 const snap = (over: Partial<GameSnapshot> = {}): GameSnapshot => ({
   gameId: 'g', mapId: 'world-500', status: 'campaign', phases: 1,
   timeline: { campaignStart: 0, phaseCloses: [Date.now() + 1e5], campaignEnd: Date.now() + 1e5, countingEnd: Date.now() + 2e5, postCountingEnd: Date.now() + 3e5 },
-  players: [pl('a', '#1F5FBF'), pl('b', '#E8710A')], news: [], fielding: { 3: [{ playerId: 'a' }], 4: [{ playerId: 'a' }] }, contestedSeats: 2, majority: 2, polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null, ...over,
+  players: [pl('a', '#1F5FBF'), pl('b', '#E8710A')], news: [], fielding: { 3: [{ playerId: 'a' }], 4: [{ playerId: 'a' }] }, fieldingDone: [], contestedSeats: 2, majority: 2, polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null, ...over,
 });
 const priv = (committed?: PrivateState['committed']): PrivateState => ({ you: 'a', budget: 100, myActions: [], myReports: [], committed });
 const setup = (p: PrivateState, polled: number[] = []) =>

@@ -3,8 +3,8 @@
 **One command: `npm run test:e2e`** (from `game/`). It runs everything below with no manual server handling:
 
 1. `e2e/bots.ts` for **2 players and 3 players in parallel**, each against its own freshly started dev server on a free port
-   (pre-campaign 15 s for 3+ players, campaign 45 s, counting 20 s, post-counting 15 s, lead-in 2 s) - about 90 s;
-2. `e2e/browser.ts` (headless Chrome through the real UI; it starts its own dev server on :8787 and Vite on :5173, so both ports must be free, or set `E2E_API_PORT` / `E2E_WEB_PORT`; pre-campaign 45 s) - about 130 s.
+   (pre-campaign 30 s for 3+ players, campaign 45 s, counting 20 s, post-counting 15 s, lead-in 2 s) - about 90 s;
+2. `e2e/browser.ts` (headless Chrome through the real UI; it starts its own dev server on :8787 and Vite on :5173, so both ports must be free, or set `E2E_API_PORT` / `E2E_WEB_PORT`; pre-campaign 40 s) - about 140 s.
 
 `scripts/e2e.ts` starts and stops only the processes it started (by PID, whole process tree; never by image name) and exits 0 only
 if everything passed. Options: `--players=2,3`, `--phases=2`, `--skip-bots`, `--skip-browser`; env `CHROME_PATH` (auto-detected:
@@ -33,6 +33,14 @@ rally or roadshow in a vacant seat is `NOT_FIELDED` and free. A separate 3-party
 nothing (it fields a seat and withdraws it for a refund) is eliminated at the deadline, stays connected, can chat but not act (`FORBIDDEN`), the contested
 seats / majority follow what the others fielded, and the game does not end. A 2-player game has no pre-campaign: it starts in `campaign` on
 `fullyFieldedBudget(CFG)` with every seat fielded by both parties (`fieldingUpdate` per party), and Play again lands in `preCampaign` (3+) or `campaign` (2).
+**Done fielding** (3+ players): `doneFielding {done?}` is `BAD_REQUEST` with no candidate (and for a non-boolean `done`), is answered to everybody with
+`fieldingDone {playerId, done, doneCount, needed}` (`needed` = connected active players), is revocable (`done:false`), and is cleared (`done:false` broadcast) by a
+`field` / `withdraw` that changes something. A reconnect's `hello` (whose `snapshot.fieldingDone` lists the done players) is followed by a `fieldingDone` of that
+player. Scenario 1 (main game): all but the last bot press Done (one revokes and presses again): the campaign must NOT open; the last Done opens it within
+seconds with `status campaign` carrying a timeline moved earlier as a whole (campaignStart far before the old one, preCampaignEnd = now, campaign end / phase
+closes / counting / post-counting all shifted by the same amount, the campaign keeps its length), budgets and fielding intact; a Done in the campaign is
+`WRONG_PHASE` (also in a 2-player game). Scenario 2 (the elimination game): two of three press Done but the third has no candidate and cannot (`BAD_REQUEST`), so
+the deadline still ends the phase with the original timeline.
 The minor rally has no cooldown (two in a row, and right after a rally, are acked), costs `costs.minorRally`, and never reaches the news or another
 player's messages (the raw-string leak check covers `minorRally` like `roadshow`).
 
@@ -49,7 +57,7 @@ only `cooldowns.rallyMs` after their previous accepted rally; roadshows and mino
 plays roadshows in between, so every action is acked. Each bot's first rally is followed at once by a second one, which `bots.ts` asserts is `RATE_LIMITED` with a `retryAt` about `cooldowns.rallyMs` ahead.
 Bot 0's pre-drain stream plays roadshows only, so its final "rally with an empty purse" still gets `INSUFFICIENT_FUNDS` (the cooldown
 check would come first if it had rallied within the cooldown). `player2.ts` follows the same pacing (a rally every ~5th action but never
-inside the cooldown; with 3+ players it first fields every seat). The browser test clicks one rally then one roadshow per party; the UI shows the rally button as a cooldown after use.
+inside the cooldown; with 3+ players it first fields every seat and then presses Done fielding). The browser test clicks one rally then one roadshow per party; the UI shows the rally button as a cooldown after use.
 
 ```bash
 # terminal 1: local server with a short game (pre-campaign 15 s, campaign 45 s, counting 20 s, post-counting 15 s)
@@ -72,7 +80,7 @@ costs and points come from `WORLD_CONFIG`, so run it against a server using the 
 ## 2. Browser test (`browser.ts`) - the real UI
 
 Starts its own dev server (:8787, short timings) and Vite (:5173) as child processes, opens three headless-Chrome contexts
-and plays a game through the UI with `?server=local` (create / join / admit / party / start, then the **pre-campaign**: real mouse strokes paint candidates (brush cursor, red -50 smoke, figures, live counts and budget), a click on a fielded seat opens the panel, Withdraw (green +50 smoke) and Field switch it while it stays open, a one-to-one chat that only the recipient reads, the chat filling the side panel, a phone context (touch: no brush, tap a seat, Field), a reload back into the pre-campaign; then the campaign with seats the party fielded only (a seat without a candidate is dimmed and its actions say "No candidate here"; minor rally, roadshow, major rally checked through the budget, minor rally not in the news, the My actions panel hidden), rallies, roadshows, reports,
+and plays a game through the UI with `?server=local` (create / join / admit / party / start, then the **pre-campaign**: the right-panel rows are avatar + name + tick + count with no stick figure, Done fielding is disabled with a reason while the party has no candidate, real mouse strokes paint candidates (brush cursor, figures, live counts and budget; no -/+ smoke element ever appears because `display.fieldingSmoke` is off), a click on a fielded seat opens the panel, Withdraw and Field switch it while it stays open, a one-to-one chat that only the recipient reads, the chat filling the side panel, a phone context (touch: no brush, tap a seat, Field), a reload back into the pre-campaign, **Field all seats** in each tab (one click, budget follows, each map shows exactly its own player's figures and never a rival's), **Done fielding**: tick on the others' screens, "n of m done", revoke, field-after-Done and withdraw-after-Done clear the tick, the campaign waits while one tab is not done and then opens within seconds of the last Done (HUD shows the campaign with most of the pre-campaign still left); then the campaign with seats the party fielded only (a seat without a candidate is dimmed and its actions say "No candidate here"; minor rally, roadshow, major rally checked through the budget, minor rally not in the news, the My actions panel hidden), rallies, roadshows, reports,
 page reload rejoin, campaign-phase group chat with an @ tag (the tagged party sees its tag highlighted), counting with one-to-one chats (a message reaches only its recipient), an all-parties offer blocked by the UI (Send disabled + "At least one party must stay out of the government."), a two-party coalition offer (the third party stays in opposition) once every seat is declared, accept, and the Result screen ("Coalition government") that replaces the Counting screen at once). Only the processes it started are killed.
 
 ```bash
@@ -82,7 +90,7 @@ VERBOSE=1 npx tsx e2e/browser.ts  # also print server / vite output
 CHROME_PATH="C:/Program Files/Google/Chrome/Application/chrome.exe" npx tsx e2e/browser.ts
 ```
 
-Screenshots go to `e2e/shots/` (git-ignored): `01-home`, `02-lobby-admin`, ... `05a-precampaign-painted`, `05b-precampaign-panel`, `05c-precampaign-phone`, `08c-counting-chat-phone`, `09a-offer-everyone-blocked`, `09-offer`, `09b-offer-phone`, `11-result-admin`, `12-result-c`, `13-play-again-admin` (there is no longer a "Government formed" shot: the game finishes immediately); Play again lands everybody in a fresh pre-campaign where they field again;
+Screenshots go to `e2e/shots/` (git-ignored): `01-home`, `02-lobby-admin`, ... `05a-precampaign-painted`, `05b-precampaign-panel`, `05c-precampaign-phone`, `08c-counting-chat-phone`, `09a-offer-everyone-blocked`, `09-offer`, `09b-offer-phone`, `11-result-admin`, `12-result-c`, `05d-precampaign-done`, `13-play-again-admin` (there is no longer a "Government formed" shot: the game finishes immediately); Play again lands everybody in a fresh pre-campaign (Done cleared) where they field again and only one presses Done, so the deadline (timer path) opens that campaign;
 `fail-A/B/C.png` are written when a step fails.
 
 ## Web app against a server by hand

@@ -20,7 +20,7 @@ const pl = (id: string, n: string): PlayerPublic => ({ playerId: id, nickname: n
 const players = [pl('p1', 'Asha'), pl('p2', 'Ben'), pl('p3', 'Chitra')];
 const snap = (mapId: string): GameSnapshot => ({
   gameId: 'g', mapId, status: 'campaign', phases: 2, timeline: null,
-  players, news: [], fielding: { 1: [{ playerId: 'p1' }], 2: [{ playerId: 'p1' }] }, contestedSeats: 30, majority: 16, polledPhases: [], seats: {}, tally: { leads: {}, wins: { p1: 10, p2: 10, p3: 10 }, declared: 0, total: 30 }, offers: [], government: null, result: null,
+  players, news: [], fielding: { 1: [{ playerId: 'p1' }], 2: [{ playerId: 'p1' }] }, fieldingDone: [], contestedSeats: 30, majority: 16, polledPhases: [], seats: {}, tally: { leads: {}, wins: { p1: 10, p2: 10, p3: 10 }, declared: 0, total: 30 }, offers: [], government: null, result: null,
 });
 const priv: PrivateState = { you: 'p1', budget: 90_000, myActions: [], myReports: [] };
 

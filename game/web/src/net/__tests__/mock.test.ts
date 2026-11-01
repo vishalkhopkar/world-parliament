@@ -545,3 +545,181 @@ describe('mock transport pre-campaign', () => {
     expect(hello.private.budget).toBe(g.players.get(me)!.budget);
   });
 });
+
+// ---- Done fielding (3 or more players)
+// Rule: like the real server, "Done fielding" is refused while you have no candidate (BAD_REQUEST) and outside the pre-campaign
+// (WRONG_PHASE), is public (fieldingDone with doneCount of needed, and in the snapshot), can be taken back, and is cleared by
+// fielding or withdrawing. The bots press it a few seconds apart once they have finished fielding. When every active player is
+// done the campaign opens at once on the same path as the deadline, with the whole timeline moved earlier by the time saved.
+describe('mock transport Done fielding', () => {
+  type Done = {
+    g: Pre['g'] & { fieldingDone: Set<string>; nextBotDone: number; botPlans: Map<string, number[]>; nextBotRally: number;
+      timeline: { preCampaignEnd?: number; campaignStart: number; phaseCloses: number[]; campaignEnd: number; countingEnd: number; postCountingEnd: number } };
+  };
+  const dg = () => (t as unknown as Done).g;
+  const doneMsgs = (got: Got) => kinds(got, 'fieldingDone') as unknown as Array<{ playerId: string; done: boolean; doneCount: number; needed: number }>;
+  /** Lets the bots field everything they plan (the phase is far enough along) and press Done, as fast as the spacing allows. */
+  async function botsFinish(g: Done['g'], bots: string[]) {
+    g.preStart -= 10 * 60 * 1000;
+    for (let i = 0; i < 12 && !bots.every(b => g.fieldingDone.has(b)); i++) { g.nextBotDone = 0; priv().tick(); }
+    await ping();
+  }
+
+  it('is refused with BAD_REQUEST while you have no candidate and nothing is broadcast', async () => {
+    const { got } = await preGame();
+    got.length = 0;
+    send({ action: 'doneFielding', clientRef: 'd0' });
+    await ping();
+    expect(kinds(got, 'error').map(e => [e.clientRef, e.error])).toEqual([['d0', 'BAD_REQUEST']]);
+    expect(doneMsgs(got)).toHaveLength(0);
+  });
+
+  it('is refused with WRONG_PHASE once the campaign has opened', async () => {
+    const { got, g } = await preGame();
+    send({ action: 'field', seats: [1] });
+    await ping();
+    priv().openCampaign(g);
+    got.length = 0;
+    send({ action: 'doneFielding', clientRef: 'late' });
+    await ping();
+    expect(kinds(got, 'error').map(e => [e.clientRef, e.error])).toEqual([['late', 'WRONG_PHASE']]);
+  });
+
+  it('pressing it tells everybody (1 of the active players) and the snapshot of a client joining lists you', async () => {
+    const { r, got, me } = await preGame();
+    send({ action: 'field', seats: [1, 2] });
+    send({ action: 'doneFielding' });
+    await ping();
+    const active = [...dg().players.values()].filter(p => p.pub.status === 'active').length;
+    expect(doneMsgs(got)).toEqual([{ type: 'fieldingDone', playerId: me, done: true, doneCount: 1, needed: active }]);
+    got.length = 0;
+    t.connect(r.gameId, r.token, m => got.push(m as never));
+    await ping();
+    expect(kinds(got, 'hello')[0]).toMatchObject({ snapshot: { fieldingDone: [me] } });
+  });
+
+  it('done:false takes it back, and pressing it twice says it once', async () => {
+    const { got } = await preGame();
+    send({ action: 'field', seats: [1] });
+    send({ action: 'doneFielding' }); send({ action: 'doneFielding' }); send({ action: 'doneFielding', done: false });
+    await ping();
+    expect(doneMsgs(got).map(d => [d.done, d.doneCount])).toEqual([[true, 1], [false, 0]]);
+  });
+
+  it('fielding or withdrawing after Done clears it and tells everybody', async () => {
+    const { got, me } = await preGame();
+    send({ action: 'field', seats: [1, 2] });
+    send({ action: 'doneFielding' });
+    await ping();
+    got.length = 0;
+    send({ action: 'field', seats: [3] });
+    await ping();
+    expect(doneMsgs(got)).toEqual([expect.objectContaining({ playerId: me, done: false, doneCount: 0 })]);
+    send({ action: 'doneFielding' });
+    await ping();
+    got.length = 0;
+    send({ action: 'withdraw', seats: [3] });
+    await ping();
+    expect(doneMsgs(got).map(d => [d.playerId, d.done])).toEqual([[me, false]]);
+    expect(dg().fieldingDone.has(me)).toBe(false);
+  });
+
+  it('the bots press it only after they have finished fielding, a few seconds apart', async () => {
+    const { got, g, bots } = await preGame();
+    got.length = 0;
+    dg().nextBotDone = 0;
+    priv().tick(); // the start of the phase: the bots have not finished
+    await ping();
+    expect(doneMsgs(got)).toHaveLength(0);
+    g.preStart -= 10 * 60 * 1000;
+    dg().nextBotDone = Infinity;
+    priv().tick(); // now they field everything they plan
+    await ping();
+    expect(doneMsgs(got)).toHaveLength(0);
+    dg().nextBotDone = 0;
+    const before = Date.now();
+    priv().tick();
+    priv().tick(); // the second one is not due yet
+    await ping();
+    expect(doneMsgs(got)).toHaveLength(1);
+    expect(bots).toContain(doneMsgs(got)[0].playerId);
+    expect(dg().nextBotDone - before).toBeGreaterThanOrEqual(1500); // the next bot waits a few seconds
+    for (const b of bots) expect([...g.fielding.values()].filter(l => l.some(c => c.playerId === b)).length).toBeGreaterThan(0);
+  });
+
+  it('a bot that is only part-way through its plan does not press it', async () => {
+    const { got, g, bots } = await preGame();
+    g.preStart -= 21_000; // about half of the fielding window has passed: the bots hold some candidates, not all
+    got.length = 0;
+    for (let i = 0; i < 4; i++) { dg().nextBotDone = 0; priv().tick(); }
+    await ping();
+    for (const b of bots) {
+      const held = [...g.fielding.values()].filter(l => l.some(c => c.playerId === b)).length;
+      expect(held).toBeGreaterThan(0);
+      expect(held).toBeLessThan(dg().botPlans.get(b)!.length);
+    }
+    expect(doneMsgs(got)).toHaveLength(0);
+  });
+
+  it('everybody done opens the campaign at once, with the whole timeline moved earlier by the time saved', async () => {
+    const { got, g, bots } = await preGame();
+    send({ action: 'field', seats: [1, 2, 3] });
+    await ping();
+    await botsFinish(dg(), bots);
+    expect(g.status).toBe('preCampaign'); // I have not pressed Done
+    const old = { ...dg().timeline, phaseCloses: [...dg().timeline.phaseCloses] };
+    got.length = 0;
+    send({ action: 'doneFielding' });
+    await ping();
+    expect(g.status).toBe('campaign');
+    const nu = dg().timeline;
+    expect(nu.preCampaignEnd!).toBeLessThanOrEqual(Date.now() + 2100); // the mock clock runs ahead of the browser's
+    expect(nu.campaignStart - nu.preCampaignEnd!).toBe(old.campaignStart - old.preCampaignEnd!); // the lead-in stays
+    const saved = old.campaignStart - nu.campaignStart;
+    expect(saved).toBeGreaterThan(0);
+    expect(nu.campaignEnd - nu.campaignStart).toBe(old.campaignEnd - old.campaignStart); // a campaign of full length
+    expect(nu.phaseCloses).toEqual(old.phaseCloses.map(c => c - saved));
+    expect(nu.countingEnd).toBe(old.countingEnd - saved);
+    expect(nu.postCountingEnd).toBe(old.postCountingEnd - saved);
+    expect(kinds(got, 'status').at(-1)).toMatchObject({ status: 'campaign', timeline: nu });
+    expect(g.fixed).toBeTruthy();
+    expect(dg().fieldingDone.size).toBe(0); // cleared when the campaign opens
+    got.length = 0;
+    send({ action: 'doneFielding', clientRef: 'again' });
+    await ping();
+    expect(kinds(got, 'error').map(e => e.error)).toEqual(['WRONG_PHASE']);
+  });
+
+  it('the last bot to press it can be the one that opens the campaign', async () => {
+    const { g, bots } = await preGame();
+    send({ action: 'field', seats: [1, 2] });
+    send({ action: 'doneFielding' });
+    await ping();
+    expect(g.status).toBe('preCampaign');
+    await botsFinish(dg(), bots);
+    expect(g.status).toBe('campaign');
+  });
+
+  it('while any active player is not done the campaign does not open', async () => {
+    const { g, bots } = await preGame();
+    send({ action: 'field', seats: [1, 2] });
+    send({ action: 'doneFielding' });
+    await ping();
+    g.preStart -= 10 * 60 * 1000;
+    priv().tick();
+    for (const b of bots.slice(0, -1)) dg().fieldingDone.add(b); // all but one bot
+    dg().nextBotDone = Infinity; // the last one never gets to press it
+    for (let i = 0; i < 5; i++) priv().tick();
+    expect(g.status).toBe('preCampaign');
+  });
+
+  it('the deadline still ends the phase when somebody never pressed it', async () => {
+    const { g } = await preGame();
+    send({ action: 'field', seats: [1, 2] });
+    send({ action: 'doneFielding' });
+    await ping();
+    dg().timeline.preCampaignEnd = Date.now() - 1;
+    priv().tick();
+    expect(g.status).toBe('campaign');
+  });
+});

@@ -62,6 +62,11 @@ export interface PlayerRecord {
   /** Bumped by every Repo.updateFielding: the compare-and-swap guard of the fielded list. Server-internal. */
   fieldingSeq?: number;
   /**
+   * Pre-campaign: the player pressed "Done fielding" and has not fielded or withdrawn since (Repo.setFieldingDone; a fielding change
+   * removes it in the same write). Missing = not done. Public through GameSnapshot.fieldingDone; cleared when the campaign opens.
+   */
+  doneFielding?: boolean;
+  /**
    * Server time (ms) of this player's last ACCEPTED rally; missing = never rallied (also for records stored before the
    * rally cooldown existed). Written only by Repo.addAction in the same transaction as the budget deduction.
    */
@@ -129,8 +134,15 @@ export interface FieldingChange {
  * 'wrong_phase' = the game is not in the pre-campaign; 'conflict' = still contended after the retries, try again.
  */
 export type FieldingOutcome =
-  | { result: 'ok'; added: SeatId[]; removed: SeatId[]; budget: number }
+  /** `clearedDone`: the change removed the player's Done (present only then). */
+  | { result: 'ok'; added: SeatId[]; removed: SeatId[]; budget: number; clearedDone?: true }
   | { result: 'duplicate' | 'insufficient' | 'inactive' | 'wrong_phase' | 'conflict' };
+
+/**
+ * Repo.setFieldingDone: 'ok' = stored; 'no_candidates' = done:true for a player with no candidate (nothing changed); 'inactive' = the
+ * player is not active; 'wrong_phase' = the game is not in the pre-campaign.
+ */
+export type FieldingDoneResult = 'ok' | 'no_candidates' | 'inactive' | 'wrong_phase';
 
 export interface Repo {
   // games
@@ -160,6 +172,13 @@ export interface Repo {
   listActions(gameId: string): Promise<Action[]>;
   /** Pre-campaign (atomic: the player's fielded list + budget, player active, game status 'preCampaign', idempotency marker). */
   updateFielding(gameId: string, playerId: PlayerId, change: FieldingChange): Promise<FieldingOutcome>;
+  /** Pre-campaign (atomic: player active, game status 'preCampaign', and for done = true at least one fielded seat). */
+  setFieldingDone(gameId: string, playerId: PlayerId, done: boolean): Promise<FieldingDoneResult>;
+  /**
+   * An early end of the pre-campaign: replace the timeline if the game is still in the pre-campaign and its timeline still ends the
+   * pre-campaign at `expectPreCampaignEnd` (so of two concurrent early starts only one wins). False when the condition fails.
+   */
+  rescheduleTimeline(gameId: string, timeline: GameTimeline, expectPreCampaignEnd: number): Promise<boolean>;
   addReport(gameId: string, playerId: PlayerId, cost: number, rep: StoredReport, expectClosedPhases: number): Promise<SpendResult>;
   listReports(gameId: string, playerId: PlayerId): Promise<StoredReport[]>;
 
@@ -196,6 +215,12 @@ export interface Notifier {
 export interface Scheduler {
   /** Start the lifecycle (phase closes -> counting loop -> finalise) for a started game. */
   startLifecycle(gameId: string, timeline: GameTimeline): Promise<void>;
+  /**
+   * Replace the running lifecycle of a game in the pre-campaign with one on `timeline` (an early end of the pre-campaign: its
+   * preCampaignEnd is now, so the new lifecycle opens the campaign at once). The old one is cancelled; if any of it still runs it only
+   * repeats idempotent steps (openCampaign, phaseClose, countReveal, finalise).
+   */
+  restartLifecycle(gameId: string, timeline: GameTimeline): Promise<void>;
   /** Returns an opaque schedule name stored on the player record. */
   scheduleGraceCheck(gameId: string, playerId: PlayerId, atMs: number): Promise<string>;
   cancelGraceCheck(name: string): Promise<void>;

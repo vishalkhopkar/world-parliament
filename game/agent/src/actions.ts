@@ -11,7 +11,7 @@ import type { AgentSession } from './session';
 import { EVENT_TYPES, admissionOf } from './state';
 import type { EventType } from './state';
 import {
-  candidatesIn, chatView, namesOf, committedLabel, currentBudget, eventView, fieldingSummary, gameHasFielding, iHaveCandidate, majorityNow, rallyCooldownView, rallyReadyAt,
+  candidatesIn, chatView, doneProgress, fieldedCounts, namesOf, committedLabel, currentBudget, eventView, fieldingSummary, gameHasFielding, iHaveCandidate, majorityNow, rallyCooldownView, rallyReadyAt,
   governmentView, offerView, playerView, reportView, globalReportsView, round1, stageInfo, stateView, who, winsByName,
 } from './views';
 
@@ -431,7 +431,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'field_candidates',
-    description: 'PRE-CAMPAIGN ONLY (games with 3+ players): field a candidate of your party in each of the given seats (ids or names; {all:true} = every seat). A candidate costs money (get_state -> fielding.candidate_cost_wr) and is refunded in full if you withdraw_candidates before the deadline. You can only rally or roadshow in seats where you have a candidate, and a party with NO candidate when the pre-campaign ends is eliminated. Fielding is public and live (get_state fielding, get_seat candidates_here). Seats you already hold are skipped; if the batch costs more than your budget nothing is fielded (INSUFFICIENT_FUNDS). Money you do not spend here is your campaign budget. Refused outside the pre-campaign (WRONG_PHASE; a 2-player game has no pre-campaign, every seat is fielded for you). Returns how many were fielded/skipped, your budget and the time left.',
+    description: 'PRE-CAMPAIGN ONLY (games with 3+ players): field a candidate of your party in each of the given seats (ids or names; {all:true} = every seat). A candidate costs money (get_state -> fielding.candidate_cost_wr) and is refunded in full if you withdraw_candidates before the deadline. You can only rally or roadshow in seats where you have a candidate, and a party with NO candidate when the pre-campaign ends is eliminated. Fielding is public and live (get_state fielding, get_seat candidates_here). Seats you already hold are skipped; if the batch costs more than your budget nothing is fielded (INSUFFICIENT_FUNDS). Money you do not spend here is your campaign budget. Fielding clears your done_fielding (call it again when finished). Refused outside the pre-campaign (WRONG_PHASE; a 2-player game has no pre-campaign, every seat is fielded for you). Returns how many were fielded/skipped, your budget and the time left.',
     schema: z.object({
       seats: z.array(seatRef).max(1000).optional().describe('Seats to field a candidate in (ids or names; at most the number of seats on the map)'),
       all: z.boolean().default(false).describe('Field a candidate in every seat you do not hold yet (instead of listing seats)'),
@@ -441,12 +441,21 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'withdraw_candidates',
-    description: 'PRE-CAMPAIGN ONLY (games with 3+ players): withdraw your candidate from each of the given seats (ids or names; {all:true} = every seat where you have one). The candidate price is refunded in full. Seats where you have no candidate are skipped. Remember: with no candidates at the end of the pre-campaign you are eliminated, and you cannot campaign in a seat you withdrew from. Returns how many were withdrawn/skipped, your budget and the time left.',
+    description: 'PRE-CAMPAIGN ONLY (games with 3+ players): withdraw your candidate from each of the given seats (ids or names; {all:true} = every seat where you have one). The candidate price is refunded in full. Seats where you have no candidate are skipped. Remember: with no candidates at the end of the pre-campaign you are eliminated, and you cannot campaign in a seat you withdrew from. Withdrawing clears your done_fielding. Returns how many were withdrawn/skipped, your budget and the time left.',
     schema: z.object({
       seats: z.array(seatRef).max(1000).optional().describe('Seats to withdraw your candidate from (ids or names)'),
       all: z.boolean().default(false).describe('Withdraw from every seat where you have a candidate (you would be left with none)'),
     }),
     async run(s, i) { return runFielding(s, 'withdraw', i); },
+  }),
+
+  def({
+    name: 'done_fielding',
+    description: 'PRE-CAMPAIGN ONLY (games with 3+ players): tell everybody you have finished fielding (done defaults to true; {done:false} takes it back). When EVERY connected active party is done the campaign starts at once instead of waiting for the countdown, so call it as soon as you have fielded what you want. Fielding or withdrawing afterwards clears your done (call it again). If you do nothing the countdown still ends the phase. Refused with BAD_REQUEST while you have no candidate (field_candidates first), WRONG_PHASE outside the pre-campaign (a 2-player game has none), FORBIDDEN when eliminated. Returns who is still to finish ("n of m done") and the time left.',
+    schema: z.object({
+      done: z.boolean().default(true).describe('true = I am done fielding (default); false = take it back'),
+    }),
+    async run(s, i) { return runDoneFielding(s, i.done); },
   }),
 
   def({
@@ -527,7 +536,7 @@ export const ACTIONS: ActionDef[] = [
 
   def({
     name: 'wait_for_events',
-    description: 'Long-poll for game events instead of polling get_state in a loop. Returns new events after since_cursor (default: after the events you already received from this tool) or an empty list after timeout_s (timeout_s max 60, default 25; call again on timeout). `types` filters (e.g. ["status"] or ["chat","offer"]; a bare comma-separated string also works). limit max 200. Event types: news (a major rally), phaseClosed, seatUpdate (counting declarations; excluded by default, ask for it via types), fielding (someone fielded / withdrew candidates in the pre-campaign, with the new contested_seats and majority; excluded by default, ask for it via types), chat, offer, government, result, status (preCampaign, campaign, counting ...), players, report, rematch (the host played again: you are already in the new game with your party, in the pre-campaign with 3+ players or the campaign with 2: call get_state), error. After the result keep calling this: the host may play again. Also returns next_cursor and a tiny state hint.',
+    description: 'Long-poll for game events instead of polling get_state in a loop. Returns new events after since_cursor (default: after the events you already received from this tool) or an empty list after timeout_s (timeout_s max 60, default 25; call again on timeout). `types` filters (e.g. ["status"] or ["chat","offer"]; a bare comma-separated string also works). limit max 200. Event types: news (a major rally), phaseClosed, seatUpdate (counting declarations; excluded by default, ask for it via types), fielding (someone fielded / withdrew candidates in the pre-campaign, with the new contested_seats and majority; excluded by default, ask for it via types), fieldingDone (someone pressed or took back done_fielding, with done_count of needed; excluded by default, ask for it via types), chat, offer, government, result, status (preCampaign, campaign, counting ...), players, report, rematch (the host played again: you are already in the new game with your party, in the pre-campaign with 3+ players or the campaign with 2: call get_state), error. After the result keep calling this: the host may play again. Also returns next_cursor and a tiny state hint.',
     schema: z.object({
       since_cursor: z.number().int().min(0).optional().describe('Cursor from the previous call; omit to continue where this tool left off'),
       timeout_s: z.number().min(0).max(60).default(25),
@@ -538,7 +547,7 @@ export const ACTIONS: ActionDef[] = [
     async run(s, i) {
       needJoined(s);
       const since = i.since_cursor ?? s.readCursor;
-      const types = i.types ?? EVENT_TYPES.filter((t) => t !== 'seatUpdate' && t !== 'fielding');
+      const types = i.types ?? EVENT_TYPES.filter((t) => t !== 'seatUpdate' && t !== 'fielding' && t !== 'fieldingDone');
       const r = await s.client.waitForEvents(since, i.timeout_s * 1000, types, i.limit);
       s.readCursor = r.cursor;
       const dir = await s.seatsOrNull();
@@ -575,6 +584,7 @@ export const ACTIONS: ActionDef[] = [
       const contenders = s.players().filter((p) => ['active', 'disconnected', 'eliminated'].includes(p.status));
       if (contenders.length < 3) throw new AgentError('NEGOTIATION_DISABLED', 'With 2 players there is no chat.');
       const mode = chatModeFor(s.cfg(), status);
+      if (!mode && (status === 'finished' || status === 'abandoned')) throw new AgentError('WRONG_PHASE', 'The game is over: the chat is closed.');
       if (!mode) throw new AgentError('WRONG_PHASE', status === 'campaign' || s.cfg().chat.campaigning === 'OFF' ? 'Chat opens when counting starts.' : 'Chat opens when the game starts (with the pre-campaign).');
       const others = contenders.filter((p) => p.playerId !== s.client.me && p.status !== 'eliminated');
       if (mode === 'INDV' && !i.to) throw new AgentError('INVALID_INPUT', 'Chats are one-to-one now: give `to` (party names, or ["all"] for a private copy to each party).');
@@ -702,14 +712,12 @@ export const ACTIONS: ActionDef[] = [
 export const ACTION_BY_NAME = new Map(ACTIONS.map((a) => [a.name, a]));
 
 // ------------------------------------------------------------------ pre-campaign: field / withdraw candidates
-async function runFielding(s: AgentSession, kind: 'field' | 'withdraw', input: { seats?: (number | string)[]; all: boolean }) {
-  needAdmitted(s);
-  const cfg = s.cfg();
+/** Checks shared by the pre-campaign tools: a started game, a pre-campaign at all (3+ players), still running, me not eliminated. */
+function preCampaignGuard(s: AgentSession, tool: string, doing: string) {
   const c = s.client;
   const snap = c.state.snapshot;
   const status = snap?.status ?? 'lobby';
   const tl = snap?.timeline;
-  const tool = kind === 'field' ? 'field_candidates' : 'withdraw_candidates';
   if (status === 'lobby' || !tl) throw new AgentError('WRONG_PHASE', 'The game has not started yet (only the human host can start it).', 'Call wait_for_events with types ["status"], or get_state.');
   if (status !== 'preCampaign') {
     if (status === 'campaign' && tl.preCampaignEnd === undefined) {
@@ -719,10 +727,20 @@ async function runFielding(s: AgentSession, kind: 'field' | 'withdraw', input: {
       status === 'campaign' ? 'Campaign in your fielded seats (list_seats {open_only:true, fielded_only:true}) with campaign_batch.' : 'Call get_state to see the current phase.');
   }
   if (c.state.snapshot?.players.find((p) => p.playerId === c.me)?.status === 'eliminated') {
-    throw new AgentError('FORBIDDEN', 'You are eliminated, so you cannot field or withdraw candidates.', 'You can still read the chat. Keep calling wait_for_events: the host may play again.');
+    throw new AgentError('FORBIDDEN', `You are eliminated, so you cannot ${doing}.`, 'You can still read the chat. Keep calling wait_for_events: the host may play again.');
   }
   const left = tl.preCampaignEnd !== undefined ? tl.preCampaignEnd - c.serverNow() : null;
   if (left !== null && left <= 0) throw new AgentError('TOO_LATE', 'The pre-campaign deadline has passed.', 'Call get_state: the campaign is about to start (if you had no candidate you are eliminated).');
+  return { tl, left };
+}
+
+async function runFielding(s: AgentSession, kind: 'field' | 'withdraw', input: { seats?: (number | string)[]; all: boolean }) {
+  needAdmitted(s);
+  const cfg = s.cfg();
+  const c = s.client;
+  const snap = c.state.snapshot;
+  const tool = kind === 'field' ? 'field_candidates' : 'withdraw_candidates';
+  const { tl } = preCampaignGuard(s, tool, 'field or withdraw candidates');
 
   // which seats
   let ids: SeatId[];
@@ -776,6 +794,35 @@ async function runFielding(s: AgentSession, kind: 'field' | 'withdraw', input: {
     contested_seats: sum.contested_seats,
     majority: sum.majority,
     hint,
+  };
+}
+
+async function runDoneFielding(s: AgentSession, done: boolean) {
+  needAdmitted(s);
+  const c = s.client;
+  const { tl } = preCampaignGuard(s, 'done_fielding', 'say you are done fielding');
+  const mine = fieldedCounts(s).get(c.me ?? '') ?? 0;
+  if (done && mine === 0) {
+    throw new AgentError('BAD_REQUEST', 'You have no candidate yet, so you cannot be done fielding.',
+      'Field at least one candidate first (field_candidates {seats:[...]} or {all:true}), then call done_fielding. With no candidate when the pre-campaign ends you are eliminated.');
+  }
+  const r = await c.doneFielding(done);
+  const dp = doneProgress(s);
+  const waiting = s.players().filter((p) => p.status === 'active' && !dp.doneIds.includes(p.playerId)).map((p) => who(s, p.playerId));
+  const leftS = tl.preCampaignEnd !== undefined ? secs(tl.preCampaignEnd - c.serverNow()) : null;
+  return {
+    ok: true,
+    done: r.done,
+    done_count: r.doneCount,
+    needed: r.needed,
+    progress: `${r.doneCount} of ${r.needed} done`,
+    waiting_for: waiting,
+    your_candidates: mine,
+    pre_campaign_left_s: leftS,
+    hint: r.done
+      ? (r.doneCount >= r.needed ? 'Everybody is done: the campaign starts now (get_state, then campaign_batch).'
+        : 'You are done. The campaign starts as soon as everybody is done, or when the countdown ends. Fielding or withdrawing again clears your done; done_fielding {done:false} takes it back.')
+      : 'You are no longer done. Field or withdraw as you like, then call done_fielding again.',
   };
 }
 

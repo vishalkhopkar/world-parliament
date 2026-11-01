@@ -64,12 +64,13 @@ async function main() {
   const RALLY_MARGIN_MS = 600;
   const offerResponded = new Set<string>();
   // 3+ players start in the pre-campaign: field a candidate in every seat (the campaign needs one to act there); 2 players are fielded automatically
-  let fieldingSent = false;
+  // and press "Done fielding" once every batch is acked (the campaign then opens early when all the others are done too)
+  let fieldingSent = false, batchesLeft = 0;
   const fieldEverywhere = () => {
     if (fieldingSent) return;
     fieldingSent = true;
     const ids = PKG.seats.map(x => x.id);
-    for (let i = 0; i < ids.length; i += 100) send({ action: 'field', seats: ids.slice(i, i + 100) });
+    for (let i = 0; i < ids.length; i += 100) { batchesLeft++; send({ action: 'field', seats: ids.slice(i, i + 100) }); }
     log('pre-campaign: fielding a candidate in every seat');
   };
   ws.onmessage = ev => {
@@ -77,7 +78,7 @@ async function main() {
     switch (m.type) {
       case 'hello': budget = m.private.budget; if (m.snapshot.status === 'preCampaign') fieldEverywhere(); if (m.snapshot.timeline) { campaignStart = m.snapshot.timeline.campaignStart; campaignEnd = m.snapshot.timeline.campaignEnd; } break;
       case 'private': budget = m.private.budget; break;
-      case 'fieldAck': budget = m.budget; break;
+      case 'fieldAck': budget = m.budget; if (batchesLeft > 0 && --batchesLeft === 0) { send({ action: 'doneFielding' }); log('pre-campaign: done fielding'); } break;
       case 'actionAck': budget = m.budget; if (m.nextRallyAt) rallyAfter = m.nextRallyAt + RALLY_MARGIN_MS; break;
       case 'report': budget = m.budget; log('report', m.report.scope, m.report.entries.map(e => `${e.rank}.${(e.estimate * (m.report.scope === 'seat' ? 100 : 1)).toFixed(0)}`).join(' ')); break;
       case 'status': if (m.timeline) { campaignStart = m.timeline.campaignStart; campaignEnd = m.timeline.campaignEnd; } if (m.status === 'preCampaign') fieldEverywhere(); if (m.status === 'campaign') started = true; if (m.status === 'counting') { countingSeen = true; log('counting started'); } break;

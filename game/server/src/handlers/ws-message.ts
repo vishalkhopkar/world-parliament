@@ -1,4 +1,4 @@
-// WebSocket routes ping/field/withdraw/campaign/buyReport/peekSeat/chat/proposeGovernment/respondOffer/withdrawOffer/$default.
+// WebSocket routes ping/field/withdraw/doneFielding/campaign/buyReport/peekSeat/chat/proposeGovernment/respondOffer/withdrawOffer/$default.
 import type { ClientMessage } from '@hp/shared';
 import { getService } from '../aws/factory';
 

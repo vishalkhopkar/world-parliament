@@ -51,7 +51,7 @@ function snapshotFor(gameId: string, status: GameSnapshot['status'], next?: { id
   const now = Date.now();
   const pre = status === 'preCampaign';
   return {
-    gameId, mapId: 'world-500', status, phases: 2, players: players4(), news: [], polledPhases: [], seats: {}, fielding: {}, contestedSeats: cfg.seatCount, majority: majorityOf(cfg.seatCount), tally: null, offers: [], government: null, result: null,
+    gameId, mapId: 'world-500', status, phases: 2, players: players4(), news: [], polledPhases: [], seats: {}, fielding: {}, fieldingDone: [], contestedSeats: cfg.seatCount, majority: majorityOf(cfg.seatCount), tally: null, offers: [], government: null, result: null,
     timeline: {
       ...(pre ? { preCampaignEnd: now + 90_000 } : {}), campaignStart: pre ? now + 95_000 : now - 1000,
       phaseCloses: [now + 100_000, now + 200_000], campaignEnd: now + 200_000, countingEnd: now + 260_000, postCountingEnd: now + 320_000,

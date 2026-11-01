@@ -46,6 +46,12 @@ Rules source of truth: `../FEATURE REQUIREMENTS.docx`. Technical plan: see CLAUD
 
 ## Log
 
+### 2026-10-31 (follow-up) - Pre-campaign: Field all, Done fielding, own figures only, avatar counts, no smoke
+- **Done fielding** (`doneFielding` WS action, `fieldingDone` message, `snapshot.fieldingDone`): revocable; refused with no candidates; cleared by fielding/withdrawing. When every connected active player is done, `GameService.startCampaignEarly()` shifts the whole timeline earlier (preCampaignEnd = now, campaignStart = now + lead-in, later times by the same amount, so the campaign keeps its full length) and `Scheduler.restartLifecycle()` replaces the running lifecycle (local timers: per-game token; AWS: start the new `game-<id>-r1` execution, then stop the old one; `states:StopExecution` is granted on the executions). Disconnected players don't block. The hello in the pre-campaign is followed by a `fieldingDone` carrying `needed`.
+- Web: **Field all seats** and **Done fielding** buttons, right-panel rows = avatar, name, tick, count (no stick figures there), only the player's own figures on the map, no -50 / +50 smoke (`display.fieldingSmoke=false` in `game.properties`; the code stays).
+- Agent tool `done_fielding {done?}`. Tour: new `field-all` and `done-fielding` steps (and a `done` task); mock bots press Done.
+- Tests: server 1251, web 677, shared 430, agent 353. AWS changes (restart, IAM grant) take effect on the next deploy.
+
 ### 2026-10-31 - Pre-campaign phase, minor rally, "My actions" hidden
 - New status `preCampaign` (3+ players, `durations.preCampaignMs`): parties field candidates (`costs.candidate`, full refund on withdrawal) by paint brush (desktop, `display.brushRadiusPx`) or the seat panel, with one-to-one chat. Fielding is public and live. No candidates at the deadline = eliminated (connection kept). 2 players skip it: all seats fielded and charged, campaign starts on `fullyFieldedBudget(cfg)`. Play again goes through it with 3+ players.
 - Only a seat's candidates share its votes (`contestants` argument of the engine functions); no candidates = vacant. Majority = `majorityOf(contestedSeats)`, live in the pre-campaign, fixed at campaign start. Campaigning without a candidate = `NOT_FIELDED`.

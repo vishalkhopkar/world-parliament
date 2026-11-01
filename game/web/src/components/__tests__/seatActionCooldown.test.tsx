@@ -12,7 +12,7 @@ import { nextRallyAtOf, SeatActionModal } from '../SeatActionModal';
 const CD = WORLD_CONFIG.cooldowns.rallyMs;
 const snap: GameSnapshot = {
   gameId: 'g', mapId: WORLD_CONFIG.mapId, status: 'campaign', phases: 2, timeline: null,
-  players: [], news: [], fielding: { 1: [{ playerId: 'p1' }] }, contestedSeats: 1, majority: 1, polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null,
+  players: [], news: [], fielding: { 1: [{ playerId: 'p1' }] }, fieldingDone: [], contestedSeats: 1, majority: 1, polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null,
 };
 const base: PrivateState = { you: 'p1', budget: 50_000, myActions: [], myReports: [] };
 

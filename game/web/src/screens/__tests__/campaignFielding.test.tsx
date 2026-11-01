@@ -20,7 +20,7 @@ const three = [pl('a'), pl('b'), pl('c')];
 const snap = (over: Partial<GameSnapshot> = {}): GameSnapshot => ({
   gameId: 'g', mapId: WORLD_CONFIG.mapId, status: 'campaign', phases: 1,
   timeline: { campaignStart: 0, phaseCloses: [Date.now() + 1e5], campaignEnd: Date.now() + 1e5, countingEnd: Date.now() + 2e5, postCountingEnd: Date.now() + 3e5 },
-  players: three, news: [], fielding: { 1: [{ playerId: 'a' }, { playerId: 'b' }], 2: [{ playerId: 'b' }] }, contestedSeats: 2, majority: 2,
+  players: three, news: [], fielding: { 1: [{ playerId: 'a' }, { playerId: 'b' }], 2: [{ playerId: 'b' }] }, fieldingDone: [], contestedSeats: 2, majority: 2,
   polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null, ...over,
 });
 const priv = (over: Partial<PrivateState> = {}): PrivateState => ({ you: 'a', budget: 100, myActions: [], myReports: [], ...over });

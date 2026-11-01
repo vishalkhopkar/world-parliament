@@ -232,12 +232,15 @@ function sendField(action: 'field' | 'withdraw', seats: SeatId[]) {
   if (!seats.length) return;
   const clientRef = Math.random().toString(36).slice(2, 8);
   st().trackField(clientRef, seats);
+  st().clearMyDone(); // changing your candidates takes your Done back (the server's fieldingDone confirms)
   transport.send({ action, seats, clientRef });
 }
 /** Pre-campaign: field a candidate in each seat. Answered with a fieldAck, and a fieldingUpdate to everybody. */
 export const fieldCandidates = (seats: SeatId[]) => sendField('field', seats);
 /** Pre-campaign: withdraw the candidate from each seat, refunding its cost. */
 export const withdrawCandidates = (seats: SeatId[]) => sendField('withdraw', seats);
+/** Pre-campaign: say you have finished fielding (false takes it back). Refused with no candidates; answered to everybody with fieldingDone. */
+export const doneFielding = (done: boolean) => transport.send({ action: 'doneFielding', done, clientRef: Math.random().toString(36).slice(2, 8) });
 export const buyReport = (scope: ReportScope, seat?: SeatId) => transport.send({ action: 'buyReport', scope, seat });
 /** Ask for the vote shares + candidates of a seat that has a lead or a result; the answer lands in the store's seatShares. */
 export const peekSeat = (seat: SeatId) => transport.send({ action: 'peekSeat', seat });

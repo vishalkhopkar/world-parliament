@@ -3,6 +3,15 @@
 .candidate-counts{flex:none;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
 .candidate-counts ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
 .candidate-counts li{display:flex;align-items:center;gap:8px;min-width:0}
+.fp-actions{flex:none;display:flex;flex-direction:column;gap:6px}
+.fp-buttons{display:flex;flex-wrap:wrap;gap:8px}
+.fp-buttons .btn{flex:1 1 150px;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:8px 10px}
+.fp-buttons .btn small{font-weight:500;font-size:.75rem;opacity:.85}
+.fp-done.on{background:var(--ivory);color:var(--green);border-style:dashed}
+.fp-done-reason{margin:0;font-size:.82rem;color:var(--muted)}
+.cc-done-count{margin:0;font-size:.85rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.cc-tick{flex:none;width:18px;display:inline-flex;justify-content:center}
+.cc-done{color:var(--green)}
 .cc-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:.92rem}
 .cc-count{font-variant-numeric:tabular-nums;font-size:1.05rem}
 .cc-majority{margin:6px 0 0;padding-top:6px;border-top:1px dashed var(--line);font-size:.88rem;color:var(--muted)}

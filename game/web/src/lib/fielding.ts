@@ -43,6 +43,11 @@ export function applyFielding(fielding: Fielding, id: PlayerId, added: readonly 
   return next;
 }
 
+/** "n of m done": the counts of the latest fieldingDone message, else worked out from the snapshot (the connected active players must all be done). */
+export function doneProgress(s: Pick<GameSnapshot, 'fieldingDone' | 'players'>, stats: { doneCount: number; needed: number } | null | undefined): { doneCount: number; needed: number } {
+  return stats ?? { doneCount: s.fieldingDone.length, needed: s.players.filter(p => p.status === 'active').length };
+}
+
 /** Seats nobody contests: they are out of the election (shown hatched). */
 export function vacantSeats(s: Pick<GameSnapshot, 'fielding' | 'contestedSeats'>, seatIds: readonly SeatId[]): Set<SeatId> {
   if (s.contestedSeats >= seatIds.length) return new Set();

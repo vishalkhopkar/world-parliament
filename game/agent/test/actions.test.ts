@@ -38,7 +38,7 @@ function fakeSession(opts: { status?: GameSnapshot['status']; budget?: number; s
   c.state.gameId = 'g'; c.state.me = 'me';
   c.state.snapshot = {
     gameId: 'g', mapId: 'world-500', status: opts.status ?? 'campaign', phases, players, news: [], polledPhases: [], seats: {}, tally: null,
-    fielding: {}, contestedSeats: cfg.seatCount, majority: majorityOf(cfg.seatCount),
+    fielding: {}, fieldingDone: [], contestedSeats: cfg.seatCount, majority: majorityOf(cfg.seatCount),
     offers: [], government: null, result: null,
     timeline: { campaignStart: start, phaseCloses: closes, campaignEnd: closes[phases - 1], countingEnd: closes[phases - 1] + 1000, postCountingEnd: closes[phases - 1] + 2000 },
   };
@@ -56,7 +56,7 @@ describe('action table', () => {
     const names = ACTIONS.map((a) => a.name);
     expect(new Set(names).size).toBe(names.length);
     for (const n of ['get_rules', 'join_game', 'wait_for_admission', 'get_lobby', 'list_party_options', 'set_party', 'get_state', 'list_seats', 'get_seat',
-      'campaign', 'campaign_batch', 'buy_report', 'get_news', 'wait_for_events', 'chat', 'get_chat', 'propose_government', 'respond_offer', 'withdraw_offer',
+      'done_fielding', 'campaign', 'campaign_batch', 'buy_report', 'get_news', 'wait_for_events', 'chat', 'get_chat', 'propose_government', 'respond_offer', 'withdraw_offer',
       'list_offers', 'leave_game', 'get_global_reports']) expect(names).toContain(n);
     expect(names.some((n) => /create|host|start_game/i.test(n))).toBe(false);
     expect('createGame' in GameClient.prototype).toBe(false);

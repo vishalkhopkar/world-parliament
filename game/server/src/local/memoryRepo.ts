@@ -1,7 +1,8 @@
-import type { Action, CoalitionOffer, FinalResult, Government, PlayerId, SeatResult } from '@hp/shared';
+import type { Action, CoalitionOffer, FinalResult, GameTimeline, Government, PlayerId, SeatResult } from '@hp/shared';
 import { applyFieldingChange } from '../core/fielding';
 import type {
-  AddActionOptions, ConnectionRecord, CountPlan, FieldingChange, FieldingOutcome, GameRecord, PlayerRecord, Repo, SpendResult, StoredChat, StoredReport,
+  AddActionOptions, ConnectionRecord, CountPlan, FieldingChange, FieldingDoneResult, FieldingOutcome, GameRecord, PlayerRecord, Repo, SpendResult,
+  StoredChat, StoredReport,
 } from '../core/types';
 
 const clone = <T>(v: T): T => (v === undefined ? v : structuredClone(v));
@@ -114,13 +115,31 @@ export class MemoryRepo implements Repo {
     const { added, removed, fielded } = applyFieldingChange(p.fielded, change);
     const delta = (added.length - removed.length) * change.costPerSeat;
     if (delta > p.budget) return { result: 'insufficient' };
+    const clearedDone = !!(added.length || removed.length) && p.doneFielding === true;
     if (added.length || removed.length) {
       p.fielded = fielded;
       p.budget -= delta;
       p.fieldingSeq = (p.fieldingSeq ?? 0) + 1;
+      delete p.doneFielding;
       if (key !== undefined) g.actionRefs.add(key);
     }
-    return { result: 'ok', added, removed, budget: p.budget };
+    return { result: 'ok', added, removed, budget: p.budget, ...(clearedDone ? { clearedDone: true as const } : {}) };
+  }
+  async setFieldingDone(gameId: string, playerId: PlayerId, done: boolean): Promise<FieldingDoneResult> {
+    const g = this.d(gameId);
+    const p = g.players.get(playerId);
+    if (!p || p.status !== 'active') return 'inactive';
+    if (g.game.status !== 'preCampaign') return 'wrong_phase';
+    if (done && !p.fielded?.length) return 'no_candidates';
+    if (done) p.doneFielding = true;
+    else delete p.doneFielding;
+    return 'ok';
+  }
+  async rescheduleTimeline(gameId: string, timeline: GameTimeline, expectPreCampaignEnd: number) {
+    const g = this.games.get(gameId)?.game;
+    if (!g || g.status !== 'preCampaign' || g.timeline?.preCampaignEnd !== expectPreCampaignEnd) return false;
+    g.timeline = clone(timeline);
+    return true;
   }
   async listActions(gameId: string) {
     return [...(this.games.get(gameId)?.actions ?? [])].sort((a, b) => a.ts - b.ts).map(clone);

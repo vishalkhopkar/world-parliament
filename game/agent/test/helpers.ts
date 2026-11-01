@@ -42,18 +42,22 @@ export class Human {
   private ws: WebSocket | null = null;
   private wsGame = '';
   private acks: any[] = [];
-  /** Host: field candidates over the game's WebSocket, like the web client (the pre-campaign is WebSocket-only). Resolves with the fieldAck. */
-  async field(seats: number[], timeoutMs = 5000): Promise<any> {
+  private async socket(): Promise<WebSocket> {
     if (!this.ws || this.wsGame !== this.gameId || this.ws.readyState !== WebSocket.OPEN) {
       this.close();
       const ws = new WebSocket(`${this.base.replace(/^http/, 'ws')}/ws?gameId=${encodeURIComponent(this.gameId)}&token=${encodeURIComponent(this.token)}`);
       this.ws = ws; this.wsGame = this.gameId; this.acks = [];
-      ws.onmessage = (e) => { const m = JSON.parse(String(e.data)); if (m.type === 'fieldAck' || m.type === 'error') this.acks.push(m); };
+      ws.onmessage = (e) => { const m = JSON.parse(String(e.data)); if (m.type === 'fieldAck' || m.type === 'error' || (m.type === 'fieldingDone' && m.playerId === this.playerId)) this.acks.push(m); };
       await new Promise<void>((resolve, reject) => { ws.onopen = () => resolve(); ws.onerror = () => reject(new Error('host socket failed')); });
       ws.send(JSON.stringify({ action: 'ping', clientTime: Date.now() }));
     }
+    return this.ws;
+  }
+  /** Host: field candidates over the game's WebSocket, like the web client (the pre-campaign is WebSocket-only). Resolves with the fieldAck. */
+  async field(seats: number[], timeoutMs = 5000): Promise<any> {
+    const ws = await this.socket();
     const ref = 'host-' + Math.random().toString(36).slice(2, 8);
-    this.ws.send(JSON.stringify({ action: 'field', seats, clientRef: ref }));
+    ws.send(JSON.stringify({ action: 'field', seats, clientRef: ref }));
     const t0 = Date.now();
     while (Date.now() - t0 < timeoutMs) {
       const hit = this.acks.find((m) => m.clientRef === ref);
@@ -61,6 +65,22 @@ export class Human {
       await new Promise((r) => setTimeout(r, 30));
     }
     throw new Error('host field timed out');
+  }
+  /** Host: press "Done fielding" (or take it back) over the WebSocket. Resolves with the host's own fieldingDone message. */
+  async done(done = true, timeoutMs = 5000): Promise<any> {
+    const ws = await this.socket();
+    const ref = 'host-' + Math.random().toString(36).slice(2, 8);
+    const seen = this.acks.length;
+    ws.send(JSON.stringify({ action: 'doneFielding', done, clientRef: ref }));
+    const t0 = Date.now();
+    while (Date.now() - t0 < timeoutMs) {
+      const err = this.acks.find((m) => m.clientRef === ref && m.type === 'error');
+      if (err) throw new Error('host done failed: ' + err.error);
+      const hit = this.acks.slice(seen).find((m) => m.type === 'fieldingDone' && m.done === done);
+      if (hit) return hit;
+      await new Promise((r) => setTimeout(r, 30));
+    }
+    throw new Error('host done timed out');
   }
   close(): void { try { this.ws?.close(); } catch { /* ignore */ } this.ws = null; }
   async pending(): Promise<any[]> { return ((await this.lobby()).json.players as any[]).filter((p) => p.status === 'pending'); }

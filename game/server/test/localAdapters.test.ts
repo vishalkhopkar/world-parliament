@@ -217,6 +217,46 @@ describe('TimerScheduler (fake timers)', () => {
     s.stop();
   });
 
+  it('restartLifecycle (an early end of the pre-campaign) cancels the old timers of that game and runs the new timeline: open at once, then the new phase times', async () => {
+    const { svc, calls } = stub();
+    const s = new TimerScheduler({ now: () => Date.now() });
+    s.bind(svc as unknown as GameService);
+    await s.startLifecycle('g', { ...timeline, preCampaignEnd: T0 + 50 });
+    await s.startLifecycle('other', { ...timeline, preCampaignEnd: T0 + 50 });
+    await vi.advanceTimersByTimeAsync(20);
+    const saved = 30;
+    const shift = (t: number) => t - saved;
+    await s.restartLifecycle('g', {
+      preCampaignEnd: T0 + 20, campaignStart: shift(timeline.campaignStart), phaseCloses: timeline.phaseCloses.map(shift),
+      campaignEnd: shift(timeline.campaignEnd), countingEnd: shift(timeline.countingEnd), postCountingEnd: shift(timeline.postCountingEnd),
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(svc.openCampaign.mock.calls).toEqual([['g']]);
+    expect(calls).toEqual([`open@${T0 + 20}`]);
+    await vi.advanceTimersByTimeAsync(30); // the old deadline: only the other game opens
+    expect(svc.openCampaign.mock.calls).toEqual([['g'], ['other']]);
+    await vi.advanceTimersByTimeAsync(T0 + 1000 - saved - Date.now());
+    expect(svc.phaseClose.mock.calls).toEqual([['g', 0]]);
+    await vi.advanceTimersByTimeAsync(saved);
+    expect(svc.phaseClose.mock.calls).toEqual([['g', 0], ['other', 0]]); // the old loop of 'g' never closes phase 0 again
+    s.stop();
+  });
+
+  it('restartLifecycle of a game whose old loop is in the middle of a step: the old loop stops after that step', async () => {
+    const { svc } = stub();
+    let release!: () => void;
+    svc.openCampaign.mockImplementationOnce(() => new Promise<void>((r) => { release = r; }));
+    const s = new TimerScheduler({ now: () => Date.now() });
+    s.bind(svc as unknown as GameService);
+    await s.startLifecycle('g', { ...timeline, preCampaignEnd: T0 + 50 });
+    await vi.advanceTimersByTimeAsync(50); // the old loop is now inside openCampaign
+    await s.restartLifecycle('g', { ...timeline, preCampaignEnd: T0 + 50 });
+    release();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(svc.phaseClose.mock.calls).toEqual([['g', 0]]); // once, by the new loop
+    s.stop();
+  });
+
   it('grace checks fire at the requested time, have unique names, and can be cancelled', async () => {
     const { svc } = stub();
     const s = new TimerScheduler({ now: () => Date.now() });

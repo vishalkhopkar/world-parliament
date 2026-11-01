@@ -22,7 +22,7 @@ const players = [ash, bot, old];
 const snap = (over: Partial<GameSnapshot> = {}): GameSnapshot => ({
   gameId: 'g', mapId: 'world-500', status: 'counting', phases: 2,
   timeline: { campaignStart: 0, phaseCloses: [1, 2], campaignEnd: 2, countingEnd: 3, postCountingEnd: 4 },
-  players, news: [], fielding: {}, contestedSeats: 100, majority: 51, polledPhases: [], seats: {}, tally: { leads: { p1: 10, p2: 5 }, wins: { p1: 100, p2: 50 }, declared: 150, total: 500 },
+  players, news: [], fielding: {}, fieldingDone: [], contestedSeats: 100, majority: 51, polledPhases: [], seats: {}, tally: { leads: { p1: 10, p2: 5 }, wins: { p1: 100, p2: 50 }, declared: 150, total: 500 },
   offers: [], government: null, result: null, ...over,
 });
 const priv: PrivateState = { you: 'p1', budget: 1_000_000_00, myActions: [], myReports: [] };

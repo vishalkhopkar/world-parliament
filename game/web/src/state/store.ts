@@ -7,6 +7,8 @@ import type { LinkState } from '../net/transport';
 import { applyFielding } from '../lib/fielding';
 import type { FieldFx } from '../lib/repSmoke';
 
+export interface DoneStats { doneCount: number; needed: number }
+
 export type Screen = 'home' | 'lobby' | 'party' | 'preCampaign' | 'campaign' | 'counting' | 'result';
 
 export interface RepGainState { key: number; type: ActionType; seat: SeatId; seats: Record<SeatId, number> }
@@ -45,6 +47,8 @@ interface State {
   fieldFx: FieldFx | null;
   /** Seats in a field or withdraw message that has not been answered yet. */
   fieldPending: ReadonlySet<SeatId>;
+  /** The counts of the latest fieldingDone message ("n of m done"); null = work them out from the snapshot (see doneProgress). */
+  doneStats: DoneStats | null;
   error: string | null;
   // actions
   setSession(s: { gameId: string; token: string; me: PlayerId; joinCode: string }): void;
@@ -60,6 +64,8 @@ interface State {
   trackAction(ref: string, a: { type: ActionType; seat: SeatId }): void;
   /** Remember the seats of a pending field / withdraw message (by clientRef) until it is answered. */
   trackField(ref: string, seats: readonly SeatId[]): void;
+  /** Take this player's own Done back in the snapshot at once (they fielded or withdrew); the server's fieldingDone confirms. */
+  clearMyDone(): void;
   /** A conversation was on screen up to item time `ts` (only ever moves forward). */
   markChatRead(key: string, ts: number): void;
   reset(): void;
@@ -68,7 +74,7 @@ interface State {
 const initial = {
   gameId: null, token: null, me: null, joinCode: null, lobby: null, snapshot: null, priv: null,
   chat: [] as ChatMessage[], chatRead: {} as Record<string, number>, clockOffset: 0, link: 'open' as LinkState, polledSeats: [] as SeatId[], seatShares: {} as Record<SeatId, SeatSharesMessage>, globalReports: null as GlobalReports | null, lobbyPage: 'lobby' as const, selectedSeat: null,
-  pulse: null as Pulse | null, repGain: null as RepGainState | null, fieldFx: null as FieldFx | null, fieldPending: new Set<SeatId>() as ReadonlySet<SeatId>, error: null as string | null,
+  pulse: null as Pulse | null, repGain: null as RepGainState | null, fieldFx: null as FieldFx | null, fieldPending: new Set<SeatId>() as ReadonlySet<SeatId>, doneStats: null as DoneStats | null, error: null as string | null,
 };
 
 let pulseKey = 0;
@@ -103,7 +109,7 @@ export const useStore = create<State>((set, get) => ({
   names: {},
   gamePkg: null,
 
-  setSession: s => { pendingActions.clear(); set({ ...s, polledSeats: [], seatShares: {}, globalReports: null, lobby: null, snapshot: null, priv: null, chat: [], chatRead: loadChatRead(s.gameId, s.me), lobbyPage: 'lobby', selectedSeat: null, repGain: null, fieldFx: null, fieldPending: settleField(), pulse: null }); },
+  setSession: s => { pendingActions.clear(); set({ ...s, polledSeats: [], seatShares: {}, globalReports: null, lobby: null, snapshot: null, priv: null, chat: [], chatRead: loadChatRead(s.gameId, s.me), lobbyPage: 'lobby', selectedSeat: null, repGain: null, fieldFx: null, fieldPending: settleField(), doneStats: null, pulse: null }); },
   setLobby: v => set({ lobby: v }),
   setNames: names => set({ names }),
   setGamePkg: gamePkg => set({ gamePkg }),
@@ -113,6 +119,11 @@ export const useStore = create<State>((set, get) => ({
   setLink: link => set({ link }),
   trackAction: (ref, a) => { pendingActions.set(ref, a); if (pendingActions.size > 200) pendingActions.delete(pendingActions.keys().next().value as string); },
   trackField: (ref, seats) => { pendingFields.set(ref, seats); set({ fieldPending: inFlight() }); },
+  clearMyDone: () => {
+    const { snapshot: snap, me, doneStats } = get();
+    if (!snap || !me || !snap.fieldingDone.includes(me)) return;
+    set({ snapshot: { ...snap, fieldingDone: snap.fieldingDone.filter(id => id !== me) }, ...(doneStats ? { doneStats: { ...doneStats, doneCount: Math.max(0, doneStats.doneCount - 1) } } : {}) });
+  },
   markChatRead: (key, ts) => {
     const { chatRead, gameId, me } = get();
     if ((chatRead[key] ?? -Infinity) >= ts) return;
@@ -127,16 +138,17 @@ export const useStore = create<State>((set, get) => ({
     switch (m.type) {
       case 'hello':
         // a fresh hello replaces everything, so an answer lost with the old socket no longer holds its seats
-        set({ snapshot: m.snapshot, priv: m.private, fieldPending: settleField(), clockOffset: m.serverTime - Date.now(), ...(m.chat ? { chat: m.chat } : {}) });
+        set({ snapshot: m.snapshot, priv: m.private, fieldPending: settleField(), doneStats: null, clockOffset: m.serverTime - Date.now(), ...(m.chat ? { chat: m.chat } : {}) });
         break;
       case 'pong':
         set({ clockOffset: m.serverTime - (Date.now() + m.clientTime) / 2 });
         break;
       case 'private': set({ priv: m.private }); break;
       case 'status':
-        if (snap) set({ snapshot: { ...snap, status: m.status, timeline: m.timeline }, ...(m.status !== snap.status ? { fieldPending: settleField() } : {}) });
+        // the timeline is replaced as a whole: an early campaign start brings a shifted one, nothing keeps the old times
+        if (snap) set({ snapshot: { ...snap, status: m.status, timeline: m.timeline, ...(m.status !== snap.status ? { fieldingDone: [] } : {}) }, ...(m.status !== snap.status ? { fieldPending: settleField(), doneStats: null } : {}) });
         break;
-      case 'players': if (snap) set({ snapshot: { ...snap, players: m.players } }); break;
+      case 'players': if (snap) set({ snapshot: { ...snap, players: m.players }, doneStats: null }); break;
       case 'news':
         if (snap) set({ snapshot: { ...snap, news: [...snap.news, m.item] }, pulse: { seat: m.item.seat, playerId: m.item.playerId, key: ++pulseKey } });
         break;
@@ -166,6 +178,12 @@ export const useStore = create<State>((set, get) => ({
       }
       case 'fieldingUpdate':
         if (snap) set({ snapshot: { ...snap, fielding: applyFielding(snap.fielding, m.playerId, m.added, m.removed), contestedSeats: m.contestedSeats, majority: m.majority } });
+        break;
+      case 'fieldingDone':
+        if (snap) {
+          const rest = snap.fieldingDone.filter(id => id !== m.playerId);
+          set({ snapshot: { ...snap, fieldingDone: m.done ? [...rest, m.playerId] : rest }, doneStats: { doneCount: m.doneCount, needed: m.needed } });
+        }
         break;
       case 'report':
         if (priv) set({ priv: { ...priv, budget: m.budget, myReports: [...priv.myReports, m.report] } });

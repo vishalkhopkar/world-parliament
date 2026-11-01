@@ -15,7 +15,7 @@ const pl = (id: string, status: PlayerPublic['status'] = 'active'): PlayerPublic
 const snap = (over: Partial<GameSnapshot> = {}): GameSnapshot => ({
   gameId: 'g', mapId: WORLD_CONFIG.mapId, status: 'campaign', phases: 2, timeline: null, players: [pl('a'), pl('b')], news: [],
   fielding: { 1: [{ playerId: 'a', name: 'Asha Rao' }, { playerId: 'b', name: 'Ben Roy' }], 2: [{ playerId: 'b', name: 'Ben Roy' }] },
-  contestedSeats: 2, majority: 2, polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null, ...over,
+  fieldingDone: [], contestedSeats: 2, majority: 2, polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null, ...over,
 });
 const priv = (over: Partial<PrivateState> = {}): PrivateState => ({ you: 'a', budget: 50_000, myActions: [], myReports: [], reputation: { 1: 7, 2: 8 }, ...over });
 const open = (seat: number, s = snap(), p = priv(), now = 1_000) => {

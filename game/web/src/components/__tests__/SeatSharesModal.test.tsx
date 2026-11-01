@@ -16,7 +16,7 @@ const b: PlayerPublic = { playerId: 'b', nickname: 'Bo', isAdmin: false, status:
 const snap = (seats: GameSnapshot['seats']): GameSnapshot => ({
   gameId: 'g', mapId: 'world-500', status: 'counting', phases: 2,
   timeline: { campaignStart: 0, phaseCloses: [1, 2], campaignEnd: 2, countingEnd: 3, postCountingEnd: 4 },
-  players: [a, b], news: [], fielding: {}, contestedSeats: 100, majority: 51, polledPhases: [], seats, tally: { leads: {}, wins: {}, declared: 0, total: 500 },
+  players: [a, b], news: [], fielding: {}, fieldingDone: [], contestedSeats: 100, majority: 51, polledPhases: [], seats, tally: { leads: {}, wins: {}, declared: 0, total: 500 },
   offers: [], government: null, result: null,
 });
 const answer = (seat: number, status: 'leading' | 'won', shares: Record<string, number>, candidates?: Record<string, string>): SeatSharesMessage =>

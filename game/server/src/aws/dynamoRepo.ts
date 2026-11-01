@@ -3,9 +3,10 @@ import {
 } from '@aws-sdk/lib-dynamodb';
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { applyFieldingChange } from '../core/fielding';
-import type { Action, CoalitionOffer, FinalResult, Government, PlayerId, SeatResult } from '@hp/shared';
+import type { Action, CoalitionOffer, FinalResult, GameTimeline, Government, PlayerId, SeatResult } from '@hp/shared';
 import type {
-  AddActionOptions, ConnectionRecord, CountPlan, FieldingChange, FieldingOutcome, GameRecord, PlayerRecord, Repo, SpendResult, StoredChat, StoredReport,
+  AddActionOptions, ConnectionRecord, CountPlan, FieldingChange, FieldingDoneResult, FieldingOutcome, GameRecord, PlayerRecord, Repo, SpendResult,
+  StoredChat, StoredReport,
 } from '../core/types';
 
 export const TTL_SECONDS = 7 * 24 * 3600;
@@ -130,6 +131,21 @@ export class DynamoRepo implements Repo {
   }
   updateGame(gameId: string, patch: Partial<GameRecord>, cond?: Partial<GameRecord>) {
     return this.update(this.gk(gameId), 'META', patch as Item, cond as Item | undefined);
+  }
+  async rescheduleTimeline(gameId: string, timeline: GameTimeline, expectPreCampaignEnd: number): Promise<boolean> {
+    try {
+      await this.doc.send(new UpdateCommand({
+        TableName: this.table, Key: { PK: this.gk(gameId), SK: 'META' },
+        UpdateExpression: 'SET #tl = :tl, #ttl = :ttl',
+        ConditionExpression: 'attribute_exists(PK) AND #status = :pre AND #tl.#end = :end',
+        ExpressionAttributeNames: { '#tl': 'timeline', '#end': 'preCampaignEnd', '#status': 'status', '#ttl': 'ttl' },
+        ExpressionAttributeValues: { ':tl': timeline, ':pre': 'preCampaign', ':end': expectPreCampaignEnd, ':ttl': this.ttl() },
+      }));
+      return true;
+    } catch (e) {
+      if (isCondFail(e)) return false;
+      throw e;
+    }
   }
   async markPhaseClosed(gameId: string, n: number): Promise<void> {
     try {
@@ -256,7 +272,9 @@ export class DynamoRepo implements Repo {
   /**
    * Compare-and-swap on the player's fieldingSeq: read the fielded list, work out the change, write it in one transaction with the
    * game status check and the idempotency marker. Losing to a concurrent batch of the same player re-reads and starts again, so no
-   * batch is lost and the budget can never go below 0. Every refusal is decided on a fresh, consistent read.
+   * batch is lost and the budget can never go below 0. Every refusal is decided on a fresh, consistent read. A change also removes
+   * the player's Done in the same write; the condition includes the Done state that was read, so a Done pressed in between makes the
+   * write retry and `clearedDone` is always true to what was removed.
    */
   async updateFielding(gameId: string, playerId: PlayerId, change: FieldingChange): Promise<FieldingOutcome> {
     const refKey = change.clientRef !== undefined ? this.refSk(playerId, change.clientRef) : undefined;
@@ -274,16 +292,19 @@ export class DynamoRepo implements Repo {
       }
       const ttl = this.ttl();
       const seq = p.fieldingSeq;
+      const wasDone = p.doneFielding === true;
       try {
         await this.doc.send(new TransactWriteCommand({
           TransactItems: [
             { Update: {
               TableName: this.table, Key: { PK: this.gk(gameId), SK: `PLAYER#${playerId}` },
-              UpdateExpression: 'SET #f = :f, budget = budget - :d, #seq = :next, #ttl = :ttl',
-              ConditionExpression: `attribute_exists(PK) AND #status = :active AND budget >= :d AND ${seq === undefined ? 'attribute_not_exists(#seq)' : '#seq = :seq'}`,
-              ExpressionAttributeNames: { '#f': 'fielded', '#seq': 'fieldingSeq', '#ttl': 'ttl', '#status': 'status' },
+              UpdateExpression: 'SET #f = :f, budget = budget - :d, #seq = :next, #ttl = :ttl REMOVE #done',
+              ConditionExpression: `attribute_exists(PK) AND #status = :active AND budget >= :d AND ${seq === undefined ? 'attribute_not_exists(#seq)' : '#seq = :seq'}`
+                + ` AND ${wasDone ? '#done = :done' : 'attribute_not_exists(#done)'}`,
+              ExpressionAttributeNames: { '#f': 'fielded', '#seq': 'fieldingSeq', '#ttl': 'ttl', '#status': 'status', '#done': 'doneFielding' },
               ExpressionAttributeValues: {
                 ':f': fielded, ':d': delta, ':next': (seq ?? 0) + 1, ':ttl': ttl, ':active': 'active', ...(seq === undefined ? {} : { ':seq': seq }),
+                ...(wasDone ? { ':done': true } : {}),
               },
             } },
             { ConditionCheck: {
@@ -298,7 +319,7 @@ export class DynamoRepo implements Repo {
             } }] : []),
           ],
         }));
-        return { result: 'ok', added, removed, budget: p.budget - delta };
+        return { result: 'ok', added, removed, budget: p.budget - delta, ...(wasDone ? { clearedDone: true as const } : {}) };
       } catch (e) {
         const reasons = (e as { CancellationReasons?: { Code?: string }[] })?.CancellationReasons;
         if ((e as { name?: string })?.name !== 'TransactionCanceledException' || !reasons) throw e;
@@ -310,6 +331,46 @@ export class DynamoRepo implements Repo {
       }
     }
     return { result: 'conflict' };
+  }
+
+  /**
+   * The player's Done in one transaction with the game status check; done = true also requires a non-empty fielded list. A refusal
+   * of the player condition is told apart (inactive or no candidates) on a consistent re-read. TransactionConflict is retried.
+   */
+  async setFieldingDone(gameId: string, playerId: PlayerId, done: boolean): Promise<FieldingDoneResult> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await this.doc.send(new TransactWriteCommand({
+          TransactItems: [
+            { Update: {
+              TableName: this.table, Key: { PK: this.gk(gameId), SK: `PLAYER#${playerId}` },
+              UpdateExpression: done ? 'SET #done = :done, #ttl = :ttl' : 'SET #ttl = :ttl REMOVE #done',
+              ConditionExpression: `attribute_exists(PK) AND #status = :active${done ? ' AND size(#f) > :zero' : ''}`,
+              ExpressionAttributeNames: { '#done': 'doneFielding', '#ttl': 'ttl', '#status': 'status', ...(done ? { '#f': 'fielded' } : {}) },
+              ExpressionAttributeValues: { ':ttl': this.ttl(), ':active': 'active', ...(done ? { ':done': true, ':zero': 0 } : {}) },
+            } },
+            { ConditionCheck: {
+              TableName: this.table, Key: { PK: this.gk(gameId), SK: 'META' },
+              ConditionExpression: '#status = :open',
+              ExpressionAttributeNames: { '#status': 'status' },
+              ExpressionAttributeValues: { ':open': 'preCampaign' },
+            } },
+          ],
+        }));
+        return 'ok';
+      } catch (e) {
+        const reasons = (e as { CancellationReasons?: { Code?: string }[] })?.CancellationReasons;
+        if ((e as { name?: string })?.name !== 'TransactionCanceledException' || !reasons) throw e;
+        if (reasons[0]?.Code === 'ConditionalCheckFailed') {
+          const p = await this.getPlayer(gameId, playerId);
+          if (!p || p.status !== 'active') return 'inactive';
+        }
+        if (reasons[1]?.Code === 'ConditionalCheckFailed') return 'wrong_phase';
+        if (reasons[0]?.Code === 'ConditionalCheckFailed') return 'no_candidates';
+        if (!reasons.some((r) => r.Code === 'TransactionConflict') || attempt >= 7) throw e;
+        await new Promise((r) => setTimeout(r, 10 * 2 ** Math.min(attempt, 5) * (0.5 + Math.random())));
+      }
+    }
   }
 
   addReport(gameId: string, playerId: PlayerId, cost: number, rep: StoredReport, expectClosedPhases: number) {

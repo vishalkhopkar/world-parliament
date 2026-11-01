@@ -9,7 +9,7 @@ import { useMapConfig } from '../mapConfig';
 registerFakeMap();
 
 const inGame = (mapId: string) => useStore.setState({
-  snapshot: { gameId: 'g', mapId, status: 'lobby', phases: 2, timeline: null, players: [], news: [], fielding: {}, contestedSeats: 100, majority: 51, polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null },
+  snapshot: { gameId: 'g', mapId, status: 'lobby', phases: 2, timeline: null, players: [], news: [], fielding: {}, fieldingDone: [], contestedSeats: 100, majority: 51, polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null },
 });
 const pkg = (mapId: string, seatCount: number) => ({ mapId, seatCount, version: 1, seats: [], phaseGroups: {}, topo: { coarse: '' } }) as GameMapPackage;
 

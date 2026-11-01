@@ -125,7 +125,18 @@ describe('AI agents join and play through the action table', () => {
     const preChat = await call(A, 'chat', { to: ['Green Deal'], text: 'You keep the east, I take the west?' });
     expect(preChat.chat_mode).toBe('INDV');
     expect((await callErr(A, 'chat', { text: 'no recipient' })).code).toBe('INVALID_INPUT');
-    // the human host fields one seat (a party needs a candidate to stay in the game); a lone seat is enough to stay out of a coalition
+    // done_fielding: refused with no candidate (the host has none yet), then A and B are done: 2 of 3, the host still blocks an early start
+    const hostDone0 = await human.done().then(() => 'ok', (e: Error) => e.message);
+    expect(hostDone0).toMatch(/BAD_REQUEST/); // the host has no candidate yet
+    const dA = await call(A, 'done_fielding');
+    expect(dA).toMatchObject({ done: true, done_count: 1, needed: 3 });
+    const dB = await call(B, 'done_fielding');
+    expect(dB).toMatchObject({ done: true, done_count: 2, needed: 3, progress: '2 of 3 done' });
+    expect(dB.waiting_for).toEqual(['Saffron Front']);
+    await until(async () => (await call(A, 'get_state')).fielding.done_count === 2, 5000, 'A sees B done');
+    expect((await call(A, 'get_state')).fielding).toMatchObject({ you_are_done: true, needed: 3 });
+    // the human host fields one seat (a party needs a candidate to stay in the game); a lone seat is enough to stay out of a coalition.
+    // The host never presses Done here, so the countdown (not an early start) ends this pre-campaign.
     expect((await human.field([1])).added).toHaveLength(1);
 
     await until(() => A.client.state.snapshot?.status === 'campaign' && B.client.state.snapshot?.status === 'campaign', 15_000, 'campaign started');
@@ -274,10 +285,20 @@ describe('AI agents join and play through the action table', () => {
       expect(st.budget.wr).toBe(WORLD_CONFIG.budget);
     }
     expect(rm.events[0].note).toMatch(/pre-campaign/);
-    await call(A, 'field_candidates', { seats: [1, 2, 3] });
+    const plannedStart = A.client.state.snapshot!.timeline!.campaignStart;
+    await call(A, 'field_candidates', { seats: [1, 2, 3, 4] });
+    await call(A, 'done_fielding');
+    await call(A, 'withdraw_candidates', { seats: [4] }); // withdrawing clears my done
+    expect((await call(A, 'get_state')).fielding.you_are_done).toBe(false);
     await call(B, 'field_candidates', { seats: [1] });
     await human.field([2]);
+    await call(A, 'done_fielding');
+    await call(B, 'done_fielding');
+    expect((await call(A, 'get_state')).fielding.done_count).toBe(2); // the host is still to press Done
+    expect((await human.done()).doneCount).toBe(3); // everybody is done: the campaign starts at once
     await until(() => A.client.state.snapshot?.status === 'campaign', 15_000, 'rematch campaign started');
+    expect(A.client.state.snapshot!.timeline!.campaignStart).toBeLessThan(plannedStart); // early start: earlier than the countdown would have allowed
+    expect((await callErr(A, 'done_fielding')).code).toBe('WRONG_PHASE');
     const batch = await call(A, 'campaign_batch', { actions: [{ type: 'roadshow', seat: 1 }] });
     expect(batch.results[0].ok).toBe(true);
     expect((await call(A, 'get_state')).contested_seats).toBe(3); // seats 1, 2 and 3 have a candidate; the rest is vacant

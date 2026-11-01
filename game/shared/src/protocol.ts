@@ -114,6 +114,12 @@ export type ClientMessage =
   | { action: 'field'; seats: SeatId[]; clientRef?: string }
   /** Pre-campaign: withdraw the candidate from each of `seats`, refunding costs.candidate per seat (seats without one are skipped). Answered with 'fieldAck'. */
   | { action: 'withdraw'; seats: SeatId[]; clientRef?: string }
+  /**
+   * Pre-campaign: say you have finished fielding (`done` defaults to true; false takes it back). Refused while you have no candidate
+   * (BAD_REQUEST). Fielding or withdrawing clears it. When every connected active player is done, the campaign starts at once.
+   * Answered to everybody with 'fieldingDone'.
+   */
+  | { action: 'doneFielding'; done?: boolean; clientRef?: string }
   | { action: 'buyReport'; scope: ReportScope; seat?: SeatId }
   /** Campaign start onwards (free, every player): the news agencies' noisy projections. Answered, to the requester only, with 'globalReports'. */
   | { action: 'globalReports' }
@@ -168,6 +174,8 @@ export interface GameSnapshot {
    * Players with no fielded seats do not appear, and neither do eliminated players once their candidates are removed.
    */
   fielding: Record<SeatId, FieldedCandidate[]>;
+  /** Players who pressed "Done fielding" and have not changed anything since (pre-campaign only; empty otherwise). */
+  fieldingDone: PlayerId[];
   /** Seats with at least one candidate. Live during the pre-campaign, fixed when the campaign starts. Equals the seat count in a 2-player game. */
   contestedSeats: number;
   /** Seats needed for a majority: majorityOf(contestedSeats). Moves with contestedSeats. */
@@ -245,6 +253,11 @@ export type ServerMessage =
   | { type: 'fieldAck'; clientRef?: string; /** true when this clientRef had already been applied: nothing changed */ duplicate?: true; ok: true; budget: number; added: FieldedSeat[]; removed: SeatId[] }
   /** To everybody, whenever anyone fields or withdraws, carrying the new contestedSeats and majority. */
   | { type: 'fieldingUpdate'; playerId: PlayerId; added: FieldedSeat[]; removed: SeatId[]; contestedSeats: number; majority: number }
+  /**
+   * To everybody whenever a player's Done state changes (they pressed or revoked it, or fielding / withdrawing cleared it).
+   * `doneCount` of `needed` (the connected active players) are done; the campaign starts at once when they are equal.
+   */
+  | { type: 'fieldingDone'; playerId: PlayerId; done: boolean; doneCount: number; needed: number }
   | { type: 'report'; report: AnalystReport; budget: number }
   | { type: 'globalReports'; reports: GlobalReports }
   | { type: 'phaseClosed'; phase: number; seats: SeatId[] }

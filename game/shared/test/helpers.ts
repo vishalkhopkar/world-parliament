@@ -17,7 +17,7 @@ export const TEST_CFG: MapConfig = {
     firstMover: { rally: 0, roadshow: 0, minorRally: 0 }, // off in the base test config; firstMover.test.ts turns it on
   },
   cooldowns: { rallyMs: 30_000 },
-  display: { reputationScale: 10, brushRadiusPx: 14 }, // a round scale for the tests (the shipped file uses 4)
+  display: { reputationScale: 10, brushRadiusPx: 14, fieldingSmoke: false }, // a round scale for the tests (the shipped file uses 4)
   timeMultiplier: { start: 1.0, end: 1.2 },
   durations: { ...WORLD_CONFIG.durations, campaignMs: 600_000 }, // pinned: engine tests must not move when the shipped campaign length is tuned
 };

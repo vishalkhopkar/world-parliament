@@ -75,6 +75,10 @@ class MockGame {
   /** The bots' fielding plans (seats in the order they will be fielded) and when the pre-campaign started. */
   botPlans = new Map<PlayerId, SeatId[]>();
   preStart = 0;
+  /** Players who pressed "Done fielding" and have not changed anything since (pre-campaign only). */
+  fieldingDone = new Set<PlayerId>();
+  /** Mock-clock time before which no bot presses Done (they press it a few seconds apart). */
+  nextBotDone = 0;
   /** Set when the campaign opens: contested seats and the majority are fixed from then on. */
   fixed?: { contested: number; majority: number };
   seatIds: SeatId[] = [];
@@ -155,7 +159,7 @@ export class MockTransport implements Transport {
       gameId: g.gameId, mapId: g.mapId, status: g.status, phases: g.phases, timeline: g.timeline,
       players: this.publicPlayers(g), news: [...g.news],
       fielding: Object.fromEntries([...g.fielding].filter(([, l]) => l.length > 0).map(([seat, l]) => [seat, structuredClone(l)])),
-      contestedSeats: this.contested(g), majority: this.majority(g), polledPhases: [...g.polledPhases], seats: { ...g.seats },
+      fieldingDone: [...g.fieldingDone], contestedSeats: this.contested(g), majority: this.majority(g), polledPhases: [...g.polledPhases], seats: { ...g.seats },
       tally: g.tally, offers: g.offers.filter(o => o.proposer === g.me || o.partners.includes(g.me)),
       government: g.government, result: g.result,
     };
@@ -447,12 +451,62 @@ export class MockTransport implements Transport {
     }
     if (msg.clientRef) g.fieldRefs.set(msg.clientRef, { added, removed });
     this.emit({ type: 'fieldAck', clientRef: msg.clientRef, ok: true, budget: me.budget, added, removed });
-    if (added.length || removed.length) this.announceFielding(g, g.me, added, removed);
+    if (added.length || removed.length) {
+      this.announceFielding(g, g.me, added, removed);
+      this.setDone(g, g.me, false); // changing your candidates takes your Done back
+    }
+  }
+
+  // ---- Done fielding
+  private activeCount(g: MockGame) { return this.activePlayers(g).length; }
+  /** Sets one party's Done (nothing is sent when it does not change), tells everybody and starts the campaign if every active player is done. */
+  private setDone(g: MockGame, who: PlayerId, done: boolean) {
+    if (g.fieldingDone.has(who) === done) return;
+    if (done) g.fieldingDone.add(who); else g.fieldingDone.delete(who);
+    this.emit({ type: 'fieldingDone', playerId: who, done, doneCount: g.fieldingDone.size, needed: this.activeCount(g) });
+    if (done && g.status === 'preCampaign' && this.activePlayers(g).every(p => g.fieldingDone.has(p.pub.playerId))) this.startCampaignEarly(g);
+  }
+  private handleDone(g: MockGame, msg: Msg<'doneFielding'>, err: ErrFn) {
+    if (g.status !== 'preCampaign') return err('WRONG_PHASE', 'Done fielding only applies before the campaign', msg.clientRef);
+    if (g.players.get(g.me)!.pub.status === 'eliminated') return err('FORBIDDEN', 'You are out of the game', msg.clientRef);
+    const done = msg.done !== false;
+    if (done && ![...g.fielding.values()].some(l => l.some(c => c.playerId === g.me))) return err('BAD_REQUEST', 'Field at least one candidate before you press Done', msg.clientRef);
+    this.setDone(g, g.me, done);
+  }
+  /** A bot has finished fielding when it holds its whole plan, or can pay for no more of it (and holds at least one candidate). */
+  private botFinished(g: MockGame, p: MockPlayer): boolean {
+    const id = p.pub.playerId, plan = g.botPlans.get(id) ?? [];
+    const held = plan.filter(seat => this.holds(g, id, seat)).length;
+    return held > 0 && (held === plan.length || p.budget < g.cfg.costs.candidate);
+  }
+  /** Once a bot has finished fielding it presses Done; the bots do it a few seconds apart. */
+  private botDone(g: MockGame, now: number) {
+    if (now < g.nextBotDone) return;
+    const next = this.activePlayers(g).find(p => p.bot && !g.fieldingDone.has(p.pub.playerId) && this.botFinished(g, p));
+    if (!next) return;
+    g.nextBotDone = now + rnd(2000, 4000);
+    this.setDone(g, next.pub.playerId, true);
+  }
+  /** Everybody is done: the campaign opens now (the same path as the deadline) and every later time in the timeline moves earlier by the time saved. */
+  private startCampaignEarly(g: MockGame) {
+    const t = g.timeline!, now = this.now();
+    const leadIn = t.campaignStart - (t.preCampaignEnd ?? t.campaignStart);
+    const campaignStart = now + leadIn;
+    const saved = t.campaignStart - campaignStart;
+    if (saved > 0) {
+      g.timeline = {
+        ...t, preCampaignEnd: now, campaignStart, phaseCloses: t.phaseCloses.map(c => c - saved), campaignEnd: t.campaignEnd - saved,
+        countingEnd: t.countingEnd - saved, postCountingEnd: t.postCountingEnd - saved,
+      };
+      g.nextBotRally -= saved;
+    }
+    this.openCampaign(g);
   }
 
   /** The pre-campaign deadline: parties with no candidate are out, the contested seats and the majority are fixed, the campaign opens. */
   private openCampaign(g: MockGame) {
     if (g.status !== 'preCampaign') return;
+    g.fieldingDone.clear(); // Done only means something in the pre-campaign
     const out: PlayerId[] = [];
     for (const p of this.activePlayers(g)) {
       if (![...g.fielding.values()].some(l => l.some(c => c.playerId === p.pub.playerId))) { p.pub.status = 'eliminated'; out.push(p.pub.playerId); }
@@ -489,6 +543,7 @@ export class MockTransport implements Transport {
       case 'campaign': this.handleCampaign(g, msg, err); break;
       case 'field': this.handleField(g, msg, err, true); break;
       case 'withdraw': this.handleField(g, msg, err, false); break;
+      case 'doneFielding': this.handleDone(g, msg, err); break;
       case 'buyReport': this.handleReport(g, msg, err); break;
       case 'globalReports': this.handleGlobalReports(g, err); break;
       case 'peekSeat': this.handlePeek(g, msg, err); break;
@@ -776,6 +831,7 @@ export class MockTransport implements Transport {
     const now = this.now(), t = g.timeline;
     if (g.status === 'preCampaign') {
       this.botFielding(g, now);
+      this.botDone(g, now);
       if (now >= (t.preCampaignEnd ?? now)) this.openCampaign(g);
     } else if (g.status === 'campaign' && g.seatIds.length) {
       t.phaseCloses.forEach((c, ph) => {

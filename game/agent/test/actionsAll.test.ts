@@ -44,7 +44,7 @@ function session(opts: Opts = {}) {
   c.state.gameId = 'g'; c.state.me = 'me'; c.state.joinCode = 'ABC123';
   c.state.snapshot = {
     gameId: 'g', mapId: 'world-500', status: opts.status ?? 'campaign', phases: 3, players: list, news: opts.news ?? [], polledPhases: [], seats: {}, tally: null,
-    fielding: {}, contestedSeats: cfg.seatCount, majority: majorityOf(cfg.seatCount),
+    fielding: {}, fieldingDone: [], contestedSeats: cfg.seatCount, majority: majorityOf(cfg.seatCount),
     offers: opts.offers ?? [], government: null, result: null,
     timeline: { campaignStart: now - 1000, phaseCloses: closes, campaignEnd: closes[2], countingEnd: closes[2] + 1000, postCountingEnd: closes[2] + 2000 },
   };
@@ -85,7 +85,7 @@ const err = async (s: AgentSession, name: string, args: unknown = {}) => {
 const ARGS: Record<string, unknown> = {
   wait_for_admission: { timeout_s: 1 }, get_lobby: {}, list_party_options: {},
   set_party: { name: 'Blue Wave', colour: 'blue', symbol: 'sun', avatar: 'xi' }, list_seats: {}, get_seat: { seat: 1 },
-  field_candidates: { seats: [1] }, withdraw_candidates: { seats: [1] },
+  field_candidates: { seats: [1] }, withdraw_candidates: { seats: [1] }, done_fielding: {},
   campaign: { type: 'rally', seat: 1 }, campaign_batch: { actions: [{ type: 'rally', seat: 1 }] }, buy_report: { scope: 'global' },
   get_news: {}, wait_for_events: { timeout_s: 0 }, chat: { to: ['all'], text: 'hi' }, get_chat: {},
   propose_government: { portfolios: { HOME: 'Party Codex' } }, respond_offer: { offer_id: 'x', accept: true }, withdraw_offer: { offer_id: 'x' }, list_offers: {},
@@ -111,7 +111,7 @@ describe('guards: every action that needs a game refuses cleanly before joining'
 });
 
 describe('guards: pending / declined players cannot act (NOT_ADMITTED) but can look', () => {
-  const NEEDS_ADMISSION = ['set_party', 'field_candidates', 'withdraw_candidates', 'campaign', 'campaign_batch', 'buy_report', 'chat', 'propose_government', 'respond_offer', 'withdraw_offer'];
+  const NEEDS_ADMISSION = ['set_party', 'field_candidates', 'withdraw_candidates', 'done_fielding', 'campaign', 'campaign_batch', 'buy_report', 'chat', 'propose_government', 'respond_offer', 'withdraw_offer'];
   for (const admission of ['pending', 'rejected'] as const) {
     it.each(NEEDS_ADMISSION)(`${admission}: %s -> NOT_ADMITTED`, async (name) => {
       const { s, calls } = session({ admission, status: 'lobby' });
@@ -284,6 +284,13 @@ describe('chat / get_chat', () => {
     const early = session({ status: 'lobby' });
     expect((await err(early.s, 'chat', { to: ['Party Asha'], text: 'hi' })).code).toBe('WRONG_PHASE');
     expect(early.calls.chat).toBeUndefined();
+  });
+  it('a game that is over says its chat is closed (not that it opens when the game starts)', async () => {
+    const over = session({ status: 'finished' });
+    const e = await err(over.s, 'chat', { to: ['Party Asha'], text: 'hi' });
+    expect(e.code).toBe('WRONG_PHASE');
+    expect(e.message).toMatch(/game is over/i);
+    expect(over.calls.chat).toBeUndefined();
   });
   it('resolves party name and id (never nicknames); de-duplicates; "all" means every other living player', async () => {
     const ps = players();
@@ -619,7 +626,7 @@ describe('executeAction wrapper', () => {
   });
   it('every action has a unique name, a description, a zod object schema and a readOnly flag only where it changes nothing', () => {
     expect(new Set(ACTIONS.map((a) => a.name)).size).toBe(ACTIONS.length);
-    const mutating = ['join_game', 'set_party', 'field_candidates', 'withdraw_candidates', 'campaign', 'campaign_batch', 'buy_report', 'chat', 'propose_government', 'respond_offer', 'withdraw_offer', 'leave_game'];
+    const mutating = ['join_game', 'set_party', 'field_candidates', 'withdraw_candidates', 'done_fielding', 'campaign', 'campaign_batch', 'buy_report', 'chat', 'propose_government', 'respond_offer', 'withdraw_offer', 'leave_game'];
     for (const a of ACTIONS) {
       expect(typeof a.run).toBe('function');
       expect(a.schema.shape).toBeDefined();

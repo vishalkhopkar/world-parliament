@@ -46,6 +46,9 @@ export type BatchOutcome = { ok: true; budget: number } | { ok: false; error: Ag
 
 export interface CampaignResult { type: ActionType; seat: SeatId; budget: number }
 
+/** What the server answered to doneFielding: my own fieldingDone broadcast (who is done now, out of how many). */
+export interface DoneResult { done: boolean; doneCount: number; needed: number }
+
 /** What the server did for a field / withdraw message (its fieldAck): the seats that really changed (skipped ones are left out). */
 export interface FieldResult { budget: number; added: FieldedSeat[]; removed: SeatId[]; duplicate?: true }
 
@@ -53,7 +56,7 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export const defaultWsFor = (server: string): string => server.replace(/\/+$/, '').replace(/^http/, 'ws') + '/ws';
 
-type AckMessage = Extract<ServerMessage, { type: 'actionAck' | 'fieldAck' }>;
+type AckMessage = Extract<ServerMessage, { type: 'actionAck' | 'fieldAck' | 'fieldingDone' }>;
 
 interface Collector {
   errors: { error: ErrorCode; message: string }[];
@@ -93,6 +96,8 @@ export class GameClient {
   private readonly refPrefix = Math.random().toString(36).slice(2, 7);
   private readonly batchConcurrency: number;
   private readonly actionTimeoutMs: number;
+  /** clientRef -> the `done` value a pending doneFielding waits to see echoed in my own fieldingDone. */
+  private pendingDone = new Map<string, boolean>();
   private pendingRefs = new Map<string, { resolve: (ack: AckMessage) => void; reject: (e: AgentError) => void; timer: ReturnType<typeof setTimeout> }>();
   private barriers = new Map<number, () => void>();
   private barrierSeq = 0;
@@ -388,10 +393,21 @@ export class GameClient {
       return;
     }
     if (m.type === 'error' && m.clientRef) {
+      this.pendingDone.delete(m.clientRef);
       const p = this.pendingRefs.get(m.clientRef);
       for (const l of applyMessage(this.state, m, now)) this.events.push(l.type, l.data, this.serverNow());
       if (p) { clearTimeout(p.timer); this.pendingRefs.delete(m.clientRef); p.reject(new AgentError(m.error, m.message)); }
       return;
+    }
+    if (m.type === 'fieldingDone' && m.playerId === this.state.me) {
+      // the answer to my doneFielding (the server sends no ack of its own): the oldest pending request with this value
+      const ref = [...this.pendingDone].find(([, d]) => d === m.done)?.[0];
+      if (ref !== undefined) {
+        const p = this.pendingRefs.get(ref);
+        this.pendingDone.delete(ref);
+        // resolves in a later microtask, after the state and event log below have taken the message
+        if (p) { clearTimeout(p.timer); this.pendingRefs.delete(ref); p.resolve(m); }
+      }
     }
     if (this.collector) {
       if (m.type === 'error') this.collector.errors.push({ error: m.error, message: m.message });
@@ -405,6 +421,7 @@ export class GameClient {
 
   private failPending(e: AgentError): void {
     for (const [ref, p] of this.pendingRefs) { clearTimeout(p.timer); p.reject(e); this.pendingRefs.delete(ref); }
+    this.pendingDone.clear();
     for (const [k, b] of this.barriers) { this.barriers.delete(k); b(); }
   }
 
@@ -434,7 +451,10 @@ export class GameClient {
       }, timeoutMs);
       this.pendingRefs.set(ref, {
         timer, reject,
-        resolve: (ack) => resolve({ type, seat, budget: ack.budget }),
+        resolve: (ack) => {
+          if (ack.type !== 'actionAck') { reject(new AgentError('INTERNAL', 'Unexpected acknowledgement for a campaign action.')); return; }
+          resolve({ type, seat, budget: ack.budget });
+        },
       });
       if (!this.sendRaw({ action: 'campaign', type, seat, clientRef: ref })) {
         clearTimeout(timer);
@@ -479,6 +499,36 @@ export class GameClient {
 
   withdrawCandidates(seats: SeatId[], timeoutMs = this.actionTimeoutMs, ref: string = `${this.refPrefix}${++this.refCounter}`): Promise<FieldResult> {
     return this.fieldRequest('withdraw', seats, timeoutMs, ref);
+  }
+
+  /**
+   * Pre-campaign: say you are done fielding (`done` false takes it back). The server answers everybody with 'fieldingDone'; this resolves on
+   * the one about me, or rejects with the server's error (BAD_REQUEST with no candidate, WRONG_PHASE outside the pre-campaign). Repeating it is harmless.
+   */
+  doneFielding(done = true, timeoutMs = this.actionTimeoutMs, ref: string = `${this.refPrefix}${++this.refCounter}`): Promise<DoneResult> {
+    try { this.requireOpen(); } catch (e) { return Promise.reject(e); }
+    return new Promise<DoneResult>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingRefs.delete(ref);
+        this.pendingDone.delete(ref);
+        reject(new AgentError('TIMEOUT', 'No answer from the server for done_fielding.',
+          'It may still have been applied (repeating it is harmless): call get_state -> fielding.done to see.'));
+      }, timeoutMs);
+      this.pendingRefs.set(ref, {
+        timer, reject,
+        resolve: (ack) => {
+          if (ack.type !== 'fieldingDone') { reject(new AgentError('INTERNAL', 'Unexpected acknowledgement for done_fielding.')); return; }
+          resolve({ done: ack.done, doneCount: ack.doneCount, needed: ack.needed });
+        },
+      });
+      this.pendingDone.set(ref, done);
+      if (!this.sendRaw({ action: 'doneFielding', done, clientRef: ref })) {
+        clearTimeout(timer);
+        this.pendingRefs.delete(ref);
+        this.pendingDone.delete(ref);
+        reject(new AgentError('NO_CONNECTION', 'The live connection is down.'));
+      }
+    });
   }
 
   /**

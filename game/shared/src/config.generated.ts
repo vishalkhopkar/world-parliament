@@ -100,7 +100,8 @@ export const GAME_CONFIG_VALUES = {
   },
   "display": {
     "reputationScale": 4,
-    "brushRadiusPx": 14
+    "brushRadiusPx": 14,
+    "fieldingSmoke": false
   },
   "phases": {
     "min": 1,

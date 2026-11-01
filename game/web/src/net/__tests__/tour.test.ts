@@ -308,6 +308,165 @@ describe('TourTransport pre-campaign', () => {
   });
 });
 
+// Rule: "Done fielding" works like on the real server. It is refused while you have no candidate (BAD_REQUEST) and outside the
+// pre-campaign (WRONG_PHASE), it is public (fieldingDone with doneCount of needed, and in the snapshot), you can take it back, and
+// fielding or withdrawing clears it. In the practice game the rivals press it in turn once YOU have, each after it has finished
+// fielding, and the tour does not start the campaign by itself: it waits for the Next of its last pre-campaign step.
+describe('TourTransport Done fielding', () => {
+  const dones = () => of('fieldingDone');
+  const done = (d?: boolean, clientRef?: string) => t.send({ action: 'doneFielding', ...(d === undefined ? {} : { done: d }), clientRef });
+  type Poke = { g: { fieldingDone: Set<string>; players: unknown[] } };
+  const poke = () => (t as unknown as Poke).g;
+
+  it('the snapshot starts with nobody done', async () => {
+    await start({ fieldEveryMs: IDLE }, 'preCampaign');
+    expect(hello().snapshot.fieldingDone).toEqual([]);
+  });
+
+  it('is refused with BAD_REQUEST while you have no candidate, and says nothing to the others', async () => {
+    await start({ fieldEveryMs: IDLE }, 'preCampaign');
+    done(true, 'd0');
+    await settle();
+    expect(of('error').find(e => e.clientRef === 'd0')?.error).toBe('BAD_REQUEST');
+    expect(dones()).toHaveLength(0);
+    expect(poke().fieldingDone.size).toBe(0);
+  });
+
+  it('is refused with BAD_REQUEST again once your only candidate is withdrawn', async () => {
+    await start({ fieldEveryMs: IDLE }, 'preCampaign');
+    field([3]); withdraw([3]);
+    await settle();
+    done(true, 'd1');
+    await settle();
+    expect(of('error').find(e => e.clientRef === 'd1')?.error).toBe('BAD_REQUEST');
+  });
+
+  it('pressing it tells everybody: you are done, 1 of the nine parties, and the next snapshot lists you', async () => {
+    const r = await start({ fieldEveryMs: IDLE }, 'preCampaign');
+    field([3, 4]);
+    done();
+    await settle();
+    expect(dones()).toEqual([{ type: 'fieldingDone', playerId: TOUR_ME_ID, done: true, doneCount: 1, needed: 9 }]);
+    msgs.length = 0;
+    t.connect(r.gameId, r.token, m => msgs.push(m));
+    await settle();
+    expect(of('hello')[0].snapshot.fieldingDone).toEqual([TOUR_ME_ID]);
+  });
+
+  it('done:false takes it back and says so', async () => {
+    await start({ fieldEveryMs: IDLE }, 'preCampaign');
+    field([3]);
+    done(true); done(false);
+    await settle();
+    expect(dones().map(d => [d.done, d.doneCount])).toEqual([[true, 1], [false, 0]]);
+    expect(poke().fieldingDone.size).toBe(0);
+  });
+
+  it('pressing it twice in a row changes nothing the second time', async () => {
+    await start({ fieldEveryMs: IDLE }, 'preCampaign');
+    field([3]);
+    done(); done();
+    await settle();
+    expect(dones()).toHaveLength(1);
+  });
+
+  it('fielding after Done clears it and tells everybody', async () => {
+    await start({ fieldEveryMs: IDLE }, 'preCampaign');
+    field([3]);
+    done();
+    await settle();
+    msgs.length = 0;
+    field([4]);
+    await settle();
+    expect(dones()).toEqual([{ type: 'fieldingDone', playerId: TOUR_ME_ID, done: false, doneCount: 0, needed: 9 }]);
+    expect(poke().fieldingDone.has(TOUR_ME_ID)).toBe(false);
+  });
+
+  it('withdrawing after Done clears it and tells everybody', async () => {
+    await start({ fieldEveryMs: IDLE }, 'preCampaign');
+    field([3, 4]);
+    done();
+    await settle();
+    msgs.length = 0;
+    withdraw([4]);
+    await settle();
+    expect(dones().map(d => [d.playerId, d.done])).toEqual([[TOUR_ME_ID, false]]);
+  });
+
+  it('fielding when you are not done says nothing about Done', async () => {
+    await start({ fieldEveryMs: IDLE }, 'preCampaign');
+    field([3]);
+    await settle();
+    expect(dones()).toHaveLength(0);
+  });
+
+  it('is refused with WRONG_PHASE once the campaign has started', async () => {
+    await start({ fieldEveryMs: IDLE });
+    done(true, 'late');
+    await settle();
+    expect(of('error').find(e => e.clientRef === 'late')?.error).toBe('WRONG_PHASE');
+    expect(dones()).toHaveLength(0);
+  });
+
+  it('the rivals do not press it until you have', async () => {
+    await start({ fieldEveryMs: 200, fieldRounds: 2, doneEveryMs: 100 }, 'preCampaign');
+    await settle(20_000);
+    expect(dones()).toHaveLength(0);
+  });
+
+  it('once you have, the rivals press it one after another, each only after it has finished fielding', async () => {
+    await start({ fieldEveryMs: 500, fieldRounds: 3, doneEveryMs: 400 }, 'preCampaign');
+    field([3]);
+    done();
+    await settle(30_000);
+    const rivals = dones().filter(d => d.playerId !== TOUR_ME_ID);
+    expect(rivals.map(d => d.playerId).sort()).toEqual(['p_alliance', 'p_s1', 'p_s2', 'p_s3', 'p_s4', 'p_s5', 'p_s6', 'p_s7']);
+    expect(rivals.map(d => d.doneCount)).toEqual([2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(rivals.every(d => d.done && d.needed === 9)).toBe(true);
+    // a rival says Done after its last candidates arrived, never before
+    const order = msgs.filter(m => m.type === 'fieldingUpdate' || m.type === 'fieldingDone');
+    for (const d of rivals) {
+      const doneAt = order.indexOf(d);
+      const lastField = order.map((m, i) => (m.type === 'fieldingUpdate' && m.playerId === d.playerId ? i : -1)).reduce((a, b) => Math.max(a, b), -1);
+      expect(doneAt).toBeGreaterThan(lastField);
+    }
+    expect(poke().fieldingDone.size).toBe(9);
+  });
+
+  it('the tour does not start the campaign by itself when everybody is done: it waits for Next', async () => {
+    await start({ fieldEveryMs: 200, fieldRounds: 2, doneEveryMs: 100 }, 'preCampaign');
+    field([3]);
+    done();
+    await settle(60_000);
+    expect(poke().fieldingDone.size).toBe(9);
+    expect(of('status')).toHaveLength(0);
+    t.startCampaign();
+    await settle();
+    expect(of('status').at(-1)).toMatchObject({ status: 'campaign' });
+  });
+
+  it('taking Done back stops the rivals pressing it', async () => {
+    await start({ fieldEveryMs: 200, fieldRounds: 2, doneEveryMs: 1000 }, 'preCampaign');
+    field([3]);
+    done(true); done(false);
+    await settle(30_000);
+    expect(dones().filter(d => d.playerId !== TOUR_ME_ID)).toHaveLength(0);
+  });
+
+  it('the campaign opening clears every Done in the snapshot', async () => {
+    const r = await start({ fieldEveryMs: 200, fieldRounds: 1, doneEveryMs: 100 }, 'preCampaign');
+    field([3]);
+    done();
+    await settle(20_000);
+    t.startCampaign();
+    await settle();
+    msgs.length = 0;
+    t.connect(r.gameId, r.token, m => msgs.push(m));
+    await settle();
+    expect(of('hello')[0].snapshot.fieldingDone).toEqual([]);
+  });
+});
+
 // Rule: a minor rally costs the configured price, has no cooldown and no global part, stays out of the news, needs a candidate
 // in the seat, and its effect on your reputation comes from the real engine.
 describe('TourTransport minor rally', () => {

@@ -28,7 +28,7 @@ const SKIP_BROWSER = argv.includes('--skip-browser');
 const VERBOSE = !!process.env.VERBOSE;
 
 /** Short game: pre-campaign 15 s (3+ players), campaign 45 s, counting 20 s, post-counting 15 s, 2 s lead-in (see e2e/README.md). */
-const SHORT_ENV = { HP_PRECAMPAIGN_MS: '15000', HP_CAMPAIGN_MS: '45000', HP_COUNTING_MS: '20000', HP_POST_MS: '15000', HP_START_DELAY_MS: '2000' };
+const SHORT_ENV = { HP_PRECAMPAIGN_MS: '30000', HP_CAMPAIGN_MS: '45000', HP_COUNTING_MS: '20000', HP_POST_MS: '15000', HP_START_DELAY_MS: '2000' };
 
 const t0 = Date.now();
 const log = (...a: unknown[]) => console.log(`[e2e ${((Date.now() - t0) / 1000).toFixed(0).padStart(4)}s]`, ...a);

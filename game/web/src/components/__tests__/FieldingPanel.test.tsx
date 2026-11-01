@@ -15,7 +15,7 @@ const COST = WORLD_CONFIG.costs.candidate;
 const pl = (id: string, status: PlayerPublic['status'] = 'active'): PlayerPublic => ({ playerId: id, nickname: id, isAdmin: false, status, party: { name: id + ' Party', colour: '#E8710A', symbol: 'sun' } });
 const snap = (over: Partial<GameSnapshot> = {}): GameSnapshot => ({
   gameId: 'g', mapId: WORLD_CONFIG.mapId, status: 'preCampaign', phases: 1, timeline: null, players: [pl('a'), pl('b'), pl('c')], news: [],
-  fielding: {}, contestedSeats: 0, majority: 1, polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null, ...over,
+  fielding: {}, fieldingDone: [], contestedSeats: 0, majority: 1, polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null, ...over,
 });
 const priv = (over: Partial<PrivateState> = {}): PrivateState => ({ you: 'a', budget: 10_000, myActions: [], myReports: [], ...over });
 const setup = (s: GameSnapshot, p: PrivateState = priv()) => {

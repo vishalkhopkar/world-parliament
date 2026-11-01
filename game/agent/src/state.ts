@@ -5,10 +5,10 @@ import type {
 } from '@hp/shared';
 
 export type EventType =
-  | 'news' | 'phaseClosed' | 'seatUpdate' | 'chat' | 'offer' | 'government' | 'result' | 'status' | 'players' | 'report' | 'fielding' | 'rematch' | 'error';
+  | 'news' | 'phaseClosed' | 'seatUpdate' | 'chat' | 'offer' | 'government' | 'result' | 'status' | 'players' | 'report' | 'fielding' | 'fieldingDone' | 'rematch' | 'error';
 
 export const EVENT_TYPES: readonly EventType[] = [
-  'news', 'phaseClosed', 'seatUpdate', 'chat', 'offer', 'government', 'result', 'status', 'players', 'report', 'fielding', 'rematch', 'error',
+  'news', 'phaseClosed', 'seatUpdate', 'chat', 'offer', 'government', 'result', 'status', 'players', 'report', 'fielding', 'fieldingDone', 'rematch', 'error',
 ];
 
 export interface AgentEvent {
@@ -101,12 +101,14 @@ export interface ClientState {
   budgetPending: boolean;
   /** The latest answer to a globalReports request (news agencies); not an event, the tool returns it. */
   globalReports: GlobalReports | null;
+  /** Pre-campaign "Done fielding" progress from the latest fieldingDone message (null = none seen: derive it from the snapshot). */
+  fieldingProgress: { doneCount: number; needed: number } | null;
 }
 
 export function newState(): ClientState {
   return {
     gameId: null, me: null, joinCode: null, nickname: null, lobby: null, snapshot: null, priv: null, chat: [],
-    serverOffsetMs: 0, features: [], link: 'idle', polledPhases: new Set(), pendingActions: new Map(), budgetPending: false, globalReports: null,
+    serverOffsetMs: 0, features: [], link: 'idle', polledPhases: new Set(), pendingActions: new Map(), budgetPending: false, globalReports: null, fieldingProgress: null,
   };
 }
 
@@ -155,6 +157,8 @@ export function applyMessage(st: ClientState, m: ServerMessage, localNow: number
       st.serverOffsetMs = m.serverTime - localNow;
       st.features = m.features ?? [];
       st.polledPhases = new Set(m.snapshot.polledPhases);
+      st.fieldingProgress = null;
+      if (!m.snapshot.fieldingDone) st.snapshot = { ...m.snapshot, fieldingDone: [] }; // an older server has no such field
       if (m.chat) st.chat = m.chat; // the conversation so far (kept across a reconnect)
       return [];
     case 'pong':
@@ -168,7 +172,8 @@ export function applyMessage(st: ClientState, m: ServerMessage, localNow: number
     case 'status':
       // the budget is granted when the game leaves the lobby: at the pre-campaign (3+ players) or at the campaign (2 players)
       if ((m.status === 'preCampaign' || m.status === 'campaign') && snap?.status !== 'preCampaign' && snap?.status !== 'campaign' && st.priv && st.priv.budget === 0) st.budgetPending = true;
-      if (snap) st.snapshot = { ...snap, status: m.status, timeline: m.timeline };
+      if (snap) st.snapshot = { ...snap, status: m.status, timeline: m.timeline, ...(m.status !== 'preCampaign' ? { fieldingDone: [] } : {}) }; // Done only exists in the pre-campaign
+      if (m.status !== 'preCampaign') st.fieldingProgress = null;
       return [ev('status', { status: m.status, timeline: m.timeline })];
     case 'players':
       if (snap) st.snapshot = { ...snap, players: m.players };
@@ -197,8 +202,24 @@ export function applyMessage(st: ClientState, m: ServerMessage, localNow: number
       return [];
     }
     case 'fieldingUpdate':
-      if (snap) st.snapshot = { ...snap, fielding: changeFielding(snap.fielding, m.playerId, m.added, m.removed), contestedSeats: m.contestedSeats, majority: m.majority };
+      if (snap) {
+        // fielding or withdrawing clears that player's Done (the server says so with a fieldingDone too; this keeps the list right in between)
+        const wasDone = (snap.fieldingDone ?? []).includes(m.playerId);
+        st.snapshot = {
+          ...snap, fielding: changeFielding(snap.fielding, m.playerId, m.added, m.removed), contestedSeats: m.contestedSeats, majority: m.majority,
+          fieldingDone: (snap.fieldingDone ?? []).filter((x) => x !== m.playerId),
+        };
+        if (wasDone && st.fieldingProgress) st.fieldingProgress = { ...st.fieldingProgress, doneCount: Math.max(0, st.fieldingProgress.doneCount - 1) };
+      }
       return [ev('fielding', { playerId: m.playerId, added: m.added, removed: m.removed, contestedSeats: m.contestedSeats, majority: m.majority })];
+    case 'fieldingDone': {
+      if (snap) {
+        const others = (snap.fieldingDone ?? []).filter((x) => x !== m.playerId);
+        st.snapshot = { ...snap, fieldingDone: m.done ? [...others, m.playerId] : others };
+      }
+      st.fieldingProgress = { doneCount: m.doneCount, needed: m.needed };
+      return [ev('fieldingDone', { playerId: m.playerId, done: m.done, doneCount: m.doneCount, needed: m.needed })];
+    }
     case 'report':
       st.budgetPending = false;
       if (st.priv) st.priv = { ...st.priv, budget: m.budget, myReports: [...st.priv.myReports, m.report] };

@@ -34,6 +34,8 @@ export interface FakeOpts {
   preCampaign?: boolean;
   /** seat -> candidates (public). Only meaningful with preCampaign. */
   fielding?: Record<number, FieldedCandidate[]>;
+  /** players who pressed Done fielding (only meaningful with preCampaign) */
+  fieldingDone?: string[];
 }
 
 export function fakeSession(dir: SeatDirectory, opts: FakeOpts = {}) {
@@ -47,7 +49,7 @@ export function fakeSession(dir: SeatDirectory, opts: FakeOpts = {}) {
   c.state.gameId = 'g'; c.state.me = 'me'; c.state.joinCode = 'ABC123';
   c.state.snapshot = {
     gameId: 'g', mapId: 'world-500', status: opts.status ?? (opts.preCampaign ? 'preCampaign' : 'campaign'), phases: opts.phases ?? 3, players: list, news: [], polledPhases: [], seats: {},
-    fielding: opts.fielding ?? {}, contestedSeats: opts.fielding ? Object.keys(opts.fielding).length : cfg.seatCount,
+    fielding: opts.fielding ?? {}, fieldingDone: opts.fieldingDone ?? [], contestedSeats: opts.fielding ? Object.keys(opts.fielding).length : cfg.seatCount,
     majority: majorityOf(opts.fielding ? Object.keys(opts.fielding).length : cfg.seatCount),
     tally: opts.tally ?? null, offers: opts.offers ?? [], government: opts.government ?? null, result: null,
     timeline: opts.timeline ?? { ...(pre && opts.status !== 'campaign' ? { preCampaignEnd: now + 90_000 } : pre ? { preCampaignEnd: now - 5000 } : {}), campaignStart: pre && opts.status !== 'campaign' ? now + 95_000 : now - 1000, phaseCloses: closes, campaignEnd: closes[2], countingEnd: closes[2] + 60_000, postCountingEnd: closes[2] + 120_000 },
@@ -72,6 +74,15 @@ export function fakeSession(dir: SeatDirectory, opts: FakeOpts = {}) {
   });
   c.fieldCandidates = fieldLike('field') as never;
   c.withdrawCandidates = fieldLike('withdraw') as never;
+  // the server's behaviour for doneFielding: answer everybody with fieldingDone (needed = the active players, as the server counts connected ones)
+  c.doneFielding = vi.fn(async (done = true) => {
+    (calls.done ??= []).push([done]);
+    const needed = c.state.snapshot!.players.filter((p) => p.status === 'active').length;
+    const ids = (c.state.snapshot!.fieldingDone ?? []).filter((x) => x !== 'me');
+    const doneCount = ids.length + (done ? 1 : 0);
+    applyMessage(c.state, { type: 'fieldingDone', playerId: 'me', done, doneCount, needed }, Date.now());
+    return { done, doneCount, needed };
+  }) as never;
   c.respondOffer = vi.fn(async (id: string, accept: boolean) => { (calls.respondOffer ??= []).push([id, accept]); return null; }) as never;
   c.setParty = vi.fn(async (party: unknown) => { (calls.setParty ??= []).push([party]); }) as never;
   c.refreshLobby = vi.fn(async () => ({ gameId: 'g', joinCode: 'ABC123', mapId: 'world-500', phases: 3, status: 'lobby', admissionOpen: true, you: 'me', players: list })) as never;

@@ -1,6 +1,6 @@
 import { CreateScheduleCommand, DeleteScheduleCommand } from '@aws-sdk/client-scheduler';
 import type { SchedulerClient } from '@aws-sdk/client-scheduler';
-import { StartExecutionCommand } from '@aws-sdk/client-sfn';
+import { StartExecutionCommand, StopExecutionCommand } from '@aws-sdk/client-sfn';
 import type { SFNClient } from '@aws-sdk/client-sfn';
 import type { GameTimeline, PlayerId } from '@hp/shared';
 import type { Scheduler } from '../core/types';
@@ -26,6 +26,26 @@ export class SfnScheduler implements Scheduler {
   ) {}
 
   async startLifecycle(gameId: string, timeline: GameTimeline): Promise<void> {
+    await this.startExecution(`game-${gameId}`, gameId, timeline);
+  }
+
+  /**
+   * An early end of the pre-campaign: start a new execution `game-<id>-r1` on the shifted timeline (its preCampaignEndIso is now, so
+   * it opens the campaign at once), then stop the old `game-<id>`, which is still waiting for the old deadline. Starting first means a
+   * failed start leaves the old execution running untouched (and the caller restores the old timeline). A failed stop is only logged:
+   * the old execution would merely repeat idempotent steps later. Needs states:StopExecution on the executions of the state machine.
+   */
+  async restartLifecycle(gameId: string, timeline: GameTimeline): Promise<void> {
+    await this.startExecution(`game-${gameId}-r1`, gameId, timeline);
+    const executionArn = `${this.cfg.stateMachineArn.replace(':stateMachine:', ':execution:')}:game-${gameId}`;
+    try {
+      await this.sfn.send(new StopExecutionCommand({ executionArn, cause: 'Every player finished fielding: the pre-campaign ended early' }));
+    } catch (e) {
+      console.error('stopping the old lifecycle execution failed', executionArn, e);
+    }
+  }
+
+  private async startExecution(name: string, gameId: string, timeline: GameTimeline): Promise<void> {
     const iso = (ms: number) => new Date(ms).toISOString();
     const input = {
       gameId, timeline,
@@ -37,7 +57,7 @@ export class SfnScheduler implements Scheduler {
     };
     try {
       await this.sfn.send(new StartExecutionCommand({
-        stateMachineArn: this.cfg.stateMachineArn, name: `game-${gameId}`, input: JSON.stringify(input),
+        stateMachineArn: this.cfg.stateMachineArn, name, input: JSON.stringify(input),
       }));
     } catch (e) {
       if ((e as { name?: string })?.name !== 'ExecutionAlreadyExists') throw e; // idempotent

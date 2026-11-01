@@ -18,7 +18,7 @@ const other: PlayerPublic = {
 function setup(players: PlayerPublic[] = [me, other]) {
   useStore.setState({
     me: 'p1', gameId: 'g1',
-    snapshot: { gameId: 'g1', mapId: 'world-500', status: 'lobby', phases: 2, timeline: null, players, news: [], fielding: {}, contestedSeats: 100, majority: 51, polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null },
+    snapshot: { gameId: 'g1', mapId: 'world-500', status: 'lobby', phases: 2, timeline: null, players, news: [], fielding: {}, fieldingDone: [], contestedSeats: 100, majority: 51, polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null },
   });
   return userEvent.setup();
 }

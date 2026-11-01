@@ -34,7 +34,7 @@ Synth works without credentials (account is an environment-agnostic token unless
 
 ## Lambda environment (all functions)
 `TABLE_NAME, WS_ENDPOINT, STATE_MACHINE_ARN, SCHEDULER_ROLE_ARN, SCHEDULE_GROUP, GRACE_CHECK_ARN, MAP_BASE_URL (https://<cloudfront>/maps), STAGE`, plus `NODE_OPTIONS=--enable-source-maps`.
-IAM: table read/write (incl. GSI), `execute-api:ManageConnections` on the WS stage, `states:StartExecution`, `scheduler:Create/Delete/GetSchedule` on group `SCHEDULE_GROUP`, `iam:PassRole` on the scheduler role.
+IAM: table read/write (incl. GSI), `execute-api:ManageConnections` on the WS stage, `states:StartExecution`, `states:StopExecution` (on the executions of the lifecycle state machine), `scheduler:Create/Delete/GetSchedule` on group `SCHEDULE_GROUP`, `iam:PassRole` on the scheduler role.
 Schedules must be created in group `SCHEDULE_GROUP` with `RoleArn = SCHEDULER_ROLE_ARN` and target `GRACE_CHECK_ARN`.
 
 ## State machine input (started once per game by the `start` handler)
@@ -49,7 +49,7 @@ Schedules must be created in group `SCHEDULE_GROUP` with `RoleArn = SCHEDULER_RO
 }
 ```
 `timeline` is informational (epoch ms); the machine uses the ISO parallel arrays (`phaseClosesIso` same order/length as `phaseCloses`).
-`preCampaignEndIso` is present only for a game with a pre-campaign (3+ players). Flow: a Choice sends such an execution through Wait until `preCampaignEndIso` -> `open-campaign {gameId}` first; a 2-player execution skips both. Then Map over `phaseClosesIso` (concurrency 1, 1-based `phase` = index+1): Wait until `closeAtIso` -> `phase-close {gameId, phase}`.
+`preCampaignEndIso` is present only for a game with a pre-campaign (3+ players). Flow: a Choice sends such an execution through Wait until `preCampaignEndIso` -> `open-campaign {gameId}` first; a 2-player execution skips both. When every connected player presses Done fielding the server starts a second execution `game-<id>-r1` on the shifted timeline (its `preCampaignEndIso` is now, so it opens the campaign at once) and then stops `game-<id>` (status ABORTED, which the lifecycle-failed alarm does not count). Then Map over `phaseClosesIso` (concurrency 1, 1-based `phase` = index+1): Wait until `closeAtIso` -> `phase-close {gameId, phase}`.
 Then loop `count-reveal {gameId}` -> must return `{done: boolean, nextAtIso: string}`; while not done, Wait until `nextAtIso` and repeat.
 Then Wait until `postCountingEndIso` -> `finalise {gameId}`. Task retries: 2 with backoff; any failure -> `finalise {gameId, error: true}`.
 `finalise` may also be invoked early by the server and must be idempotent. `countingEndIso` is currently unused by the machine.

@@ -28,7 +28,7 @@ export const TEST_CFG: MapConfig = {
     firstMover: { rally: 0, roadshow: 0, minorRally: 0 }, // off in the shared server test config
   },
   cooldowns: { rallyMs: 30_000 },
-  display: { reputationScale: 10, brushRadiusPx: 14 }, // a round scale for the tests (the shipped file uses 4)
+  display: { reputationScale: 10, brushRadiusPx: 14, fieldingSmoke: false }, // a round scale for the tests (the shipped file uses 4)
   durations: {
     preCampaignMs: 20_000, campaignMs: 60_000, countingMs: 30_000, countingMsTwoPlayers: 10_000, countingStepMs: 1_000, postCountingMs: 10_000, postCountingMsTwoPlayers: 0, graceMs: 5_000,
   },
@@ -82,10 +82,22 @@ export class FakeNotifier implements Notifier {
 
 export class FakeScheduler implements Scheduler {
   lifecycles: { gameId: string; timeline: GameTimeline }[] = [];
+  /** restartLifecycle calls (an early end of the pre-campaign), oldest first. */
+  restarts: { gameId: string; timeline: GameTimeline }[] = [];
+  /**
+   * Bound by Ctx. Like both real schedulers, a restarted lifecycle opens the campaign at once (its preCampaignEnd is now); set
+   * `openOnRestart = false` to leave that to the test.
+   */
+  svc?: GameService;
+  openOnRestart = true;
   graces = new Map<string, { gameId: string; playerId: PlayerId; atMs: number }>();
   cancelled: string[] = [];
   private n = 0;
   async startLifecycle(gameId: string, timeline: GameTimeline) { this.lifecycles.push({ gameId, timeline }); }
+  async restartLifecycle(gameId: string, timeline: GameTimeline) {
+    this.restarts.push({ gameId, timeline });
+    if (this.openOnRestart && this.svc) await this.svc.openCampaign(gameId);
+  }
   async scheduleGraceCheck(gameId: string, playerId: PlayerId, atMs: number) {
     const name = `g${this.n++}`;
     this.graces.set(name, { gameId, playerId, atMs });
@@ -127,6 +139,7 @@ export class Ctx {
     this.svc = new GameService({
       repo: this.repo, notifier: this.notifier, scheduler: this.scheduler, clock: this.clock, maps: this.maps, startDelayMs: opts.startDelayMs ?? 1000,
     });
+    this.scheduler.svc = this.svc;
   }
   gameId = '';
   joinCode = '';
@@ -180,7 +193,10 @@ export class Ctx {
 
   get p() { return this.players; }
   async game(): Promise<GameRecord> { return (await this.repo.getGame(this.gameId)) as GameRecord; }
-  get timeline(): GameTimeline { return this.scheduler.lifecycles[0].timeline; }
+  /** The game's timeline as the lifecycle runs it: the one it started with, or the latest restart (an early end of the pre-campaign). */
+  get timeline(): GameTimeline {
+    return this.scheduler.restarts.filter((r) => r.gameId === this.gameId).at(-1)?.timeline ?? this.scheduler.lifecycles[0].timeline;
+  }
   send(i: number, msg: ClientMessage) { return this.svc.handleMessage(this.players[i].conn, msg); }
   lastError(i: number) {
     const e = this.notifier.to(this.players[i].playerId, 'error');

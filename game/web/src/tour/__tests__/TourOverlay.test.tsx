@@ -27,7 +27,7 @@ const withReports = (on: boolean): MapConfig => ({
 const snap = (over: Partial<GameSnapshot> = {}): GameSnapshot => ({
   gameId: 'g', mapId: 'world-500', status: 'campaign', phases: 1,
   timeline: { campaignStart: 0, phaseCloses: [Date.now() + 1e11], campaignEnd: Date.now() + 1e11, countingEnd: Date.now() + 1e11, postCountingEnd: Date.now() + 1e11 },
-  players, news: [], fielding: {}, contestedSeats: N, majority: majorityOf(N), polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null, ...over,
+  players, news: [], fielding: {}, fieldingDone: [], contestedSeats: N, majority: majorityOf(N), polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null, ...over,
 });
 const pv = (over: Partial<PrivateState> = {}): PrivateState => ({
   you: 'p0', budget: WORLD_CONFIG.budget, myActions: [], myReports: [], nextRallyAt: null,
@@ -303,7 +303,7 @@ describe('TourOverlay pre-campaign steps', () => {
   it('comes first: the pre-campaign steps in the designed order, then the campaign steps, with the my-actions step gone', () => {
     cfgBox.cfg = withReports(false);
     const pre = stepsNow().filter(s => s.phase === 'preCampaign').map(s => s.id);
-    expect(pre).toEqual(['welcome', 'party', 'precampaign', 'field-seats', 'candidate-cost', 'withdraw-seat', 'candidate-counts', 'precampaign-chat', 'no-candidates', 'to-campaign']);
+    expect(pre).toEqual(['welcome', 'party', 'precampaign', 'field-seats', 'field-all', 'candidate-cost', 'withdraw-seat', 'candidate-counts', 'done-fielding', 'precampaign-chat', 'no-candidates', 'to-campaign']);
     expect(ids().slice(0, pre.length)).toEqual(pre);
     expect(stepsNow()[pre.length].phase).toBe('campaign');
   });
@@ -315,6 +315,8 @@ describe('TourOverlay pre-campaign steps', () => {
     expect(anchor('precampaign-chat')).toEqual(['[data-tour="precampaign-chat"]']);
     expect(anchor('candidate-cost')).toEqual(['[data-tour="hud-budget"]']);
     expect(anchor('field-seats')).toEqual(['[data-tour="map"]']);
+    expect(anchor('field-all')).toEqual(['[data-tour="field-all"]']);
+    expect(anchor('done-fielding')).toEqual(['[data-tour="done-fielding"]']);
   });
 
   it('a 2-player game has no pre-campaign steps', () => {
@@ -362,6 +364,32 @@ describe('TourOverlay pre-campaign steps', () => {
     expect(screen.getByTestId('tour-task')).toHaveTextContent(WORLD_CONFIG.costs.candidate.toLocaleString('en-IN'));
   });
 
+  it('painting step: you see only your own figures on the map, the seat panel lists everyone who stands there (phone and desktop)', () => {
+    setPointer(true);
+    setup({ step: 'field-seats' });
+    const { unmount } = render(<TourOverlay />);
+    expect(callout()).toHaveTextContent('only your own figures');
+    expect(callout()).toHaveTextContent('lists every party');
+    expect(callout()).not.toHaveTextContent('-50');
+    unmount();
+    setPointer(false);
+    render(<TourOverlay />);
+    expect(callout()).toHaveTextContent('only your own figures');
+  });
+
+  // Rule: one click fields every seat you do not hold yet for the price on the button, all or nothing: a shortcut to painting.
+  it('Field all step: explains the one-click shortcut and points at the button, without formulas', () => {
+    setup({ step: 'field-all' });
+    render(<TourOverlay />);
+    expect(callout()).toHaveTextContent('Field all seats');
+    expect(callout()).toHaveTextContent('every seat you do not hold yet');
+    expect(callout()).toHaveTextContent('price shown on the button');
+    expect(callout()).toHaveTextContent('shortcut');
+    expect(callout()).toHaveTextContent('nothing is fielded');
+    expect(callout()).not.toHaveTextContent('×');
+    expect(screen.queryByTestId('tour-task')).toBeNull();
+  });
+
   it('cost step: price per candidate, the budget and what a candidate in every seat leaves, all from the config', () => {
     setup({ step: 'candidate-cost' });
     render(<TourOverlay />);
@@ -395,6 +423,94 @@ describe('TourOverlay pre-campaign steps', () => {
     act(() => useStore.setState({ snapshot: snap({ status: 'preCampaign', contestedSeats: 400, majority: 201 }) }));
     expect(callout()).toHaveTextContent('400');
     expect(callout()).toHaveTextContent('201');
+  });
+
+  // Rule: the counts panel shows each party's avatar with its live candidate count (no figures), and a tick beside a party that is done.
+  it('counts step: avatars with live counts and a tick when a party is done; no stick figures or smoke', () => {
+    setup({ step: 'candidate-counts', snap: { status: 'preCampaign' } });
+    render(<TourOverlay />);
+    expect(callout()).toHaveTextContent('avatar');
+    expect(callout()).toHaveTextContent('tick');
+    expect(callout()).toHaveTextContent('Done fielding');
+    expect(callout()).not.toHaveTextContent('figure');
+    expect(callout()).not.toHaveTextContent('-50');
+  });
+
+  // Rule: "Done fielding": press it when you have fielded what you want; the campaign starts as soon as every party has pressed it,
+  // otherwise when the countdown ends. The task is done when your own Done is in the snapshot, on a phone as on a desktop.
+  it('Done fielding step: anchored on the button, says the campaign starts when every party has pressed it or the countdown ends', () => {
+    setup({ step: 'done-fielding', snap: { status: 'preCampaign' } });
+    render(<TourOverlay />);
+    expect(callout()).toHaveTextContent('Done fielding');
+    expect(callout()).toHaveTextContent('as soon as every party has pressed it');
+    expect(callout()).toHaveTextContent('countdown ends');
+    expect(callout()).toHaveTextContent('take it back');
+    expect(screen.getByTestId('tour-task')).toBeInTheDocument();
+  });
+
+  it('Done task hint: field a seat first while you hold none, then press Done fielding', () => {
+    const mine = { 1: [{ playerId: 'p0', name: 'A' }] };
+    setup({ step: 'done-fielding', snap: { status: 'preCampaign' } });
+    const { unmount } = render(<TourOverlay />);
+    expect(screen.getByTestId('tour-task')).toHaveTextContent('Field at least one seat first');
+    unmount();
+    setup({ step: 'done-fielding', snap: { status: 'preCampaign', fielding: mine } });
+    render(<TourOverlay />);
+    expect(screen.getByTestId('tour-task')).toHaveTextContent('Press Done fielding');
+    expect(screen.getByTestId('tour-task')).not.toHaveTextContent('Field at least one seat first');
+  });
+
+  it('Done task: done once you are in the snapshot fieldingDone list; it then shows how many parties are done, live', async () => {
+    const mine = { 1: [{ playerId: 'p0', name: 'A' }] };
+    setup({ step: 'done-fielding', snap: { status: 'preCampaign', fielding: mine } });
+    render(<TourOverlay />);
+    act(() => useStore.setState({ snapshot: snap({ status: 'preCampaign', fielding: mine, fieldingDone: ['p3'] }) }));
+    await new Promise(r => setTimeout(r, 400));
+    expect(screen.getByTestId('tour-task')).not.toHaveClass('done'); // a rival's Done does not count
+    act(() => useStore.setState({ snapshot: snap({ status: 'preCampaign', fielding: mine, fieldingDone: ['p3', 'p0'] }) }));
+    await waitFor(() => expect(screen.getByTestId('tour-task')).toHaveClass('done'));
+    expect(screen.getByTestId('tour-task')).toHaveTextContent('2 of 9 parties are done');
+    act(() => useStore.setState({ snapshot: snap({ status: 'preCampaign', fielding: mine, fieldingDone: ['p3', 'p0', 'p4'] }) }));
+    expect(screen.getByTestId('tour-task')).toHaveTextContent('3 of 9 parties are done');
+  });
+
+  it('Done task works on a phone too: the same hint and completion with the bottom sheet, nothing about a panel on the right', async () => {
+    Object.defineProperty(window, 'innerWidth', { value: 390, configurable: true });
+    vi.stubGlobal('matchMedia', (q: string) => ({ matches: false, media: q, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    const mine = { 1: [{ playerId: 'p0', name: 'A' }] };
+    setup({ step: 'done-fielding', snap: { status: 'preCampaign', fielding: mine } });
+    render(<TourOverlay />);
+    expect(callout().className).toContain('sheet');
+    expect(screen.getByTestId('tour-task')).toHaveTextContent('Press Done fielding');
+    expect(callout()).not.toHaveTextContent(/on the right|right panel|right-hand/i);
+    act(() => useStore.setState({ snapshot: snap({ status: 'preCampaign', fielding: mine, fieldingDone: ['p0'] }) }));
+    await waitFor(() => expect(screen.getByTestId('tour-task')).toHaveClass('done'));
+  });
+
+  it('Done fielding can be skipped, and Next replaces Skip once the task is done', async () => {
+    const mine = { 1: [{ playerId: 'p0', name: 'A' }] };
+    setup({ step: 'done-fielding', snap: { status: 'preCampaign', fielding: mine } });
+    const user = userEvent.setup();
+    render(<TourOverlay />);
+    expect(within(callout()).getByRole('button', { name: 'Skip this step' })).toBeInTheDocument();
+    act(() => useStore.setState({ snapshot: snap({ status: 'preCampaign', fielding: mine, fieldingDone: ['p0'] }) }));
+    await waitFor(() => expect(within(callout()).getByRole('button', { name: 'Next' })).toBeInTheDocument());
+    await user.click(within(callout()).getByRole('button', { name: 'Next' }));
+    expect(callout().dataset.step).toBe('precampaign-chat');
+  });
+
+  it('the campaign opening early (everybody done) moves the tour from the Done step to the first campaign step', async () => {
+    setup({ step: 'done-fielding', snap: { status: 'preCampaign' } });
+    render(<TourOverlay />);
+    act(() => useStore.setState({ snapshot: snap({ status: 'campaign' }) }));
+    await waitFor(() => expect(callout().dataset.step).toBe('clocks'));
+  });
+
+  it('the last step also says a real game starts the campaign once every party is done, and the tour fields the rest for you', () => {
+    setup({ step: 'to-campaign' });
+    render(<TourOverlay />);
+    expect(callout()).toHaveTextContent('every party has pressed Done fielding');
+    expect(callout()).toHaveTextContent('fields candidates for you');
   });
 
   it('chat step: one-to-one, informal, nothing enforces the alliances', () => {

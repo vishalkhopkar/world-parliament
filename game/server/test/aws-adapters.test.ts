@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { DeleteConnectionCommand, PostToConnectionCommand } from '@aws-sdk/client-apigatewaymanagementapi';
 import { CreateScheduleCommand, DeleteScheduleCommand } from '@aws-sdk/client-scheduler';
-import { StartExecutionCommand } from '@aws-sdk/client-sfn';
+import { StartExecutionCommand, StopExecutionCommand } from '@aws-sdk/client-sfn';
 import type { GameTimeline, ServerMessage } from '@hp/shared';
 import { ApiGwNotifier } from '../src/aws/apiGwNotifier';
 import { DynamoRepo } from '../src/aws/dynamoRepo';
@@ -222,6 +222,41 @@ describe('SfnScheduler', () => {
   it('startLifecycle is idempotent on ExecutionAlreadyExists but rethrows other errors', async () => {
     await expect(setupSched(() => { throw named('ExecutionAlreadyExists'); }).s.startLifecycle('g', TL)).resolves.toBeUndefined();
     await expect(setupSched(() => { throw named('AccessDeniedException'); }).s.startLifecycle('g', TL)).rejects.toMatchObject({ name: 'AccessDeniedException' });
+  });
+
+  it('restartLifecycle (an early end of the pre-campaign): a new execution with its own name and preCampaignEndIso = the new end, then StopExecution of the old one', async () => {
+    const t = setupSched();
+    const end = Date.UTC(2026, 9, 20, 8, 58, 0);
+    await t.s.restartLifecycle('g_abc', { ...TL, preCampaignEnd: end });
+    const [start, stop] = t.sfn.send.mock.calls.map((c) => c[0]);
+    expect(start).toBeInstanceOf(StartExecutionCommand);
+    expect((start as StartExecutionCommand).input.stateMachineArn).toBe(CFG.stateMachineArn);
+    expect((start as StartExecutionCommand).input.name).toBe('game-g_abc-r1');
+    expect((start as StartExecutionCommand).input.name).toMatch(/^[0-9A-Za-z_-]{1,80}$/);
+    const input = JSON.parse((start as StartExecutionCommand).input.input as string);
+    expect(input).toMatchObject({ gameId: 'g_abc', preCampaignEndIso: '2026-10-20T08:58:00.000Z', phaseClosesIso: ['2026-10-20T10:00:00.000Z', '2026-10-20T11:30:15.250Z'] });
+    expect(input.timeline.preCampaignEnd).toBe(end);
+    expect(stop).toBeInstanceOf(StopExecutionCommand);
+    expect((stop as StopExecutionCommand).input.executionArn).toBe('arn:aws:states:ap-south-1:123456789012:execution:hp-dev-lifecycle:game-g_abc');
+    expect(t.sfn.send).toHaveBeenCalledTimes(2);
+  });
+
+  it('restartLifecycle: a retried restart (ExecutionAlreadyExists) still stops the old execution; a failed start rethrows and stops nothing', async () => {
+    const again = setupSched((c) => { if (c instanceof StartExecutionCommand) throw named('ExecutionAlreadyExists'); return {}; });
+    await expect(again.s.restartLifecycle('g', { ...TL, preCampaignEnd: TL.campaignStart - 5000 })).resolves.toBeUndefined();
+    expect(again.sfn.send.mock.calls.map((c) => (c[0] as object).constructor.name)).toEqual(['StartExecutionCommand', 'StopExecutionCommand']);
+    const down = setupSched((c) => { if (c instanceof StartExecutionCommand) throw named('AccessDeniedException'); return {}; });
+    await expect(down.s.restartLifecycle('g', { ...TL, preCampaignEnd: TL.campaignStart - 5000 })).rejects.toMatchObject({ name: 'AccessDeniedException' });
+    expect(down.sfn.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('restartLifecycle: failing to stop the old execution is logged, not thrown (the old one only repeats idempotent steps later)', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    for (const err of ['ExecutionDoesNotExist', 'AccessDeniedException']) {
+      const t = setupSched((c) => { if (c instanceof StopExecutionCommand) throw named(err); return {}; });
+      await expect(t.s.restartLifecycle('g', { ...TL, preCampaignEnd: TL.campaignStart - 5000 })).resolves.toBeUndefined();
+    }
+    spy.mockRestore();
   });
 
   it('scheduleGraceCheck: one-time schedule in the right group with the right target/role and auto-delete', async () => {

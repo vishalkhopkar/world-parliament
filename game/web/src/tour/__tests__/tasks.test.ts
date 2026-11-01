@@ -6,7 +6,7 @@ import type { TaskInput } from '../tasks';
 const priv = (over: Partial<PrivateState> = {}): PrivateState => ({ you: 'me', budget: 1, myActions: [], myReports: [], ...over });
 const base = (over: Partial<TaskInput> = {}): TaskInput => ({ selectedSeat: null, priv: priv(), snapshot: null, error: null, now: 1000, ...over });
 const snap = (over: Partial<GameSnapshot> = {}): GameSnapshot => ({
-  gameId: 'g', mapId: 'world-500', status: 'counting', phases: 1, timeline: null, players: [], news: [], fielding: {}, contestedSeats: 0, majority: 1, polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null, ...over,
+  gameId: 'g', mapId: 'world-500', status: 'counting', phases: 1, timeline: null, players: [], news: [], fielding: {}, fieldingDone: [], contestedSeats: 0, majority: 1, polledPhases: [], seats: {}, tally: null, offers: [], government: null, result: null, ...over,
 });
 /** A snapshot where `me` stands in the first `mine` seats and a rival stands in seats 100 and up. */
 const standing = (mine: number, rival = 3) => snap({
@@ -68,6 +68,15 @@ describe('taskDone', () => {
     expect(taskDone('withdraw', base({ snapshot: standing(5), peakFielded: 6 }))).toBe(true);
     expect(taskDone('withdraw', base({ snapshot: standing(0), peakFielded: 1 }))).toBe(true);
     expect(taskDone('withdraw', base({ snapshot: standing(0) }))).toBe(false);
+  });
+
+  // Rule: the Done task is done once YOUR Done is listed in the snapshot (a rival's Done does not count).
+  it('done: your own id is in the snapshot fieldingDone list', () => {
+    expect(taskDone('done', base({ snapshot: null }))).toBe(false);
+    expect(taskDone('done', base({ snapshot: snap({ fieldingDone: [] }) }))).toBe(false);
+    expect(taskDone('done', base({ snapshot: snap({ fieldingDone: ['rival'] }) }))).toBe(false);
+    expect(taskDone('done', base({ snapshot: snap({ fieldingDone: ['rival', 'me'] }) }))).toBe(true);
+    expect(taskDone('done', base({ snapshot: snap({ fieldingDone: ['me'] }), priv: null }))).toBe(false);
   });
 
   it('minorRally: a minor rally appears in my actions (a major rally or a roadshow does not count)', () => {

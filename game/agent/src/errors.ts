@@ -5,7 +5,7 @@ export type AgentErrorCode = ErrorCode | 'NOT_JOINED' | 'ALREADY_JOINED' | 'UNKN
   | 'INVALID_INPUT' | 'NO_CONNECTION' | 'TIMEOUT' | 'NO_CONFIRMATION' | 'NO_MAP' | 'NOT_ADMITTED' | 'UNKNOWN_ACTION' | 'DAEMON';
 
 const HINTS: Partial<Record<AgentErrorCode, string>> = {
-  BAD_REQUEST: 'Check the input values (use get_lobby / list_party_options / list_seats to see valid values).',
+  BAD_REQUEST: 'Check the input values (use get_lobby / list_party_options / list_seats to see valid values). If this came from done_fielding: you have no candidate yet, so field_candidates first.',
   UNAUTHORIZED: 'Your session token is not valid for this game (the game may have been restarted). Call leave_game, then join_game again with a fresh join code.',
   FORBIDDEN: 'You are not allowed to do that right now (not admitted yet, eliminated, or a host-only action). AI players can never host or start games.',
   NOT_FOUND: 'Nothing found. Check the join code or ids.',
@@ -15,7 +15,7 @@ const HINTS: Partial<Record<AgentErrorCode, string>> = {
   COLOUR_TAKEN: 'Another party already has that colour; call list_party_options and pick a colour that is not taken.',
   SYMBOL_TAKEN: 'Another party already has that symbol; call list_party_options and pick a free symbol.',
   AVATAR_TAKEN: 'Another party already has that avatar; call list_party_options and pick an avatar that is not taken.',
-  WRONG_PHASE: 'That action is not available in the current game phase (candidates are fielded in the pre-campaign, rallies and roadshows in the campaign). Call get_state to see the phase and the timers.',
+  WRONG_PHASE: 'That action is not available in the current game phase (candidates are fielded and done_fielding is called in the pre-campaign, rallies and roadshows in the campaign). Call get_state to see the phase and the timers.',
   INSUFFICIENT_FUNDS: 'Not enough budget. Call get_state to see your budget and the current prices. Cheaper options: roadshow or minor rally instead of rally; skip reports; in the pre-campaign field fewer candidates (each costs money, refunded on withdrawal). Nothing was charged.',
   SEAT_POLLED: 'Voting in that seat has already closed. Use list_seats with open_only=true to find seats you can still campaign in.',
   TOO_LATE: 'The campaign (or that phase) is over.',

@@ -132,12 +132,26 @@ async function settled(page: Page, name: string, above = 0): Promise<number> {
   problems.push(`${name}: candidates ${c} and budget ${b} never settled (expected budget ${WORLD_CONFIG.budget - COST.candidate * c})`);
   return c;
 }
-/** Seats where every party has a candidate (the group has one figure per party; figures may be display:none), biggest first. */
-async function sharedSeats(page: Page, parties: number): Promise<number[]> {
-  return page.evaluate(n => [...document.querySelectorAll<SVGGElement>('g.seat-candidates')]
-    .filter(g => g.querySelectorAll('.candidate-figure').length >= n)
-    .map(g => { const p = document.querySelector<SVGPathElement>(`path.seat[data-seat="${g.dataset.seat}"]`)!; const b = p.getBBox(); return { id: Number(g.dataset.seat), area: b.width * b.height }; })
-    .sort((a, z) => z.area - a.area).map(x => x.id), parties);
+/** Seats where every party has a candidate, biggest first. Only one's own figures are drawn, so this is the intersection of every page's own seats. */
+async function sharedSeats(pages: Page[]): Promise<number[]> {
+  const lists = await Promise.all(pages.map(pg => candidateSeats(pg)));
+  const common = lists[0].filter(id => lists.every(l => l.includes(id)));
+  return pages[0].evaluate(ids => ids.map(id => { const b = document.querySelector<SVGPathElement>(`path.seat[data-seat="${id}"]`)!.getBBox(); return { id, area: b.width * b.height }; }).sort((a, z) => z.area - a.area).map(x => x.id), common);
+}
+const smokeCount = (page: Page) => page.evaluate(() => (window as unknown as { __smoke: number }).__smoke);
+const noSmoke = async (page: Page, name: string) => { if ((await smokeCount(page)) !== 0 || (await page.locator('g.rep-smoke.seat-spend, g.rep-smoke.seat-refund').count()) !== 0) problems.push(`${name}: -/+ fielding smoke appeared although display.fieldingSmoke is off`); };
+const rowOf = (page: Page, name: string) => page.locator('[data-tour="candidate-counts"] li', { hasText: name });
+const doneCountText = async (page: Page) => (await page.locator('.cc-done-count').innerText()).replace(/\s+/g, ' ').trim();
+const waitDoneCount = (page: Page, text: string, who: string) => page.waitForFunction(t => (document.querySelector('.cc-done-count')?.textContent ?? '').replace(/\s+/g, ' ').trim() === t, text, { timeout: 10000 }).catch(async () => { problems.push(`${who}: the Done count should read "${text}", it reads "${await doneCountText(page)}"`); });
+/** Rows of the right panel: avatar + name + tick + count, no stick figure. */
+async function checkCountRows(page: Page, who: string, rows: number) {
+  const li = page.locator('[data-tour="candidate-counts"] li[data-player]');
+  if ((await li.count()) !== rows) problems.push(`${who}: the right panel should have ${rows} party rows, has ${await li.count()}`);
+  for (let i = 0; i < (await li.count()); i++) {
+    const r = li.nth(i);
+    for (const c of ['.party-avatar', '.cc-name', '.cc-tick', '.cc-count']) if (!(await r.locator(c).count())) problems.push(`${who}: right-panel row ${i} has no ${c}`);
+    if (await r.locator('.candidate-figure').count()) problems.push(`${who}: right-panel row ${i} still shows a stick figure`);
+  }
 }
 const candidateSeats = (page: Page) => page.evaluate(() => [...document.querySelectorAll<SVGGElement>('g.seat-candidates')].map(g => Number(g.dataset.seat)));
 
@@ -156,13 +170,13 @@ async function setParty(page: Page, name: string, colour: string, symbol: string
 
 async function main() {
   mkdirSync(SHOTS, { recursive: true });
-  for (const f of ['01-home', '02-lobby-admin', '03-party', '04-lobby-ready', '05a-precampaign-painted', '05b-precampaign-panel', '05c-precampaign-phone', '05-campaign-admin', '06-campaign-b-report', '07-campaign-c-seat-report', '07b-campaign-group-chat-tagged', '08-counting', '08b-counting-one-to-one-chat', '08c-counting-chat-phone', '09-offer', '09b-offer-phone', '09a-offer-everyone-blocked', '10-government', '11-result-admin', '12-result-c', '13-play-again-admin']) rmSync(path.join(SHOTS, f + '.png'), { force: true });
+  for (const f of ['01-home', '02-lobby-admin', '03-party', '04-lobby-ready', '05a-precampaign-painted', '05b-precampaign-panel', '05c-precampaign-phone', '05d-precampaign-done', '05-campaign-admin', '06-campaign-b-report', '07-campaign-c-seat-report', '07b-campaign-group-chat-tagged', '08-counting', '08b-counting-one-to-one-chat', '08c-counting-chat-phone', '09-offer', '09b-offer-phone', '09a-offer-everyone-blocked', '10-government', '11-result-admin', '12-result-c', '13-play-again-admin']) rmSync(path.join(SHOTS, f + '.png'), { force: true });
   if (!existsSync(CHROME)) throw new Error('Chrome not found at ' + CHROME + ' (set CHROME_PATH)');
   for (const p of [API_PORT, WEB_PORT]) if (!(await portFree(p))) throw new Error(`port ${p} is already in use; stop that server first`);
 
   log('starting dev server + vite');
   start('server', [path.join(gameDir, 'node_modules/tsx/dist/cli.mjs'), 'src/local/devServer.ts'], path.join(gameDir, 'server'), {
-    HP_PRECAMPAIGN_MS: '45000', HP_CAMPAIGN_MS: '45000', HP_COUNTING_MS: '20000', HP_POST_MS: '15000', HP_START_DELAY_MS: '2000', HP_PORT: String(API_PORT),
+    HP_PRECAMPAIGN_MS: '40000', HP_CAMPAIGN_MS: '45000', HP_COUNTING_MS: '20000', HP_POST_MS: '15000', HP_START_DELAY_MS: '2000', HP_PORT: String(API_PORT),
   });
   start('vite', [path.join(gameDir, 'node_modules/vite/bin/vite.js'), '--port', String(WEB_PORT), '--strictPort'], path.join(gameDir, 'web'), {});
   await waitHttp(`http://localhost:${API_PORT}/games/x`, 60000);
@@ -175,6 +189,12 @@ async function main() {
     const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
     ctxs.push(ctx);
     const page = await ctx.newPage();
+    // fielding smoke is switched off (display.fieldingSmoke=false): count any -/+ smoke element that is ever added to the page
+    await page.addInitScript(() => {
+      (window as unknown as { __smoke: number }).__smoke = 0;
+      const sel = 'g.rep-smoke.seat-spend, g.rep-smoke.seat-refund';
+      new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n instanceof Element && (n.matches(sel) || n.querySelector(sel))) (window as unknown as { __smoke: number }).__smoke++; }).observe(document, { childList: true, subtree: true });
+    });
     page.on('pageerror', e => problems.push(`${name}: uncaught ${e.message}`));
     page.on('console', m => { if (m.type() === 'error' && !/fonts\.g|ERR_|Failed to load resource/.test(m.text())) problems.push(`${name}: console.error ${m.text()}`); });
     return page;
@@ -257,14 +277,21 @@ async function main() {
       await see(p, 'Pre-campaign ends in');
     }
     log('pre-campaign started');
+    // nobody has a candidate yet: "Done fielding" is disabled with a reason, "Field all seats" is on offer, the rows are avatar + name + tick + count
+    for (const [n, p] of [['A', A], ['B', B], ['C', C]] as const) {
+      if (!(await p.locator('.fp-done').isDisabled())) problems.push(`${n}: Done fielding should be disabled while the party has no candidate`);
+      if (!(await p.locator('.fp-done-reason').isVisible())) problems.push(`${n}: a disabled Done fielding should say why (.fp-done-reason)`);
+      if (!(await p.locator('.fp-field-all').isEnabled())) problems.push(`${n}: Field all seats should be enabled with nothing fielded`);
+      await waitDoneCount(p, '0 of 3 done', n);
+      await checkCountRows(p, n, 3);
+    }
 
     // ---- pre-campaign: paint candidates with the real mouse (Asha), then B and C the same way
     const cc = (p: Page) => p.locator('[data-tour="candidate-counts"]');
     if ((await ownCount(A)) !== 0) problems.push('Asha starts with candidates');
-    const smoke = A.waitForSelector('g.rep-smoke.seat-spend', { state: 'attached', timeout: 10000 }).catch(() => problems.push('no red -' + COST.candidate + ' smoke (g.rep-smoke.seat-spend) after painting'));
     const start = await stroke(A, 0.4, 'Asha');
     const nA = await settled(A, 'Asha');
-    await smoke;
+    await noSmoke(A, 'Asha (after painting)');
     if (nA < 2) problems.push(`one stroke fielded only ${nA} candidate(s); the test needs at least 2`);
     if (!(await A.locator('g.seat-candidates .candidate-figure').count())) problems.push('painted seats show no candidate figure');
     if (!(await A.locator('g.seat-candidates .candidate-figure').evaluateAll(els => els.some(e => (e as SVGGElement).getBoundingClientRect().width > 0)))) problems.push('no candidate figure is visible on the world map');
@@ -272,6 +299,7 @@ async function main() {
     await see(B, new RegExp('Lotus Front'));
     await B.waitForFunction(n => [...document.querySelectorAll('[data-tour="candidate-counts"] li')].some(li => /Lotus Front/.test(li.textContent ?? '') && Number(li.querySelector('.cc-count')?.textContent) === n), nA, { timeout: 10000 })
       .catch(() => problems.push(`Ben does not see Lotus Front's ${nA} candidates live`));
+    if ((await A.locator('g.seat-candidates .candidate-figure').count()) !== nA) problems.push(`Asha's map should show exactly her own ${nA} figures, it shows ${await A.locator('g.seat-candidates .candidate-figure').count()}`);
     log(`Asha painted ${nA} candidates`);
     await shot(A, '05a-precampaign-painted');
 
@@ -289,10 +317,9 @@ async function main() {
     await sleep(600);
     if ((await budgetNum(A)) !== bef || (await ownCount(A)) !== nA) problems.push('a click without moving painted a candidate');
     await shot(A, '05b-precampaign-panel');
-    const refund = A.waitForSelector('g.rep-smoke.seat-refund', { state: 'attached', timeout: 10000 }).catch(() => problems.push('no green +' + COST.candidate + ' smoke (g.rep-smoke.seat-refund) after withdrawing'));
     await panel.locator('.fp-withdraw').click();
     await panel.locator('.fp-field').waitFor({ state: 'visible', timeout: 5000 }).catch(() => problems.push('the open panel did not switch to Field after Withdraw'));
-    await refund;
+    await noSmoke(A, 'Asha (after withdrawing)');
     if ((await settled(A, 'Asha after withdraw', 0)) !== nA - 1) problems.push('withdraw did not lower the candidate count by one');
     if (!(await panel.isVisible())) problems.push('the panel closed after Withdraw');
     await panel.locator('.fp-field').click();
@@ -333,8 +360,6 @@ async function main() {
         .catch(() => problems.push('the pre-campaign panel does not show majority = floor(contested / 2) + 1'));
     }
 
-    // seats every party fielded in (figures are hidden in the campaign, so read them now)
-    const shared = await sharedSeats(A, 3);
 
     // phone: no brush, tap a seat, Field works. It is Asha's own session (same token), so her desktop page reloads afterwards.
     {
@@ -367,6 +392,7 @@ async function main() {
           const phPanel = ph.locator('[data-tour="fielding-panel"]');
           await phPanel.waitFor({ state: 'visible', timeout: 5000 }).catch(() => problems.push('phone: tapping a seat did not open the fielding panel'));
           await shot(ph, '05c-precampaign-phone');
+          if (!(await ph.locator('.fp-field-all').isVisible()) || !(await ph.locator('.fp-done').isVisible())) problems.push('phone: Field all seats / Done fielding are not shown');
           const before = await ownCount(ph);
           await phPanel.locator('.fp-field').tap();
           await phPanel.locator('.fp-withdraw').waitFor({ state: 'visible', timeout: 5000 }).catch(() => problems.push('phone: Field in the panel did not fielded a candidate'));
@@ -380,6 +406,88 @@ async function main() {
       await A.waitForFunction(() => document.querySelectorAll('path.seat').length > 400, undefined, { timeout: 60000 });
       await settled(A, 'Asha after the reload', 1);
       log('phone check ok; Asha reloaded back into the pre-campaign');
+    }
+
+    // Field all seats: one click per party puts a candidate in every seat it does not have; the budget follows, only a player's OWN figures are drawn
+    {
+      const total = await C.evaluate(() => document.querySelectorAll('path.seat').length);
+      for (const [n, p, name] of [['Asha', A, 'Lotus Front'], ['Ben', B, 'Blue Anchor'], ['Chitra', C, 'Green Leaf']] as const) {
+        const mineBefore = await ownCount(p);
+        if (!(await p.locator('.fp-field-all').isEnabled())) problems.push(`${n}: Field all seats should be enabled while seats are missing`);
+        await p.locator('.fp-field-all').click();
+        const nP = await settled(p, `${n} (Field all)`, total - 1);
+        if (nP !== total) problems.push(`Field all seats should give ${n} a candidate in all ${total} seats (had ${mineBefore}), ${n} has ${nP}`);
+        if (!(await p.locator('.fp-field-all').isDisabled())) problems.push(`${n}: Field all seats should be disabled once every seat is fielded`);
+        for (const [m, q] of [['Asha', A], ['Ben', B], ['Chitra', C]] as const) {
+          if (q === p) continue;
+          await q.waitForFunction(([nm, c]) => [...document.querySelectorAll('[data-tour="candidate-counts"] li')].some(li => (li.textContent ?? '').includes(nm as string) && Number(li.querySelector('.cc-count')?.textContent) === c), [name, nP] as const, { timeout: 10000 })
+            .catch(() => problems.push(`${m} does not see ${name}'s ${nP} candidates after Field all`));
+        }
+        await noSmoke(p, `${n} (Field all)`);
+      }
+      // each map shows exactly its own player's figures (500 each), never a rival's
+      for (const [n, p] of [['Asha', A], ['Ben', B], ['Chitra', C]] as const) {
+        const figs = await p.locator('g.seat-candidates .candidate-figure').count();
+        if (figs !== total) problems.push(`${n}'s map shows ${figs} figures, expected only ${n}'s own ${total}: a rival's figure is drawn (or one is missing)`);
+        await checkCountRows(p, n, 3);
+      }
+      // Asha takes seat Q back out (the campaign checks need a seat without her candidate)
+      await openSeat(A, Q);
+      await A.locator('[data-tour="fielding-panel"] .fp-withdraw').click();
+      await A.locator('[data-tour="fielding-panel"] .fp-field').waitFor({ state: 'visible', timeout: 5000 });
+      await A.keyboard.press('Escape');
+      await settled(A, 'Asha after taking seat Q out', total - 2);
+      log(`all three fielded all ${total} seats with one click; seat ${Q} left empty again`);
+    }
+    // seats every party fielded in (figures are hidden in the campaign, so read them now; only a player's own figures are drawn)
+    const shared = await sharedSeats([A, B, C]);
+
+    // ---- Done fielding: ticks, "n of m done", revoke, field / withdraw after Done clears it, then the campaign opens at once when everybody is done
+    for (const [n, p] of [['Asha', A], ['Ben', B], ['Chitra', C]] as const) await noSmoke(p, n);
+    {
+      const doneA = A.locator('.fp-done'), tickOfAsha = rowOf(B, 'Lotus Front').locator('.cc-done');
+      await doneA.click();
+      await A.locator('.fp-done', { hasText: 'Not done yet' }).waitFor({ timeout: 10000 }).catch(() => problems.push('Asha: after Done the button should read "Not done yet"'));
+      await tickOfAsha.waitFor({ state: 'visible', timeout: 10000 }).catch(() => problems.push("Ben does not see Asha's tick"));
+      if (!(await rowOf(A, 'Lotus Front').locator('.cc-done').isVisible())) problems.push('Asha does not see her own tick');
+      await waitDoneCount(B, '1 of 3 done', 'Ben'); await waitDoneCount(A, '1 of 3 done', 'Asha');
+      await shot(A, '05d-precampaign-done');
+      // revoke
+      await A.locator('.fp-done', { hasText: 'Not done yet' }).click();
+      await A.locator('.fp-done', { hasText: 'Done fielding' }).waitFor({ timeout: 10000 }).catch(() => problems.push('Asha: revoking Done should bring back "Done fielding"'));
+      await tickOfAsha.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => problems.push("Asha revoked Done but Ben still sees her tick"));
+      await waitDoneCount(B, '0 of 3 done', 'Ben');
+      // fielding after Done clears it, and so does withdrawing
+      const panelA = A.locator('[data-tour="fielding-panel"]');
+      await doneA.click();
+      await tickOfAsha.waitFor({ state: 'visible', timeout: 10000 });
+      await openSeat(A, Q);
+      await panelA.locator('.fp-field').click();
+      await panelA.locator('.fp-withdraw').waitFor({ state: 'visible', timeout: 5000 });
+      await tickOfAsha.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => problems.push('fielding a seat after Done should clear the tick'));
+      if (!/^Done fielding/.test((await doneA.innerText()).trim())) problems.push('fielding after Done should bring back the "Done fielding" button');
+      await doneA.click();
+      await tickOfAsha.waitFor({ state: 'visible', timeout: 10000 });
+      await panelA.locator('.fp-withdraw').click();
+      await panelA.locator('.fp-field').waitFor({ state: 'visible', timeout: 5000 });
+      await tickOfAsha.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => problems.push('withdrawing a seat after Done should clear the tick'));
+      await A.keyboard.press('Escape');
+      await settled(A, 'Asha after the Done checks', 1);
+      log('Done fielding: tick, count, revoke, field-after-Done and withdraw-after-Done checked');
+      // Asha and Ben are done: the campaign must wait for Chitra; then Chitra's Done opens it at once, long before the deadline
+      await doneA.click();
+      await B.locator('.fp-done').click();
+      await waitDoneCount(C, '2 of 3 done', 'Chitra');
+      await sleep(2000);
+      for (const [n, p] of [['Asha', A], ['Ben', B], ['Chitra', C]] as const) if (!(await p.locator('.app.screen-preCampaign').count())) problems.push(`${n}: the campaign opened before everybody was done`);
+      const left = await C.locator('[data-tour="hud-precampaign"] strong').innerText().then(t => { const m = /(\d+):(\d+)/.exec(t); return m ? Number(m[1]) * 60 + Number(m[2]) : -1; });
+      log(`pre-campaign timer shows ${left}s before the last Done`);
+      if (left < 10) problems.push(`only ${left}s of pre-campaign left before the last Done: too late to show an early start (raise HP_PRECAMPAIGN_MS)`);
+      const t = Date.now();
+      await C.locator('.fp-done').click();
+      for (const p of [A, B, C]) await p.locator('.app.screen-campaign').waitFor({ timeout: 8000 }).catch(() => problems.push('the campaign did not open within 8 s of the last Done'));
+      log(`everyone done: the campaign screen opened ${((Date.now() - t) / 1000).toFixed(1)}s after the last Done, with ${left}s of pre-campaign left`);
+      for (const p of [A, B, C]) if (!(await p.getByText(/Campaign (ends|starts) in/).first().isVisible())) problems.push('the HUD timer should show the campaign');
     }
 
     // ---- the campaign opens: only seats with a candidate can be campaigned in
@@ -621,14 +729,27 @@ async function main() {
       if (await budgetNum(p) !== WORLD_CONFIG.budget) problems.push(`${n}: the new game does not start on a full budget (${await budget(p)})`);
       if ((await ownCount(p)) !== 0) problems.push(`${n}: candidates were carried over to the new game`);
     }
+    for (const [n, p] of [['A', A], ['B', B], ['C', C]] as const) {
+      if (!(await p.locator('.fp-done', { hasText: 'Done fielding' }).count()) || (await p.locator('.cc-done').count())) problems.push(`${n}: Done states must be cleared in the new game`);
+      await waitDoneCount(p, '0 of 3 done', n);
+    }
     await shot(A, '13-play-again-admin');
     for (const [n, p] of [['Asha', A], ['Ben', B], ['Chitra', C]] as const) {
       await p.waitForFunction(() => document.querySelectorAll('path.seat').length > 400, undefined, { timeout: 60000 });
       await stroke(p, 0.4, n);
       await settled(p, n + ' (new game)');
     }
-    for (const p of [A, B, C]) await see(p, 'Campaign ends in', 60000);
-    log('play again: everyone fielded again and is in the new campaign');
+    // timer path: only Asha presses Done, so the deadline (not an early start) opens the campaign
+    await A.locator('.fp-done').click();
+    await waitDoneCount(B, '1 of 3 done', 'Ben (new game)');
+    await sleep(2500);
+    for (const [n, p] of [['Asha', A], ['Ben', B], ['Chitra', C]] as const) if (!(await p.locator('.app.screen-preCampaign').count())) problems.push(`${n}: the new game's campaign opened although only one party was done`);
+    const tR = Date.now();
+    const leftR = await A.locator('[data-tour="hud-precampaign"] strong').innerText().then(t => { const m = /(\d+):(\d+)/.exec(t); return m ? Number(m[1]) * 60 + Number(m[2]) : -1; });
+    for (const p of [A, B, C]) await p.locator('.app.screen-campaign').waitFor({ timeout: 90000 });
+    if (leftR > 15 && Date.now() - tR < (leftR - 8) * 1000) problems.push(`the campaign opened ${(Date.now() - tR) / 1000}s after the timer read ${leftR}s although only one party was done: it must wait for the deadline`);
+    log('rematch campaign after ' + (Date.now() - tR) + ' ms (timer read ' + leftR + 's)');
+    log('play again: everyone fielded again, only one pressed Done, and the deadline opened the new campaign');
   } catch (e) {
     for (const [n, p] of [['A', A], ['B', B], ['C', C]] as const) await p.screenshot({ path: path.join(SHOTS, `fail-${n}.png`) }).catch(() => undefined);
     throw e;

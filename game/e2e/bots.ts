@@ -194,6 +194,11 @@ class Bot {
       check(r.type === 'fieldAck', `${this.name}: field batch refused: ${this.err(r)} ${r.type === 'error' ? r.message : ''}`);
     }
   }
+  /** press (done = true) or take back (false) "Done fielding": answered by a fieldingDone about this bot, or an error */
+  async done(done = true): Promise<ServerMessage> {
+    const ref = `${this.idx}-d${++this.refCounter}`;
+    return this.request({ action: 'doneFielding', done, clientRef: ref }, m => m.type === 'fieldingDone' && m.playerId === this.playerId && m.done === done, ref);
+  }
   err(r: ServerMessage): string | undefined { return r.type === 'error' ? r.error : undefined; }
   has(type: ServerMessage['type'], from = 0) { return this.msgs.slice(from).some(m => m.type === type); }
   get newsCount(): number {
@@ -422,6 +427,7 @@ async function reconnectScenario(bot: Bot) {
 
 // ------------------------------------------------------------------ pre-campaign
 const fieldingUpdates = (b: Bot, from = 0) => b.msgs.slice(from).filter((m): m is Extract<ServerMessage, { type: 'fieldingUpdate' }> => m.type === 'fieldingUpdate');
+const doneMsgs = (b: Bot, from = 0) => b.msgs.slice(from).filter((m): m is Extract<ServerMessage, { type: 'fieldingDone' }> => m.type === 'fieldingDone');
 const wrongPhase = (what: string, r: ServerMessage, who: string) => check(bot_err(r) === 'WRONG_PHASE', `${who}: ${what} should be WRONG_PHASE, got ${r.type === 'error' ? r.error : r.type}`);
 
 /**
@@ -450,6 +456,14 @@ async function preCampaignPhase() {
   const unknown = await b0.field('field', [999999]);
   check(bot_err(unknown) === 'BAD_REQUEST', `field on an unknown seat should be BAD_REQUEST, got ${unknown.type === 'error' ? unknown.error : unknown.type}`);
   check(b0.budget === CFG.budget, `${b0.name}: refused fielding must not cost anything (budget ${b0.budget})`);
+  // Done fielding with no candidate is refused (a party with none is eliminated at the deadline) and changes nothing
+  const doneMark = bots.map(b => b.msgs.length);
+  const noCand = await b0.done();
+  check(bot_err(noCand) === 'BAD_REQUEST', `Done fielding with no candidate should be BAD_REQUEST, got ${noCand.type === 'error' ? noCand.error : noCand.type}`);
+  const badDone = await b0.request({ action: 'doneFielding', done: 'yes', clientRef: 'bd1' } as unknown as ClientMessage, m => m.type === 'fieldingDone', 'bd1');
+  check(bot_err(badDone) === 'BAD_REQUEST', `a non-boolean done should be BAD_REQUEST, got ${badDone.type === 'error' ? badDone.error : badDone.type}`);
+  await sleep(200);
+  check(bots.every(b => doneMsgs(b, doneMark[b.idx]).every(m => m.playerId !== b0.playerId || !m.done)), 'a refused Done must not be broadcast as done');
 
   // field one seat: fieldAck to the sender, fieldingUpdate to the others (and not a thing more on a repeat)
   const mark = bots.map(b => b.msgs.length);
@@ -472,7 +486,23 @@ async function preCampaignPhase() {
   await sleep(300);
   for (const b of [b1, b2]) check(fieldingUpdates(b, mark[b.idx]).length === 1, `${b.name}: a no-op field / withdraw must not broadcast (got ${fieldingUpdates(b, mark[b.idx]).length} updates)`);
 
+  // Done fielding: pressed and revoked (everybody hears it with the counts); withdrawing the last candidate clears it again
+  {
+    const m0 = bots.map(b => b.msgs.length);
+    const d = await b0.done();
+    if (check(d.type === 'fieldingDone', `Done fielding with a candidate refused: ${bot_err(d)}`) && d.type === 'fieldingDone') check(d.done && d.doneCount === 1 && d.needed === N, `${b0.name}: Done counts should be 1 of ${N}, got ${d.doneCount} of ${d.needed}`);
+    for (const b of [b1, b2]) {
+      const m = await b.waitFor(x => x.type === 'fieldingDone' && x.playerId === b0.playerId && x.done, { from: m0[b.idx], what: 'fieldingDone broadcast' });
+      if (m.type === 'fieldingDone') check(m.doneCount === 1 && m.needed === N, `${b.name}: fieldingDone should say 1 of ${N}, got ${m.doneCount} of ${m.needed}`);
+    }
+    const rv = await b0.done(false);
+    check(rv.type === 'fieldingDone' && !rv.done && rv.doneCount === 0, `${b0.name}: revoking Done should broadcast done:false with 0 done`);
+    await b1.waitFor(x => x.type === 'fieldingDone' && x.playerId === b0.playerId && !x.done, { from: m0[1], what: 'revoke broadcast' });
+    check((await b0.done()).type === 'fieldingDone', `${b0.name}: Done again after a revoke`);
+  }
+
   // withdraw refunds in full
+  const wdMark = bots.map(b => b.msgs.length);
   const wd = await b0.field('withdraw', [s1]);
   if (check(wd.type === 'fieldAck', `withdraw refused: ${bot_err(wd)}`) && wd.type === 'fieldAck') {
     check(wd.removed.length === 1 && wd.removed[0] === s1 && wd.added.length === 0, `${b0.name}: withdraw fieldAck should name the removed seat`);
@@ -483,6 +513,28 @@ async function preCampaignPhase() {
     if (m.type === 'fieldingUpdate') check(m.contestedSeats === 0 && m.majority === majorityOf(0), `${b.name}: after the withdraw contestedSeats 0 / majority ${majorityOf(0)}, got ${m.contestedSeats} / ${m.majority}`);
   }
 
+  // withdrawing the last candidate cleared b0's Done (done:false to everybody); fielding after Done clears it too
+  for (const b of [b0, b1, b2]) await b.waitFor(m => m.type === 'fieldingDone' && m.playerId === b0.playerId && !m.done && m.doneCount === 0, { from: wdMark[b.idx], what: 'Done cleared by the withdraw' });
+  {
+    await b0.field('field', [s1]);
+    check((await b0.done()).type === 'fieldingDone', 'Done after fielding again');
+    const m0 = b1.msgs.length;
+    await b0.field('field', [free[1]]);
+    await b1.waitFor(m => m.type === 'fieldingDone' && m.playerId === b0.playerId && !m.done, { from: m0, what: 'Done cleared by a new candidate' });
+    await b0.field('withdraw', [free[1]]);
+    check(b0.fielded.has(s1) && b0.budget === CFG.budget - CFG.costs.candidate, `${b0.name}: s1 stays fielded and free[1] is refunded (budget ${b0.budget})`);
+  }
+  // a reconnect during the pre-campaign: the hello is followed by this player's fieldingDone
+  {
+    const had = b2.msgs.length;
+    await b2.serial(async () => { b2.close(); await sleep(1200); await b2.connect(); });
+    const hello = b2.msgs.slice(had).find((m): m is Extract<ServerMessage, { type: 'hello' }> => m.type === 'hello');
+    check(!!hello && Array.isArray(hello.snapshot.fieldingDone), `${b2.name}: the pre-campaign hello carries snapshot.fieldingDone`);
+    check(!!hello && !hello.snapshot.fieldingDone.includes(b2.playerId), `${b2.name}: hello.fieldingDone should not list b2 (not done)`);
+    await b2.waitFor(m => m.type === 'fieldingDone' && m.playerId === b2.playerId && !m.done, { from: had, what: 'fieldingDone after the reconnect hello' });
+    const helloAt = b2.msgs.findIndex((m, i) => i >= had && m.type === 'hello'), doneAt = b2.msgs.findIndex((m, i) => i >= had && m.type === 'fieldingDone' && m.playerId === b2.playerId);
+    check(doneAt > helloAt, `${b2.name}: fieldingDone should follow the hello`);
+  }
   // the pre-campaign chat is one-to-one
   const text = 'pre-campaign chat ' + SEED, c0 = bots.map(b => b.msgs.length);
   const c = await b0.request({ action: 'chat', to: [b1.playerId], text }, m => m.type === 'chat' && m.message.text === text);
@@ -503,6 +555,47 @@ async function preCampaignPhase() {
     check(fieldingUpdates(b).every(m => m.contestedSeats <= CONTESTED), `${b.name}: contestedSeats above ${CONTESTED} (a vacant seat counted)`);
   }
   log('pre-campaign: everyone fielded');
+  await earlyStart();
+}
+
+/**
+ * Scenario 1: everybody has fielded; all but the last press Done (the campaign must NOT open: someone is still fielding), one revokes
+ * and presses again, then the last presses Done and the campaign opens at once: 'status campaign' arrives within seconds with a timeline
+ * moved earlier as a whole (the campaign keeps its length), budgets and fielding untouched.
+ */
+async function earlyStart() {
+  const old = timeline, last = bots[N - 1];
+  const mark = bots.map(b => b.msgs.length);
+  for (const b of bots.slice(0, N - 1)) {
+    const d = await b.done();
+    check(d.type === 'fieldingDone', `${b.name}: Done refused: ${bot_err(d)}`);
+  }
+  const rv = await bots[1].done(false);
+  check(rv.type === 'fieldingDone' && rv.doneCount === N - 2 && rv.needed === N, `${bots[1].name}: after a revoke ${N - 2} of ${N} should be done, got ${rv.type === 'fieldingDone' ? rv.doneCount + ' of ' + rv.needed : bot_err(rv)}`);
+  check((await bots[1].done()).type === 'fieldingDone', `${bots[1].name}: Done again`);
+  await sleep(1500);
+  for (const b of bots) check(!b.msgs.slice(mark[b.idx]).some(m => m.type === 'status'), `${b.name}: the campaign must not open while ${last.name} is not done`);
+  const tDone = Date.now();
+  check(old.preCampaignEnd! - tDone > 5000, `too little pre-campaign left (${old.preCampaignEnd! - tDone} ms) to show an early start; raise HP_PRECAMPAIGN_MS`);
+  const d = await last.done();
+  check(d.type === 'fieldingDone' && d.doneCount === N && d.needed === N, `${last.name}: the last Done should make ${N} of ${N}`);
+  for (const b of bots) {
+    const st = await b.waitFor(m => m.type === 'status' && m.status === 'campaign', { from: mark[b.idx], ms: 8000, what: 'early campaign status' });
+    const tl = st.type === 'status' ? st.timeline : null;
+    if (!check(!!tl, `${b.name}: the early campaign status carries a timeline`) || !tl) continue;
+    check(Date.now() - tDone < 6000, `${b.name}: the campaign should open within seconds of the last Done`);
+    const shift = old.campaignStart - tl.campaignStart;
+    check(shift > 4000, `${b.name}: the campaign should start well before the old time (shifted only ${shift} ms)`);
+    check(tl.preCampaignEnd! < old.preCampaignEnd! - 4000 && tl.preCampaignEnd! <= Date.now(), `${b.name}: preCampaignEnd should move to now`);
+    check(old.campaignEnd - tl.campaignEnd === shift && old.countingEnd - tl.countingEnd === shift && old.postCountingEnd - tl.postCountingEnd === shift, `${b.name}: campaign end / counting / post-counting must move by the same ${shift} ms`);
+    check(tl.phaseCloses.length === old.phaseCloses.length && tl.phaseCloses.every((t, i) => old.phaseCloses[i] - t === shift), `${b.name}: every phase close must move by the same ${shift} ms`);
+    check(tl.campaignEnd - tl.campaignStart === old.campaignEnd - old.campaignStart, `${b.name}: the campaign keeps its length`);
+    if (b === bots[0]) timeline = tl;
+  }
+  check(timeline.campaignStart < old.campaignStart, 'the bots must continue on the new, earlier timeline');
+  // Done belongs to the pre-campaign: a Done now is WRONG_PHASE
+  wrongPhase('Done fielding in the campaign', await bots[0].request({ action: 'doneFielding', clientRef: 'late1' }, m => m.type === 'fieldingDone', 'late1'), bots[0].name);
+  log(`pre-campaign: everyone done, the campaign opened ${((old.campaignStart - timeline.campaignStart) / 1000).toFixed(0)}s early`);
 }
 
 /** 2 players: no pre-campaign; every seat is fielded and charged for them, announced with fieldingUpdates. */
@@ -605,6 +698,7 @@ async function main() {
     log('campaign opened with the fielding fixed');
   } else {
     await twoPlayerFielding();
+    wrongPhase('Done fielding in a 2-player game', await bots[0].request({ action: 'doneFielding', clientRef: 'late2' }, m => m.type === 'fieldingDone', 'late2'), bots[0].name);
   }
   check((await api('POST', '/games/join', { joinCode, nickname: 'TooLate' })).status === 409, 'joining after start should be refused (409)');
   const lateLobby = await api('GET', '/games/' + gameId, undefined, bots[0].token);
@@ -922,9 +1016,21 @@ async function eliminationScenario() {
   const w2 = await e2.field('withdraw', [a]);
   check(w2.type === 'fieldAck' && w2.budget === CFG.budget && e2.fielded.size === 0, 'elimination game: Elim2 withdrew it for a full refund');
 
+  // Scenario 2: only some press Done. Elim2 (connected, no candidate) can not, so the early start never fires and the deadline ends the phase
+  const noC = await e2.done();
+  check(bot_err(noC) === 'BAD_REQUEST', `elimination game: Done with no candidate should be BAD_REQUEST, got ${noC.type === 'error' ? noC.error : noC.type}`);
+  const dm = es.map(x => x.msgs.length);
+  check((await e0.done()).type === 'fieldingDone' && (await e1.done()).type === 'fieldingDone', 'elimination game: Elim0 and Elim1 press Done');
+  const lastDone = await e2.waitFor(m => m.type === 'fieldingDone' && m.doneCount === 2, { from: dm[2], what: 'fieldingDone 2 of 3' });
+  check(lastDone.type === 'fieldingDone' && lastDone.needed === 3, 'elimination game: 2 of 3 done');
+
   // the deadline: Elim2 has no candidate and is eliminated, but its socket stays open and the game goes on
   const from = es.map(x => x.msgs.length);
-  for (const x of es) await x.waitFor(m => m.type === 'status' && m.status === 'campaign', { from: from[x.idx], ms: tl.preCampaignEnd! - Date.now() + 15000, what: 'elimination game campaign status' });
+  for (const x of es) {
+    const st = await x.waitFor(m => m.type === 'status' && m.status === 'campaign', { from: dm[x.idx], ms: tl.preCampaignEnd! - Date.now() + 15000, what: 'elimination game campaign status' });
+    check(Date.now() >= tl.preCampaignEnd! - 300, `${x.name}: with a party not done the campaign must wait for the deadline (opened ${tl.preCampaignEnd! - Date.now()} ms early)`);
+    check(st.type === 'status' && st.timeline?.campaignStart === tl.campaignStart, `${x.name}: the timeline must stay unchanged when the deadline ends the phase`);
+  }
   for (const x of [e0, e1]) {
     await x.waitFor(m => m.type === 'players' && m.players.some(p => p.playerId === e2.playerId && p.status === 'eliminated'), { from: from[x.idx], what: 'Elim2 eliminated broadcast' });
     const last = fieldingUpdates(x, from[x.idx]).pop();

@@ -23,7 +23,7 @@ export interface ApiStackProps extends StackProps {
   webOrigin: string;
 }
 
-const WS_ACTIONS = ['ping', 'field', 'withdraw', 'campaign', 'buyReport', 'peekSeat', 'chat', 'proposeGovernment', 'respondOffer', 'withdrawOffer'];
+const WS_ACTIONS = ['ping', 'field', 'withdraw', 'doneFielding', 'campaign', 'buyReport', 'peekSeat', 'chat', 'proposeGovernment', 'respondOffer', 'withdrawOffer'];
 
 const HTTP_ROUTES: [apigw.HttpMethod, string][] = [
   [apigw.HttpMethod.POST, '/games'],
@@ -126,6 +126,12 @@ export class ApiStack extends Stack {
         resources: [this.formatArn({ service: 'execute-api', resource: this.wsApi.apiId, resourceName: 'live/*/@connections/*', arnFormat: ArnFormat.SLASH_RESOURCE_NAME })],
       }));
       fn.addToRolePolicy(new iam.PolicyStatement({ actions: ['states:StartExecution'], resources: [stateMachineArn] }));
+      // an early end of the pre-campaign (everybody pressed Done fielding) restarts the lifecycle: stop the old execution (IAM checks
+      // StopExecution against the execution ARN, arn:...:execution:<state machine name>:<execution name>)
+      fn.addToRolePolicy(new iam.PolicyStatement({
+        actions: ['states:StopExecution'],
+        resources: [this.formatArn({ service: 'states', resource: 'execution', resourceName: `${stateMachineName}:*`, arnFormat: ArnFormat.COLON_RESOURCE_NAME })],
+      }));
       fn.addToRolePolicy(new iam.PolicyStatement({
         actions: ['scheduler:CreateSchedule', 'scheduler:DeleteSchedule', 'scheduler:GetSchedule'],
         resources: [this.formatArn({ service: 'scheduler', resource: 'schedule', resourceName: `${scheduleGroupName}/*`, arnFormat: ArnFormat.SLASH_RESOURCE_NAME })],

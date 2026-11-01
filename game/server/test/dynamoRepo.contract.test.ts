@@ -300,6 +300,84 @@ describe.each(impls)('Repo contract: %s', (_name, make) => {
       expect(res.filter((r) => r.result === 'ok' && r.added.length === 2)).toHaveLength(1);
       expect((await h.repo.getPlayer('g1', 'p0'))?.budget).toBe(900);
     });
+
+    it('a change clears the player\'s Done in the same write and says so; a batch with nothing to do keeps it', async () => {
+      const h = await seeded(make());
+      await open(h.repo);
+      await fieldIt(h.repo, [1]);
+      expect(await h.repo.setFieldingDone('g1', 'p0', true)).toBe('ok');
+      expect(await fieldIt(h.repo, [1])).toEqual({ result: 'ok', added: [], removed: [], budget: 950 });
+      expect((await h.repo.getPlayer('g1', 'p0'))?.doneFielding).toBe(true);
+      expect(await fieldIt(h.repo, [2])).toEqual({ result: 'ok', added: [2], removed: [], budget: 900, clearedDone: true });
+      expect((await h.repo.getPlayer('g1', 'p0'))?.doneFielding).toBeUndefined();
+      expect(await withdrawIt(h.repo, [2])).toEqual({ result: 'ok', added: [], removed: [2], budget: 950 });
+    });
+  });
+
+  describe('setFieldingDone (pre-campaign)', () => {
+    const open = (repo: Repo) => repo.updateGame('g1', { status: 'preCampaign' });
+
+    it('a player with a candidate can be marked done and back; the flag is stored only while done', async () => {
+      const h = await seeded(make(), 2, { fielded: [1] });
+      await open(h.repo);
+      expect(await h.repo.setFieldingDone('g1', 'p0', true)).toBe('ok');
+      expect((await h.repo.getPlayer('g1', 'p0'))?.doneFielding).toBe(true);
+      expect((await h.repo.getPlayer('g1', 'p1'))?.doneFielding).toBeUndefined();
+      expect(await h.repo.setFieldingDone('g1', 'p0', true)).toBe('ok');
+      expect(await h.repo.setFieldingDone('g1', 'p0', false)).toBe('ok');
+      expect((await h.repo.getPlayer('g1', 'p0'))?.doneFielding).toBeUndefined();
+    });
+
+    it("a player with no candidate cannot be marked done ('no_candidates'), but can always be marked not done", async () => {
+      const h = await seeded(make(), 2);
+      await h.repo.updatePlayer('g1', 'p1', { fielded: [] });
+      await open(h.repo);
+      expect(await h.repo.setFieldingDone('g1', 'p0', true)).toBe('no_candidates');
+      expect(await h.repo.setFieldingDone('g1', 'p1', true)).toBe('no_candidates');
+      expect((await h.repo.getPlayer('g1', 'p0'))?.doneFielding).toBeUndefined();
+      expect(await h.repo.setFieldingDone('g1', 'p0', false)).toBe('ok');
+    });
+
+    it.each(['lobby', 'campaign', 'counting', 'finished'] as const)("status %s refuses with 'wrong_phase'", async (status) => {
+      const h = await seeded(make(), 1, { fielded: [1] });
+      await h.repo.updateGame('g1', { status });
+      expect(await h.repo.setFieldingDone('g1', 'p0', true)).toBe('wrong_phase');
+      expect((await h.repo.getPlayer('g1', 'p0'))?.doneFielding).toBeUndefined();
+    });
+
+    it.each(['disconnected', 'eliminated', 'pending'] as const)("a %s player is refused with 'inactive'", async (status) => {
+      const h = await seeded(make(), 1, { fielded: [1], status });
+      await open(h.repo);
+      expect(await h.repo.setFieldingDone('g1', 'p0', true)).toBe('inactive');
+      expect(await h.repo.setFieldingDone('g1', 'p0', false)).toBe('inactive');
+    });
+  });
+
+  describe('rescheduleTimeline (an early end of the pre-campaign)', () => {
+    const TL = { preCampaignEnd: NOW + 20_000, campaignStart: NOW + 25_000, phaseCloses: [NOW + 55_000, NOW + 85_000], campaignEnd: NOW + 85_000, countingEnd: NOW + 115_000, postCountingEnd: NOW + 125_000 };
+    const shifted = { preCampaignEnd: NOW + 5_000, campaignStart: NOW + 10_000, phaseCloses: [NOW + 40_000, NOW + 70_000], campaignEnd: NOW + 70_000, countingEnd: NOW + 100_000, postCountingEnd: NOW + 110_000 };
+
+    it('writes the new timeline while the game is in the pre-campaign with the expected pre-campaign end, and only once', async () => {
+      const h = await seeded(make());
+      await h.repo.updateGame('g1', { status: 'preCampaign', timeline: TL });
+      expect(await h.repo.rescheduleTimeline('g1', shifted, TL.preCampaignEnd)).toBe(true);
+      expect((await h.repo.getGame('g1'))?.timeline).toEqual(shifted);
+      // a second early start computed from the old timeline loses
+      expect(await h.repo.rescheduleTimeline('g1', { ...shifted, preCampaignEnd: NOW + 6_000 }, TL.preCampaignEnd)).toBe(false);
+      expect((await h.repo.getGame('g1'))?.timeline).toEqual(shifted);
+    });
+
+    it.each(['lobby', 'campaign', 'counting', 'finished'] as const)('refuses in the %s', async (status) => {
+      const h = await seeded(make());
+      await h.repo.updateGame('g1', { status, timeline: TL });
+      expect(await h.repo.rescheduleTimeline('g1', shifted, TL.preCampaignEnd)).toBe(false);
+      expect((await h.repo.getGame('g1'))?.timeline).toEqual(TL);
+    });
+
+    it('refuses for an unknown game', async () => {
+      const h = await seeded(make());
+      expect(await h.repo.rescheduleTimeline('nope', shifted, TL.preCampaignEnd)).toBe(false);
+    });
   });
 
   it('addAction: concurrent double-spend of the last funds -> exactly one succeeds', async () => {
@@ -580,6 +658,30 @@ describe('DynamoRepo specifics (against FakeDdb)', () => {
       };
       expect(await h.repo.updateFielding('g1', 'p0', change)).toEqual({ result: 'wrong_phase' });
       expect((await h.repo.getPlayer('g1', 'p0'))?.budget).toBe(1000);
+    });
+
+    it('Done pressed between the read and the write of a fielding change is still cleared, and the change says so', async () => {
+      const h = mk();
+      await h.repo.createGame(game('g1', { status: 'preCampaign' }), player('p0', { fielded: [1] }));
+      const orig = h.ddb.send.bind(h.ddb);
+      let once = true;
+      h.ddb.send = async (cmd: unknown) => {
+        if (once && isTransact(cmd)) { once = false; await h.repo.setFieldingDone('g1', 'p0', true); }
+        return orig(cmd);
+      };
+      expect(await h.repo.updateFielding('g1', 'p0', { ...change, seats: [2] })).toEqual({ result: 'ok', added: [2], removed: [], budget: 950, clearedDone: true });
+      expect((await h.repo.getPlayer('g1', 'p0'))?.doneFielding).toBeUndefined();
+    });
+
+    it("setFieldingDone retries a TransactionConflict and maps a changed status to 'wrong_phase'", async () => {
+      let left = 0;
+      const h = mk({ beforeSend: (cmd) => { if (isTransact(cmd) && left-- > 0) throw conflict(); } });
+      await h.repo.createGame(game('g1', { status: 'preCampaign' }), player('p0', { fielded: [1] }));
+      left = 2;
+      expect(await h.repo.setFieldingDone('g1', 'p0', true)).toBe('ok');
+      expect((await h.repo.getPlayer('g1', 'p0'))?.doneFielding).toBe(true);
+      await h.repo.updateGame('g1', { status: 'campaign' });
+      expect(await h.repo.setFieldingDone('g1', 'p0', false)).toBe('wrong_phase');
     });
 
     it('addAction still requires the campaign status: nothing can be spent on actions during the pre-campaign', async () => {

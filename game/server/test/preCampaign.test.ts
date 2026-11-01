@@ -648,19 +648,22 @@ describe('hello and the snapshot', () => {
     expect(acks(c, 0)[0].added).toEqual([{ seat: 1 }]);
   });
 
-  it('a hello too big for one WebSocket message leaves the fielding out and sends it right after as one fieldingUpdate per party', async () => {
+  it('a hello too big for one WebSocket message leaves the fielding out and sends it right after as one fieldingUpdate per party; the done list and counts stay', async () => {
     const seats = 300;
     const c = new Ctx({ map: lineMap(seats), candidates: Array.from({ length: seats }, () => Array.from({ length: 10 }, (_, k) => `A rather long candidate name ${k}`)) });
     await c.inPreCampaign(8);
     const all = allSeats(c);
     for (let i = 0; i < 8; i++) await c.send(i, field(all));
+    await c.send(5, { action: 'doneFielding' });
     const msgs = await c.svc.helloMessages(await record(c, 3));
     expect(msgs[0].type).toBe('hello');
     expect(JSON.stringify(msgs[0]).length).toBeLessThan(100_000);
     const h = msgs[0] as Of<'hello'>;
     expect(h.snapshot.fielding).toEqual({});
     expect(h.snapshot.contestedSeats).toBe(seats);
-    const rest = msgs.slice(1) as Of<'fieldingUpdate'>[];
+    expect(h.snapshot.fieldingDone).toEqual([c.p[5].playerId]);
+    expect(msgs.at(-1)).toEqual({ type: 'fieldingDone', playerId: c.p[3].playerId, done: false, doneCount: 1, needed: 8 });
+    const rest = msgs.slice(1, -1) as Of<'fieldingUpdate'>[];
     expect(rest.map((m) => m.type)).toEqual(Array(8).fill('fieldingUpdate'));
     expect(rest.map((m) => m.playerId).sort()).toEqual(c.p.map((p) => p.playerId).sort());
     for (const m of rest) {
@@ -672,6 +675,6 @@ describe('hello and the snapshot', () => {
     await c.svc.connect(c.gameId, c.p[3].token, 'fresh');
     c.notifier.clear();
     await c.svc.handleMessage('fresh', { action: 'ping', clientTime: 1 });
-    expect(c.notifier.to(c.p[3].playerId).map((m) => m.type)).toEqual(['hello', ...Array(8).fill('fieldingUpdate'), 'pong']);
+    expect(c.notifier.to(c.p[3].playerId).map((m) => m.type)).toEqual(['hello', ...Array(8).fill('fieldingUpdate'), 'fieldingDone', 'pong']);
   });
 });
